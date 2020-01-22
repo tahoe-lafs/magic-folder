@@ -7,6 +7,24 @@ from __future__ import print_function
 import six
 import os, sys
 
+from ctypes import (
+    WINFUNCTYPE,
+    WinError,
+    windll,
+    POINTER,
+    byref,
+    create_string_buffer,
+    addressof,
+    get_last_error,
+)
+from ctypes.wintypes import (
+    BOOL,
+    HANDLE,
+    DWORD,
+    LPCWSTR,
+    LPVOID,
+)
+
 from eliot import (
     start_action,
     Message,
@@ -16,7 +34,16 @@ from eliot import (
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThread
 
-from allmydata.util.fake_inotify import humanReadableMask, \
+from allmydata.util.assertutil import _assert, precondition
+from allmydata.util.encodingutil import quote_output
+from allmydata.util import log, fileutil
+from allmydata.util.pollmixin import PollMixin
+from allmydata.util.eliotutil import (
+    MAYBE_NOTIFY,
+    CALLBACK,
+)
+
+from ..util.fake_inotify import humanReadableMask, \
     IN_WATCH_MASK, IN_ACCESS, IN_MODIFY, IN_ATTRIB, IN_CLOSE_NOWRITE, IN_CLOSE_WRITE, \
     IN_OPEN, IN_MOVED_FROM, IN_MOVED_TO, IN_CREATE, IN_DELETE, IN_DELETE_SELF, \
     IN_MOVE_SELF, IN_UNMOUNT, IN_Q_OVERFLOW, IN_IGNORED, IN_ONLYDIR, IN_DONT_FOLLOW, \
@@ -26,19 +53,6 @@ from allmydata.util.fake_inotify import humanReadableMask, \
     IN_OPEN, IN_MOVED_FROM, IN_MOVED_TO, IN_CREATE, IN_DELETE, IN_DELETE_SELF, \
     IN_MOVE_SELF, IN_UNMOUNT, IN_Q_OVERFLOW, IN_IGNORED, IN_ONLYDIR, IN_DONT_FOLLOW, \
     IN_MASK_ADD, IN_ISDIR, IN_ONESHOT, IN_CLOSE, IN_MOVED, IN_CHANGED]
-
-from allmydata.util.assertutil import _assert, precondition
-from allmydata.util.encodingutil import quote_output
-from allmydata.util import log, fileutil
-from allmydata.util.pollmixin import PollMixin
-from ..util.eliotutil import (
-    MAYBE_NOTIFY,
-    CALLBACK,
-)
-
-from ctypes import WINFUNCTYPE, WinError, windll, POINTER, byref, create_string_buffer, \
-    addressof, get_last_error
-from ctypes.wintypes import BOOL, HANDLE, DWORD, LPCWSTR, LPVOID
 
 if six.PY3:
     long = int
