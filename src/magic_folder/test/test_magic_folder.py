@@ -1815,11 +1815,17 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         )
 
         # There's probably already a default magicfolder on the client in our way...
-        client_node.getServiceNamed("magic-folder-default").disownServiceParent()
-
+        existing = client_node.getServiceNamed("magic-folder-default")
+        # It's in some quasi-comprehensible intermediate state and can't
+        # actually stop without some help from us.
+        from twisted.internet.task import LoopingCall
+        for o in [existing.downloader, existing.uploader]:
+            o._processing = defer.succeed(None)
+            o._processing_loop = LoopingCall(None)
+            o._processing_loop.start(0, now=False)
+        existing.disownServiceParent()
         self.magicfolder.setServiceParent(client_node)
 
-        print("Got magic folder: {}".format(self.magicfolder))
         self.fileops = FileOperationsHelper(self.magicfolder.uploader, self.inject_inotify)
         self.up_clock = task.Clock()
         self.down_clock = task.Clock()
