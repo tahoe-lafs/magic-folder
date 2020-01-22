@@ -5,22 +5,39 @@ import urllib
 from types import NoneType
 from six.moves import cStringIO as StringIO
 from datetime import datetime
+from ConfigParser import SafeConfigParser
 import json
-
 
 from twisted.python import usage
 
 from allmydata.util.assertutil import precondition
 
-from .common import BaseOptions, BasedirOptions, get_aliases
-from .cli import MakeDirectoryOptions, LnOptions, CreateAliasOptions
-import tahoe_mv
-from allmydata.util.encodingutil import argv_to_abspath, argv_to_unicode, to_str, \
-    quote_local_unicode_path
+from allmydata.scripts import (
+    tahoe_mv,
+    tahoe_mkdir,
+    tahoe_add_alias,
+)
+from allmydata.util.encodingutil import (
+    argv_to_abspath,
+    argv_to_unicode,
+    to_str,
+    quote_local_unicode_path,
+)
 from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
 from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
+
+from allmydata.scripts.common import (
+    BaseOptions,
+    BasedirOptions,
+    get_aliases,
+)
+from allmydata.scripts.cli import (
+    MakeDirectoryOptions,
+    LnOptions,
+    CreateAliasOptions,
+)
 
 from ..frontends.magic_folder import (
     load_magic_folders,
@@ -92,7 +109,6 @@ def create(options):
 
     # create an alias; this basically just remembers the cap for the
     # master directory
-    from allmydata.scripts import tahoe_add_alias
     create_alias_options = _delegate_options(options, CreateAliasOptions())
     create_alias_options.alias = options.alias
 
@@ -209,7 +225,6 @@ def invite(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
 
-    from allmydata.scripts import tahoe_mkdir
     mkdir_options = _delegate_options(options, MakeDirectoryOptions())
     mkdir_options.where = None
 
@@ -307,8 +322,6 @@ class LeaveOptions(BasedirOptions):
 
 
 def leave(options):
-    from ConfigParser import SafeConfigParser
-
     existing_folders = load_magic_folders(options["node-directory"])
 
     if not existing_folders:
@@ -546,6 +559,22 @@ def status(options):
 
     return 0
 
+
+NODEDIR_HELP = (
+    "Specify which Tahoe node directory should be used. The "
+    "directory should contain a full Tahoe node."
+)
+
+
+class BaseOptions(usage.Options):
+    optFlags = [
+        ["quiet", "q", "Operate silently."],
+        ["version", "V", "Display version numbers."],
+        ["version-and-path", None, "Display version numbers and paths to their locations."],
+    ]
+    optParameters = [
+        ["node-directory", "d", None, NODEDIR_HELP],
+    ]
 
 class MagicFolderCommand(BaseOptions):
     subCommands = [
