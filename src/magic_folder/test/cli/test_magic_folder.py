@@ -35,6 +35,9 @@ from ...frontends.magic_folder import MagicFolder
 
 from ..no_network import GridTestMixin
 from ..common_util import parse_cli
+from ..common import (
+    AsyncTestCase,
+)
 
 from .common import CLITestMixin
 
@@ -54,14 +57,12 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0, stdout + stderr)
+            self.assertEqual(rc, 0, stdout + stderr)
             self.assertIn("Alias 'magic' created", stdout)
-#            self.failUnlessIn("joined new magic-folder", stdout)
-#            self.failUnlessIn("Successfully created magic-folder", stdout)
-            self.failUnlessEqual(stderr, "")
+            self.assertEqual(stderr, "")
             aliases = get_aliases(self.get_clientdir(i=client_num))
             self.assertIn("magic", aliases)
-            self.failUnless(aliases["magic"].startswith("URI:DIR2:"))
+            self.assertTrue(aliases["magic"].startswith("URI:DIR2:"))
         d.addCallback(_done)
         return d.addActionFinish()
 
@@ -84,7 +85,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         return d.addActionFinish()
@@ -133,9 +134,9 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
-            self.failUnlessEqual(stdout, "")
-            self.failUnlessEqual(stderr, "")
+            self.assertEqual(rc, 0)
+            self.assertEqual(stdout, "")
+            self.assertEqual(stderr, "")
             return (rc, stdout, stderr)
         d.addCallback(_done)
         return d.addActionFinish()
@@ -144,7 +145,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         d = self.do_cli("magic-folder", "leave", client_num=client_num)
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         return d
@@ -165,14 +166,14 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         def test_joined_magic_folder(args):
             (rc, stdout, stderr) = args
             readonly_cap = unicode(uri.from_string(upload_dircap).get_readonly().to_string(), 'utf-8')
             s = re.search(readonly_cap, stdout)
-            self.failUnless(s is not None)
+            self.assertTrue(s is not None)
             return None
         d.addCallback(test_joined_magic_folder)
         return d.addActionFinish()
@@ -199,7 +200,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         d = self.do_cli("magic-folder", "--debug", "create", "magic:", nickname_arg, local_dir_arg)
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0, stdout + stderr)
+            self.assertEqual(rc, 0, stdout + stderr)
 
             client = self.get_client()
             self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
@@ -290,7 +291,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d
 
 
-class ListMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
+class ListMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
 
     @defer.inlineCallbacks
     def setUp(self):
@@ -314,20 +315,20 @@ class ListMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
     @defer.inlineCallbacks
     def test_list(self):
         rc, stdout, stderr = yield self.do_list(0)
-        self.failUnlessEqual(rc, 0)
+        self.assertEqual(rc, 0)
         self.assertIn("default:", stdout)
 
     @defer.inlineCallbacks
     def test_list_none(self):
         yield self.do_leave(0)
         rc, stdout, stderr = yield self.do_list(0)
-        self.failUnlessEqual(rc, 0)
+        self.assertEqual(rc, 0)
         self.assertIn("No magic-folders", stdout)
 
     @defer.inlineCallbacks
     def test_list_json(self):
         rc, stdout, stderr = yield self.do_list(0, json=True)
-        self.failUnlessEqual(rc, 0)
+        self.assertEqual(rc, 0)
         res = json.loads(stdout)
         self.assertEqual(
             dict(default=dict(directory=self.abs_local_dir_u)),
@@ -335,7 +336,7 @@ class ListMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         )
 
 
-class StatusMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
+class StatusMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
 
     @defer.inlineCallbacks
     def setUp(self):
@@ -397,7 +398,7 @@ class StatusMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         with jc, jf:
             rc, stdout, stderr = yield self.do_status(0)
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             self.assertIn("default", stdout)
 
         self.assertIn(
@@ -446,7 +447,7 @@ class StatusMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         with jc, jf:
             rc, stdout, stderr = yield self.do_status(0)
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
 
         self.assertIn(
             "expected a dirnode",
@@ -477,7 +478,7 @@ class StatusMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         with jc, jf:
             rc, stdout, stderr = yield self.do_status(0)
-            self.failUnlessEqual(rc, 2)
+            self.assertEqual(rc, 2)
         self.assertIn(
             "magic_folder_dircap isn't a directory capability",
             stdout + stderr,
@@ -489,7 +490,7 @@ class StatusMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         self.assertIn("No such magic-folder 'blam'", stderr)
 
 
-class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
+class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
     def test_create_and_then_invite_join(self):
         self.basedir = "cli/MagicFolder/create-and-then-invite-join"
         self.set_up_grid(oneshare=True)
@@ -518,8 +519,8 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d = self.do_cli("magic-folder", "create", "m a g i c:", client_num=0)
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failIfEqual(rc, 0)
-            self.failUnlessIn("Alias names cannot contain spaces.", stderr)
+            self.assertNotEqual(rc, 0)
+            self.assertIn("Alias names cannot contain spaces.", stderr)
         d.addCallback(_done)
         return d
 
@@ -620,7 +621,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d = self.do_cli("magic-folder", "create", "magic:", "Alice", local_dir)
         def _done(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
         d.addCallback(_done)
         d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
@@ -645,7 +646,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         try:
             o.parseArgs("magic:", "Alice", "-foo")
         except usage.UsageError as e:
-            self.failUnlessIn("cannot start with '-'", str(e))
+            self.assertIn("cannot start with '-'", str(e))
         else:
             self.fail("expected UsageError")
 
@@ -659,7 +660,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         try:
             o.parseArgs("URI:invite+URI:code", "-foo")
         except usage.UsageError as e:
-            self.failUnlessIn("cannot start with '-'", str(e))
+            self.assertIn("cannot start with '-'", str(e))
         else:
             self.fail("expected UsageError")
 
@@ -687,8 +688,8 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d.addCallback(join_again)
         def get_results(result):
             (rc, out, err) = result
-            self.failUnlessEqual(out, "")
-            self.failUnlessIn("This client already has a magic-folder", err)
+            self.assertEqual(out, "")
+            self.assertIn("This client already has a magic-folder", err)
             self.failIfEqual(rc, 0)
         d.addCallback(get_results)
         return d
@@ -705,7 +706,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             self.invite_code = stdout.strip()
             return self.do_join(0, unicode(local_dir), self.invite_code)
         d.addCallback(get_invite_code_and_join)
@@ -738,7 +739,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
         d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code_and_join(args):
             (rc, stdout, stderr) = args
-            self.failUnlessEqual(rc, 0)
+            self.assertEqual(rc, 0)
             self.invite_code = stdout.strip()
             return self.do_join(0, unicode(local_dir), self.invite_code)
         d.addCallback(get_invite_code_and_join)
@@ -750,7 +751,7 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         def check_success(result):
             (rc, out, err) = result
-            self.failUnlessEqual(rc, 0, out + err)
+            self.assertEqual(rc, 0, out + err)
         def check_failure(result):
             (rc, out, err) = result
             self.failIfEqual(rc, 0)
@@ -776,42 +777,39 @@ class CreateMagicFolder(MagicFolderCLITestMixin, unittest.TestCase):
 
         return d
 
-class CreateErrors(unittest.TestCase):
+class CreateErrors(AsyncTestCase):
     def test_poll_interval(self):
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "create", "--poll-interval=frog",
-                              "alias:")
-        self.assertEqual(str(e), "--poll-interval must be a positive integer")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("create", "--poll-interval=frog", "alias:")
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "create", "--poll-interval=-4",
-                              "alias:")
-        self.assertEqual(str(e), "--poll-interval must be a positive integer")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("create", "--poll-interval=-4", "alias:")
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
     def test_alias(self):
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "create", "no-colon")
-        self.assertEqual(str(e), "An alias must end with a ':' character.")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("create", "no-colon")
+        self.assertEqual(str(ctx.exception), "An alias must end with a ':' character.")
 
     def test_nickname(self):
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "create", "alias:", "nickname")
-        self.assertEqual(str(e), "If NICKNAME is specified then LOCAL_DIR must also be specified.")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("create", "alias:", "nickname")
+        self.assertEqual(str(ctx.exception), "If NICKNAME is specified then LOCAL_DIR must also be specified.")
 
-class InviteErrors(unittest.TestCase):
+
+class InviteErrors(AsyncTestCase):
     def test_alias(self):
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "invite", "no-colon")
-        self.assertEqual(str(e), "An alias must end with a ':' character.")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("invite", "no-colon")
+        self.assertEqual(str(ctx.exception), "An alias must end with a ':' character.")
 
-class JoinErrors(unittest.TestCase):
+class JoinErrors(AsyncTestCase):
     def test_poll_interval(self):
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "join", "--poll-interval=frog",
-                              "code", "localdir")
-        self.assertEqual(str(e), "--poll-interval must be a positive integer")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("join", "--poll-interval=frog", "code", "localdir")
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
-        e = self.assertRaises(usage.UsageError, parse_cli,
-                              "magic-folder", "join", "--poll-interval=-2",
-                              "code", "localdir")
-        self.assertEqual(str(e), "--poll-interval must be a positive integer")
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli("join", "--poll-interval=-2", "code", "localdir")
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")

@@ -14,6 +14,10 @@ from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encodi
                                          get_io_encoding)
 from allmydata.scripts import runner
 
+from ..scripts.magic_folder_cli import (
+    MagicFolderCommand,
+)
+
 def skip_if_cannot_represent_filename(u):
     precondition(isinstance(u, unicode))
 
@@ -55,7 +59,9 @@ def run_cli(verb, *args, **kwargs):
 def parse_cli(*argv):
     # This parses the CLI options (synchronously), and returns the Options
     # argument, or throws usage.UsageError if something went wrong.
-    return runner.parse_options(argv)
+    options = MagicFolderCommand()
+    options.parseOptions(argv)
+    return options
 
 class DevNullDictionary(dict):
     def __setitem__(self, key, value):
