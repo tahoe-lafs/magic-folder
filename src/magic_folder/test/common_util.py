@@ -9,10 +9,10 @@ from twisted.python import failure
 from twisted.trial import unittest
 
 from allmydata.util import fileutil, log
-from ..util.assertutil import precondition
+from allmydata.util.assertutil import precondition
 from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encoding,
                                          get_io_encoding)
-from ..scripts import runner
+from allmydata.scripts import runner
 
 def skip_if_cannot_represent_filename(u):
     precondition(isinstance(u, unicode))
