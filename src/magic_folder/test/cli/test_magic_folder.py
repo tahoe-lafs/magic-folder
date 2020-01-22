@@ -22,18 +22,21 @@ from twisted.python import usage
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
 from allmydata.scripts.common import get_aliases
-from ..no_network import GridTestMixin
-from ..common_util import parse_cli
-from .common import CLITestMixin
 from allmydata.test.common_util import NonASCIIPathMixin
 from allmydata.scripts import magic_folder_cli
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
-from allmydata.frontends.magic_folder import MagicFolder
 from allmydata import uri
-from ...util.eliotutil import (
+from allmydata.util.eliotutil import (
     log_call_deferred,
 )
+
+from ...frontends.magic_folder import MagicFolder
+
+from ..no_network import GridTestMixin
+from ..common_util import parse_cli
+
+from .common import CLITestMixin
 
 class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
     def setUp(self):

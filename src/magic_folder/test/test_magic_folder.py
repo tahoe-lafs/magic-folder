@@ -33,8 +33,30 @@ from allmydata.util.assertutil import precondition
 from allmydata.util import fake_inotify, fileutil, configutil, yamlutil
 from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
 from allmydata.util.consumer import download_to_data
-from allmydata.test.no_network import GridTestMixin
-from allmydata.test.common_util import ReallyEqualMixin
+
+from allmydata.util.fileutil import get_pathinfo
+from allmydata.util.fileutil import abspath_expanduser_unicode
+from allmydata.immutable.upload import Data
+from allmydata.mutable.common import (
+        UnrecoverableFileError,
+)
+from allmydata.util.eliotutil import (
+    inline_callbacks,
+    log_call_deferred,
+)
+
+from ..frontends import magic_folder
+from ..frontends.magic_folder import (
+    MagicFolder, WriteFileMixin,
+    ConfigurationError,
+)
+from .. import (
+    magicfolderdb,
+    magicpath,
+)
+
+from .no_network import GridTestMixin
+from .common_util import ReallyEqualMixin
 from .common import (
     ShouldFailMixin,
     SyncTestCase,
@@ -42,24 +64,6 @@ from .common import (
     skipIf,
 )
 from .cli.test_magic_folder import MagicFolderCLITestMixin
-
-from allmydata.frontends import magic_folder
-from allmydata.frontends.magic_folder import (
-    MagicFolder, WriteFileMixin,
-    ConfigurationError,
-)
-from allmydata import magicfolderdb, magicpath
-from allmydata.util.fileutil import get_pathinfo
-from allmydata.util.fileutil import abspath_expanduser_unicode
-from allmydata.immutable.upload import Data
-from allmydata.mutable.common import (
-        UnrecoverableFileError,
-)
-
-from ..util.eliotutil import (
-    inline_callbacks,
-    log_call_deferred,
-)
 
 _debug = False
 

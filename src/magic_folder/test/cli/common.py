@@ -1,5 +1,6 @@
-from ...util.encodingutil import unicode_to_argv
-from ...scripts import runner
+from allmydata.util.encodingutil import unicode_to_argv
+from allmydata.scripts import runner
+
 from ..common_util import ReallyEqualMixin, run_cli
 
 def parse_options(basedir, command, args):
