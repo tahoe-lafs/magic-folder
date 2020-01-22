@@ -30,7 +30,7 @@ from allmydata.interfaces import (
 )
 from allmydata.util.assertutil import precondition
 
-from allmydata.util import fake_inotify, fileutil, configutil, yamlutil
+from allmydata.util import fileutil, configutil, yamlutil
 from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
 from allmydata.util.consumer import download_to_data
 
@@ -50,6 +50,10 @@ from ..frontends.magic_folder import (
     MagicFolder, WriteFileMixin,
     ConfigurationError,
 )
+from ..util import (
+    fake_inotify,
+)
+
 from .. import (
     magicfolderdb,
     magicpath,
