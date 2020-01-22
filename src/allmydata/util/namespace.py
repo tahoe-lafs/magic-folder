@@ -1,3 +1,0 @@
-
-class Namespace(object):
-    pass
