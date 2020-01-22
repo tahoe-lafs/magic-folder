@@ -21,10 +21,12 @@ from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
 from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
-from allmydata.frontends.magic_folder import load_magic_folders
-from allmydata.frontends.magic_folder import save_magic_folders
-from allmydata.frontends.magic_folder import maybe_upgrade_magic_folders
 
+from ..frontends.magic_folder import (
+    load_magic_folders,
+    save_magic_folders,
+    maybe_upgrade_magic_folders,
+)
 
 INVITE_SEPARATOR = "+"
 

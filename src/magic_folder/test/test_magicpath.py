@@ -1,7 +1,9 @@
 
 from twisted.trial import unittest
 
-from allmydata import magicpath
+from .. import (
+    magicpath,
+)
 
 
 class MagicPath(unittest.TestCase):
