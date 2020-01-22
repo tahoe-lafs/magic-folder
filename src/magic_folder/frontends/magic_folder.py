@@ -1176,7 +1176,6 @@ class Uploader(QueueMixin):
 
         self._upload_dirnode = upload_dirnode
         self._inotify = get_inotify_module()
-        print("Got inotify module: {}".format(self._inotify))
         self._notifier = self._inotify.INotify()
 
         self._pending = set()  # of unicode relpaths
