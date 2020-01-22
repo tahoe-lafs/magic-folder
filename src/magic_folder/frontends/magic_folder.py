@@ -54,7 +54,11 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      quote_filepath, quote_local_unicode_path, FilenameEncodingError
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
-from allmydata import magicfolderdb, magicpath
+
+from .. import (
+    magicfolderdb,
+    magicpath,
+)
 
 if six.PY3:
     long = int
@@ -1172,6 +1176,7 @@ class Uploader(QueueMixin):
 
         self._upload_dirnode = upload_dirnode
         self._inotify = get_inotify_module()
+        print("Got inotify module: {}".format(self._inotify))
         self._notifier = self._inotify.INotify()
 
         self._pending = set()  # of unicode relpaths

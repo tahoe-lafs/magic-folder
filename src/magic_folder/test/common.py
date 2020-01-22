@@ -72,7 +72,6 @@ from allmydata.storage.mutable import MutableShareFile
 from allmydata.util import hashutil, log, iputil
 from allmydata.util.assertutil import precondition
 from allmydata.util.consumer import download_to_data
-import allmydata.test.common_util as testutil
 from allmydata.immutable.upload import Uploader
 from allmydata.client import (
     config_from_string,
@@ -81,6 +80,9 @@ from allmydata.client import (
 
 from .eliotutil import (
     EliotLoggedRunTest,
+)
+from . import (
+    common_util as testutil,
 )
 
 
