@@ -264,7 +264,7 @@ setup(name="magic_folder", # also set in __init__.py
                 "test": PleaseUseTox,
                 },
       package_dir = {'':'src'},
-      packages=find_packages('src'),
+      packages=find_packages('src') + ["twisted/plugins"],
       classifiers=trove_classifiers,
       python_requires="~=2.7",
       install_requires=install_requires,
