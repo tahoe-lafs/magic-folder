@@ -8,6 +8,10 @@ from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
 
+from foolscap.furl import (
+    decode_furl,
+)
+
 from eliot import (
     to_file,
     log_call,
@@ -174,6 +178,8 @@ def introducer(reactor, temp_dir, flog_gatherer, request):
 nickname = introducer0
 web.port = 4560
 log_gatherer.furl = {log_furl}
+tub.port = tcp:9321
+tub.location = tcp:localhost:9321
 '''.format(log_furl=flog_gatherer)
 
     intro_dir = join(temp_dir, 'introducer')
@@ -226,6 +232,10 @@ def introducer_furl(introducer, temp_dir):
         print("Don't see {} yet".format(furl_fname))
         sleep(.1)
     furl = open(furl_fname, 'r').read()
+    # Make sure it is valid.
+    _, location, _ = decode_furl(furl)
+    if location == []:
+        raise Exception("introducer furl with no location hints: {}".format(furl))
     return furl
 
 
