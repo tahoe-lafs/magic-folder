@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import sys
 import urllib
 from types import NoneType
 from six.moves import cStringIO as StringIO
@@ -9,6 +10,7 @@ from ConfigParser import SafeConfigParser
 import json
 
 from twisted.python import usage
+from twisted.application.service import Service
 
 from allmydata.util.assertutil import precondition
 
@@ -577,6 +579,10 @@ class BaseOptions(usage.Options):
     ]
 
 class MagicFolderCommand(BaseOptions):
+    stdin = sys.stdin
+    stdout = sys.stdout
+    stderr = sys.stderr
+
     subCommands = [
         ["create", None, CreateOptions, "Create a Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
@@ -596,6 +602,14 @@ class MagicFolderCommand(BaseOptions):
         "All clients download files from all other participants using the "
         "readcaps contained in the master magic-folder directory."
     )
+
+    @property
+    def parent(self):
+        return None
+
+    @parent.setter
+    def parent(self, ignored):
+        pass
 
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
@@ -639,3 +653,18 @@ subCommands = [
 dispatch = {
     "magic-folder": do_magic_folder,
 }
+
+Options = MagicFolderCommand
+
+class _MagicFolderService(Service):
+    def __init__(self, options):
+        self.options = options
+
+    def startService(self):
+        do_magic_folder(self.options)
+        from twisted.internet import reactor
+        reactor.callLater(0, reactor.stop)
+
+
+def makeService(options):
+    return _MagicFolderService(options)
