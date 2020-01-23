@@ -9,6 +9,8 @@ from datetime import datetime
 from ConfigParser import SafeConfigParser
 import json
 
+import importlib_metadata
+
 from twisted.python import usage
 from twisted.application.service import Service
 
@@ -654,7 +656,6 @@ dispatch = {
     "magic-folder": do_magic_folder,
 }
 
-Options = MagicFolderCommand
 
 class _MagicFolderService(Service):
     def __init__(self, options):
@@ -666,5 +667,34 @@ class _MagicFolderService(Service):
         reactor.callLater(0, reactor.stop)
 
 
+# Provide the option parsing helper for the IServiceMaker plugin that lets us
+# have "twist magic_folder ...".
+Options = MagicFolderCommand
+
+# Provide the IService-building helper for the IServiceMaker plugin.
 def makeService(options):
+    """
+    :param MagicFolderCommand options: The parsed options for the comand
+        invocation.
+
+    :return IService: An object providing ``IService`` which performs the
+        magic-folder operation requested by ``options`` when it is started.
+    """
     return _MagicFolderService(options)
+
+
+def run():
+    """
+    Implement the *magic_folder* console script declared in ``setup.py``.
+
+    :return: ``None``
+    """
+    console_scripts = importlib_metadata.entry_points()["console_scripts"]
+    magic_folder = list(
+        script
+        for script
+        in console_scripts
+        if script.name == "twist"
+    )[0]
+    argv = ["twist", "--log-level=critical", "magic_folder"] + sys.argv[1:]
+    magic_folder.load()(argv)

@@ -36,6 +36,8 @@ install_requires = [
     # Python 2 compatible though, so don't venture to 45 and beyond.
     "setuptools >= 28.8.0, <45",
 
+    "importlib_metadata ~= 1.0",
+
     # zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
     # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
     "zope.interface >= 3.6.0, != 3.6.3, != 3.6.4",
@@ -296,5 +298,10 @@ setup(name="magic_folder", # also set in __init__.py
                     },
       include_package_data=True,
       setup_requires=setup_requires,
+      entry_points = {
+          "console_scripts": [
+              "magic_folder = magic_folder.scripts.magic_folder_cli:run",
+          ],
+      },
       **setup_args
-      )
+)
