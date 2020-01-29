@@ -1,56 +1,37 @@
-==========
-Tahoe-LAFS
-==========
+Magic Folder
+============
 
-Tahoe-LAFS is a Free and Open decentralized cloud storage system. It
-distributes your data across multiple servers. Even if some of the servers
-fail or are taken over by an attacker, the entire file store continues to
-function correctly, preserving your privacy and security.
+**This repository is provisional.**
+It may move to a different organization.
+It's history will almost certainly be rewritten.
 
-For full documentation, please see
-http://tahoe-lafs.readthedocs.io/en/latest/ .
+Magic Folder for Tahoe-LAFS is a Free and Open file synchronization system.
+It detects local changes to files and uploads those changes to a Tahoe-LAFS grid.
+It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 
 |readthedocs|  |travis|  |circleci|  |codecov|
 
 INSTALLING
 ==========
 
-There are three ways to install Tahoe-LAFS.
-
-using OS packages
-^^^^^^^^^^^^^^^^^
-
-Pre-packaged versions are available for several operating systems:
-
-* Debian and Ubuntu users can ``apt-get install tahoe-lafs``
-* NixOS, NetBSD (pkgsrc), ArchLinux, Slackware, and Gentoo have packages
-  available, see `OSPackages`_ for details
-* `Mac`_ and Windows installers are in development.
-
 via pip
 ^^^^^^^
 
-If you don't use an OS package, you'll need Python 2.7 and `pip`_. You may
-also need a C compiler, and the development headers for python, libffi, and
-OpenSSL. On a Debian-like system, use ``apt-get install build-essential
-python-dev libffi-dev libssl-dev python-virtualenv``. On Windows, see
-`<docs/windows.rst>`_.
-
 Then, to install the most recent release, just run:
 
-* ``pip install tahoe-lafs``
+* ``pip install magic-folder``
 
 from source
 ^^^^^^^^^^^
 To install from source (either so you can hack on it, or just to run
 pre-release code), you should create a virtualenv and install into that:
 
-* ``git clone https://github.com/tahoe-lafs/tahoe-lafs.git``
-* ``cd tahoe-lafs``
+* ``git clone https://github.com/leastauthority/magic-folder.git``
+* ``cd magic-folder``
 * ``virtualenv --python=python2.7 venv``
 * ``venv/bin/pip install --upgrade setuptools``
 * ``venv/bin/pip install --editable .``
-* ``venv/bin/tahoe --version``
+* ``venv/bin/magic_folder --version``
 
 To run the unit test suite:
 
@@ -60,11 +41,6 @@ You can pass arguments to ``trial`` with an environment variable.  For
 example, you can run the test suite on multiple cores to speed it up:
 
 * ``TAHOE_LAFS_TRIAL_ARGS="-j4" tox``
-
-For more detailed instructions, read `<docs/INSTALL.rst>`_ .
-
-Once ``tahoe --version`` works, see `<docs/running.rst>`_ to learn how to set
-up your first Tahoe-LAFS node.
 
 LICENCE
 =======
@@ -91,17 +67,17 @@ slides.
 
 ----
 
-.. |readthedocs| image:: http://readthedocs.org/projects/tahoe-lafs/badge/?version=latest
+.. |readthedocs| image:: http://readthedocs.org/projects/magic-folder/badge/?version=latest
     :alt: documentation status
-    :target: http://tahoe-lafs.readthedocs.io/en/latest/?badge=latest
+    :target: http://magic-folder.readthedocs.io/en/latest/?badge=latest
 
-.. |travis| image:: https://travis-ci.org/tahoe-lafs/tahoe-lafs.png?branch=master
+.. |travis| image:: https://travis-ci.org/leastauthority/magic-folder.png?branch=master
     :alt: build status
-    :target: https://travis-ci.org/tahoe-lafs/tahoe-lafs
+    :target: https://travis-ci.org/leastauthority/magic-folder
 
-.. |circleci| image:: https://circleci.com/gh/tahoe-lafs/tahoe-lafs.svg?style=svg
-    :target: https://circleci.com/gh/tahoe-lafs/tahoe-lafs
+.. |circleci| image:: https://circleci.com/gh/leastauthority/magic-folder.svg?style=svg
+    :target: https://circleci.com/gh/leastauthority/magic-folder
 
-.. |codecov| image:: https://codecov.io/github/tahoe-lafs/tahoe-lafs/coverage.svg?branch=master
+.. |codecov| image:: https://codecov.io/github/leastauthority/magic-folder/coverage.svg?branch=master
     :alt: test coverage percentage
-    :target: https://codecov.io/github/tahoe-lafs/tahoe-lafs?branch=master
+    :target: https://codecov.io/github/leastauthority/magic-folder?branch=master
