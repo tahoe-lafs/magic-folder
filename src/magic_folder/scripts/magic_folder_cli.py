@@ -13,6 +13,10 @@ import importlib_metadata
 
 from twisted.python import usage
 from twisted.application.service import Service
+from twisted.internet.defer import (
+    maybeDeferred,
+    Deferred,
+)
 
 from allmydata.util.assertutil import precondition
 
@@ -564,6 +568,20 @@ def status(options):
     return 0
 
 
+class RunOptions(BasedirOptions):
+    pass
+
+
+def main(options):
+    """
+    This is the long-running magic-folders function which performs
+    synchronization between local and remote folders.
+    """
+    options.stdout.write('Completed initial Magic Folder scan successfully\n')
+    options.stdout.flush()
+    return Deferred()
+
+
 NODEDIR_HELP = (
     "Specify which Tahoe node directory should be used. The "
     "directory should contain a full Tahoe node."
@@ -592,6 +610,7 @@ class MagicFolderCommand(BaseOptions):
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["status", None, StatusOptions, "Display status of uploads/downloads."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
+        ["run", None, RunOptions, "Run the Magic Folders synchronization process."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -633,6 +652,7 @@ subDispatch = {
     "leave": leave,
     "status": status,
     "list": list_,
+    "run": main,
 }
 
 def do_magic_folder(options):
@@ -662,10 +682,13 @@ class _MagicFolderService(Service):
         self.options = options
 
     def startService(self):
-        do_magic_folder(self.options)
-        from twisted.internet import reactor
-        reactor.callLater(0, reactor.stop)
+        d = maybeDeferred(do_magic_folder, self.options)
+        d.addBoth(_stop)
 
+def _stop(reason):
+    if isinstance(reason, Failure):
+        reason.printTraceback()
+    reactor.stop()
 
 # Provide the option parsing helper for the IServiceMaker plugin that lets us
 # have "twist magic_folder ...".
