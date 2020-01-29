@@ -247,8 +247,8 @@ def introducer_furl(introducer, temp_dir):
 )
 def storage_nodes(reactor, temp_dir, introducer, introducer_furl, flog_gatherer, request):
     nodes_d = []
-    # start all 5 nodes in parallel
-    for x in range(5):
+    # start all nodes in parallel
+    for x in range(1):
         name = 'node{}'.format(x)
         web_port=  9990 + x
         nodes_d.append(
@@ -266,6 +266,111 @@ def storage_nodes(reactor, temp_dir, introducer, introducer_furl, flog_gatherer,
     return nodes
 
 
+@attr.s
+class MagicFolderEnabledNode(object):
+    """
+    Keep track of a Tahoe-LAFS node child process and an associated
+    magic-folder child process.
+
+    :ivar IProcessTransport tahoe: The Tahoe-LAFS node child process.
+
+    :ivar IProcessTransport magic_folder: The magic-folder child process.
+    """
+    tahoe = attr.ib()
+    magic_folder = attr.ib()
+
+    @classmethod
+    def create(
+            cls,
+            reactor,
+            request,
+            temp_dir,
+            introducer_furl,
+            flog_gatherer,
+            name,
+            web_port,
+            storage,
+    ):
+        """
+        Launch the two processes and return a new ``MagicFolderEnabledNode``
+        referencing them.
+
+        Note this depends on pytest/Twisted integration for magical blocking.
+
+        :param reactor: The reactor to use to launch the processes.
+        :param request: The pytest request object to use for cleanup.
+        :param bytes temp_dir: A directory beneath which to place the
+            Tahoe-LAFS node.
+        :param bytes introducer_furl: The introducer fURL to configure the new
+            Tahoe-LAFS node with.
+        :param bytes flog_gatherer: The flog gatherer fURL to configure the
+            new Tahoe-LAFS node with.
+        :param bytes name: A nickname to assign the new Tahoe-LAFS node.
+        :param bytes web_port: An endpoint description of the web port for the
+            new Tahoe-LAFS node to listen on.
+        :param bool storage: True if the node should offer storage, False
+            otherwise.
+        """
+        # Make the Tahoe-LAFS node process
+        tahoe = pytest_twisted.blockon(
+            _create_node(
+                reactor,
+                request,
+                temp_dir,
+                introducer_furl,
+                flog_gatherer,
+                name,
+                web_port,
+                storage,
+                needed=1,
+                happy=1,
+                total=1,
+            )
+        )
+        await_client_ready(tahoe)
+
+        # Make the magic folder process.
+        magic_folder = _run_magic_folder(
+            reactor,
+            request,
+            temp_dir,
+            name,
+        )
+        return cls(tahoe, magic_folder)
+
+
+def _run_magic_folder(reactor, request, temp_dir, name):
+    """
+    Start a magic-folder process.
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param name: The alias of the Tahoe-LAFS node.
+
+    :return IProcessTransport: The started process.
+    """
+    node_dir = join(temp_dir, name)
+
+    proto = _ProcessExitedProtocol()
+
+    args = [
+        sys.executable,
+        "-m",
+        "magic_folder",
+        "--node-directory",
+        node_dir,
+    ]
+    transport = reactor.spawnProcess(
+        proto,
+        sys.executable,
+        args,
+    )
+
+    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
+
+    return transport
+
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice", include_args=[], include_result=False)
 def alice(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, request):
@@ -274,15 +379,16 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, requ
     except OSError:
         pass
 
-    process = pytest_twisted.blockon(
-        _create_node(
-            reactor, request, temp_dir, introducer_furl, flog_gatherer, "alice",
-            web_port="tcp:9980:interface=localhost",
-            storage=False,
-        )
+    return MagicFolderEnabledNode.create(
+        reactor,
+        request,
+        temp_dir,
+        introducer_furl,
+        flog_gatherer,
+        name="alice",
+        web_port="tcp:9980:interface=localhost",
+        storage=False,
     )
-    await_client_ready(process)
-    return process
 
 
 @pytest.fixture(scope='session')
@@ -293,15 +399,16 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, reques
     except OSError:
         pass
 
-    process = pytest_twisted.blockon(
-        _create_node(
-            reactor, request, temp_dir, introducer_furl, flog_gatherer, "bob",
-            web_port="tcp:9981:interface=localhost",
-            storage=False,
-        )
+    return MagicFolderEnabledNode.create(
+        reactor,
+        request,
+        temp_dir,
+        introducer_furl,
+        flog_gatherer,
+        name="bob",
+        web_port="tcp:9981:interface=localhost",
+        storage=False,
     )
-    await_client_ready(process)
-    return process
 
 
 @pytest.fixture(scope='session')
