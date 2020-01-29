@@ -130,6 +130,17 @@ def _cleanup_tahoe_process(tahoe_transport, exited):
         pass
 
 
+def _magic_folder_runner(proto, reactor, request, other_args):
+    """
+    Launch a ``magic_folder run`` child process and return it.
+    """
+    return reactor.spawnProcess(
+        proto,
+        sys.executable,
+        [sys.executable, "-m", "magic_folder.scripts.magic_folder_cli"] + other_args,
+    )
+
+
 def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
     """
     Internal helper. Calls spawnProcess with `-m
@@ -488,6 +499,7 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
             time.sleep(1)
             continue
 
+        print("finished waiting for client")
         # we have a status with at least one server, and all servers
         # have been contacted recently
         return True

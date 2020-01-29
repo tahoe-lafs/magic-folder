@@ -8,6 +8,10 @@ from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
 
+from io import BytesIO
+
+import attr
+
 from foolscap.furl import (
     decode_furl,
 )
@@ -23,6 +27,11 @@ from twisted.internet.defer import DeferredList
 from twisted.internet.error import (
     ProcessExitedAlready,
     ProcessTerminated,
+)
+
+from magic_folder.scripts.magic_folder_cli import (
+    MagicFolderCommand,
+    do_magic_folder,
 )
 
 import pytest
@@ -249,6 +258,11 @@ class MagicFolderEnabledNode(object):
 
     :ivar IProcessTransport magic_folder: The magic-folder child process.
     """
+    reactor = attr.ib()
+    request = attr.ib()
+    temp_dir = attr.ib()
+    name = attr.ib()
+
     tahoe = attr.ib()
     magic_folder = attr.ib()
 
@@ -309,7 +323,22 @@ class MagicFolderEnabledNode(object):
             temp_dir,
             name,
         )
-        return cls(tahoe, magic_folder)
+        return cls(reactor, request, temp_dir, name, tahoe, magic_folder)
+
+    def restart_magic_folder(self):
+        try:
+            self.magic_folder.signalProcess('TERM')
+            pytest_twisted.blockon(self.magic_folder.proto.exited)
+        except ProcessExitedAlready:
+            pass
+
+        with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
+            self.magic_folder = _run_magic_folder(
+                self.reactor,
+                self.request,
+                self.temp_dir,
+                self.name,
+            )
 
 
 def _run_magic_folder(reactor, request, temp_dir, name):
@@ -325,7 +354,8 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     """
     node_dir = join(temp_dir, name)
 
-    proto = _ProcessExitedProtocol()
+    magic_text = 'Completed initial Magic Folder scan successfully'
+    proto = _MagicTextProtocol(magic_text)
 
     args = [
         sys.executable,
@@ -333,6 +363,7 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         "magic_folder",
         "--node-directory",
         node_dir,
+        "run",
     ]
     transport = reactor.spawnProcess(
         proto,
@@ -340,13 +371,17 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         args,
     )
 
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
+    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.exited))
+
+    print("Waiting for Magic Folder scan success")
+    pytest_twisted.blockon(proto.magic_seen)
+    print("Saw it")
 
     return transport
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice", include_args=[], include_result=False)
-def alice(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, request):
+def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-alice'))
     except OSError:
@@ -390,50 +425,31 @@ def alice_invite(reactor, alice, temp_dir, request):
     node_dir = join(temp_dir, 'alice')
 
     with start_action(action_type=u"integration:alice:magic_folder:create"):
-        # FIXME XXX by the time we see "client running" in the logs, the
-        # storage servers aren't "really" ready to roll yet (uploads fairly
-        # consistently fail if we don't hack in this pause...)
-        proto = _CollectOutputProtocol()
-        _tahoe_runner_optional_coverage(
-            proto,
-            reactor,
-            request,
-            [
-                'magic-folder', 'create',
-                '--poll-interval', '2',
-                '--basedir', node_dir, 'magik:', 'alice',
-                join(temp_dir, 'magic-alice'),
-            ]
-        )
-        pytest_twisted.blockon(proto.done)
+        o = MagicFolderCommand()
+        o.parseOptions([
+            "--node-directory", node_dir,
+            "create",
+            "--poll-interval", "2", "magik:", "alice", join(temp_dir, "magic-alice"),
+        ])
+        assert 0 == do_magic_folder(o)
+
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
-        proto = _CollectOutputProtocol()
-        _tahoe_runner_optional_coverage(
-            proto,
-            reactor,
-            request,
-            [
-                'magic-folder', 'invite',
-                '--basedir', node_dir, 'magik:', 'bob',
-            ]
-        )
-        pytest_twisted.blockon(proto.done)
-        invite = proto.output.getvalue()
+        o = MagicFolderCommand()
+        o.stdout = BytesIO()
+        o.parseOptions([
+            "--node-directory", node_dir,
+            "invite",
+            "magik:", "bob",
+        ])
+        assert 0 == do_magic_folder(o)
+        invite = o.stdout.getvalue()
         a.add_success_fields(invite=invite)
 
     with start_action(action_type=u"integration:alice:magic_folder:restart"):
         # before magic-folder works, we have to stop and restart (this is
         # crappy for the tests -- can we fix it in magic-folder?)
-        try:
-            alice.transport.signalProcess('TERM')
-            pytest_twisted.blockon(alice.transport.exited)
-        except ProcessExitedAlready:
-            pass
-        with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
-            magic_text = 'Completed initial Magic Folder scan successfully'
-            pytest_twisted.blockon(_run_node(reactor, node_dir, request, magic_text))
-            await_client_ready(alice)
+        alice.restart_magic_folder()
     return invite
 
 
@@ -445,31 +461,19 @@ def alice_invite(reactor, alice, temp_dir, request):
 def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     print("pairing magic-folder")
     bob_dir = join(temp_dir, 'bob')
-    proto = _CollectOutputProtocol()
-    _tahoe_runner_optional_coverage(
-        proto,
-        reactor,
-        request,
-        [
-            'magic-folder', 'join',
-            '--poll-interval', '1',
-            '--basedir', bob_dir,
-            alice_invite,
-            join(temp_dir, 'magic-bob'),
-        ]
-    )
-    pytest_twisted.blockon(proto.done)
+
+    o = MagicFolderCommand()
+    o.parseOptions([
+        "--node-directory", bob_dir,
+        "join",
+        "--poll-interval", "1",
+        alice_invite,
+        join(temp_dir, "magic-bob"),
+    ])
+    assert 0 == do_magic_folder(o)
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    try:
-        print("Sending TERM to Bob")
-        bob.transport.signalProcess('TERM')
-        pytest_twisted.blockon(bob.transport.exited)
-    except ProcessExitedAlready:
-        pass
+    bob.restart_magic_folder()
 
-    magic_text = 'Completed initial Magic Folder scan successfully'
-    pytest_twisted.blockon(_run_node(reactor, bob_dir, request, magic_text))
-    await_client_ready(bob)
     return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
