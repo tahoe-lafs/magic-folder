@@ -239,33 +239,6 @@ def introducer_furl(introducer, temp_dir):
     return furl
 
 
-@pytest.fixture(scope='session')
-@log_call(
-    action_type=u"integration:storage_nodes",
-    include_args=["temp_dir", "introducer_furl", "flog_gatherer"],
-    include_result=False,
-)
-def storage_nodes(reactor, temp_dir, introducer, introducer_furl, flog_gatherer, request):
-    nodes_d = []
-    # start all nodes in parallel
-    for x in range(1):
-        name = 'node{}'.format(x)
-        web_port=  9990 + x
-        nodes_d.append(
-            _create_node(
-                reactor, request, temp_dir, introducer_furl, flog_gatherer, name,
-                web_port="tcp:{}:interface=localhost".format(web_port),
-                storage=True,
-            )
-        )
-    nodes_status = pytest_twisted.blockon(DeferredList(nodes_d))
-    nodes = []
-    for ok, process in nodes_status:
-        assert ok, "Storage node creation failed: {}".format(process)
-        nodes.append(process)
-    return nodes
-
-
 @attr.s
 class MagicFolderEnabledNode(object):
     """
@@ -387,13 +360,13 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, requ
         flog_gatherer,
         name="alice",
         web_port="tcp:9980:interface=localhost",
-        storage=False,
+        storage=True,
     )
 
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:bob", include_args=[], include_result=False)
-def bob(reactor, temp_dir, introducer_furl, flog_gatherer, storage_nodes, request):
+def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-bob'))
     except OSError:
