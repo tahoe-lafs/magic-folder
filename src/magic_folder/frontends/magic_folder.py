@@ -1881,7 +1881,9 @@ class Downloader(QueueMixin, WriteFileMixin):
                 if (local_dbentry is None or remote_version is None or
                     local_dbentry.version < remote_version or
                     (local_dbentry.version == remote_version and local_dbentry.last_downloaded_uri != remote_uri)):
-                    ADD_TO_DOWNLOAD_QUEUE.log(relpath=relpath_u)
+                    ADD_TO_DOWNLOAD_QUEUE.log(
+                        relpath=relpath_u,
+                    )
 
                     # The scan_batch is shared across the scan of multiple
                     # DMDs.  It is expected the DMDs will most often be mostly
@@ -2065,6 +2067,11 @@ class Downloader(QueueMixin, WriteFileMixin):
                             if db_entry.version >= item.metadata['version']:
                                 is_conflict = True
                                 conflict_reason = u"dbentry newer version"
+                                Message.log(
+                                    message_type=u"dbentry-newer",
+                                    db_entry_version=db_entry.version,
+                                    item_metadata_version=item.metadata['version'],
+                                )
                         elif dmd_last_downloaded_uri != db_entry.last_downloaded_uri:
                             is_conflict = True
                             conflict_reason = u"last_downloaded_uri mismatch"
