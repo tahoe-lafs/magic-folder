@@ -8,16 +8,38 @@ from six.moves import cStringIO as StringIO
 from datetime import datetime
 from ConfigParser import SafeConfigParser
 import json
+from collections import (
+    defaultdict,
+)
+from zope.interface import (
+    implementer,
+)
 
 import importlib_metadata
 
+import attr
+
 from twisted.python import usage
-from twisted.application.service import Service
+from twisted.python.failure import (
+    Failure,
+)
+from twisted.application.service import (
+    Service,
+    MultiService,
+)
 from twisted.internet.defer import (
     maybeDeferred,
+    gatherResults,
     Deferred,
+    succeed,
 )
 
+from allmydata.interfaces import (
+    IDirectoryNode,
+)
+from allmydata.uri import (
+    from_string,
+)
 from allmydata.util.assertutil import precondition
 
 from allmydata.scripts import (
@@ -46,8 +68,12 @@ from allmydata.scripts.cli import (
     LnOptions,
     CreateAliasOptions,
 )
+from allmydata.client import (
+    read_config,
+)
 
 from ..frontends.magic_folder import (
+    MagicFolder,
     load_magic_folders,
     save_magic_folders,
     maybe_upgrade_magic_folders,
@@ -577,9 +603,95 @@ def main(options):
     This is the long-running magic-folders function which performs
     synchronization between local and remote folders.
     """
-    options.stdout.write('Completed initial Magic Folder scan successfully\n')
-    options.stdout.flush()
-    return Deferred()
+    service = MagicFolderService.from_node_directory(options["node-directory"])
+    return service.run()
+
+@attr.s
+class MagicFolderService(MultiService):
+    config = attr.ib()
+    magic_folder_configs = attr.ib()
+    magic_folder_services = attr.ib(default=attr.Factory(dict))
+
+    def __attrs_post_init__(self):
+        MultiService.__init__(self)
+
+    @classmethod
+    def from_node_directory(cls, nodedir):
+        config = read_config(nodedir, u"client.port")
+        magic_folders = load_magic_folders(nodedir)
+        return cls(config, magic_folders)
+
+    def _when_connected_enough(self):
+        # start processing the upload queue when we've connected to
+        # enough servers
+        # k = int(self.config.get_config("client", "shares.needed", 3))
+        # happy = int(self.config.get_config("client", "shares.happy", 7))
+        # threshold = min(k, happy + 1)
+
+        # XXX Poll the client web API for the information.
+        return succeed(None)
+
+    def run(self):
+        d = self._when_connected_enough()
+        d.addCallback(lambda ignored: self.startService())
+        d.addCallback(lambda ignored: Deferred())
+        return d
+
+    def startService(self):
+        print("Starting")
+        MultiService.startService(self)
+        ds = []
+        for (name, mf_config) in self.magic_folder_configs.items():
+            mf = MagicFolder.from_config(
+                ClientStandIn(self.config),
+                name,
+                mf_config,
+            )
+            self.magic_folder_services[name] = mf
+            mf.setServiceParent(self)
+            ds.append(mf.ready())
+        print("Completed initial Magic Folder setup")
+        self._starting = gatherResults(ds)
+
+    def stopService(self):
+        self._starting.cancel()
+        MultiService.stopService(self)
+        return self._starting
+
+
+@attr.s
+class FakeStats(object):
+    counters = attr.ib(default=attr.Factory(lambda: defaultdict(int)))
+
+    def count(self, ctr, delta):
+        pass
+
+@attr.s
+class ClientStandIn(object):
+    nickname = ""
+    stats_provider = FakeStats()
+
+    config = attr.ib()
+
+    def create_node_from_uri(self, uri):
+        return Node(from_string(uri))
+
+@implementer(IDirectoryNode)
+@attr.s
+class Node(object):
+    uri = attr.ib()
+
+    def is_unknown(self):
+        return False
+
+    def is_readonly(self):
+        return self.uri.is_readonly()
+
+    def get_readonly_uri(self):
+        return self.uri.get_readonly()
+
+    def list(self):
+        return succeed({})
 
 
 NODEDIR_HELP = (
@@ -687,8 +799,9 @@ class _MagicFolderService(Service):
 
 def _stop(reason):
     if isinstance(reason, Failure):
-        reason.printTraceback()
-    reactor.stop()
+        print(reason.getTraceback())
+    from twisted.internet import reactor
+    reactor.callWhenRunning(reactor.stop)
 
 # Provide the option parsing helper for the IServiceMaker plugin that lets us
 # have "twist magic_folder ...".
@@ -719,5 +832,5 @@ def run():
         in console_scripts
         if script.name == "twist"
     )[0]
-    argv = ["twist", "--log-level=critical", "magic_folder"] + sys.argv[1:]
+    argv = ["twist", "--log-level=debug", "--log-format=text", "magic_folder"] + sys.argv[1:]
     magic_folder.load()(argv)

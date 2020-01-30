@@ -354,7 +354,7 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     """
     node_dir = join(temp_dir, name)
 
-    magic_text = 'Completed initial Magic Folder scan successfully'
+    magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
 
     args = [
@@ -425,6 +425,7 @@ def alice_invite(reactor, alice, temp_dir, request):
     node_dir = join(temp_dir, 'alice')
 
     with start_action(action_type=u"integration:alice:magic_folder:create"):
+        print("Creating magic-folder for {}".format(node_dir))
         o = MagicFolderCommand()
         o.parseOptions([
             "--node-directory", node_dir,
@@ -435,6 +436,7 @@ def alice_invite(reactor, alice, temp_dir, request):
 
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
+        print("Inviting bob to magic-folder for {}".format(node_dir))
         o = MagicFolderCommand()
         o.stdout = BytesIO()
         o.parseOptions([
@@ -462,6 +464,7 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     print("pairing magic-folder")
     bob_dir = join(temp_dir, 'bob')
 
+    print("Joining bob to magic-folder")
     o = MagicFolderCommand()
     o.parseOptions([
         "--node-directory", bob_dir,
