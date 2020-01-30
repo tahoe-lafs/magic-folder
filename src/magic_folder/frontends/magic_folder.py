@@ -1915,7 +1915,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                     d2.addCallback(lambda ign, dir_name=dir_name, dirnode=dirnode:
                                    self._scan_remote_dmd(dir_name, dirnode, scan_batch))
                     # XXX what should we do to make this failure more visible to users?
-                    d2.addErrback(write_traceback)
+                    d2.addErrback(write_failure)
             return d2.result
         d.addCallback(scan_collective)
 
