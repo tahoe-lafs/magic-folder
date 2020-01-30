@@ -15,10 +15,28 @@ from zope.interface import (
     implementer,
 )
 
+from hyperlink import (
+    URL,
+)
+
 import importlib_metadata
 
 import attr
+from io import (
+    BytesIO,
+)
+from eliot import (
+    start_action,
+)
+from eliot.twisted import (
+    DeferredContext,
+)
 
+from twisted.web.client import (
+    Agent,
+    readBody,
+    FileBodyProducer,
+)
 from twisted.python import usage
 from twisted.python.failure import (
     Failure,
@@ -27,11 +45,18 @@ from twisted.application.service import (
     Service,
     MultiService,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.internet.defer import (
     maybeDeferred,
     gatherResults,
     Deferred,
-    succeed,
+    returnValue,
+)
+
+from eliot.twisted import (
+    inline_callbacks,
 )
 
 from allmydata.interfaces import (
@@ -41,7 +66,9 @@ from allmydata.uri import (
     from_string,
 )
 from allmydata.util.assertutil import precondition
-
+from allmydata.util import (
+    base32,
+)
 from allmydata.scripts import (
     tahoe_mv,
     tahoe_mkdir,
@@ -59,7 +86,6 @@ from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 
 from allmydata.scripts.common import (
-    BaseOptions,
     BasedirOptions,
     get_aliases,
 )
@@ -603,33 +629,65 @@ def main(options):
     This is the long-running magic-folders function which performs
     synchronization between local and remote folders.
     """
-    service = MagicFolderService.from_node_directory(options["node-directory"])
+    from twisted.internet import  reactor
+    service = MagicFolderService.from_node_directory(
+        reactor,
+        options["node-directory"],
+    )
     return service.run()
+
+
+@inline_callbacks
+def poll(label, operation, reactor):
+    while True:
+        print("Polling {}...".format(label))
+        if (yield operation()):
+            print("Positive result ({}), done.".format(label))
+            break
+        print("Negative result ({}), sleeping...".format(label))
+        yield deferLater(reactor, 1.0, lambda: None)
+
 
 @attr.s
 class MagicFolderService(MultiService):
+    reactor = attr.ib()
     config = attr.ib()
     magic_folder_configs = attr.ib()
     magic_folder_services = attr.ib(default=attr.Factory(dict))
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
+        self.tahoe_client = TahoeClient(
+            URL.from_text(self.config.get_config_from_file(b"node.url").decode("utf-8")),
+            Agent(self.reactor),
+        )
 
     @classmethod
-    def from_node_directory(cls, nodedir):
+    def from_node_directory(cls, reactor, nodedir):
         config = read_config(nodedir, u"client.port")
         magic_folders = load_magic_folders(nodedir)
-        return cls(config, magic_folders)
+        return cls(reactor, config, magic_folders)
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
         # enough servers
-        # k = int(self.config.get_config("client", "shares.needed", 3))
-        # happy = int(self.config.get_config("client", "shares.happy", 7))
-        # threshold = min(k, happy + 1)
+        k = int(self.config.get_config("client", "shares.needed", 3))
+        happy = int(self.config.get_config("client", "shares.happy", 7))
+        threshold = min(k, happy + 1)
 
-        # XXX Poll the client web API for the information.
-        return succeed(None)
+        @inline_callbacks
+        def enough():
+            welcome = yield self.tahoe_client.get_welcome()
+            if welcome.code != 200:
+                returnValue(False)
+
+            welcome_body = json.loads((yield readBody(welcome)))
+            if len(welcome_body[u"servers"]) < threshold:
+                returnValue(False)
+
+            returnValue(True)
+
+        return poll("connected enough", enough, self.reactor)
 
     def run(self):
         d = self._when_connected_enough()
@@ -643,7 +701,7 @@ class MagicFolderService(MultiService):
         ds = []
         for (name, mf_config) in self.magic_folder_configs.items():
             mf = MagicFolder.from_config(
-                ClientStandIn(self.config),
+                ClientStandIn(self.tahoe_client, self.config),
                 name,
                 mf_config,
             )
@@ -671,14 +729,22 @@ class ClientStandIn(object):
     nickname = ""
     stats_provider = FakeStats()
 
+    tahoe_client = attr.ib()
     config = attr.ib()
+    convergence = attr.ib(default=None)
+
+    def __attrs_post_init__(self):
+        convergence_s = self.config.get_private_config('convergence')
+        self.convergence = base32.a2b(convergence_s)
 
     def create_node_from_uri(self, uri):
-        return Node(from_string(uri))
+        return Node(self.tahoe_client, from_string(uri))
+
 
 @implementer(IDirectoryNode)
 @attr.s
 class Node(object):
+    tahoe_client = attr.ib()
     uri = attr.ib()
 
     def is_unknown(self):
@@ -687,11 +753,158 @@ class Node(object):
     def is_readonly(self):
         return self.uri.is_readonly()
 
+    def get_uri(self):
+        return self.uri
+
+    def get_size(self):
+        return self.uri.get_size()
+
     def get_readonly_uri(self):
         return self.uri.get_readonly()
 
     def list(self):
-        return succeed({})
+        return self.tahoe_client.list_directory(self.uri)
+
+    def download_best_version(self, progress):
+        return self.tahoe_client.download_best_version(
+            self.uri, progress
+        )
+
+    def add_file(self, name, uploadable, metadata=None, overwrite=True, progress=None):
+        action = start_action(
+            action_type=u"magic-folder:cli:add_file",
+            name=name,
+        )
+        with action.context():
+            d = DeferredContext(
+                self.tahoe_client.add_file(
+                    self.uri, name, uploadable, metadata, overwrite, progress,
+                ),
+            )
+            return d.addActionFinish()
+
+@attr.s
+class TahoeClient(object):
+    node_uri = attr.ib()
+    agent = attr.ib()
+
+    def get_welcome(self):
+        return self.agent.request(
+            b"GET",
+            self.node_uri.add(u"t", u"json").to_uri().to_text().encode("ascii"),
+        )
+
+    @inline_callbacks
+    def list_directory(self, uri):
+        print("Listing directory contents for {}".format(uri))
+        response = yield self.agent.request(
+            b"GET",
+            self.node_uri.child(u"uri", uri.to_string().decode("ascii")).add(u"t", u"json").to_uri().to_text().encode("ascii"),
+        )
+        if response.code != 200:
+            raise Exception("Error response from list endpoint: {}".format(response))
+
+        kind, dirinfo = json.loads((yield readBody(response)))
+        if kind != u"dirnode":
+            raise ValueError("Object is a {}, not a directory".format(kind))
+        print("Directory contents are {}".format(dirinfo[u"children"]))
+        returnValue({
+            name: (
+                Node(
+                    self,
+                    from_string(
+                        json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
+                    ),
+                ),
+                json_metadata[u"metadata"],
+            )
+            for (name, (child_kind, json_metadata))
+            in dirinfo[u"children"].items()
+        })
+
+    @inline_callbacks
+    def download_best_version(self, filenode_uri, progress):
+        uri = self.node_uri.child(
+            u"uri",
+            filenode_uri.to_string().decode("ascii"),
+        ).to_uri().to_text().encode("ascii")
+
+        with start_action(action_type=u"magic-folder:cli:download", uri=uri):
+            response = yield self.agent.request(
+                b"GET",
+                uri,
+            )
+            if response.code != 200:
+                raise Exception(
+                    "Error response from download endpoint: {code} {phrase}".format(
+                        **vars(response)
+                    ))
+
+        returnValue((yield readBody(response)))
+
+    @inline_callbacks
+    def add_file(self, dirnode_uri, name, uploadable, metadata, overwrite, progress):
+        size = yield uploadable.get_size()
+        contents = b"".join((yield uploadable.read(size)))
+
+        uri = self.node_uri.child(
+            u"uri",
+        ).to_uri().to_text().encode("ascii")
+        action = start_action(
+            action_type=u"magic-folder:cli:add_file:put",
+            uri=uri,
+        )
+        with action:
+            upload_response = yield self.agent.request(
+                b"PUT",
+                uri,
+                bodyProducer=FileBodyProducer(BytesIO(contents)),
+            )
+
+            if upload_response.code != 200:
+                raise Exception(
+                    "Error response from upload endpoint: {code} {phrase}".format(
+                        **vars(upload_response)
+                    ),
+                )
+
+            filecap = yield readBody(upload_response)
+
+        uri = self.node_uri.child(
+            u"uri",
+            dirnode_uri.to_string().decode("ascii"),
+            u"",
+        ).add(
+            u"t",
+            u"set-children",
+        ).add(
+            u"overwrite",
+            u"true" if overwrite else u"false",
+        ).to_uri().to_text().encode("ascii")
+        action = start_action(
+            action_type=u"magic-folder:cli:add_file:metadata",
+            uri=uri,
+        )
+        with action:
+            yield self.agent.request(
+                b"POST",
+                uri,
+                bodyProducer=FileBodyProducer(
+                    BytesIO(
+                        json.dumps({
+                            name: [
+                                u"filenode", {
+                                    "ro_uri": filecap,
+                                    "size": size,
+                                    "metadata": metadata,
+                                },
+                            ],
+                        }).encode("utf-8"),
+                    ),
+                ),
+            )
+        returnValue(Node(self, filecap))
+
 
 
 NODEDIR_HELP = (
@@ -825,6 +1038,10 @@ def run():
 
     :return: ``None``
     """
+    from eliot import to_file
+    from os import getpid
+    to_file(open("magic-folder-cli.{}.eliot".format(getpid()), "w"))
+
     console_scripts = importlib_metadata.entry_points()["console_scripts"]
     magic_folder = list(
         script
