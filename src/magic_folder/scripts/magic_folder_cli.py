@@ -61,6 +61,7 @@ from eliot.twisted import (
 
 from allmydata.interfaces import (
     IDirectoryNode,
+    IURI,
 )
 from allmydata.uri import (
     from_string,
@@ -747,6 +748,10 @@ class Node(object):
     tahoe_client = attr.ib()
     uri = attr.ib()
 
+    def __attrs_post_init__(self):
+        if not IURI.providedBy(self.uri):
+            raise TypeError("{} does not provide IURI".format(self.uri))
+
     def is_unknown(self):
         return False
 
@@ -754,13 +759,13 @@ class Node(object):
         return self.uri.is_readonly()
 
     def get_uri(self):
-        return self.uri
+        return self.uri.to_string()
 
     def get_size(self):
         return self.uri.get_size()
 
     def get_readonly_uri(self):
-        return self.uri.get_readonly()
+        return self.uri.get_readonly().to_string()
 
     def list(self):
         return self.tahoe_client.list_directory(self.uri)
@@ -903,7 +908,7 @@ class TahoeClient(object):
                     ),
                 ),
             )
-        returnValue(Node(self, filecap))
+        returnValue(Node(self, from_string(filecap)))
 
 
 
