@@ -1989,6 +1989,8 @@ class Downloader(QueueMixin, WriteFileMixin):
 
         @log_call
         def do_update_db(written_abspath_u):
+            if not isinstance(written_abspath_u, unicode):
+                raise TypeError("written path must be unicode, not {!r}".format(written_abspath_u))
             filecap = item.file_node.get_uri()
             if not item.file_node.get_size():
                 filecap = None  # ^ is an empty file
