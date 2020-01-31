@@ -286,7 +286,7 @@ def _bob_conflicts_alice_await_conflicts(name, alice_dir, bob_dir):
 
 
 @pytest_twisted.inlineCallbacks
-def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_furl, flog_gatherer, storage_nodes):
+def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_furl, flog_gatherer):
     """
     ticket 2880: if a magic-folder client uploads something, then
     re-starts a spurious .backup file should not appear
