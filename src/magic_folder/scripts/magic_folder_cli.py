@@ -26,6 +26,7 @@ from io import (
     BytesIO,
 )
 from eliot import (
+    Message,
     start_action,
     log_call,
 )
@@ -105,6 +106,9 @@ from ..frontends.magic_folder import (
     load_magic_folders,
     save_magic_folders,
     maybe_upgrade_magic_folders,
+)
+from ..web.magic_folder import (
+    magic_folder_web_service,
 )
 
 INVITE_SEPARATOR = "+"
@@ -433,6 +437,7 @@ class StatusOptions(BasedirOptions):
             self['node-url'] = f.read().strip()
 
 
+@log_call
 def _get_json_for_fragment(options, fragment, method='GET', post_args=None):
     nodeurl = options['node-url']
     if nodeurl.endswith('/'):
@@ -456,6 +461,11 @@ def _get_json_for_fragment(options, fragment, method='GET', post_args=None):
         )
 
     data = resp.read()
+    Message.log(
+        message_type=u"http",
+        uri=url,
+        response_body=data,
+    )
     parsed = json.loads(data)
     if parsed is None:
         raise RuntimeError("No data from '%s'" % (nodeurl,))
@@ -623,7 +633,11 @@ def status(options):
 
 
 class RunOptions(BasedirOptions):
-    pass
+    optParameters = [
+        ("web-port", None, "tcp:9889",
+         "String description of an endpoint on which to run the web interface.",
+        ),
+    ]
 
 
 def main(options):
@@ -635,6 +649,7 @@ def main(options):
     service = MagicFolderService.from_node_directory(
         reactor,
         options["node-directory"],
+        options["web-port"],
     )
     return service.run()
 
@@ -654,6 +669,7 @@ def poll(label, operation, reactor):
 class MagicFolderService(MultiService):
     reactor = attr.ib()
     config = attr.ib()
+    webport = attr.ib()
     magic_folder_configs = attr.ib()
     magic_folder_services = attr.ib(default=attr.Factory(dict))
 
@@ -663,12 +679,24 @@ class MagicFolderService(MultiService):
             URL.from_text(self.config.get_config_from_file(b"node.url").decode("utf-8")),
             Agent(self.reactor),
         )
+        magic_folder_web_service(
+            self.reactor,
+            self.webport,
+            self._get_magic_folder,
+            self._get_auth_token,
+        ).setServiceParent(self)
+
+    def _get_magic_folder(self, name):
+        return self.magic_folder_services[name]
+
+    def _get_auth_token(self):
+        return self.config.get_private_config("api_auth_token")
 
     @classmethod
-    def from_node_directory(cls, reactor, nodedir):
+    def from_node_directory(cls, reactor, nodedir, webport):
         config = read_config(nodedir, u"client.port")
         magic_folders = load_magic_folders(nodedir)
-        return cls(reactor, config, magic_folders)
+        return cls(reactor, config, webport, magic_folders)
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
@@ -686,9 +714,7 @@ class MagicFolderService(MultiService):
             welcome_body = json.loads((yield readBody(welcome)))
             if len(welcome_body[u"servers"]) < threshold:
                 returnValue(False)
-
             returnValue(True)
-
         return poll("connected enough", enough, self.reactor)
 
     def run(self):
@@ -698,7 +724,6 @@ class MagicFolderService(MultiService):
         return d
 
     def startService(self):
-        print("Starting")
         MultiService.startService(self)
         ds = []
         for (name, mf_config) in self.magic_folder_configs.items():
@@ -710,6 +735,8 @@ class MagicFolderService(MultiService):
             self.magic_folder_services[name] = mf
             mf.setServiceParent(self)
             ds.append(mf.ready())
+        # The integration tests look for this message.  You cannot get rid of
+        # it.
         print("Completed initial Magic Folder setup")
         self._starting = gatherResults(ds)
 
