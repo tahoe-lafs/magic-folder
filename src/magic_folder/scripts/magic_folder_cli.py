@@ -804,18 +804,34 @@ class TahoeClient(object):
 
     @inline_callbacks
     def list_directory(self, uri):
-        print("Listing directory contents for {}".format(uri))
-        response = yield self.agent.request(
-            b"GET",
-            self.node_uri.child(u"uri", uri.to_string().decode("ascii")).add(u"t", u"json").to_uri().to_text().encode("ascii"),
+        api_uri = self.node_uri.child(
+                u"uri",
+                uri.to_string().decode("ascii"),
+            ).add(
+                u"t",
+                u"json",
+            ).to_uri().to_text().encode("ascii")
+        action = start_action(
+            action_type=u"magic-folder:cli:list-dir",
+            filenode_uri=uri.to_string().decode("ascii"),
+            api_uri=api_uri,
         )
-        if response.code != 200:
-            raise Exception("Error response from list endpoint: {}".format(response))
+        with action.context():
+            response = yield self.agent.request(
+                b"GET",
+                api_uri,
+            )
+            if response.code != 200:
+                raise Exception("Error response from list endpoint: {}".format(response))
 
-        kind, dirinfo = json.loads((yield readBody(response)))
-        if kind != u"dirnode":
-            raise ValueError("Object is a {}, not a directory".format(kind))
-        print("Directory contents are {}".format(dirinfo[u"children"]))
+            kind, dirinfo = json.loads((yield readBody(response)))
+            if kind != u"dirnode":
+                raise ValueError("Object is a {}, not a directory".format(kind))
+
+            action.add_success_fields(
+                children=dirinfo[u"children"],
+            )
+
         returnValue({
             name: (
                 Node(
