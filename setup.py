@@ -300,7 +300,7 @@ setup(name="magic_folder", # also set in __init__.py
       setup_requires=setup_requires,
       entry_points = {
           "console_scripts": [
-              "magic_folder = magic_folder.scripts.magic_folder_cli:run",
+              "magic-folder = magic_folder.scripts.magic_folder_cli:run",
           ],
       },
       **setup_args
