@@ -1051,9 +1051,9 @@ class QueueMixin(HookMixin):
                         self._process_history.remove(item)
                     self._call_hook(item, 'item_processed')
                 except:
-                    write_traceback()
-                    item.set_status('failed', self._clock.seconds())
                     proc = Failure()
+                    write_failure(proc)
+                    item.set_status('process-queue failed', self._clock.seconds())
 
                 self._call_hook(proc, 'processed')
 
