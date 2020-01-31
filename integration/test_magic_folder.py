@@ -1,8 +1,12 @@
 import sys
 import time
 import shutil
+import json
 from os import mkdir, unlink, utime
 from os.path import join, exists, getmtime
+from functools import (
+    partial,
+)
 
 import util
 
@@ -13,9 +17,21 @@ from eliot import (
     write_traceback,
 )
 
+from twisted.internet.defer import (
+    returnValue,
+)
+from twisted.web.client import (
+    Agent,
+    readBody,
+)
+
+from magic_folder.frontends.magic_folder import (
+    load_magic_folders,
+)
 from magic_folder.scripts.magic_folder_cli import (
     MagicFolderCommand,
     do_magic_folder,
+    poll,
 )
 
 # tests converted from check_magicfolder_smoke.py
@@ -377,7 +393,7 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
 
 @pytest_twisted.inlineCallbacks
-def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic_folder):
+def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic_folder, bob):
     """
     Alice can add new files to a magic folder while Bob is offline.  When Bob
     comes back online his copy is updated to reflect the new files.
@@ -387,7 +403,7 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
     bob_node_dir = join(temp_dir, "bob")
 
     # Take Bob offline.
-    yield util.cli(request, reactor, bob_node_dir, "stop")
+    yield bob.stop_magic_folder()
 
     # Create a couple files in Alice's local directory.
     some_files = list(
@@ -399,24 +415,30 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
         with open(join(alice_magic_dir, name), "w") as f:
             f.write(name + " some content")
 
-    good = False
-    for i in range(15):
-        status = yield util.magic_folder_cli(request, reactor, alice_node_dir, "status")
-        good = status.count(".added-while-offline (36 B): good, version=0") == len(some_files) * 2
-        if good:
-            # We saw each file as having a local good state and a remote good
-            # state.  That means we're ready to involve Bob.
-            break
-        else:
-            time.sleep(1.0)
+    agent = Agent(reactor)
 
-    assert good, (
-        "Timed out waiting for good Alice state.  Last status:\n{}".format(status)
-    )
+    upload_dircap = load_magic_folders(alice_node_dir)["default"]["upload_dircap"]
+
+    # Alice's tahoe-lafs web api
+    uri = "http://127.0.0.1:9980/uri/{}?t=json".format(upload_dircap)
+
+    @pytest_twisted.inlineCallbacks
+    def good_remote_state(agent):
+        response = yield agent.request(
+            b"GET",
+            uri,
+        )
+        if response.code != 200:
+            returnValue(False)
+
+        files = json.loads((yield readBody(response)))
+        print(files)
+        returnValue(True)
+
+    yield poll("good-remote-state", partial(good_remote_state, agent), reactor)
 
     # Start Bob up again
-    magic_text = 'Completed initial Magic Folder scan successfully'
-    yield util._run_node(reactor, bob_node_dir, request, magic_text)
+    yield bob.start_magic_folder()
 
     yield util.await_files_exist(
         list(
