@@ -27,6 +27,7 @@ from io import (
 )
 from eliot import (
     start_action,
+    log_call,
 )
 from eliot.twisted import (
     DeferredContext,
@@ -758,9 +759,11 @@ class Node(object):
     def is_readonly(self):
         return self.uri.is_readonly()
 
+    @log_call
     def get_uri(self):
         return self.uri.to_string()
 
+    @log_call
     def get_size(self):
         return self.uri.get_size()
 
@@ -858,6 +861,7 @@ class TahoeClient(object):
         action = start_action(
             action_type=u"magic-folder:cli:add_file:put",
             uri=uri,
+            size=size,
         )
         with action:
             upload_response = yield self.agent.request(

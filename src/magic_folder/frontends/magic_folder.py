@@ -1613,6 +1613,7 @@ class WriteFileMixin(object):
     def _get_conflicted_filename(self, abspath_u):
         return abspath_u + u".conflict"
 
+    @log_call
     def _write_downloaded_file(self, local_path_u, abspath_u, file_contents,
                                is_conflict=False, now=None, mtime=None):
         if now is None:
@@ -1634,6 +1635,7 @@ class WriteFileMixin(object):
                 mtime,
             )
 
+    @log_call
     def _write_downloaded_file_logged(self, local_path_u, abspath_u,
                                       file_contents, is_conflict, now, mtime):
         # 1. Write a temporary file, say .foo.tmp.
@@ -1985,6 +1987,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         with PROCESS_ITEM(item=item):
             d = DeferredContext(defer.succeed(False))
 
+        @log_call
         def do_update_db(written_abspath_u):
             filecap = item.file_node.get_uri()
             if not item.file_node.get_size():
@@ -2098,8 +2101,16 @@ class Downloader(QueueMixin, WriteFileMixin):
                     d.addCallback(lambda ign: abspath_u)
             else:
                 if item.metadata.get('deleted', False):
+                    Message.log(
+                        message_type=u"magic-folder:remote-file-delete-detected",
+                        abspath_u=abspath_u,
+                    )
                     d.addCallback(lambda ign: self._rename_deleted_file(abspath_u))
                 else:
+                    Message.log(
+                        message_type=u"magic-folder:remote-file-change-detected",
+                        abspath_u=abspath_u,
+                    )
                     @eliotutil.log_call_deferred(DOWNLOAD_BEST_VERSION.action_type)
                     def download_best_version(ignored):
                         d = DeferredContext(item.file_node.download_best_version(progress=item.progress))
