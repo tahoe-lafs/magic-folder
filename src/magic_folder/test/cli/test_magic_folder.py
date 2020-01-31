@@ -14,7 +14,6 @@ from eliot.twisted import (
     DeferredContext,
 )
 
-from twisted.trial import unittest
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage

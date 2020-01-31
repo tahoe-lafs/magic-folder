@@ -3,7 +3,7 @@ from __future__ import print_function
 import sys
 import shutil
 from time import sleep
-from os import mkdir, listdir, environ
+from os import mkdir, listdir
 from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
@@ -26,7 +26,6 @@ from eliot.twisted import (
 )
 
 from twisted.python.procutils import which
-from twisted.internet.defer import DeferredList
 from twisted.internet.error import (
     ProcessExitedAlready,
     ProcessTerminated,
@@ -46,7 +45,6 @@ from util import (
     _DumpOutputProtocol,
     _ProcessExitedProtocol,
     _create_node,
-    _run_node,
     _cleanup_tahoe_process,
     _tahoe_runner_optional_coverage,
     await_client_ready,
