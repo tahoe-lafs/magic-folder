@@ -895,7 +895,7 @@ class TahoeClient(object):
             uri=uri,
         )
         with action:
-            yield self.agent.request(
+            response = yield self.agent.request(
                 b"POST",
                 uri,
                 bodyProducer=FileBodyProducer(
@@ -912,6 +912,10 @@ class TahoeClient(object):
                     ),
                 ),
             )
+            if response.code != 200:
+                raise Exception("Error response from metadata endpoint: {code} {phrase}".format(
+                    **vars(response)
+                ))
         returnValue(Node(self, from_string(filecap)))
 
 
