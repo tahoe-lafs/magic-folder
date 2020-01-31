@@ -194,11 +194,6 @@ def test_bob_creates_alice_deletes_bob_restores(magic_folder):
     with open(join(bob_dir, "boom"), "w") as f:
         f.write("bob wrote this again, because reasons")
 
-    # XXX double-check this behavior is correct!
-
-    # alice sees bob's update, but marks it as a conflict (because
-    # .. she previously deleted it? does that really make sense)
-
     util.await_file_contents(
         join(alice_dir, "boom"),
         "bob wrote this again, because reasons",
