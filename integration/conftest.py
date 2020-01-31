@@ -21,6 +21,9 @@ from eliot import (
     log_call,
     start_action,
 )
+from eliot.twisted import (
+    DeferredContext,
+)
 
 from twisted.python.procutils import which
 from twisted.internet.defer import DeferredList
@@ -266,6 +269,12 @@ class MagicFolderEnabledNode(object):
     tahoe = attr.ib()
     magic_folder = attr.ib()
 
+    magic_folder_web_port = attr.ib()
+
+    @property
+    def node_directory(self):
+        return join(self.temp_dir, self.name)
+
     @classmethod
     def create(
             cls,
@@ -275,7 +284,8 @@ class MagicFolderEnabledNode(object):
             introducer_furl,
             flog_gatherer,
             name,
-            web_port,
+            tahoe_web_port,
+            magic_folder_web_port,
             storage,
     ):
         """
@@ -293,8 +303,10 @@ class MagicFolderEnabledNode(object):
         :param bytes flog_gatherer: The flog gatherer fURL to configure the
             new Tahoe-LAFS node with.
         :param bytes name: A nickname to assign the new Tahoe-LAFS node.
-        :param bytes web_port: An endpoint description of the web port for the
-            new Tahoe-LAFS node to listen on.
+        :param bytes tahoe_web_port: An endpoint description of the web port
+            for the new Tahoe-LAFS node to listen on.
+        :param bytes magic_folder_web_port: An endpoint description of the web
+            port for the new magic-folder process to listen on.
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
@@ -307,7 +319,7 @@ class MagicFolderEnabledNode(object):
                 introducer_furl,
                 flog_gatherer,
                 name,
-                web_port,
+                tahoe_web_port,
                 storage,
                 needed=1,
                 happy=1,
@@ -317,31 +329,44 @@ class MagicFolderEnabledNode(object):
         await_client_ready(tahoe)
 
         # Make the magic folder process.
-        magic_folder = _run_magic_folder(
+        magic_folder = pytest_twisted.blockon(
+            _run_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                name,
+                magic_folder_web_port,
+            ),
+        )
+        return cls(
             reactor,
             request,
             temp_dir,
             name,
+            tahoe,
+            magic_folder,
+            magic_folder_web_port,
         )
-        return cls(reactor, request, temp_dir, name, tahoe, magic_folder)
 
+    @pytest_twisted.inlineCallbacks
     def restart_magic_folder(self):
+        self.magic_folder.signalProcess('TERM')
         try:
-            self.magic_folder.signalProcess('TERM')
-            pytest_twisted.blockon(self.magic_folder.proto.exited)
+            yield self.magic_folder.proto.exited
         except ProcessExitedAlready:
             pass
 
         with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
-            self.magic_folder = _run_magic_folder(
+            self.magic_folder = yield _run_magic_folder(
                 self.reactor,
                 self.request,
                 self.temp_dir,
                 self.name,
+                self.magic_folder_web_port,
             )
 
 
-def _run_magic_folder(reactor, request, temp_dir, name):
+def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     """
     Start a magic-folder process.
 
@@ -350,7 +375,7 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     :param temp_dir: The directory in which to find a Tahoe-LAFS node.
     :param name: The alias of the Tahoe-LAFS node.
 
-    :return IProcessTransport: The started process.
+    :return Deferred[IProcessTransport]: The started process.
     """
     node_dir = join(temp_dir, name)
 
@@ -364,20 +389,18 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         "--node-directory",
         node_dir,
         "run",
+        "--web-port", web_port,
     ]
     transport = reactor.spawnProcess(
         proto,
         sys.executable,
         args,
     )
-
     request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.exited))
-
-    print("Waiting for Magic Folder scan success")
-    pytest_twisted.blockon(proto.magic_seen)
-    print("Saw it")
-
-    return transport
+    with start_action(action_type=u"integration:run-magic-folder").context():
+        ctx = DeferredContext(proto.magic_seen)
+        ctx.addCallback(lambda ignored: transport)
+        return ctx.addActionFinish()
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice", include_args=[], include_result=False)
@@ -394,7 +417,8 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
         introducer_furl,
         flog_gatherer,
         name="alice",
-        web_port="tcp:9980:interface=localhost",
+        tahoe_web_port="tcp:9980:interface=localhost",
+        magic_folder_web_port="tcp:19980:interface=localhost",
         storage=True,
     )
 
@@ -414,10 +438,25 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
         introducer_furl,
         flog_gatherer,
         name="bob",
-        web_port="tcp:9981:interface=localhost",
+        tahoe_web_port="tcp:9981:interface=localhost",
+        magic_folder_web_port="tcp:19981:interface=localhost",
         storage=False,
     )
 
+@pytest.fixture(scope='session')
+@log_call(action_type=u"integration:edmond", include_args=[], include_result=False)
+def edmond(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+    return MagicFolderEnabledNode.create(
+        reactor,
+        request,
+        temp_dir,
+        introducer_furl,
+        flog_gatherer,
+        "edmond",
+        tahoe_web_port="tcp:9985:interface=localhost",
+        magic_folder_web_port="tcp:19985:interface=localhost",
+        storage=True,
+    )
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice:invite", include_args=["temp_dir"])
@@ -451,7 +490,7 @@ def alice_invite(reactor, alice, temp_dir, request):
     with start_action(action_type=u"integration:alice:magic_folder:restart"):
         # before magic-folder works, we have to stop and restart (this is
         # crappy for the tests -- can we fix it in magic-folder?)
-        alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.restart_magic_folder())
     return invite
 
 
@@ -477,6 +516,6 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
-    bob.restart_magic_folder()
+    pytest_twisted.blockon(bob.restart_magic_folder())
 
     return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))

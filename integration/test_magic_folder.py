@@ -8,9 +8,22 @@ import util
 
 import pytest_twisted
 
+from eliot import (
+    start_action,
+    write_traceback,
+)
+
+from magic_folder.scripts.magic_folder_cli import (
+    MagicFolderCommand,
+    do_magic_folder,
+)
 
 # tests converted from check_magicfolder_smoke.py
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
+
+from .conftest import (
+    MagicFolderEnabledNode,
+)
 
 def test_eliot_logs_are_written(alice, bob, temp_dir):
     # The integration test configuration arranges for this logging
@@ -286,55 +299,29 @@ def _bob_conflicts_alice_await_conflicts(name, alice_dir, bob_dir):
 
 
 @pytest_twisted.inlineCallbacks
-def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_furl, flog_gatherer):
+def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_furl, flog_gatherer, edmond):
     """
     ticket 2880: if a magic-folder client uploads something, then
     re-starts a spurious .backup file should not appear
     """
-
-    edmond_dir = join(temp_dir, 'edmond')
-    edmond = yield util._create_node(
-        reactor, request, temp_dir, introducer_furl, flog_gatherer,
-        "edmond", web_port="tcp:9985:interface=localhost",
-        storage=False,
-    )
-
+    name = "edmond"
+    node_dir = join(temp_dir, name)
 
     magic_folder = join(temp_dir, 'magic-edmond')
     mkdir(magic_folder)
-    created = False
-    # create a magic-folder
-    # (how can we know that the grid is ready?)
-    for _ in range(10):  # try 10 times
-        try:
-            proto = util._CollectOutputProtocol()
-            transport = reactor.spawnProcess(
-                proto,
-                sys.executable,
-                [
-                    sys.executable, '-m', 'allmydata.scripts.runner',
-                    'magic-folder', 'create',
-                    '--poll-interval', '2',
-                    '--basedir', edmond_dir,
-                    'magik:',
-                    'edmond_magic',
-                    magic_folder,
-                ]
-            )
-            yield proto.done
-            created = True
-            break
-        except Exception as e:
-            print("failed to create magic-folder: {}".format(e))
-            time.sleep(1)
 
-    assert created, "Didn't create a magic-folder"
+    with start_action(action_type=u"integration:edmond:magic_folder:create"):
+        o = MagicFolderCommand()
+        o.parseOptions([
+            "--node-directory", node_dir,
+            "create",
+            "--poll-interval", "2",
+            "magik:", "edmond_magic", magic_folder,
+        ])
+        assert 0 == do_magic_folder(o)
 
-    # to actually-start the magic-folder we have to re-start
-    edmond.transport.signalProcess('TERM')
-    yield edmond.transport.exited
-    edmond = yield util._run_node(reactor, edmond.node_dir, request, 'Completed initial Magic Folder scan successfully')
-    util.await_client_ready(edmond)
+        # to actually-start the magic-folder we have to re-start
+        yield edmond.restart_magic_folder()
 
     # add a thing to the magic-folder
     with open(join(magic_folder, "its_a_file"), "w") as f:
@@ -345,20 +332,20 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
     # let it upload; poll the HTTP magic-folder status API until it is
     # uploaded
-    from allmydata.scripts.magic_folder_cli import _get_json_for_fragment
+    from magic_folder.scripts.magic_folder_cli import _get_json_for_fragment
 
-    with open(join(edmond_dir, u'private', u'api_auth_token'), 'rb') as f:
+    with open(join(edmond.node_directory, u'private', u'api_auth_token'), 'rb') as f:
         token = f.read()
 
     uploaded = False
     for _ in range(10):
         options = {
-            "node-url": open(join(edmond_dir, u'node.url'), 'r').read().strip(),
+            "node-url": "http://127.0.0.1:19985/",
         }
         try:
             magic_data = _get_json_for_fragment(
                 options,
-                'magic_folder?t=json',
+                'api?t=json',
                 method='POST',
                 post_args=dict(
                     t='json',
@@ -370,19 +357,15 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
                 if mf['status'] == u'success' and mf['path'] == u'its_a_file':
                     uploaded = True
                     break
-        except Exception as e:
+        except Exception:
+            write_traceback()
             time.sleep(1)
 
     assert uploaded, "expected to upload 'its_a_file'"
 
-    # re-starting edmond right now would "normally" trigger the 2880 bug
-
+    # re-starting edmond right now would previously have triggered the 2880 bug
     # kill edmond
-    edmond.transport.signalProcess('TERM')
-    yield edmond.transport.exited
-    time.sleep(1)
-    edmond = yield util._run_node(reactor, edmond.node_dir, request, 'Completed initial Magic Folder scan successfully')
-    util.await_client_ready(edmond)
+    yield edmond.restart_magic_folder()
 
     # XXX how can we say for sure if we've waited long enough? look at
     # tail of logs for magic-folder ... somethingsomething?
