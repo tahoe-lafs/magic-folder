@@ -349,13 +349,20 @@ class MagicFolderEnabledNode(object):
         )
 
     @pytest_twisted.inlineCallbacks
-    def restart_magic_folder(self):
+    def stop_magic_folder(self):
         self.magic_folder.signalProcess('TERM')
         try:
             yield self.magic_folder.proto.exited
         except ProcessExitedAlready:
             pass
 
+    @pytest_twisted.inlineCallbacks
+    def restart_magic_folder(self):
+        yield self.stop_magic_folder()
+        yield self.start_magic_folder()
+
+    @pytest_twisted.inlineCallbacks
+    def start_magic_folder(self):
         with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
