@@ -2100,7 +2100,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                 else:
                     REMOTE_DIRECTORY_CREATED.log()
                     d.addCallback(lambda ign: fileutil.make_dirs(abspath_u))
-                    d.addCallback(lambda ign: abspath_u)
+                d.addCallback(lambda ign: abspath_u)
             else:
                 if item.metadata.get('deleted', False):
                     Message.log(
