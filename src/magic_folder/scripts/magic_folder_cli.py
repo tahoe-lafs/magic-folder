@@ -739,8 +739,8 @@ class ClientStandIn(object):
         convergence_s = self.config.get_private_config('convergence')
         self.convergence = base32.a2b(convergence_s)
 
-    def create_node_from_uri(self, uri):
-        return Node(self.tahoe_client, from_string(uri))
+    def create_node_from_uri(self, uri, rouri=None):
+        return Node(self.tahoe_client, from_string(rouri if uri is None else uri))
 
 
 @implementer(IDirectoryNode)
