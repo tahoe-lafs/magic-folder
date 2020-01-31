@@ -1,4 +1,3 @@
-import sys
 import time
 import shutil
 import json
@@ -34,12 +33,7 @@ from magic_folder.scripts.magic_folder_cli import (
     poll,
 )
 
-# tests converted from check_magicfolder_smoke.py
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
-
-from .conftest import (
-    MagicFolderEnabledNode,
-)
 
 def test_eliot_logs_are_written(alice, bob, temp_dir):
     # The integration test configuration arranges for this logging
@@ -400,7 +394,6 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
     """
     alice_magic_dir, bob_magic_dir = magic_folder
     alice_node_dir = join(temp_dir, "alice")
-    bob_node_dir = join(temp_dir, "bob")
 
     # Take Bob offline.
     yield bob.stop_magic_folder()
