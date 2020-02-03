@@ -36,11 +36,14 @@ PIP="${BOOTSTRAP_VENV}/bin/pip"
 # Tell pip where it can find any existing wheels.
 export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 
+# We don't yet have a compatible release
+export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#eggname=tahoe-lafs"
+
 # Populate the wheelhouse, if necessary.
 "${PIP}" \
     wheel \
     --wheel-dir "${WHEELHOUSE_PATH}" \
-    git+https://github.com/tahoe-lafs/tahoe-lafs#eggname=tahoe-lafs # latest release not compatible \
+    ${TAHOE_LAFS}
     "${PROJECT_ROOT}"[test] \
     ${BASIC_DEPS} \
     ${TEST_DEPS} \
