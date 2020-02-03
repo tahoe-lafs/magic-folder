@@ -48,7 +48,7 @@ def _configure_hypothesis():
         deadline=None,
     )
 
-    profile_name = environ.get("TAHOE_LAFS_HYPOTHESIS_PROFILE", "default")
+    profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
     settings.load_profile(profile_name)
 _configure_hypothesis()
 
