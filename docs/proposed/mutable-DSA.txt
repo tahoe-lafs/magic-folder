@@ -1,0 +1,390 @@
+
+(protocol proposal, work-in-progress, not authoritative)
+
+(this document describes DSA-based mutable files, as opposed to the RSA-based
+mutable files that were introduced in tahoe-0.7.0 . This proposal has not yet
+been implemented. Please see mutable-DSA.svg for a quick picture of the
+crypto scheme described herein)
+
+This file shows only the differences from RSA-based mutable files to
+(EC)DSA-based mutable files.  You have to read and understand
+docs/specifications/mutable.rst before reading this file (mutable-DSA.txt).
+
+== new design criteria ==
+
+* provide for variable number of semiprivate sections?
+* put e.g. filenames in one section, readcaps in another, writecaps in a third
+  (ideally, to modify a filename you'd only have to modify one section, and
+  we'd make encrypting/hashing more efficient by doing it on larger blocks of
+  data, preferably one segment at a time instead of one writecap at a time)
+* cleanly distinguish between "container" (leases, write-enabler) and
+  "slot contents" (everything that comes from share encoding)
+* sign all slot bits (to allow server-side verification)
+* someone reading the whole file should be able to read the share in a single
+  linear pass with just a single seek to zero
+* writing the file should occur in two passes (3 seeks) in mostly linear order
+  1: write version/pubkey/topbits/salt
+  2: write zeros / seek+prefill where the hashchain/tree goes
+  3: write blocks
+  4: seek back
+  5: write hashchain/tree
+* storage format: consider putting container bits in a separate file
+  - $SI.index (contains list of shnums, leases, other-cabal-members, WE, etc)
+  - $SI-$shnum.share (actual share data)
+* possible layout:
+    - version
+    - pubkey
+    - topbits (k, N, size, segsize, etc)
+    - salt? (salt tree root?)
+    - share hash root
+    - share hash chain
+    - block hash tree
+    - (salts?) (salt tree?)
+    - blocks
+    - signature (of [version .. share hash root])
+
+=== SDMF slots overview ===
+
+Each SDMF slot is created with a DSA public/private key pair, using a
+system-wide common modulus and generator, in which the private key is a
+random 256 bit number, and the public key is a larger value (about 2048 bits)
+that can be derived with a bit of math from the private key. The public key
+is known as the "verification key", while the private key is called the
+"signature key".
+
+The 256-bit signature key is used verbatim as the "write capability". This
+can be converted into the 2048ish-bit verification key through a fairly cheap
+set of modular exponentiation operations; this is done any time the holder of
+the write-cap wants to read the data. (Note that the signature key can either
+be a newly-generated random value, or the hash of something else, if we found
+a need for a capability that's stronger than the write-cap).
+
+This results in a write-cap which is 256 bits long and can thus be expressed
+in an ASCII/transport-safe encoded form (base62 encoding, fits in 72
+characters, including a local-node http: convenience prefix).
+
+The private key is hashed to form a 256-bit "salt". The public key is also
+hashed to form a 256-bit "pubkey hash". These two values are concatenated,
+hashed, and truncated to 192 bits to form the first 192 bits of the read-cap.
+The pubkey hash is hashed by itself and truncated to 64 bits to form the last
+64 bits of the read-cap. The full read-cap is 256 bits long, just like the
+write-cap.
+
+The first 192 bits of the read-cap are hashed and truncated to form the first
+192 bits of the "traversal cap". The last 64 bits of the read-cap are hashed
+to form the last 64 bits of the traversal cap. This gives us a 256-bit
+traversal cap.
+
+The first 192 bits of the traversal-cap are hashed and truncated to form the
+first 64 bits of the storage index. The last 64 bits of the traversal-cap are
+hashed to form the last 64 bits of the storage index. This gives us a 128-bit
+storage index.
+
+The verification-cap is the first 64 bits of the storage index plus the
+pubkey hash, 320 bits total. The verification-cap doesn't need to be
+expressed in a printable transport-safe form, so it's ok that it's longer.
+
+The read-cap is hashed one way to form an AES encryption key that is used to
+encrypt the salt; this key is called the "salt key". The encrypted salt is
+stored in the share. The private key never changes, therefore the salt never
+changes, and the salt key is only used for a single purpose, so there is no
+need for an IV.
+
+The read-cap is hashed a different way to form the master data encryption
+key. A random "data salt" is generated each time the share's contents are
+replaced, and the master data encryption key is concatenated with the data
+salt, then hashed, to form the AES CTR-mode "read key" that will be used to
+encrypt the actual file data. This is to avoid key-reuse. An outstanding
+issue is how to avoid key reuse when files are modified in place instead of
+being replaced completely; this is not done in SDMF but might occur in MDMF.
+
+The master data encryption key is used to encrypt data that should be visible
+to holders of a write-cap or a read-cap, but not to holders of a
+traversal-cap.
+
+The private key is hashed one way to form the salt, and a different way to
+form the "write enabler master". For each storage server on which a share is
+kept, the write enabler master is concatenated with the server's nodeid and
+hashed, and the result is called the "write enabler" for that particular
+server. Note that multiple shares of the same slot stored on the same server
+will all get the same write enabler, i.e. the write enabler is associated
+with the "bucket", rather than the individual shares.
+
+The private key is hashed a third way to form the "data write key", which can
+be used by applications which wish to store some data in a form that is only
+available to those with a write-cap, and not to those with merely a read-cap.
+This is used to implement transitive read-onlyness of dirnodes.
+
+The traversal cap is hashed to work the "traversal key", which can be used by
+applications that wish to store data in a form that is available to holders
+of a write-cap, read-cap, or traversal-cap.
+
+The idea is that dirnodes will store child write-caps under the writekey,
+child names and read-caps under the read-key, and verify-caps (for files) or
+deep-verify-caps (for directories) under the traversal key. This would give
+the holder of a root deep-verify-cap the ability to create a verify manifest
+for everything reachable from the root, but not the ability to see any
+plaintext or filenames. This would make it easier to delegate filechecking
+and repair to a not-fully-trusted agent.
+
+The public key is stored on the servers, as is the encrypted salt, the
+(non-encrypted) data salt, the encrypted data, and a signature. The container
+records the write-enabler, but of course this is not visible to readers. To
+make sure that every byte of the share can be verified by a holder of the
+verify-cap (and also by the storage server itself), the signature covers the
+version number, the sequence number, the root hash "R" of the share merkle
+tree, the encoding parameters, and the encrypted salt. "R" itself covers the
+hash trees and the share data.
+
+The read-write URI is just the private key. The read-only URI is the read-cap
+key. The deep-verify URI is the traversal-cap. The verify-only URI contains
+the the pubkey hash and the first 64 bits of the storage index.
+
+ FMW:b2a(privatekey)
+ FMR:b2a(readcap)
+ FMT:b2a(traversalcap)
+ FMV:b2a(storageindex[:64])b2a(pubkey-hash)
+
+Note that this allows the read-only, deep-verify, and verify-only URIs to be
+derived from the read-write URI without actually retrieving any data from the
+share, but instead by regenerating the public key from the private one. Users
+of the read-only, deep-verify, or verify-only caps must validate the public
+key against their pubkey hash (or its derivative) the first time they
+retrieve the pubkey, before trusting any signatures they see.
+
+The SDMF slot is allocated by sending a request to the storage server with a
+desired size, the storage index, and the write enabler for that server's
+nodeid. If granted, the write enabler is stashed inside the slot's backing
+store file. All further write requests must be accompanied by the write
+enabler or they will not be honored. The storage server does not share the
+write enabler with anyone else.
+
+The SDMF slot structure will be described in more detail below. The important
+pieces are:
+
+  * a sequence number
+  * a root hash "R"
+  * the data salt
+  * the encoding parameters (including k, N, file size, segment size)
+  * a signed copy of [seqnum,R,data_salt,encoding_params] (using signature key)
+  * the verification key (not encrypted)
+  * the share hash chain (part of a Merkle tree over the share hashes)
+  * the block hash tree (Merkle tree over blocks of share data)
+  * the share data itself (erasure-coding of read-key-encrypted file data)
+  * the salt, encrypted with the salt key
+
+The access pattern for read (assuming we hold the write-cap) is:
+ * generate public key from the private one
+ * hash private key to get the salt, hash public key, form read-cap
+ * form storage-index
+ * use storage-index to locate 'k' shares with identical 'R' values
+   * either get one share, read 'k' from it, then read k-1 shares
+   * or read, say, 5 shares, discover k, either get more or be finished
+   * or copy k into the URIs
+ * .. jump to "COMMON READ", below
+
+To read (assuming we only hold the read-cap), do:
+ * hash read-cap pieces to generate storage index and salt key
+ * use storage-index to locate 'k' shares with identical 'R' values
+ * retrieve verification key and encrypted salt
+ * decrypt salt
+ * hash decrypted salt and pubkey to generate another copy of the read-cap,
+   make sure they match (this validates the pubkey)
+ * .. jump to "COMMON READ"
+
+ * COMMON READ:
+ * read seqnum, R, data salt, encoding parameters, signature
+ * verify signature against verification key
+ * hash data salt and read-cap to generate read-key
+ * read share data, compute block-hash Merkle tree and root "r"
+ * read share hash chain (leading from "r" to "R")
+ * validate share hash chain up to the root "R"
+ * submit share data to erasure decoding
+ * decrypt decoded data with read-key
+ * submit plaintext to application
+
+The access pattern for write is:
+ * generate pubkey, salt, read-cap, storage-index as in read case
+ * generate data salt for this update, generate read-key
+ * encrypt plaintext from application with read-key
+   * application can encrypt some data with the data-write-key to make it
+     only available to writers (used for transitively-readonly dirnodes)
+ * erasure-code crypttext to form shares
+ * split shares into blocks
+ * compute Merkle tree of blocks, giving root "r" for each share
+ * compute Merkle tree of shares, find root "R" for the file as a whole
+ * create share data structures, one per server:
+   * use seqnum which is one higher than the old version
+   * share hash chain has log(N) hashes, different for each server
+   * signed data is the same for each server
+   * include pubkey, encrypted salt, data salt
+ * now we have N shares and need homes for them
+ * walk through peers
+   * if share is not already present, allocate-and-set
+   * otherwise, try to modify existing share:
+   * send testv_and_writev operation to each one
+   * testv says to accept share if their(seqnum+R) <= our(seqnum+R)
+   * count how many servers wind up with which versions (histogram over R)
+   * keep going until N servers have the same version, or we run out of servers
+     * if any servers wound up with a different version, report error to
+       application
+     * if we ran out of servers, initiate recovery process (described below)
+
+==== Cryptographic Properties ====
+
+This scheme protects the data's confidentiality with 192 bits of key
+material, since the read-cap contains 192 secret bits (derived from an
+encrypted salt, which is encrypted using those same 192 bits plus some
+additional public material).
+
+The integrity of the data (assuming that the signature is valid) is protected
+by the 256-bit hash which gets included in the signature. The privilege of
+modifying the data (equivalent to the ability to form a valid signature) is
+protected by a 256 bit random DSA private key, and the difficulty of
+computing a discrete logarithm in a 2048-bit field.
+
+There are a few weaker denial-of-service attacks possible. If N-k+1 of the
+shares are damaged or unavailable, the client will be unable to recover the
+file. Any coalition of more than N-k shareholders will be able to effect this
+attack by merely refusing to provide the desired share. The "write enabler"
+shared secret protects existing shares from being displaced by new ones,
+except by the holder of the write-cap. One server cannot affect the other
+shares of the same file, once those other shares are in place.
+
+The worst DoS attack is the "roadblock attack", which must be made before
+those shares get placed. Storage indexes are effectively random (being
+derived from the hash of a random value), so they are not guessable before
+the writer begins their upload, but there is a window of vulnerability during
+the beginning of the upload, when some servers have heard about the storage
+index but not all of them.
+
+The roadblock attack we want to prevent is when the first server that the
+uploader contacts quickly runs to all the other selected servers and places a
+bogus share under the same storage index, before the uploader can contact
+them. These shares will normally be accepted, since storage servers create
+new shares on demand. The bogus shares would have randomly-generated
+write-enablers, which will of course be different than the real uploader's
+write-enabler, since the malicious server does not know the write-cap.
+
+If this attack were successful, the uploader would be unable to place any of
+their shares, because the slots have already been filled by the bogus shares.
+The uploader would probably try for peers further and further away from the
+desired location, but eventually they will hit a preconfigured distance limit
+and give up. In addition, the further the writer searches, the less likely it
+is that a reader will search as far. So a successful attack will either cause
+the file to be uploaded but not be reachable, or it will cause the upload to
+fail.
+
+If the uploader tries again (creating a new privkey), they may get lucky and
+the malicious servers will appear later in the query list, giving sufficient
+honest servers a chance to see their share before the malicious one manages
+to place bogus ones.
+
+The first line of defense against this attack is the timing challenges: the
+attacking server must be ready to act the moment a storage request arrives
+(which will only occur for a certain percentage of all new-file uploads), and
+only has a few seconds to act before the other servers will have allocated
+the shares (and recorded the write-enabler, terminating the window of
+vulnerability).
+
+The second line of defense is post-verification, and is possible because the
+storage index is partially derived from the public key hash. A storage server
+can, at any time, verify every public bit of the container as being signed by
+the verification key (this operation is recommended as a continual background
+process, when disk usage is minimal, to detect disk errors). The server can
+also hash the verification key to derive 64 bits of the storage index. If it
+detects that these 64 bits do not match (but the rest of the share validates
+correctly), then the implication is that this share was stored to the wrong
+storage index, either due to a bug or a roadblock attack.
+
+If an uploader finds that they are unable to place their shares because of
+"bad write enabler errors" (as reported by the prospective storage servers),
+it can "cry foul", and ask the storage server to perform this verification on
+the share in question. If the pubkey and storage index do not match, the
+storage server can delete the bogus share, thus allowing the real uploader to
+place their share. Of course the origin of the offending bogus share should
+be logged and reported to a central authority, so corrective measures can be
+taken. It may be necessary to have this "cry foul" protocol include the new
+write-enabler, to close the window during which the malicious server can
+re-submit the bogus share during the adjudication process.
+
+If the problem persists, the servers can be placed into pre-verification
+mode, in which this verification is performed on all potential shares before
+being committed to disk. This mode is more CPU-intensive (since normally the
+storage server ignores the contents of the container altogether), but would
+solve the problem completely.
+
+The mere existence of these potential defenses should be sufficient to deter
+any actual attacks. Note that the storage index only has 64 bits of
+pubkey-derived data in it, which is below the usual crypto guidelines for
+security factors. In this case it's a pre-image attack which would be needed,
+rather than a collision, and the actual attack would be to find a keypair for
+which the public key can be hashed three times to produce the desired portion
+of the storage index. We believe that 64 bits of material is sufficiently
+resistant to this form of pre-image attack to serve as a suitable deterrent.
+
+=== SMDF Slot Format ===
+
+This SMDF data lives inside a server-side MutableSlot container. The server
+is generally oblivious to this format, but it may look inside the container
+when verification is desired.
+
+This data is tightly packed. There are no gaps left between the different
+fields, and the offset table is mainly present to allow future flexibility of
+key sizes.
+
+ #   offset   size    name
+ 1    0        1       version byte, \x01 for this format
+ 2    1        8       sequence number. 2^64-1 must be handled specially, TBD
+ 3    9        32      "R" (root of share hash Merkle tree)
+ 4    41       32      data salt (readkey is H(readcap+data_salt))
+ 5    73       32      encrypted salt (AESenc(key=H(readcap), salt)
+ 6    105       18      encoding parameters:
+       105      1        k
+       106      1        N
+       107      8        segment size
+       115      8        data length (of original plaintext)
+ 7    123      36      offset table:
+       127      4        (9) signature
+       131      4        (10) share hash chain
+       135      4        (11) block hash tree
+       139      4        (12) share data
+       143      8        (13) EOF
+ 8    151      256     verification key (2048bit DSA key)
+ 9    407      40      signature=DSAsig(H([1,2,3,4,5,6]))                    
+10    447      (a)     share hash chain, encoded as:
+                        "".join([pack(">H32s", shnum, hash)
+                                 for (shnum,hash) in needed_hashes])
+11    ??       (b)     block hash tree, encoded as:
+                        "".join([pack(">32s",hash) for hash in block_hash_tree])
+12    ??       LEN     share data
+13    ??       --      EOF
+
+(a) The share hash chain contains ceil(log(N)) hashes, each 32 bytes long.
+    This is the set of hashes necessary to validate this share's leaf in the
+    share Merkle tree. For N=10, this is 4 hashes, i.e. 128 bytes.
+(b) The block hash tree contains ceil(length/segsize) hashes, each 32 bytes
+    long. This is the set of hashes necessary to validate any given block of
+    share data up to the per-share root "r". Each "r" is a leaf of the share
+    has tree (with root "R"), from which a minimal subset of hashes is put in
+    the share hash chain in (8).
+
+== TODO ==
+
+Every node in a given tahoe grid must have the same common DSA moduli and
+exponent, but different grids could use different parameters. We haven't
+figured out how to define a "grid id" yet, but I think the DSA parameters
+should be part of that identifier. In practical terms, this might mean that
+the Introducer tells each node what parameters to use, or perhaps the node
+could have a config file which specifies them instead.
+
+The shares MUST have a ciphertext hash of some sort (probably a merkle tree
+over the blocks, and/or a flat hash of the ciphertext), just like immutable
+files do. Without this, a malicious publisher could produce some shares that
+result in file A, and other shares that result in file B, and upload both of
+them (incorporating both into the share hash tree). The result would be a
+read-cap that would sometimes resolve to file A, and sometimes to file B,
+depending upon which servers were used for the download. By including a
+ciphertext hash in the SDMF data structure, the publisher must commit to just
+a single ciphertext, closing this hole. See ticket #492 for more details.
+

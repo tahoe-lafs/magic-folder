@@ -1,0 +1,62 @@
+<html xmlns:n="http://nevow.com/ns/nevow/0.1">
+  <head>
+    <title>Tahoe-LAFS - Recent and Active Operations</title>
+    <link href="/tahoe.css" rel="stylesheet" type="text/css"/>
+    <link href="/icon.png" rel="shortcut icon" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  </head>
+  <body>
+
+<h1>Recent and Active Operations</h1>
+
+
+<h2>Active Operations:</h2>
+<table align="left" class="table-headings-top" n:render="sequence" n:data="active_operations">
+  <tr n:pattern="header">
+    <th>Type</th>
+    <th>Storage Index</th>
+    <th>Helper?</th>
+    <th>Total Size</th>
+    <th>Progress</th>
+    <th>Status</th>
+  </tr>
+  <tr n:pattern="item" n:render="row">
+    <td><n:slot name="type"/></td>
+    <td><n:slot name="si"/></td>
+    <td><n:slot name="helper"/></td>
+    <td><n:slot name="total_size"/></td>
+    <td><n:slot name="progress"/></td>
+    <td><n:slot name="status"/></td>
+  </tr>
+  <tr n:pattern="empty"><td>No active operations!</td></tr>
+</table>
+<br clear="all" />
+
+<h2>Recent Operations:</h2>
+<table align="left" class="table-headings-top" n:render="sequence" n:data="recent_operations">
+  <tr n:pattern="header">
+    <th>Started</th>
+    <th>Type</th>
+    <th>Storage Index</th>
+    <th>Helper?</th>
+    <th>Total Size</th>
+    <th>Progress</th>
+    <th>Status</th>
+  </tr>
+  <tr n:pattern="item" n:render="row">
+    <td><n:slot name="started"/></td>
+    <td><n:slot name="type"/></td>
+    <td><n:slot name="si"/></td>
+    <td><n:slot name="helper"/></td>
+    <td><n:slot name="total_size"/></td>
+    <td><n:slot name="progress"/></td>
+    <td><n:slot name="status"/></td>
+  </tr>
+  <tr n:pattern="empty"><td>No recent operations!</td></tr>
+</table>
+<br clear="all" />
+
+<div>Return to the <a href="/">Welcome Page</a></div>
+
+  </body>
+</html>

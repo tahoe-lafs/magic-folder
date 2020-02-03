@@ -1,0 +1,23 @@
+<html xmlns:n="http://nevow.com/ns/nevow/0.1">
+  <head>
+    <title>Tahoe-LAFS - Check Results</title>
+    <link href="/tahoe.css" rel="stylesheet" type="text/css"/>
+    <link href="/icon.png" rel="shortcut icon" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  </head>
+  <body>
+
+<h1>File Check-And-Repair Results for SI=<span n:render="storage_index" /></h1>
+
+<div n:render="summary" />
+
+<div n:render="repair_results" />
+
+<div n:render="post_repair_results" />
+
+<div n:render="maybe_pre_repair_results" />
+
+<div n:render="return" />
+
+  </body>
+</html>
