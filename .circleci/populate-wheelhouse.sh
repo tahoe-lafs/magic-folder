@@ -43,7 +43,7 @@ export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#eggname=tahoe-la
 "${PIP}" \
     wheel \
     --wheel-dir "${WHEELHOUSE_PATH}" \
-    ${TAHOE_LAFS}
+    "${TAHOE_LAFS}" \
     "${PROJECT_ROOT}"[test] \
     ${BASIC_DEPS} \
     ${TEST_DEPS} \
