@@ -113,7 +113,7 @@ jobs:
 
   debian-9: &DEBIAN
     docker:
-      - image: "tahoelafsci/debian:9"
+      - image: "magicfolderci/debian:9"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -190,14 +190,14 @@ jobs:
   debian-8:
     <<: *DEBIAN
     docker:
-      - image: "tahoelafsci/debian:8"
+      - image: "magicfolderci/debian:8"
         user: "nobody"
 
 
   pypy2.7-7.1:
     <<: *DEBIAN
     docker:
-      - image: "tahoelafsci/pypy:2.7-7.1.1-jessie"
+      - image: "magicfolderci/pypy:2.7-7.1.1-jessie"
         user: "nobody"
 
     environment:
@@ -254,20 +254,20 @@ jobs:
   ubuntu-16.04:
     <<: *DEBIAN
     docker:
-      - image: "tahoelafsci/ubuntu:16.04"
+      - image: "magicfolderci/ubuntu:16.04"
         user: "nobody"
 
 
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - image: "tahoelafsci/ubuntu:18.04"
+      - image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
 
   centos-7: &RHEL_DERIV
     docker:
-      - image: "tahoelafsci/centos:7"
+      - image: "magicfolderci/centos:7"
         user: "nobody"
 
     environment: *UTF_8_ENVIRONMENT
@@ -289,20 +289,20 @@ jobs:
   fedora-28:
     <<: *RHEL_DERIV
     docker:
-      - image: "tahoelafsci/fedora:28"
+      - image: "magicfolderci/fedora:28"
         user: "nobody"
 
 
   fedora-29:
     <<: *RHEL_DERIV
     docker:
-      - image: "tahoelafsci/fedora:29"
+      - image: "magicfolderci/fedora:29"
         user: "nobody"
 
 
   slackware-14.2:
     docker:
-      - image: "tahoelafsci/slackware:14.2"
+      - image: "magicfolderci/slackware:14.2"
         user: "nobody"
 
     environment: *UTF_8_ENVIRONMENT
@@ -356,8 +356,8 @@ jobs:
       - image: "docker:17.05.0-ce-git"
 
     environment:
-      DISTRO: "tahoelafsci/<DISTRO>:foo"
-      TAG: "tahoelafsci/distro:<TAG>"
+      DISTRO: "magicfolderci/<DISTRO>:foo"
+      TAG: "magicfolderci/distro:<TAG>"
 
     steps:
       - "checkout"
@@ -401,21 +401,21 @@ jobs:
           name: "Log in to Dockerhub"
           command: |
             . ~/.env
-            # TAHOELAFSCI_PASSWORD come from the secret env.
-            docker login -u tahoelafsci -p ${TAHOELAFSCI_PASSWORD}
+            # MAGICFOLDERCI_PASSWORD comes from the secret env.
+            docker login -u magicfolderci -p ${MAGICFOLDERCI_PASSWORD}
       - run:
           name: "Build image"
           command: |
             docker \
                 build \
                 --build-arg TAG=${TAG} \
-                -t tahoelafsci/${DISTRO}:${TAG} \
+                -t magicfolderci/${DISTRO}:${TAG} \
                 -f ~/project/.circleci/Dockerfile.${DISTRO} \
                 ~/project/
       - run:
           name: "Push image"
           command: |
-            docker push tahoelafsci/${DISTRO}:${TAG}
+            docker push magicfolderci/${DISTRO}:${TAG}
 
 
   build-image-debian-8:
