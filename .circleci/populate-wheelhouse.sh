@@ -40,6 +40,7 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 "${PIP}" \
     wheel \
     --wheel-dir "${WHEELHOUSE_PATH}" \
+    git+https://github.com/tahoe-lafs/tahoe-lafs#eggname=tahoe-lafs # latest release not compatible \
     "${PROJECT_ROOT}"[test] \
     ${BASIC_DEPS} \
     ${TEST_DEPS} \

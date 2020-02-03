@@ -59,7 +59,7 @@ install_requires = [
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
-    "tahoe-lafs == 1.13",
+    "tahoe-lafs",
 ]
 
 setup_requires = [
