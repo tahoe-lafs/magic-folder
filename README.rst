@@ -40,7 +40,7 @@ To run the unit test suite:
 You can pass arguments to ``trial`` with an environment variable.  For
 example, you can run the test suite on multiple cores to speed it up:
 
-* ``TAHOE_LAFS_TRIAL_ARGS="-j4" tox``
+* ``MAGIC_FOLDER_TRIAL_ARGS="-j4" tox``
 
 LICENCE
 =======

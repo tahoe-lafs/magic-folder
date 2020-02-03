@@ -122,14 +122,14 @@ jobs:
       # otherwise.
       ALLOWED_FAILURE: "no"
       # Tell Hypothesis which configuration we want it to use.
-      TAHOE_LAFS_HYPOTHESIS_PROFILE: "ci"
+      MAGIC_FOLDER_HYPOTHESIS_PROFILE: "ci"
       # Tell the C runtime things about character encoding (mainly to do with
       # filenames and argv).
       LANG: "en_US.UTF-8"
       # Select a tox environment to run for this job.
-      TAHOE_LAFS_TOX_ENVIRONMENT: "py27-coverage"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "py27-coverage"
       # Additional arguments to pass to tox.
-      TAHOE_LAFS_TOX_ARGS: ""
+      MAGIC_FOLDER_TOX_ARGS: ""
       # The path in which test artifacts will be placed.
       ARTIFACTS_OUTPUT_PATH: "/tmp/artifacts"
       # Convince all of our pip invocations to look at the cached wheelhouse
@@ -150,8 +150,8 @@ jobs:
                 "/tmp/venv" \
                 "/tmp/project" \
                 "${WHEELHOUSE_PATH}" \
-                "${TAHOE_LAFS_TOX_ENVIRONMENT}" \
-                "${TAHOE_LAFS_TOX_ARGS}"
+                "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
+                "${MAGIC_FOLDER_TOX_ARGS}"
 
       - run: &RUN_TESTS
           name: "Run test suite"
@@ -161,8 +161,8 @@ jobs:
                 "/tmp/project" \
                 "${ALLOWED_FAILURE}" \
                 "${ARTIFACTS_OUTPUT_PATH}" \
-                "${TAHOE_LAFS_TOX_ENVIRONMENT}" \
-                "${TAHOE_LAFS_TOX_ARGS}"
+                "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
+                "${MAGIC_FOLDER_TOX_ARGS}"
           # trial output gets directed straight to a log.  avoid the circleci
           # timeout while the test suite runs.
           no_output_timeout: "20m"
@@ -202,7 +202,7 @@ jobs:
 
     environment:
       <<: *UTF_8_ENVIRONMENT
-      TAHOE_LAFS_TOX_ENVIRONMENT: "pypy27-coverage"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "pypy27-coverage"
       ALLOWED_FAILURE: "yes"
 
 
@@ -229,9 +229,9 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the deprecations tox environments.
-      TAHOE_LAFS_TOX_ENVIRONMENT: "deprecations,upcoming-deprecations"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "deprecations,upcoming-deprecations"
       # Put the logs somewhere we can report them.
-      TAHOE_LAFS_WARNINGS_LOG: "/tmp/artifacts/deprecation-warnings.log"
+      MAGIC_FOLDER_WARNINGS_LOG: "/tmp/artifacts/deprecation-warnings.log"
 
 
   integration:
@@ -240,7 +240,7 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
-      TAHOE_LAFS_TOX_ENVIRONMENT: "integration"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 

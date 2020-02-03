@@ -18,10 +18,10 @@ shift
 WHEELHOUSE_PATH="$1"
 shift
 
-TAHOE_LAFS_TOX_ENVIRONMENT=$1
+MAGIC_FOLDER_TOX_ENVIRONMENT=$1
 shift
 
-TAHOE_LAFS_TOX_ARGS=$1
+MAGIC_FOLDER_TOX_ARGS=$1
 shift || :
 
 # Tell pip where it can find any existing wheels.
@@ -38,5 +38,5 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
      -c "${PROJECT_ROOT}"/tox.ini \
      --workdir /tmp/tahoe-lafs.tox \
      --notest \
-     -e "${TAHOE_LAFS_TOX_ENVIRONMENT}" \
-     ${TAHOE_LAFS_TOX_ARGS}
+     -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
+     ${MAGIC_FOLDER_TOX_ARGS}
