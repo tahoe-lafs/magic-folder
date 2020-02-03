@@ -37,7 +37,7 @@ PIP="${BOOTSTRAP_VENV}/bin/pip"
 export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 
 # We don't yet have a compatible release
-export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#eggname=tahoe-lafs"
+export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#egg=tahoe-lafs"
 
 # Populate the wheelhouse, if necessary.
 "${PIP}" \
