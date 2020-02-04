@@ -49,6 +49,10 @@ export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#egg=tahoe-lafs"
     ${TEST_DEPS} \
     ${REPORTING_DEPS}
 
+# Debug output
+echo "The wheelhouse contains:"
+find "${WHEELHOUSE_PATH}"
+
 # Not strictly wheelhouse population but ... Note we omit basic deps here.
 # They're in the wheelhouse if Tahoe-LAFS wants to drag them in but it will
 # have to ask.
@@ -56,3 +60,7 @@ export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#egg=tahoe-lafs"
     install \
     ${TEST_DEPS} \
     ${REPORTING_DEPS}
+
+# Debug output
+echo "The Python environment contains:"
+"${PIP}" freeze
