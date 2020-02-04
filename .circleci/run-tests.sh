@@ -76,7 +76,7 @@ fi
 
 ${TIMEOUT} ${BOOTSTRAP_VENV}/bin/tox \
     -c ${PROJECT_ROOT}/tox.ini \
-    --workdir /tmp/tahoe-lafs.tox \
+    --workdir /tmp/magic-folder.tox \
     -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
     ${MAGIC_FOLDER_TOX_ARGS} || "${alternative}"
 
