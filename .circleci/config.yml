@@ -388,8 +388,8 @@ jobs:
             #
             # Make sure the key is set as the KEY environment variable in the
             # CircleCI web interface.  You can do this by visiting
-            # <https://circleci.com/gh/tahoe-lafs/tahoe-lafs/edit#env-vars>
-            # after logging in to CircleCI with an account in the tahoe-lafs
+            # <https://circleci.com/gh/leastauthority/magic-folder/edit#env-vars>
+            # after logging in to CircleCI with an account in the LeastAuthority
             # CircleCI team.
             #
             # Then you can recover the environment plaintext (for example, to
