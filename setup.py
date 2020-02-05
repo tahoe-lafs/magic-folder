@@ -255,7 +255,7 @@ setup_args = {}
 if version:
     setup_args["version"] = version
 
-setup(name="magic_folder", # also set in __init__.py
+setup(name="magic_folder",
       description='Tahoe-LAFS-based file synchronization',
       long_description=open('README.rst', 'rU').read(),
       author='the Tahoe-LAFS project',
