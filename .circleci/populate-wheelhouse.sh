@@ -36,8 +36,9 @@ PIP="${BOOTSTRAP_VENV}/bin/pip"
 # Tell pip where it can find any existing wheels.
 export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 
-# We don't yet have a compatible release
-export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs#egg=tahoe-lafs"
+# We don't yet have a compatible release.
+# https://pip.pypa.io/en/stable/reference/pip_install/#git
+export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs"
 
 # Populate the wheelhouse, if necessary.
 "${PIP}" \
