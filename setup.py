@@ -36,7 +36,7 @@ install_requires = [
     # Python 2 compatible though, so don't venture to 45 and beyond.
     "setuptools >= 28.8.0, <45",
 
-    "importlib_metadata ~= 1.0",
+    "importlib_metadata",
 
     # zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
     # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
