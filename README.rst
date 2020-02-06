@@ -75,8 +75,8 @@ slides.
     :alt: build status
     :target: https://travis-ci.org/leastauthority/magic-folder
 
-.. |circleci| image:: https://circleci.com/gh/leastauthority/magic-folder.svg?style=svg
-    :target: https://circleci.com/gh/leastauthority/magic-folder
+.. |circleci| image:: https://circleci.com/gh/LeastAuthority/magic-folder.svg?style=svg
+    :target: https://circleci.com/gh/LeastAuthority/magic-folder
 
 .. |codecov| image:: https://codecov.io/github/leastauthority/magic-folder/coverage.svg?branch=master
     :alt: test coverage percentage
