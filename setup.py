@@ -36,7 +36,7 @@ install_requires = [
     # Python 2 compatible though, so don't venture to 45 and beyond.
     "setuptools >= 28.8.0, <45",
 
-    "importlib_metadata ~= 1.0",
+    "importlib_metadata",
 
     # zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
     # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
@@ -59,7 +59,7 @@ install_requires = [
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
-    "tahoe-lafs >= 1.14",
+    "tahoe-lafs",
 ]
 
 setup_requires = [
@@ -255,7 +255,7 @@ setup_args = {}
 if version:
     setup_args["version"] = version
 
-setup(name="magic_folder", # also set in __init__.py
+setup(name="magic_folder",
       description='Tahoe-LAFS-based file synchronization',
       long_description=open('README.rst', 'rU').read(),
       author='the Tahoe-LAFS project',
@@ -265,8 +265,8 @@ setup(name="magic_folder", # also set in __init__.py
       cmdclass={"update_version": UpdateVersion,
                 "test": PleaseUseTox,
                 },
-      package_dir = {'':'src'},
-      packages=find_packages('src') + ["twisted/plugins"],
+      package_dir={'':'src'},
+      packages=find_packages('src') + ["twisted.plugins", "magic_folder.test.plugins"],
       classifiers=trove_classifiers,
       python_requires="~=2.7",
       install_requires=install_requires,

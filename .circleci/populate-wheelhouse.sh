@@ -36,14 +36,23 @@ PIP="${BOOTSTRAP_VENV}/bin/pip"
 # Tell pip where it can find any existing wheels.
 export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 
+# We don't yet have a compatible release.
+# https://pip.pypa.io/en/stable/reference/pip_install/#git
+export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs"
+
 # Populate the wheelhouse, if necessary.
 "${PIP}" \
     wheel \
     --wheel-dir "${WHEELHOUSE_PATH}" \
+    "${TAHOE_LAFS}" \
     "${PROJECT_ROOT}"[test] \
     ${BASIC_DEPS} \
     ${TEST_DEPS} \
     ${REPORTING_DEPS}
+
+# Debug output
+echo "The wheelhouse contains:"
+find "${WHEELHOUSE_PATH}"
 
 # Not strictly wheelhouse population but ... Note we omit basic deps here.
 # They're in the wheelhouse if Tahoe-LAFS wants to drag them in but it will
@@ -52,3 +61,7 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
     install \
     ${TEST_DEPS} \
     ${REPORTING_DEPS}
+
+# Debug output
+echo "The Python environment contains:"
+"${PIP}" freeze

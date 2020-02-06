@@ -7,6 +7,8 @@ self: super: {
       # conflicts with the packaged version of Twisted.  Supply our own
       # slightly newer version.
       nevow = python-super.callPackage ./nevow.nix { };
+
+      tahoe-lafs = python-super.callPackage ./tahoe-lafs.nix { };
     };
   };
 }

@@ -19,10 +19,10 @@ shift
 ARTIFACTS=$1
 shift
 
-TAHOE_LAFS_TOX_ENVIRONMENT=$1
+MAGIC_FOLDER_TOX_ENVIRONMENT=$1
 shift
 
-TAHOE_LAFS_TOX_ARGS=$1
+MAGIC_FOLDER_TOX_ARGS=$1
 shift || :
 
 if [ -n "${ARTIFACTS}" ]; then
@@ -65,7 +65,7 @@ TIMEOUT="timeout --kill-after 1m 15m"
 # Send the output directly to a file because transporting the binary subunit2
 # via tox and then scraping it out is hideous and failure prone.
 export SUBUNITREPORTER_OUTPUT_PATH="${SUBUNIT2}"
-export TAHOE_LAFS_TRIAL_ARGS="--reporter=subunitv2-file --rterrors"
+export MAGIC_FOLDER_TRIAL_ARGS="--reporter=subunitv2-file --rterrors"
 export PIP_NO_INDEX="1"
 
 if [ "${ALLOWED_FAILURE}" = "yes" ]; then
@@ -76,9 +76,9 @@ fi
 
 ${TIMEOUT} ${BOOTSTRAP_VENV}/bin/tox \
     -c ${PROJECT_ROOT}/tox.ini \
-    --workdir /tmp/tahoe-lafs.tox \
-    -e "${TAHOE_LAFS_TOX_ENVIRONMENT}" \
-    ${TAHOE_LAFS_TOX_ARGS} || "${alternative}"
+    --workdir /tmp/magic-folder.tox \
+    -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
+    ${MAGIC_FOLDER_TOX_ARGS} || "${alternative}"
 
 if [ -n "${ARTIFACTS}" ]; then
     # Create a junitxml results area.

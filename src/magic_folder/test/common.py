@@ -77,6 +77,10 @@ from allmydata.client import (
     config_from_string,
 )
 
+from eliot import (
+    log_call,
+)
+
 from .eliotutil import (
     EliotLoggedRunTest,
 )
@@ -125,6 +129,7 @@ class UseTestPlugins(object):
     A fixture which enables loading Twisted plugins from the Tahoe-LAFS test
     suite.
     """
+    @log_call
     def setUp(self):
         """
         Add the testing package ``plugins`` directory to the ``twisted.plugins``
@@ -134,6 +139,7 @@ class UseTestPlugins(object):
         testplugins = FilePath(__file__).sibling("plugins")
         twisted.plugins.__path__.insert(0, testplugins.path)
 
+    @log_call
     def cleanUp(self):
         """
         Remove the testing package ``plugins`` directory from the
