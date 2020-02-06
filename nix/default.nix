@@ -3,5 +3,5 @@
 # Add our Python packages to nixpkgs to simplify the expression for the
 # Tahoe-LAFS derivation.
 let pkgs' = pkgs.extend (import ./overlays.nix);
-# Evaluate the expression for our Tahoe-LAFS derivation.
-in pkgs'.python2.pkgs.callPackage ./tahoe-lafs.nix { }
+# Evaluate the expression for our Magic-Folder derivation.
+in pkgs'.python2.pkgs.callPackage ./magic-folder.nix { }
