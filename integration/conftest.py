@@ -17,6 +17,7 @@ from foolscap.furl import (
 )
 
 from eliot import (
+    Message,
     to_file,
     log_call,
     start_action,
@@ -387,25 +388,35 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
 
-    python_args = [
+    coverage = request.config.getoption('coverage')
+    def optional(flag, elements):
+        if flag:
+            return elements
+        return []
+
+    args = [
         sys.executable,
         "-m",
-    ]
-    magic_folder_args = [
+    ] + optional(coverage, [
+        "coverage",
+        "run",
+        "-m",
+    ]) + [
         "magic_folder",
+    ] + optional(coverage, [
+        "--coverage",
+    ]) + [
         "--node-directory",
         node_dir,
         "run",
-        "--web-port", web_port,
+        "--web-port",
+        web_port,
     ]
-    if request.config.getoption('coverage'):
-        args = python_args + [
-            "coverage",
-            "run",
-            "-m",
-        ] + magic_folder_args
-    else:
-        args = python_args + magic_folder_args
+    Message.log(
+        message_type=u"integration:run-magic-folder",
+        coverage=coverage,
+        args=args,
+    )
     transport = reactor.spawnProcess(
         proto,
         sys.executable,
