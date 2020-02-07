@@ -387,15 +387,25 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
 
-    args = [
+    python_args = [
         sys.executable,
         "-m",
+    ]
+    magic_folder_args = [
         "magic_folder",
         "--node-directory",
         node_dir,
         "run",
         "--web-port", web_port,
     ]
+    if request.config.getoption('coverage'):
+        args = python_args + [
+            "coverage",
+            "run",
+            "-m",
+        ] + magic_folder_args
+    else:
+        args = python_args + magic_folder_args
     transport = reactor.spawnProcess(
         proto,
         sys.executable,
