@@ -1090,7 +1090,7 @@ def makeService(options):
 
 def run():
     """
-    Implement the *magic_folder* console script declared in ``setup.py``.
+    Implement the *magic-folder* console script declared in ``setup.py``.
 
     :return: ``None``
     """
