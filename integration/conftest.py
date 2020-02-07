@@ -46,7 +46,7 @@ from util import (
     _ProcessExitedProtocol,
     _create_node,
     _cleanup_tahoe_process,
-    _tahoe_runner_optional_coverage,
+    _tahoe_runner,
     await_client_ready,
     TahoeProcess,
 )
@@ -198,7 +198,7 @@ tub.location = tcp:localhost:9321
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        _tahoe_runner_optional_coverage(
+        _tahoe_runner(
             done_proto,
             reactor,
             request,
@@ -219,7 +219,7 @@ tub.location = tcp:localhost:9321
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    transport = _tahoe_runner_optional_coverage(
+    transport = _tahoe_runner(
         protocol,
         reactor,
         request,

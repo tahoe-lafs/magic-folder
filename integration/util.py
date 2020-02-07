@@ -141,16 +141,12 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     )
 
 
-def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
+def _tahoe_runner(proto, reactor, request, other_args):
     """
-    Internal helper. Calls spawnProcess with `-m
-    allmydata.scripts.runner` and `other_args`, optionally inserting a
-    `--coverage` option if the `request` indicates we should.
+    Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
+    `other_args`.
     """
-    if request.config.getoption('coverage'):
-        args = [sys.executable, '-m', 'coverage', 'run', '-m', 'allmydata.scripts.runner', '--coverage']
-    else:
-        args = [sys.executable, '-m', 'allmydata.scripts.runner']
+    args = [sys.executable, '-m', 'allmydata.scripts.runner']
     args += other_args
     return reactor.spawnProcess(
         proto,
@@ -200,7 +196,7 @@ def _run_node(reactor, node_dir, request, magic_text):
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
 
-    transport = _tahoe_runner_optional_coverage(
+    transport = _tahoe_runner(
         protocol,
         reactor,
         request,
@@ -261,7 +257,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
             args.append('--no-storage')
         args.append(node_dir)
 
-        _tahoe_runner_optional_coverage(done_proto, reactor, request, args)
+        _tahoe_runner(done_proto, reactor, request, args)
         created_d = done_proto.done
 
         def created(_):
@@ -396,11 +392,10 @@ def await_file_vanishes(path, timeout=10):
 
 def cli(request, reactor, node_dir, *argv):
     """
-    Run a tahoe CLI subcommand for a given node, optionally running
-    under coverage if '--coverage' was supplied.
+    Run a tahoe CLI subcommand for a given node.
     """
     proto = _CollectOutputProtocol()
-    _tahoe_runner_optional_coverage(
+    _tahoe_runner(
         proto, reactor, request,
         ['--node-directory', node_dir] + list(argv),
     )
