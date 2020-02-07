@@ -12,6 +12,11 @@ from twisted.internet.error import ProcessExitedAlready, ProcessDone
 
 import requests
 
+from eliot import (
+    Message,
+    current_action,
+)
+
 from allmydata.util.configutil import (
     get_config,
     set_config,
@@ -95,19 +100,26 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
+        self._action = current_action()
 
     def processEnded(self, reason):
-        self.exited.callback(None)
+        with self._action.context():
+            Message.log(message_type=u"process-ended")
+            self.exited.callback(None)
 
     def outReceived(self, data):
-        sys.stdout.write(data)
-        self._output.write(data)
-        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
-            print("Saw '{}' in the logs".format(self._magic_text))
-            self.magic_seen.callback(self)
+        with self._action.context():
+            Message.log(message_type=u"out-received", data=data)
+            sys.stdout.write(data)
+            self._output.write(data)
+            if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+                print("Saw '{}' in the logs".format(self._magic_text))
+                self.magic_seen.callback(self)
 
     def errReceived(self, data):
-        sys.stdout.write(data)
+        with self._action.context():
+            Message.log(message_type=u"err-received", data=data)
+            sys.stdout.write(data)
 
 
 def _cleanup_tahoe_process(tahoe_transport, exited):
