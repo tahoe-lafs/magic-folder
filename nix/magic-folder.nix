@@ -1,4 +1,4 @@
-{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures }:
+{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures, git }:
 buildPythonPackage rec {
   pname = "magic-folder";
   version = "2020-02-05";
@@ -16,7 +16,7 @@ buildPythonPackage rec {
   ];
 
   postPatch = ''
-    ${python}/bin/python setup.py update_version
+    PATH="$PATH:${git}/bin" ${python}/bin/python setup.py update_version
   '';
 
   checkPhase = ''
