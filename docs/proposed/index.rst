@@ -13,9 +13,7 @@ index only lists the files that are in .rst format.
 .. toctree::
    :maxdepth: 2
 
-   leasedb
    magic-folder/filesystem-integration
    magic-folder/remote-to-local-sync
    magic-folder/user-interface-design
    magic-folder/multi-party-conflict-detection
-   http-storage-node-protocol
