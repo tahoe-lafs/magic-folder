@@ -12,6 +12,11 @@ from twisted.internet.error import ProcessExitedAlready, ProcessDone
 
 import requests
 
+from eliot import (
+    Message,
+    current_action,
+)
+
 from allmydata.util.configutil import (
     get_config,
     set_config,
@@ -95,19 +100,26 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
+        self._action = current_action()
 
     def processEnded(self, reason):
-        self.exited.callback(None)
+        with self._action.context():
+            Message.log(message_type=u"process-ended")
+            self.exited.callback(None)
 
     def outReceived(self, data):
-        sys.stdout.write(data)
-        self._output.write(data)
-        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
-            print("Saw '{}' in the logs".format(self._magic_text))
-            self.magic_seen.callback(self)
+        with self._action.context():
+            Message.log(message_type=u"out-received", data=data)
+            sys.stdout.write(data)
+            self._output.write(data)
+            if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+                print("Saw '{}' in the logs".format(self._magic_text))
+                self.magic_seen.callback(self)
 
     def errReceived(self, data):
-        sys.stdout.write(data)
+        with self._action.context():
+            Message.log(message_type=u"err-received", data=data)
+            sys.stdout.write(data)
 
 
 def _cleanup_tahoe_process(tahoe_transport, exited):
@@ -141,16 +153,12 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     )
 
 
-def _tahoe_runner_optional_coverage(proto, reactor, request, other_args):
+def _tahoe_runner(proto, reactor, request, other_args):
     """
-    Internal helper. Calls spawnProcess with `-m
-    allmydata.scripts.runner` and `other_args`, optionally inserting a
-    `--coverage` option if the `request` indicates we should.
+    Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
+    `other_args`.
     """
-    if request.config.getoption('coverage'):
-        args = [sys.executable, '-m', 'coverage', 'run', '-m', 'allmydata.scripts.runner', '--coverage']
-    else:
-        args = [sys.executable, '-m', 'allmydata.scripts.runner']
+    args = [sys.executable, '-m', 'allmydata.scripts.runner']
     args += other_args
     return reactor.spawnProcess(
         proto,
@@ -200,7 +208,7 @@ def _run_node(reactor, node_dir, request, magic_text):
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
 
-    transport = _tahoe_runner_optional_coverage(
+    transport = _tahoe_runner(
         protocol,
         reactor,
         request,
@@ -261,7 +269,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
             args.append('--no-storage')
         args.append(node_dir)
 
-        _tahoe_runner_optional_coverage(done_proto, reactor, request, args)
+        _tahoe_runner(done_proto, reactor, request, args)
         created_d = done_proto.done
 
         def created(_):
@@ -396,11 +404,10 @@ def await_file_vanishes(path, timeout=10):
 
 def cli(request, reactor, node_dir, *argv):
     """
-    Run a tahoe CLI subcommand for a given node, optionally running
-    under coverage if '--coverage' was supplied.
+    Run a tahoe CLI subcommand for a given node.
     """
     proto = _CollectOutputProtocol()
-    _tahoe_runner_optional_coverage(
+    _tahoe_runner(
         proto, reactor, request,
         ['--node-directory', node_dir] + list(argv),
     )

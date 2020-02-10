@@ -17,6 +17,7 @@ from foolscap.furl import (
 )
 
 from eliot import (
+    Message,
     to_file,
     log_call,
     start_action,
@@ -46,7 +47,7 @@ from util import (
     _ProcessExitedProtocol,
     _create_node,
     _cleanup_tahoe_process,
-    _tahoe_runner_optional_coverage,
+    _tahoe_runner,
     await_client_ready,
     TahoeProcess,
 )
@@ -198,7 +199,7 @@ tub.location = tcp:localhost:9321
     if not exists(intro_dir):
         mkdir(intro_dir)
         done_proto = _ProcessExitedProtocol()
-        _tahoe_runner_optional_coverage(
+        _tahoe_runner(
             done_proto,
             reactor,
             request,
@@ -219,7 +220,7 @@ tub.location = tcp:localhost:9321
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
     protocol = _MagicTextProtocol('introducer running')
-    transport = _tahoe_runner_optional_coverage(
+    transport = _tahoe_runner(
         protocol,
         reactor,
         request,
@@ -387,15 +388,35 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
 
+    coverage = request.config.getoption('coverage')
+    def optional(flag, elements):
+        if flag:
+            return elements
+        return []
+
     args = [
         sys.executable,
         "-m",
+    ] + optional(coverage, [
+        "coverage",
+        "run",
+        "-m",
+    ]) + [
         "magic_folder",
+    ] + optional(coverage, [
+        "--coverage",
+    ]) + [
         "--node-directory",
         node_dir,
         "run",
-        "--web-port", web_port,
+        "--web-port",
+        web_port,
     ]
+    Message.log(
+        message_type=u"integration:run-magic-folder",
+        coverage=coverage,
+        args=args,
+    )
     transport = reactor.spawnProcess(
         proto,
         sys.executable,

@@ -1,12 +1,11 @@
 # -*- mode: conf -*-
 
 [run]
-# only record trace data for allmydata.*
+# only record trace data for this package
 source =
-       allmydata
-# and don't trace the test files themselves, or generated files
+       magic_folder
+# and don't trace the test files themselves
 omit =
-     */allmydata/test/*
-     */allmydata/_version.py
+     */magic_folder/test/*
 parallel = True
 branch = True

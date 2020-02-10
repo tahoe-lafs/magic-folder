@@ -111,6 +111,10 @@ from ..web.magic_folder import (
     magic_folder_web_service,
 )
 
+from .._coverage import (
+    coverage_service,
+)
+
 INVITE_SEPARATOR = "+"
 
 class CreateOptions(BasedirOptions):
@@ -995,6 +999,7 @@ class MagicFolderCommand(BaseOptions):
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
+        ("coverage", None, "Enable coverage measurement."),
     ]
     description = (
         "A magic-folder has an owner who controls the writecap "
@@ -1095,12 +1100,16 @@ def makeService(options):
     :return IService: An object providing ``IService`` which performs the
         magic-folder operation requested by ``options`` when it is started.
     """
-    return _MagicFolderService(options)
+    service = MultiService()
+    _MagicFolderService(options).setServiceParent(service)
+    if options["coverage"]:
+        coverage_service().setServiceParent(service)
+    return service
 
 
 def run():
     """
-    Implement the *magic_folder* console script declared in ``setup.py``.
+    Implement the *magic-folder* console script declared in ``setup.py``.
 
     :return: ``None``
     """
