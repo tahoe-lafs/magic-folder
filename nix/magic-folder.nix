@@ -15,6 +15,9 @@ buildPythonPackage rec {
     fixtures
   ];
 
+  postPatch = ''
+    ${python}/bin/python setup.py update_version
+  '';
 
   checkPhase = ''
     ${python}/bin/python -m twisted.trial -j $NIX_BUILD_CORES magic_folder
