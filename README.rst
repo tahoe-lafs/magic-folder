@@ -33,6 +33,26 @@ pre-release code), you should create a virtualenv and install into that:
 * ``venv/bin/pip install --editable .``
 * ``venv/bin/magic_folder --version``
 
+Usage
+=====
+
+Magic-Folder is configured via the ``magic-folder`` command-line tool.
+This tool manipulates the ``magic_folders.yaml`` file in a Tahoe-LAFS' node's private area.
+See the configuration documentation for full details.
+
+Once Magic-Folder is configured,
+functionality is provided by running a long-lived magic-folder side-car for the Tahoe-LAFS node.
+Start the side-car process using the ``magic-folder`` command line too::
+
+  magic-folder --node-directory /path/to/tahoe-lafs/node run
+
+As long as this side-car is running,
+whatever magic folders are configured will be functional.
+The process must be restarted to read configuration changes.
+
+TESTING
+=======
+
 To run the unit test suite:
 
 * ``tox``
