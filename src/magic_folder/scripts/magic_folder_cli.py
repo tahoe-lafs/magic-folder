@@ -1018,15 +1018,25 @@ class MagicFolderCommand(BaseOptions):
     def parent(self, ignored):
         pass
 
+    def opt_version(self):
+        """
+        Display magic-folder version and exit.
+        """
+        from magic_folder import __version__
+        print("Magic Folder version {}".format(__version__))
+        sys.exit(0)
+
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
             raise usage.UsageError("must specify a subcommand")
+
     def getSynopsis(self):
-        return "Usage: tahoe [global-options] magic-folder"
+        return "Usage: magic-folder [global-options] <subcommand> [subcommand-options]"
+
     def getUsage(self, width=None):
         t = BaseOptions.getUsage(self, width)
         t += (
-            "Please run e.g. 'tahoe magic-folder create --help' for more "
+            "Please run e.g. 'magic-folder create --help' for more "
             "details on each subcommand.\n"
         )
         return t

@@ -219,7 +219,7 @@ Warning: no version information found. This may cause tests to fail.
 
     def try_from_git(self):
         # If we change the release tag names, we must change this too
-        versions = versions_from_git("magic_folder-")
+        versions = versions_from_git("magic-folder-")
 
         # setup.py might be run by either py2 or py3 (when run by tox, which
         # uses py3 on modern debian/ubuntu distros). We want this generated

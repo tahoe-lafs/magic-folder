@@ -1,8 +1,8 @@
-{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures }:
+{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures, git }:
 buildPythonPackage rec {
   pname = "magic-folder";
   version = "2020-02-05";
-  src = lib.cleanSource ../.;
+  src = ../.;
 
   propagatedBuildInputs = [
     importlib-metadata
@@ -15,6 +15,9 @@ buildPythonPackage rec {
     fixtures
   ];
 
+  postPatch = ''
+    PATH="$PATH:${git}/bin" ${python}/bin/python setup.py update_version
+  '';
 
   checkPhase = ''
     ${python}/bin/python -m twisted.trial -j $NIX_BUILD_CORES magic_folder
