@@ -3,7 +3,6 @@ Magic Folder
 
 **This repository is provisional.**
 It may move to a different organization.
-It's history will almost certainly be rewritten.
 
 Magic Folder for Tahoe-LAFS is a Free and Open file synchronization system.
 It detects local changes to files and uploads those changes to a Tahoe-LAFS grid.
@@ -26,12 +25,12 @@ from source
 To install from source (either so you can hack on it, or just to run
 pre-release code), you should create a virtualenv and install into that:
 
-* ``git clone https://github.com/leastauthority/magic-folder.git``
+* ``git clone https://github.com/LeastAuthority/magic-folder.git``
 * ``cd magic-folder``
 * ``virtualenv --python=python2.7 venv``
 * ``venv/bin/pip install --upgrade setuptools``
 * ``venv/bin/pip install --editable .``
-* ``venv/bin/magic_folder --version``
+* ``venv/bin/magic-folder --version``
 
 Usage
 =====
@@ -66,6 +65,7 @@ LICENCE
 =======
 
 Copyright 2006-2018 The Tahoe-LAFS Software Foundation
+Copyright 2020-2018 The Magic-Folder Developers
 
 You may use this package under the GNU General Public License, version 2 or,
 at your option, any later version. You may use this package under the
@@ -90,10 +90,6 @@ slides.
 .. |readthedocs| image:: http://readthedocs.org/projects/magic-folder/badge/?version=latest
     :alt: documentation status
     :target: http://magic-folder.readthedocs.io/en/latest/?badge=latest
-
-.. |travis| image:: https://travis-ci.org/leastauthority/magic-folder.png?branch=master
-    :alt: build status
-    :target: https://travis-ci.org/leastauthority/magic-folder
 
 .. |circleci| image:: https://circleci.com/gh/LeastAuthority/magic-folder.svg?style=svg
     :target: https://circleci.com/gh/LeastAuthority/magic-folder
