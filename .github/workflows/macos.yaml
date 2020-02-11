@@ -13,7 +13,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    # Get the tags that the  checkout action doesn't bother with.
+      with:
+        fetch-depth: "0"
+    # Get tags not fetched by the checkout action, needed for auto-versioning.
     - run: "git fetch origin +refs/tags/*:refs/tags/*"
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
