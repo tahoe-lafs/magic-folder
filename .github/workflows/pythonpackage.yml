@@ -14,7 +14,8 @@ jobs:
     steps:
     # Get MS VC++ 9
     - uses: ilammy/msvc-dev-cmd@v1
-      with: "9"
+      with:
+        toolset: "9"
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
