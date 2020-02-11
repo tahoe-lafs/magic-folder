@@ -211,7 +211,7 @@ class UpdateVersion(Command):
         if verstr:
             self.distribution.metadata.version = verstr
         else:
-            raise SystemExit("""\
+            print("""\
 ********************************************************************
 Warning: no version information found. This may cause tests to fail.
 ********************************************************************
