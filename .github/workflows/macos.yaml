@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     # Get the tags that the  checkout action doesn't bother with.
-    - run: "git fetch --depth=1 origin +refs/tags/*:refs/tags/*"
+    - run: "git fetch origin +refs/tags/*:refs/tags/*"
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
