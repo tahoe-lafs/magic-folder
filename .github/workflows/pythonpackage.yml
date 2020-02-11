@@ -12,6 +12,8 @@ jobs:
           - "2.7"
 
     steps:
+    # Get MS VC++ 9
+    - uses: ilammy/msvc-dev-cmd@v1
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
