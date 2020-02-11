@@ -45,9 +45,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Tahoe-LAFS'
-copyright = u'2016, The Tahoe-LAFS Developers'
-author = u'The Tahoe-LAFS Developers'
+project = u'Magic-Folder'
+copyright = u'The Tahoe-LAFS Developers, The Magic-Folder Developers'
+author = u'The Tahoe-LAFS Developers, The Magic-Folder Developers'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -199,7 +199,7 @@ html_static_path = ['_static']
 #html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Tahoe-LAFSdoc'
+htmlhelp_basename = 'magic-folder-doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -221,8 +221,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Tahoe-LAFS.tex', u'Tahoe-LAFS Documentation',
-     u'The Tahoe-LAFS Developers', 'manual'),
+    (master_doc, 'Magic-Folder.tex', u'Magic-Folder Documentation',
+     u'The Tahoe-LAFS Developers, The Magic-Folder Developers', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -251,7 +251,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'tahoe-lafs', u'Tahoe-LAFS Documentation',
+    (master_doc, 'magic-folder', u'Magic-Folder Documentation',
      [author], 1)
 ]
 
@@ -265,8 +265,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Tahoe-LAFS', u'Tahoe-LAFS Documentation',
-     author, 'Tahoe-LAFS', 'One line description of project.',
+    (master_doc, 'Magic-Folder', u'Magic-Folder Documentation',
+     author, 'Magic-Folder', 'Tahoe-LAFS-based file synchronization',
      'Miscellaneous'),
 ]
 

@@ -258,9 +258,9 @@ if version:
 setup(name="magic_folder",
       description='Tahoe-LAFS-based file synchronization',
       long_description=open('README.rst', 'rU').read(),
-      author='the Tahoe-LAFS project',
+      author='the Tahoe-LAFS developers, the Magic-Folder developers',
       author_email='tahoe-dev@tahoe-lafs.org',
-      url='https://github.com/tahoe-lafs/magic_folder/',
+      url='https://github.com/LeastAuthority/magic_folder/',
       license='GNU GPL', # see README.rst -- there is an alternative licence
       cmdclass={"update_version": UpdateVersion,
                 "test": PleaseUseTox,
