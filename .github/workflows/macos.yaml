@@ -27,7 +27,7 @@ jobs:
         pip install wheel tox
     - name: Get Tahoe-LAFS master
       run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs
+        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
     - name: Test with tox
       run: |
         PIP_FIND_LINKS=./wheelhouse tox -e py27-coverage
@@ -55,7 +55,7 @@ jobs:
         pip install wheel tox
     - name: Get Tahoe-LAFS master
       run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs
+        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
     - name: Test with tox
       run: |
         PIP_FIND_LINKS=./wheelhouse tox -e integration
