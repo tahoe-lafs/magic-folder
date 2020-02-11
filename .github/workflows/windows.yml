@@ -12,10 +12,6 @@ jobs:
           - "2.7"
 
     steps:
-    # Get MS VC++ 9
-    - uses: ilammy/msvc-dev-cmd@v1
-      with:
-        toolset: "9.0"
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
@@ -27,6 +23,7 @@ jobs:
         pip install wheel tox
     - name: Get Tahoe-LAFS master
       run: |
+        vcvarsall.bat amd64 -vcvars_ver=9.0
         pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs
     - name: Test with tox
       run: |
