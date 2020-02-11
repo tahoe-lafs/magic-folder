@@ -157,7 +157,6 @@ def versions_from_git(tag_prefix):
         return {}
     stdout = run_command(["git", "describe", "--tags", "--dirty", "--always"],
                          cwd=source_dir)
-    print("Got git describe output:\n{}".format(stdout))
     if stdout is None:
         # run_command already complained.
         return {}
