@@ -14,6 +14,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        # Get enough history for the tags we get next to be meaningful.  0
+        # means all history.
         fetch-depth: "0"
     # Get tags not fetched by the checkout action, needed for auto-versioning.
     - run: "git fetch origin +refs/tags/*:refs/tags/*"
