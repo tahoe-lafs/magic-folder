@@ -41,7 +41,7 @@ jobs:
         $Env:PIP_FIND_LINKS = "./wheelhouse"
         tox -e py27-coverage
 
-    - users: "actions/upload-artifact@v1"
+    - uses: "actions/upload-artifact@v1"
       with:
         name: "eliot.log"
         path: "eliot.log"
