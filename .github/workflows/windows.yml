@@ -82,4 +82,4 @@ jobs:
     - name: Test with tox
       run: |
         $Env:PIP_FIND_LINKS = "./wheelhouse"
-        tox -e integration
+        tox -e integration -- -x
