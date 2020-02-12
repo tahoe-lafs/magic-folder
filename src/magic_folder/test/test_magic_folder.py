@@ -59,7 +59,6 @@ from .. import (
     magicpath,
 )
 
-from .no_network import GridTestMixin
 from .common_util import ReallyEqualMixin
 from .common import (
     ShouldFailMixin,
@@ -859,8 +858,6 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
 
     @defer.inlineCallbacks
     def tearDown(self):
-        yield GridTestMixin.tearDown(self)
-
         for mf in [self.alice_magicfolder, self.bob_magicfolder]:
             mf.uploader._clock.advance(mf.uploader._pending_delay + 1)
             mf.downloader._clock.advance(mf.downloader._poll_interval + 1)

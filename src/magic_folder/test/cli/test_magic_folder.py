@@ -32,7 +32,6 @@ from allmydata.util.eliotutil import (
 
 from ...frontends.magic_folder import MagicFolder
 
-from ..no_network import GridTestMixin
 from ..common_util import parse_cli
 from ..common import (
     AsyncTestCase,
@@ -40,9 +39,8 @@ from ..common import (
 
 from .common import CLITestMixin
 
-class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
+class MagicFolderCLITestMixin(CLITestMixin, NonASCIIPathMixin):
     def setUp(self):
-        GridTestMixin.setUp(self)
         self.alice_nickname = self.unicode_or_fallback(u"Alice\u00F8", u"Alice", io_as_well=True)
         self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
 
