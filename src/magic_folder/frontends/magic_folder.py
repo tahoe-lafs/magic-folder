@@ -39,7 +39,6 @@ from allmydata.util import (
     eliotutil,
 )
 from allmydata.interfaces import IDirectoryNode
-from allmydata.util import log
 from allmydata.util.fileutil import (
     precondition_abspath,
     get_pathinfo,
