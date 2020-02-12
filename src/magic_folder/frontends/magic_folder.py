@@ -76,25 +76,18 @@ class ConfigurationError(Exception):
 
 
 def _get_inotify_module():
-    try:
-        if sys.platform == "win32":
-            from ..windows import inotify
-        elif runtime.platform.supportsINotify():
-            from twisted.internet import inotify
-        elif not sys.platform.startswith("linux"):
-            from ..watchdog import inotify
-        else:
-            raise NotImplementedError("filesystem notification needed for Magic Folder is not supported.\n"
-                                      "This currently requires Linux, Windows, or macOS.")
-        return inotify
-    except (ImportError, AttributeError) as e:
-        if sys.platform == "win32":
-            print(
-                "filesystem notification needed for Magic Folder is not supported on {}.\n"
-                "Windows support requires at least Vista, and has only been tested on Windows 7.".format(
-                    sys.platform,
-                ))
-        raise
+    if sys.platform == "win32":
+        from ..windows import inotify
+    elif runtime.platform.supportsINotify():
+        from twisted.internet import inotify
+    elif not sys.platform.startswith("linux"):
+        from ..watchdog import inotify
+    else:
+        raise NotImplementedError(
+            "filesystem notification needed for Magic Folder is not supported.\n"
+            "This currently requires Linux, Windows, or macOS."
+        )
+    return inotify
 
 
 def get_inotify_module():
