@@ -13,10 +13,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    # Get MS VC++ 9
-    - uses: ilammy/msvc-dev-cmd@v1
+    # Get MS VC++ 9 aka Visual Studio 2008, required to build Python 2.7
+    # extensions (zfec via Tahoe-LAFS).
+    - uses: "crazy-max/ghaction-chocolatey@v1"
       with:
-        toolset: "9.0"
+        args: "install vcpython27"
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
