@@ -89,10 +89,12 @@ def _get_inotify_module():
                                       "This currently requires Linux, Windows, or macOS.")
         return inotify
     except (ImportError, AttributeError) as e:
-        log.msg(e)
         if sys.platform == "win32":
-            raise NotImplementedError("filesystem notification needed for Magic Folder is not supported.\n"
-                                      "Windows support requires at least Vista, and has only been tested on Windows 7.")
+            print(
+                "filesystem notification needed for Magic Folder is not supported on {}.\n"
+                "Windows support requires at least Vista, and has only been tested on Windows 7.".format(
+                    sys.platform,
+                ))
         raise
 
 
