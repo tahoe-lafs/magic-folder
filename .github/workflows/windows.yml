@@ -41,6 +41,11 @@ jobs:
         $Env:PIP_FIND_LINKS = "./wheelhouse"
         tox -e py27-coverage
 
+    - uses: codecov/codecov-action@v1
+      with:
+        token: "322d708d-8283-4827-b605-ccf02bfecf70"
+        file: "./coverage.xml"
+
   integration-tests:
 
     runs-on: "windows-latest"
