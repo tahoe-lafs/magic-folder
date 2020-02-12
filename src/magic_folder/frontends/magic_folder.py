@@ -957,6 +957,7 @@ class QueueMixin(HookMixin):
         self._processing_loop = None
         return d
 
+    @log_call
     def _begin_processing(self):
         """
         Start a loop that looks for work to do and then does it.
@@ -1229,6 +1230,7 @@ class Uploader(QueueMixin):
             d.addCallback(lambda ignored: QueueMixin.stop(self))
             return d.addActionFinish()
 
+    @log_call
     def start_uploading(self):
         action = START_UPLOADING(**self._log_fields)
         with action:
