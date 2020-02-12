@@ -42,6 +42,7 @@ jobs:
         tox -e py27-coverage
 
     - uses: "actions/upload-artifact@v1"
+      if: "failure()"
       with:
         name: "eliot.log"
         path: "eliot.log"
