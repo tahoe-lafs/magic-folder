@@ -1,9 +1,9 @@
-name: Python package
+name: Windows Testing
 
 on: [push]
 
 jobs:
-  build:
+  unit-tests:
 
     runs-on: "windows-latest"
     strategy:
