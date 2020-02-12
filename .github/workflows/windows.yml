@@ -17,7 +17,6 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         toolset: "9"
-    - uses:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
