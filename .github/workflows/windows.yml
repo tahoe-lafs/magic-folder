@@ -38,6 +38,5 @@ jobs:
         pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
     - name: Test with tox
       run: |
-        $Env:PIP_VERBOSE = "1"
         $Env:PIP_FIND_LINKS = "./wheelhouse"
         tox -e py27-coverage
