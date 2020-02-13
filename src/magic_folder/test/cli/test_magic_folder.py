@@ -447,6 +447,10 @@ class ListMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_list_some_json(self):
+        """
+        When there are Magic Folders, the output of the list command describes
+        them in JSON format if given ``--json``.
+        """
         # Get a magic folder.
         folder_path = self.tempdir.join(b"magic-folder")
         yield cli(
