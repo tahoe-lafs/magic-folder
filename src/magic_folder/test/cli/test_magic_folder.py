@@ -21,7 +21,6 @@ from twisted.python import usage
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
 from allmydata.scripts.common import get_aliases
-from allmydata.test.common_util import NonASCIIPathMixin
 from allmydata.scripts import magic_folder_cli
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
@@ -32,14 +31,16 @@ from allmydata.util.eliotutil import (
 
 from ...frontends.magic_folder import MagicFolder
 
-from ..common_util import parse_cli
+from ..common_util import (
+    parse_cli,
+    run_cli,
+    NonASCIIPathMixin,
+)
 from ..common import (
     AsyncTestCase,
 )
 
-from .common import CLITestMixin
-
-class MagicFolderCLITestMixin(CLITestMixin, NonASCIIPathMixin):
+class MagicFolderCLITestMixin(NonASCIIPathMixin):
     def setUp(self):
         self.alice_nickname = self.unicode_or_fallback(u"Alice\u00F8", u"Alice", io_as_well=True)
         self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
@@ -47,9 +48,8 @@ class MagicFolderCLITestMixin(CLITestMixin, NonASCIIPathMixin):
     def do_create_magic_folder(self, client_num):
         with start_action(action_type=u"create-magic-folder", client_num=client_num).context():
             d = DeferredContext(
-                self.do_cli(
-                    "magic-folder", "--debug", "create", "magic:",
-                    client_num=client_num,
+                do_cli(
+                    b"magic-folder", b"--debug", b"create", b"magic:",
                 )
             )
         def _done(args):
@@ -288,16 +288,38 @@ class MagicFolderCLITestMixin(CLITestMixin, NonASCIIPathMixin):
         return d
 
 
-class ListMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
+class ListMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def setUp(self):
         yield super(ListMagicFolder, self).setUp()
-        self.basedir="mf_list"
-        self.set_up_grid(oneshare=True)
-        self.local_dir = os.path.join(self.basedir, "magic")
-        os.mkdir(self.local_dir)
-        self.abs_local_dir_u = abspath_expanduser_unicode(unicode(self.local_dir), long_path=False)
+
+        configuration = {
+            u"node": {
+                u"nickname": u"list-tests",
+                u"web.port": u"tcp:0:interface=127.0.0.1",
+            },
+            u"client": {
+                u"shares.needed": 1,
+                u"shares.happy": 1,
+                u"shares.total": 1,
+            },
+            u"storage": {
+                u"enabled": True,
+            },
+        }
+
+        tempdir = self.useFixture(TempDir())
+        node_directory = FilePath(tempdir.join(u"list-tests-node"))
+
+        yield create(node_directory, configuration)
+
+        self.node = self.useFixture(TahoeLAFSNode(reactor, node_directory))
+
+        self.local_dir = FilePath(tempdir.join(u"magic"))
+        self.local_dir.makedirs()
+
+        self.magic_folder = self.useFixture(MagicFolder(reactor, node_directory))
 
         yield self.do_create_magic_folder(0)
         (rc, stdout, stderr) = yield self.do_invite(0, self.alice_nickname)

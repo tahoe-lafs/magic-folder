@@ -46,6 +46,13 @@ def test_eliot_logs_are_written(alice, bob, temp_dir):
     assert exists(join(temp_dir, "bob", "logs", "eliot.json"))
 
 
+def test_list(magic_folder):
+    """
+    ``magic-folder list`` writes out a list of magic folders that are
+    configured.
+    """
+
+
 def test_alice_writes_bob_receives(magic_folder):
     alice_dir, bob_dir = magic_folder
 

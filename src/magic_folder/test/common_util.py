@@ -35,26 +35,18 @@ def skip_if_cannot_represent_argv(u):
     except UnicodeEncodeError:
         raise unittest.SkipTest("A non-ASCII argv could not be encoded on this platform.")
 
-def run_cli(verb, *args, **kwargs):
-    precondition(not [True for arg in args if not isinstance(arg, str)],
-                 "arguments to do_cli must be strs -- convert using unicode_to_argv", args=args)
-    nodeargs = kwargs.get("nodeargs", [])
-    argv = nodeargs + [verb] + list(args)
-    stdin = kwargs.get("stdin", "")
-    stdout = StringIO()
-    stderr = StringIO()
-    d = defer.succeed(argv)
-    d.addCallback(runner.parse_or_exit_with_explanation, stdout=stdout)
-    d.addCallback(runner.dispatch,
-                  stdin=StringIO(stdin),
-                  stdout=stdout, stderr=stderr)
-    def _done(rc):
-        return 0, stdout.getvalue(), stderr.getvalue()
-    def _err(f):
-        f.trap(SystemExit)
-        return f.value.code, stdout.getvalue(), stderr.getvalue()
-    d.addCallbacks(_done, _err)
-    return d
+def run_cli(argv):
+    if not all(isinstance(s, bytes) for s in args):
+        raise TypeError("argv must be list of bytes, got {!r}".format(args))
+
+    options = MagicFolderCommand()
+    options.stdout = StringIO()
+    options.stderr = StringIO()
+    options.parseOptions(argv)
+
+    result = do_magic_folder(options)
+    if 0 != result:
+        raise ValueError("Got {} from do_magic_folder, expected 0".format(result))
 
 def parse_cli(*argv):
     # This parses the CLI options (synchronously), and returns the Options
