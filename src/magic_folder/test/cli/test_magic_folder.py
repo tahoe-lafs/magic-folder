@@ -363,7 +363,9 @@ class ListMagicFolder(AsyncTestCase):
         self.tempdir = TempDir()
         self.useFixture(self.tempdir)
 
-        # Create an introducer
+        # Create an introducer.  This is necessary to have our node introduce
+        # its own storage to itself.  This avoids needing to run a second node
+        # for storage which would likely require an introduce anyway.
         introducer_directory = FilePath(self.tempdir.join(u"introducer"))
         self.introducer = yield create_introducer(self, introducer_directory)
         # Read out its Foolscap server location - only after it is started.
