@@ -301,7 +301,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         def get_invite_code(result):
             self.invite_code = result[1].strip()
         d.addCallback(get_invite_code)
-
         d.addCallback(lambda ign: self.do_join(1, bob_magic_dir, self.invite_code))
         def get_bob_caps(ign):
             self.bob_collective_dircap, self.bob_upload_dircap = self.get_caps_from_files(1)
