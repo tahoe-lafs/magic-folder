@@ -11,7 +11,9 @@ Tests for the inotify-alike implementation L{allmydata.watchdog}.
 from twisted.internet import defer, reactor
 from twisted.python import filepath, runtime
 
-from allmydata.frontends.magic_folder import get_inotify_module
+from magic_folder.frontends.magic_folder import (
+    get_inotify_module,
+)
 from .common import (
     AsyncTestCase,
     skipIf,
