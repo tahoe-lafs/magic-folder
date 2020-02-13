@@ -182,6 +182,9 @@ class INotify(PollMixin):
             self._observer.join()
             self._state = STOPPED
 
+    def loseConnection(self):
+        return self.stopReading()
+
     def wait_until_stopped(self):
         return self.poll(lambda: self._state == STOPPED)
 
