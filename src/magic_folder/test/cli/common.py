@@ -36,6 +36,21 @@ class CLITestMixin(ReallyEqualMixin):
 
 @log_call(action_type=u"test:cli", include_args=["argv"])
 def cli(node_directory, argv):
+    """
+    Perform an in-process equivalent to the given magic-folder command.
+
+    :param FilePath node_directory: The path to the Tahoe-LAFS node this
+        command will use.
+
+    :param list[bytes] argv: The magic-folder arguments which define the
+        command to run.  This does not include "magic-folder" itself, just the
+        following arguments.  For example, ``[b"list"]``.
+
+    :return bytes: The bytes that would be produced on standard output if the
+        command were run as a normal process.
+
+    :raise Exception: If any problems are encountered with the command.
+    """
     options = MagicFolderCommand()
     options.stdout = MixedIO()
     options.stderr = MixedIO()
