@@ -381,8 +381,6 @@ class ListMagicFolder(AsyncTestCase):
         yield create(self.node_directory, configuration={
             u"node": {
                 u"web.port": u"tcp:0:interface=127.0.0.1",
-                u"tub.port": u"tcp:6000:interface=127.0.0.1",
-                u"tub.location": u"tcp:127.0.0.1:6000",
             },
             u"storage": {
                 u"enabled": True,
