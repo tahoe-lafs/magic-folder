@@ -2,7 +2,8 @@
 # See LICENSE for details.
 
 """
-Tests for the inotify-alike implementation L{allmydata.watchdog}.
+Tests for the Magic Folder platform integration for filesystem change
+notification.
 """
 
 # Note: See https://twistedmatrix.com/trac/ticket/8915 for a proposal
@@ -18,6 +19,8 @@ from .common import (
     AsyncTestCase,
     skipIf,
 )
+
+# Get the right implementation for this platform.
 inotify = get_inotify_module()
 
 
