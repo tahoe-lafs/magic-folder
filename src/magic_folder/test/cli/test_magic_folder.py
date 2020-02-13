@@ -376,7 +376,7 @@ class ListMagicFolder(AsyncTestCase):
             u"introducer.furl"
         ).getContent()
 
-        # Create a client node
+        # Create a node which will be the client and also act as storage.
         self.node_directory = FilePath(self.tempdir.join(u"client-and-storage"))
         yield create(self.node_directory, configuration={
             u"node": {
