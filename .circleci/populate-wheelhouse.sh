@@ -38,7 +38,7 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
 
 # We don't yet have a compatible release.
 # https://pip.pypa.io/en/stable/reference/pip_install/#git
-export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs@bdist-wheel-with-version#egg=tahoe-lafs"
+export TAHOE_LAFS="git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs"
 
 # Populate the wheelhouse, if necessary.
 "${PIP}" \
