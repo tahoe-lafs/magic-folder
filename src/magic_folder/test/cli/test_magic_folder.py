@@ -349,6 +349,7 @@ def create_introducer(testcase, introducer_directory):
     yield introducer.use_on(testcase)
     defer.returnValue(introducer)
 
+
 class ListMagicFolder(AsyncTestCase):
     """
     Tests for the command-line interface ``magic-folder list``.
