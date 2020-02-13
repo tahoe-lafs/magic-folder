@@ -32,7 +32,7 @@ class INotifyTests(AsyncTestCase):
         self.dirname.createDirectory()
         self.inotify = inotify.INotify()
         self.inotify.startReading()
-        self.addCleanup(self.inotify.stopReading)
+        self.addCleanup(self.inotify.loseConnection)
         return super(INotifyTests, self).setUp()
 
 
