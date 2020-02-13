@@ -3,8 +3,10 @@ from __future__ import print_function
 import os
 import sys
 import urllib
+from six.moves import (
+    StringIO as MixedIO,
+)
 from types import NoneType
-from six.moves import cStringIO as StringIO
 from datetime import datetime
 from ConfigParser import SafeConfigParser
 import json
@@ -160,9 +162,9 @@ def _delegate_options(source_options, target_options):
     target_options["node-url"] = source_options["node-url"]
     target_options["node-directory"] = source_options["node-directory"]
     target_options["name"] = source_options["name"]
-    target_options.stdin = StringIO("")
-    target_options.stdout = StringIO()
-    target_options.stderr = StringIO()
+    target_options.stdin = MixedIO(u"")
+    target_options.stdout = MixedIO()
+    target_options.stderr = MixedIO()
     return target_options
 
 def create(options):
@@ -268,7 +270,7 @@ def _list_human(options, folders):
 class InviteOptions(BasedirOptions):
     nickname = None
     synopsis = "MAGIC_ALIAS: NICKNAME"
-    stdin = StringIO("")
+    stdin = MixedIO(u"")
     optParameters = [
         ("name", "n", "default", "The name of this magic-folder"),
     ]
@@ -429,7 +431,7 @@ def leave(options):
 
 class StatusOptions(BasedirOptions):
     synopsis = ""
-    stdin = StringIO("")
+    stdin = MixedIO(u"")
     optParameters = [
         ("name", "n", "default", "Name for the magic-folder to show status"),
     ]
@@ -1059,7 +1061,7 @@ def do_magic_folder(options):
     try:
         return f(so)
     except Exception as e:
-        print("Error: %s" % (e,), file=options.stderr)
+        print(u"Error: {}".format(e), file=options.stderr)
         if options['debug']:
             raise
 

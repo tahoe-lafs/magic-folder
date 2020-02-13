@@ -328,10 +328,6 @@ def save_magic_folders(node_directory, folders):
         yamlutil.safe_dump({u"magic-folders": folders}),
     )
 
-    config = configutil.get_config(os.path.join(node_directory, u"tahoe.cfg"))
-    configutil.set_config(config, "magic_folder", "enabled", "True")
-    configutil.write_config(os.path.join(node_directory, u"tahoe.cfg"), config)
-
 
 class MagicFolder(service.MultiService):
 
