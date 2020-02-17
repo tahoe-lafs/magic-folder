@@ -22,8 +22,12 @@ from json import (
 
 from fixtures import (
     Fixture,
+    TempDir,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.internet.task import (
     deferLater,
 )
@@ -38,6 +42,19 @@ from twisted.internet.protocol import (
 from twisted.web.client import (
     Agent,
     readBody,
+)
+
+from eliot import (
+    Message,
+)
+
+from allmydata.util.eliotutil import (
+    log_call_deferred,
+)
+
+from .tahoe_lafs import (
+    create,
+    create_introducer,
 )
 
 class INTRODUCER(object):
@@ -74,10 +91,19 @@ class RunningTahoeLAFSNode(Fixture):
         )
 
     def _cleanUp(self):
-        if self._transport is not None:
-            self._transport.signalProcess("KILL")
         # Unfortunately Fixtures / testtools doesn't care if we return a
         # Deferred here.
+        if self._transport is not None:
+            Message.log(
+                message_type=u"test:cli:running-tahoe-lafs-node:signal",
+                node_kind=self.node_kind.__name__,
+            )
+            self._transport.signalProcess("KILL")
+        else:
+            Message.log(
+                message_type=u"test:cli:running-tahoe-lafs-node:no-signal",
+                node_kind=self.node_kind.__name__,
+            )
 
     def use_on(self, testcase):
         testcase.useFixture(self)
@@ -105,6 +131,7 @@ class RunningTahoeLAFSNode(Fixture):
                     break
             yield deferLater(self.reactor, 0.05, lambda: None)
 
+    @log_call_deferred(u"test:cli:running-tahoe-lafs-node:stop")
     def stop(self):
         self._cleanUp()
         return self.wait_for_exit()
@@ -154,3 +181,66 @@ class _TahoeLAFSNodeProtocol(ProcessProtocol):
         if self._node_kind.ready_bytes in self._out:
             self._fixture._process_is_ready()
             self._out = b""
+
+
+
+class SelfConnectedClient(Fixture):
+    """
+    Supply a running Tahoe-LAFS node which provides both a client gateway and
+    storage services and which is connected to itself via a running Tahoe-LAFS
+    introducer.
+    """
+    def __init__(self, reactor):
+        super(SelfConnectedClient, self).__init__()
+        self.reactor = reactor
+
+    @inlineCallbacks
+    def use_on(self, testcase):
+        """
+        Use this fixture on the given testcase.
+
+        This is like ``testcase.useFixture(self)`` except that it supports the
+        asynchronous cleanup that is required by this fixture.
+        """
+        testcase.useFixture(self)
+
+        self.tempdir = self.useFixture(TempDir())
+
+        # Create an introducer.  This is necessary to have our node introduce
+        # its own storage to itself.  This avoids needing to run a second node
+        # for storage which would likely require an introducer anyway.
+        introducer_directory = FilePath(self.tempdir.join(u"introducer"))
+        self.introducer = yield create_introducer(self, introducer_directory)
+        introducer = RunningTahoeLAFSNode(
+            self.reactor,
+            introducer_directory,
+            INTRODUCER,
+        )
+        yield introducer.use_on(testcase)
+
+        # Read out its Foolscap server location - only after it is started.
+        introducer_furl = introducer_directory.child(
+            u"private"
+        ).child(
+            u"introducer.furl"
+        ).getContent()
+
+        # Create a node which will be the client and also act as storage.
+        self.node_directory = FilePath(self.tempdir.join(u"client-and-storage"))
+        yield create(self.node_directory, configuration={
+            u"node": {
+                u"web.port": u"tcp:0:interface=127.0.0.1",
+            },
+            u"storage": {
+                u"enabled": True,
+            },
+            u"client": {
+                u"shares.needed": 1,
+                u"shares.happy": 1,
+                u"shares.total": 1,
+                u"introducer.furl": introducer_furl,
+            },
+        })
+        client = RunningTahoeLAFSNode(self.reactor, self.node_directory)
+        yield client.use_on(testcase)
+        yield client.connected_enough()

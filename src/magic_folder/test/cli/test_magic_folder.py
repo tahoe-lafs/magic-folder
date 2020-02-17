@@ -57,8 +57,7 @@ from ..tahoe_lafs import (
     create,
 )
 from ..fixtures import (
-    RunningTahoeLAFSNode,
-    INTRODUCER,
+    SelfConnectedClient,
 )
 
 from .common import (
@@ -316,39 +315,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d
 
 
-@defer.inlineCallbacks
-def create_introducer(testcase, introducer_directory):
-    """
-    Make and run a Tahoe-LAFS introducer node.
-
-    :param testcase: A fixture-enabled test case instance which will be used
-        to start and stop the Tahgoe-LAFS introducer process.
-
-    :param FilePath introducer_directory: The path at which the introducer
-        node will be created.
-
-    :return Deferred[RunningTahoeLAFSNode]: A Deferred that fires with the
-        fixture managing the running process.  The fixture is attached to
-        ``testcase`` such that the process starts when the test starts and
-        stops when the test stops.
-    """
-    yield create(introducer_directory, configuration={
-        u"node": {
-        },
-    })
-    # This actually makes it an introducer.
-    introducer_directory.child(u"tahoe-introducer.tac").touch()
-    introducer_directory.child(u"tahoe-client.tac").remove()
-
-    introducer = RunningTahoeLAFSNode(
-        reactor,
-        introducer_directory,
-        INTRODUCER,
-    )
-    yield introducer.use_on(testcase)
-    defer.returnValue(introducer)
-
-
 class ListMagicFolder(AsyncTestCase):
     """
     Tests for the command-line interface ``magic-folder list``.
@@ -360,41 +326,11 @@ class ListMagicFolder(AsyncTestCase):
         and run it.
         """
         yield super(ListMagicFolder, self).setUp()
-        self.tempdir = TempDir()
-        self.useFixture(self.tempdir)
+        self.client_fixture = SelfConnectedClient(reactor)
+        yield self.client_fixture.use_on(self)
 
-        # Create an introducer.  This is necessary to have our node introduce
-        # its own storage to itself.  This avoids needing to run a second node
-        # for storage which would likely require an introduce anyway.
-        introducer_directory = FilePath(self.tempdir.join(u"introducer"))
-        self.introducer = yield create_introducer(self, introducer_directory)
-        # Read out its Foolscap server location - only after it is started.
-        introducer_furl = introducer_directory.child(
-            u"private"
-        ).child(
-            u"introducer.furl"
-        ).getContent()
-
-        # Create a node which will be the client and also act as storage.
-        self.node_directory = FilePath(self.tempdir.join(u"client-and-storage"))
-        yield create(self.node_directory, configuration={
-            u"node": {
-                u"web.port": u"tcp:0:interface=127.0.0.1",
-            },
-            u"storage": {
-                u"enabled": True,
-            },
-            u"client": {
-                u"shares.needed": 1,
-                u"shares.happy": 1,
-                u"shares.total": 1,
-                u"introducer.furl": introducer_furl,
-            },
-        })
-        client = RunningTahoeLAFSNode(reactor, self.node_directory)
-        yield client.use_on(self)
-        yield client.connected_enough()
-
+        self.tempdir = self.client_fixture.tempdir
+        self.node_directory = self.client_fixture.node_directory
 
     @defer.inlineCallbacks
     def test_list_none(self):

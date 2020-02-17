@@ -62,6 +62,30 @@ def create(node_directory, configuration):
     yield _run_successfully(executable, argv)
     write_configuration(node_directory, to_configparser(configuration))
 
+
+@inlineCallbacks
+def create_introducer(testcase, introducer_directory):
+    """
+    Make a Tahoe-LAFS introducer node.
+
+    :param testcase: A fixture-enabled test case instance which will be used
+        to start and stop the Tahgoe-LAFS introducer process.
+
+    :param FilePath introducer_directory: The path at which the introducer
+        node will be created.
+
+    :return Deferred[RunningTahoeLAFSNode]: A Deferred that fires with the
+        fixture managing the running process.  The fixture is attached to
+        ``testcase`` such that the process starts when the test starts and
+        stops when the test stops.
+    """
+    yield create(introducer_directory, configuration={
+        u"node": {},
+    })
+    # This actually makes it an introducer.
+    introducer_directory.child(u"tahoe-introducer.tac").touch()
+    introducer_directory.child(u"tahoe-client.tac").remove()
+
 @inlineCallbacks
 def _run_successfully(executable, argv):
     stdout, stderr, exit_code = yield getProcessOutputAndValue(
