@@ -319,7 +319,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
 @defer.inlineCallbacks
 def create_introducer(testcase, introducer_directory):
     """
-    Make an run a Tahoe-LAFS introducer node.
+    Make and run a Tahoe-LAFS introducer node.
 
     :param testcase: A fixture-enabled test case instance which will be used
         to start and stop the Tahgoe-LAFS introducer process.
