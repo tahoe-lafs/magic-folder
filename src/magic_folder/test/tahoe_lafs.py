@@ -13,6 +13,10 @@ from sys import (
     executable,
 )
 
+from os import (
+    environ,
+)
+
 from ConfigParser import (
     ConfigParser,
 )
@@ -55,22 +59,27 @@ def create(node_directory, configuration):
         b"--hostname", b"localhost",
         node_directory.path,
     ])
-    yield _runSuccessfully(executable, argv)
+    yield _run_successfully(executable, argv)
     write_configuration(node_directory, to_configparser(configuration))
 
 @inlineCallbacks
-def _runSuccessfully(executable, argv):
+def _run_successfully(executable, argv):
     stdout, stderr, exit_code = yield getProcessOutputAndValue(
         executable,
-        argv,
+        args=argv,
+        env=environ,
     )
     Message.log(
-        message_type=u"stdout",
-        value=stdout,
-    )
-    Message.log(
-        message_type=u"stderr",
-        value=stderr,
+        message_type=u"child-process:result",
+        executable=executable,
+        argv=argv,
+        stdout=stdout,
+        stderr=stderr,
+        exit_code=exit_code,
     )
     if exit_code != 0:
-        raise RuntimeError("Darn")
+        raise ValueError("{} {} exited with failure code {}".format(
+            executable,
+            " ".join(argv),
+            exit_code,
+        ))
