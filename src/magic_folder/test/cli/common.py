@@ -1,7 +1,21 @@
+
+from six.moves import (
+    StringIO as MixedIO,
+)
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata.scripts import runner
 
+from eliot import (
+    Message,
+    log_call,
+)
+
 from ..common_util import ReallyEqualMixin, run_cli
+
+from ...scripts.magic_folder_cli import (
+    MagicFolderCommand,
+    do_magic_folder,
+)
 
 def parse_options(basedir, command, args):
     o = runner.Options()
@@ -18,3 +32,42 @@ class CLITestMixin(ReallyEqualMixin):
         client_dir = unicode_to_argv(self.get_clientdir(i=client_num))
         nodeargs = [ "--node-directory", client_dir ]
         return run_cli(verb, nodeargs=nodeargs, *args, **kwargs)
+
+
+@log_call(action_type=u"test:cli", include_args=["argv"])
+def cli(node_directory, argv):
+    """
+    Perform an in-process equivalent to the given magic-folder command.
+
+    :param FilePath node_directory: The path to the Tahoe-LAFS node this
+        command will use.
+
+    :param list[bytes] argv: The magic-folder arguments which define the
+        command to run.  This does not include "magic-folder" itself, just the
+        following arguments.  For example, ``[b"list"]``.
+
+    :return bytes: The bytes that would be produced on standard output if the
+        command were run as a normal process.
+
+    :raise Exception: If any problems are encountered with the command.
+    """
+    options = MagicFolderCommand()
+    options.stdout = MixedIO()
+    options.stderr = MixedIO()
+    options.parseOptions([
+        b"--debug",
+        b"--node-directory",
+        node_directory.asBytesMode().path,
+    ] + argv)
+    result = do_magic_folder(options)
+    Message.log(
+        message_type=u"stdout",
+        value=options.stdout.getvalue(),
+    )
+    Message.log(
+        message_type=u"stderr",
+        value=options.stderr.getvalue(),
+    )
+    if result != 0:
+        raise Exception("Got result {} from magic-folder {}".format(result, argv))
+    return options.stdout.getvalue()

@@ -6,6 +6,15 @@ import re
 import time
 from datetime import datetime
 
+from fixtures import (
+    TempDir,
+)
+from testtools.matchers import (
+    Contains,
+    Equals,
+    AfterPreprocessing,
+)
+
 from eliot import (
     log_call,
     start_action,
@@ -17,12 +26,14 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
+from twisted.python.filepath import (
+    FilePath,
+)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
 from allmydata.scripts.common import get_aliases
 from allmydata.test.common_util import NonASCIIPathMixin
-from allmydata.scripts import magic_folder_cli
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata import uri
@@ -30,15 +41,30 @@ from allmydata.util.eliotutil import (
     log_call_deferred,
 )
 
-from ...frontends.magic_folder import MagicFolder
+from ...frontends.magic_folder import (
+    MagicFolder,
+)
+from ...scripts import (
+    magic_folder_cli,
+)
 
 from ..no_network import GridTestMixin
 from ..common_util import parse_cli
 from ..common import (
     AsyncTestCase,
 )
+from ..tahoe_lafs import (
+    create,
+)
+from ..fixtures import (
+    RunningTahoeLAFSNode,
+    INTRODUCER,
+)
 
-from .common import CLITestMixin
+from .common import (
+    CLITestMixin,
+    cli,
+)
 
 class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
     def setUp(self):
@@ -290,48 +316,162 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d
 
 
-class ListMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
+@defer.inlineCallbacks
+def create_introducer(testcase, introducer_directory):
+    """
+    Make and run a Tahoe-LAFS introducer node.
 
+    :param testcase: A fixture-enabled test case instance which will be used
+        to start and stop the Tahgoe-LAFS introducer process.
+
+    :param FilePath introducer_directory: The path at which the introducer
+        node will be created.
+
+    :return Deferred[RunningTahoeLAFSNode]: A Deferred that fires with the
+        fixture managing the running process.  The fixture is attached to
+        ``testcase`` such that the process starts when the test starts and
+        stops when the test stops.
+    """
+    yield create(introducer_directory, configuration={
+        u"node": {
+        },
+    })
+    # This actually makes it an introducer.
+    introducer_directory.child(u"tahoe-introducer.tac").touch()
+    introducer_directory.child(u"tahoe-client.tac").remove()
+
+    introducer = RunningTahoeLAFSNode(
+        reactor,
+        introducer_directory,
+        INTRODUCER,
+    )
+    yield introducer.use_on(testcase)
+    defer.returnValue(introducer)
+
+
+class ListMagicFolder(AsyncTestCase):
+    """
+    Tests for the command-line interface ``magic-folder list``.
+    """
     @defer.inlineCallbacks
     def setUp(self):
+        """
+        Create a Tahoe-LAFS node which can contain some magic folder configuration
+        and run it.
+        """
         yield super(ListMagicFolder, self).setUp()
-        self.basedir="mf_list"
-        self.set_up_grid(oneshare=True)
-        self.local_dir = os.path.join(self.basedir, "magic")
-        os.mkdir(self.local_dir)
-        self.abs_local_dir_u = abspath_expanduser_unicode(unicode(self.local_dir), long_path=False)
+        self.tempdir = TempDir()
+        self.useFixture(self.tempdir)
 
-        yield self.do_create_magic_folder(0)
-        (rc, stdout, stderr) = yield self.do_invite(0, self.alice_nickname)
-        invite_code = stdout.strip()
-        yield self.do_join(0, unicode(self.local_dir), invite_code)
+        # Create an introducer.  This is necessary to have our node introduce
+        # its own storage to itself.  This avoids needing to run a second node
+        # for storage which would likely require an introduce anyway.
+        introducer_directory = FilePath(self.tempdir.join(u"introducer"))
+        self.introducer = yield create_introducer(self, introducer_directory)
+        # Read out its Foolscap server location - only after it is started.
+        introducer_furl = introducer_directory.child(
+            u"private"
+        ).child(
+            u"introducer.furl"
+        ).getContent()
 
-    @defer.inlineCallbacks
-    def tearDown(self):
-        yield super(ListMagicFolder, self).tearDown()
-        shutil.rmtree(self.basedir)
+        # Create a node which will be the client and also act as storage.
+        self.node_directory = FilePath(self.tempdir.join(u"client-and-storage"))
+        yield create(self.node_directory, configuration={
+            u"node": {
+                u"web.port": u"tcp:0:interface=127.0.0.1",
+            },
+            u"storage": {
+                u"enabled": True,
+            },
+            u"client": {
+                u"shares.needed": 1,
+                u"shares.happy": 1,
+                u"shares.total": 1,
+                u"introducer.furl": introducer_furl,
+            },
+        })
+        client = RunningTahoeLAFSNode(reactor, self.node_directory)
+        yield client.use_on(self)
+        yield client.connected_enough()
 
-    @defer.inlineCallbacks
-    def test_list(self):
-        rc, stdout, stderr = yield self.do_list(0)
-        self.assertEqual(rc, 0)
-        self.assertIn("default:", stdout)
 
     @defer.inlineCallbacks
     def test_list_none(self):
-        yield self.do_leave(0)
-        rc, stdout, stderr = yield self.do_list(0)
-        self.assertEqual(rc, 0)
-        self.assertIn("No magic-folders", stdout)
+        """
+        When there are no Magic Folders at all, the output of the list command
+        reports this.
+        """
+        stdout = yield cli(
+            self.node_directory,
+            [b"list"],
+        )
+        self.assertThat(stdout, Contains(u"No magic-folders"))
 
     @defer.inlineCallbacks
-    def test_list_json(self):
-        rc, stdout, stderr = yield self.do_list(0, json=True)
-        self.assertEqual(rc, 0)
-        res = json.loads(stdout)
-        self.assertEqual(
-            dict(default=dict(directory=self.abs_local_dir_u)),
-            res,
+    def test_list_none_json(self):
+        """
+        When there are no Magic Folders at all, the output of the list command
+        reports this in JSON format if given ``--json``.
+        """
+        stdout = yield cli(
+            self.node_directory,
+            [b"list", b"--json"],
+        )
+        self.assertThat(stdout, AfterPreprocessing(json.loads, Equals({})))
+
+    @defer.inlineCallbacks
+    def test_list_some(self):
+        """
+        When there are Magic Folders, the output of the list command describes
+        them.
+        """
+        # Get a magic folder.
+        folder_path = self.tempdir.join(b"magic-folder")
+        yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name", b"list-some-folder",
+                b"magik:",
+                b"test_list_some",
+                folder_path,
+            ],
+        )
+
+        stdout = yield cli(
+            self.node_directory,
+            [b"list"],
+        )
+        self.expectThat(stdout, Contains(b"list-some-folder"))
+        self.expectThat(stdout, Contains(folder_path))
+
+    @defer.inlineCallbacks
+    def test_list_some_json(self):
+        """
+        When there are Magic Folders, the output of the list command describes
+        them in JSON format if given ``--json``.
+        """
+        # Get a magic folder.
+        folder_path = self.tempdir.join(b"magic-folder")
+        yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name", b"list-some-json-folder",
+                b"magik:",
+                b"test_list_some_json",
+                folder_path,
+            ],
+        )
+        stdout = yield cli(
+            self.node_directory,
+            [b"list", b"--json"],
+        )
+        self.expectThat(
+            stdout,
+            AfterPreprocessing(
+                json.loads,
+                Equals({u"list-some-json-folder": {u"directory": folder_path}}),
+            ),
         )
 
 
