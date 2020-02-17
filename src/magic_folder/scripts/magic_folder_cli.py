@@ -41,6 +41,9 @@ from twisted.web.client import (
     readBody,
     FileBodyProducer,
 )
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.python import usage
 from twisted.python.failure import (
     Failure,
@@ -111,6 +114,10 @@ from ..frontends.magic_folder import (
 )
 from ..web.magic_folder import (
     magic_folder_web_service,
+)
+
+from ..status import (
+    status as _status,
 )
 
 from .._coverage import (
@@ -519,97 +526,77 @@ def _print_item_status(item, now, longest):
     print("  %s: %s" % (paddedname, prog))
 
 
+@inline_callbacks
 def status(options):
+    from twisted.internet import  reactor
+
     nodedir = options["node-directory"]
     stdout, stderr = options.stdout, options.stderr
-    magic_folders = load_magic_folders(os.path.join(options["node-directory"]))
 
-    with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
-        token = f.read()
-
-    print("Magic-folder status for '{}':".format(options["name"]), file=stdout)
-
-    if options["name"] not in magic_folders:
-        raise Exception(
-            "No such magic-folder '{}'".format(options["name"])
-        )
-
-    dmd_cap = magic_folders[options["name"]]["upload_dircap"]
-    collective_readcap = magic_folders[options["name"]]["collective_dircap"]
-
-    # do *all* our data-retrievals first in case there's an error
     try:
-        dmd_data = _get_json_for_cap(options, dmd_cap)
-        remote_data = _get_json_for_cap(options, collective_readcap)
-        magic_data = _get_json_for_fragment(
-            options,
-            'magic_folder?t=json',
-            method='POST',
-            post_args=dict(
-                t='json',
-                name=options["name"],
-                token=token,
-            )
+        status_obj = yield _status(
+            options["name"].decode("utf-8"),
+            FilePath(options["node-directory"]),
+            reactor,
         )
     except Exception as e:
-        print("failed to retrieve data: %s" % str(e), file=stderr)
-        return 2
+        print(e, file=stderr)
+        raise
+        returnValue(1)
+    else:
+        print(_format_status(datetime.now(), status_obj), file=stdout)
+        returnValue(0)
 
-    for d in [dmd_data, remote_data, magic_data]:
-        if isinstance(d, dict) and 'error' in d:
-            print("Error from server: %s" % d['error'], file=stderr)
-            print("This means we can't retrieve the remote shared directory.", file=stderr)
-            return 3
 
-    captype, dmd = dmd_data
-    if captype != 'dirnode':
-        print("magic_folder_dircap isn't a directory capability", file=stderr)
-        return 2
+def _format_status(now, status_obj):
+    return u"""
+Magic-folder status for '{folder_name}':
 
-    now = datetime.now()
+Local files:
+{local_files}
 
-    print("Local files:", file=stdout)
-    for (name, child) in dmd['children'].items():
-        captype, meta = child
-        status = 'good'
-        size = meta['size']
-        created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
-        version = meta['metadata']['version']
-        nice_size = abbreviate_space(size)
-        nice_created = abbreviate_time(now - created)
-        if captype != 'filenode':
-            print("%20s: error, should be a filecap" % name, file=stdout)
-            continue
-        print("  %s (%s): %s, version=%s, created %s" % (name, nice_size, status, version, nice_created), file=stdout)
+Remote files:
+{remote_files}
+""".format(
+    folder_name=status_obj.folder_name,
+    local_files=u"\n".join(list(_format_local_files(now, status_obj.local_files))),
+    remote_files=u"\n".join(list(_format_remote_files(now, status_obj.remote_files))),
+)
 
-    print(file=stdout)
-    print("Remote files:", file=stdout)
 
-    captype, collective = remote_data
-    for (name, data) in collective['children'].items():
-        if data[0] != 'dirnode':
-            print("Error: '%s': expected a dirnode, not '%s'" % (name, data[0]), file=stdout)
-        print("  %s's remote:" % name, file=stdout)
-        dmd = _get_json_for_cap(options, data[1]['ro_uri'])
-        if isinstance(dmd, dict) and 'error' in dmd:
-            print("    Error: could not retrieve directory", file=stdout)
-            continue
-        if dmd[0] != 'dirnode':
-            print("Error: should be a dirnode", file=stdout)
-            continue
-        for (n, d) in dmd[1]['children'].items():
-            if d[0] != 'filenode':
-                print("Error: expected '%s' to be a filenode." % (n,), file=stdout)
+def _format_local_files(now, local_files):
+    for (name, child) in local_files.items():
+        yield _format_file_line(now, name, child)
 
-            meta = d[1]
-            status = 'good'
-            size = meta['size']
-            created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
-            version = meta['metadata']['version']
-            nice_size = abbreviate_space(size)
-            nice_created = abbreviate_time(now - created)
-            print("    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created), file=stdout)
 
+def _format_file_line(now, name, child):
+    captype, meta = child
+    if captype != 'filenode':
+        return u"%20s: error, should be a filecap (not %s)" % (name, captype)
+
+    status = 'good'
+    size = meta['size']
+    created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
+    version = meta['metadata']['version']
+    nice_size = abbreviate_space(size)
+    nice_created = abbreviate_time(now - created)
+    return u"  %s (%s): %s, version=%s, created %s" % (
+        name,
+        nice_size,
+        status,
+        version,
+        nice_created,
+    )
+
+
+def _format_remote_files(now, remote_files):
+    for (name, children) in remote_files.items():
+        yield u"  %s's remote:" % name
+        for (n, d) in children.items():
+            yield _format_file_line(now, n, d)
+
+
+def _format_magic_folder_status(magic_folder_status):
     if len(magic_data):
         uploads = [item for item in magic_data if item['kind'] == 'upload']
         downloads = [item for item in magic_data if item['kind'] == 'download']

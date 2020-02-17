@@ -241,6 +241,6 @@ class SelfConnectedClient(Fixture):
                 u"introducer.furl": introducer_furl,
             },
         })
-        client = RunningTahoeLAFSNode(self.reactor, self.node_directory)
-        yield client.use_on(testcase)
-        yield client.connected_enough()
+        self.client = RunningTahoeLAFSNode(self.reactor, self.node_directory)
+        yield self.client.use_on(testcase)
+        yield self.client.connected_enough()

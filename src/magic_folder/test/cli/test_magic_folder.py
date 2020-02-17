@@ -414,26 +414,63 @@ class ListMagicFolder(AsyncTestCase):
         )
 
 
-class StatusMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
-
+class StatusMagicFolder(AsyncTestCase):
+    """
+    Tests for ``magic-folder status``.
+    """
     @defer.inlineCallbacks
     def setUp(self):
         yield super(StatusMagicFolder, self).setUp()
-        self.basedir="mf_list"
-        self.set_up_grid(oneshare=True)
-        self.local_dir = os.path.join(self.basedir, "magic")
-        os.mkdir(self.local_dir)
-        self.abs_local_dir_u = abspath_expanduser_unicode(unicode(self.local_dir), long_path=False)
+        self.client_fixture = SelfConnectedClient(reactor)
+        yield self.client_fixture.use_on(self)
 
-        yield self.do_create_magic_folder(0)
-        (rc, stdout, stderr) = yield self.do_invite(0, self.alice_nickname)
-        invite_code = stdout.strip()
-        yield self.do_join(0, unicode(self.local_dir), invite_code)
+    def test_no_magic_folder_by_name(self):
+        """
+        ``magic-folder status --name <name>`` reports an error if there is no
+        magic folder by the given name.
+        """
+        stdout = yield cli(
+            self.client_fixture.node_directory,
+            [b"status", b"--name", b"no-such-folder"],
+        )
+        self.assertThat(
+            stdout,
+            Equals(b"No such magic-folder 'no-such-folder'"),
+        )
 
-    @defer.inlineCallbacks
-    def tearDown(self):
-        yield super(StatusMagicFolder, self).tearDown()
-        shutil.rmtree(self.basedir)
+    def test_server_not_reachable(self):
+        """
+        ``magic-folder status`` reports an error if it encounters an error trying
+        to retrieve information from the Tahoe-LAFS node's HTTP API.
+        """
+        # Stop the node
+        yield self.client_fixture.client.stop()
+
+        stdout = yield cli(
+            self.client_fixture.node_directory,
+            [b"status"],
+        )
+        self.assertThat(
+            stdout,
+            Contains(b"Error from server"),
+        )
+
+    def test_collective_not_a_directory(self):
+        """
+        ``magic-folder status`` reports an e rror if the configured directory cap
+        refers to an object that is not a directory.
+        """
+        # Create a magic folder we can inspect.
+        yield cli(
+            self.client_fixture.node_directory,
+            [b"create", b"--name", b"magic-name", b"magic-alias:", b"user-alias",
+             self.client_fixture.tempdir.join(b"magic-folder-path"),
+            ],
+        )
+
+        # Create an immutable file and use it to trash the magic folder's
+        # configuration.
+
 
     @defer.inlineCallbacks
     def test_status(self):
