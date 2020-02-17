@@ -103,7 +103,7 @@ class RunningTahoeLAFSNode(Fixture):
                         in status[u"servers"]
                 ):
                     break
-            yield deferLater(self.reactor, 0.05)
+            yield deferLater(self.reactor, 0.05, lambda: None)
 
     def stop(self):
         self._cleanUp()
