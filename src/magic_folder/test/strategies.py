@@ -9,12 +9,22 @@ from os.path import (
     join,
 )
 
+from base64 import (
+    urlsafe_b64encode,
+)
+
 from hypothesis.strategies import (
     characters,
     text,
     lists,
     builds,
+    binary,
 )
+
+from allmydata.util import (
+    base32,
+)
+
 
 def path_segments(alphabet=characters(blacklist_characters=[u"/", u"\0"])):
     """
@@ -62,4 +72,36 @@ def absolute_paths(relative_paths=relative_paths()):
     """
     return relative_paths.map(
         lambda p: u"/" + p,
+    )
+
+
+def folder_names():
+    """
+    Build unicode strings which are usable as magic folder names.
+    """
+    return text(
+        min_size=1,
+    )
+
+def tahoe_lafs_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS directory capability strings.
+    """
+    return builds(
+        lambda a, b: u"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
+        binary(min_size=16, max_size=16),
+        binary(min_size=32, max_size=32),
+    )
+
+
+def tokens():
+    """
+    Build byte strings which are usable as Tahoe-LAFS web API authentication
+    tokens.
+    """
+    return binary(
+        min_size=32,
+        max_size=32,
+    ).map(
+        urlsafe_b64encode,
     )

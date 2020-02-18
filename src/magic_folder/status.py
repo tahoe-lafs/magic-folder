@@ -35,7 +35,6 @@ from twisted.web.http import (
     OK,
 )
 from twisted.web.client import (
-    Agent,
     FileBodyProducer,
     readBody,
 )
@@ -79,7 +78,7 @@ class Status(object):
     folder_status = attr.ib()
 
 
-def status(folder_name, node_directory, reactor):
+def status(folder_name, node_directory, treq=None):
     """
     Retrieve information about the current state of a named magic folder.
 
@@ -111,7 +110,7 @@ def status(folder_name, node_directory, reactor):
         node_root_url,
         magic_root_url,
         token,
-        Agent(reactor),
+        treq,
     )
 
 
@@ -123,22 +122,24 @@ def status_from_folder_config(
         node_url,
         magic_url,
         token,
-        agent,
+        treq,
 ):
     """
     Retrieve information about the current state of a magic folder given its
     configuration.
     """
-    dmd_stat = yield _cap_metadata(agent, node_url, upload_dircap)
-    collective_stat = yield _cap_metadata(agent, node_url, collective_dircap)
+    dmd_stat = yield _cap_metadata(treq, node_url, upload_dircap)
+    collective_stat = yield _cap_metadata(treq, node_url, collective_dircap)
     folder_status = yield magic_folder_status(
         folder_name,
         magic_url,
         token,
-        agent,
+        treq,
     )
 
     def dirnode_cap(cap_stat):
+        if len(cap_stat) != 2:
+            raise ValueError("Require length two sequence, got {}".format(cap_stat))
         captype, metadata = cap_stat
         if captype != u"dirnode":
             raise BadDirectoryCapability(captype)
@@ -150,7 +151,7 @@ def status_from_folder_config(
     collective_children = collective_meta[u"children"]
     for (dmd_name, dmd_meta) in collective_children.items():
         remote_files[dmd_name] = dirnode_cap((
-            yield _cap_metadata(agent, node_url, dirnode_cap(dmd_meta)[u"ro_uri"])
+            yield _cap_metadata(treq, node_url, dirnode_cap(dmd_meta)[u"ro_uri"])
         ))[u"children"]
 
     returnValue(Status(
@@ -162,7 +163,7 @@ def status_from_folder_config(
 
 
 @inline_callbacks
-def magic_folder_status(folder_name, root_url, token, agent):
+def magic_folder_status(folder_name, root_url, token, treq):
     body = u"token={}".format(token).encode("ascii")
     url = root_url.child(
         u"api",
@@ -173,10 +174,9 @@ def magic_folder_status(folder_name, root_url, token, agent):
         u"name",
         folder_name,
     )
-    response = yield agent.request(
-        b"POST",
+    response = yield treq.post(
         url.to_uri().to_text().encode("ascii"),
-        bodyProducer=FileBodyProducer(BytesIO(body)),
+        body,
     )
     if response.code != OK:
         raise BadResponseCode(url, response.code)
@@ -185,31 +185,29 @@ def magic_folder_status(folder_name, root_url, token, agent):
     returnValue(result)
 
 
-def _get(agent, url):
-    return agent.request(
-        b"GET",
+def _get(treq, url):
+    return treq.get(
         url.to_uri().to_text().encode("ascii"),
     )
 
 
 @inline_callbacks
-def _cap_metadata(agent, root_url, cap):
+def _cap_metadata(treq, root_url, cap):
     """
     Retrieve metadata about the object reachable via a capability.
 
-    :param IAgent agent:
+    :param treq.HTTPClient treq:
     :param hyperlink.URL root_url:
     :param unicode cap:
 
     :return Deferred[something]:
     """
     url = root_url.child(u"uri", cap).add(u"t", u"json")
-    response = yield _get(agent, url)
+    response = yield _get(treq, url)
     if response.code != OK:
         raise BadResponseCode(url, response.code)
 
     result = _check_result(loads((yield readBody(response))))
-
     returnValue(result)
 
 
