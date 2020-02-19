@@ -5,6 +5,10 @@
 Hypothesis strategies useful for testing Magic Folder.
 """
 
+from string import (
+    printable,
+)
+
 from os.path import (
     join,
 )
@@ -19,14 +23,15 @@ from base64 import (
 
 from hypothesis.strategies import (
     just,
+    one_of,
     booleans,
-    characters,
     text,
     lists,
     builds,
     binary,
     integers,
     fixed_dictionaries,
+    sampled_from,
 )
 
 from allmydata.util import (
@@ -36,8 +41,28 @@ from allmydata.uri import (
     from_string as cap_from_string,
 )
 
+# There are problems handling non-ASCII paths on platforms without UTF-8
+# filesystem encoding.  Punt on them for now. :(
+#
+# https://github.com/LeastAuthority/magic-folder/issues/38
+DOTLESS_PATH_WHITELIST = printable.decode(
+    "ascii",
+).replace(
+    u"/",
+    u"",
+).replace(
+    u".",
+    u"",
+)
+DOTLESS_SEGMENT_ALPHABET = sampled_from(
+    DOTLESS_PATH_WHITELIST,
+)
+SEGMENT_ALPHABET = one_of(
+    DOTLESS_SEGMENT_ALPHABET,
+    just(u"."),
+)
 
-def path_segments(alphabet=characters(blacklist_characters=[u"/", u"\0"])):
+def path_segments(alphabet=SEGMENT_ALPHABET):
     """
     Build unicode strings which are usable as individual segments in a
     filesystem path.
@@ -58,7 +83,7 @@ def path_segments_without_dotfiles(path_segments=path_segments()):
     """
     return builds(
         lambda a, b: a + b,
-        characters(blacklist_characters=[u"/", u"\0", u"."]),
+        DOTLESS_SEGMENT_ALPHABET,
         path_segments,
     )
 
