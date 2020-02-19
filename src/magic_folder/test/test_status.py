@@ -98,7 +98,7 @@ class StatusTests(AsyncTestCase):
     """
     Tests for ``magic_folder.status.status``.
     """
-    @given(folder_names(), absolute_paths().map(FilePath))
+    @given(folder_names(), absolute_paths().map(lambda p: FilePath(p).asBytesMode("utf-8")))
     def test_missing_node(self, folder_name, node_directory):
         """
         If the given node directory does not exist, ``status`` raises
