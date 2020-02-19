@@ -197,6 +197,48 @@ class StatusTests(AsyncTestCase):
         dircaps(),
         dircaps(),
         tokens(),
+    )
+    def test_cap_not_okay(self, folder_name, collective_dircap, upload_dircap, token):
+        """
+        If the response to a request for metadata about a capability for the magic
+        folder does not receive an HTTP OK response, ``status`` fails with
+        ``BadResponseCode``.
+        """
+        tempdir = FilePath(self.mktemp())
+        node_directory = tempdir.child(u"node")
+        node = self.useFixture(NodeDirectory(node_directory, token))
+
+        node.create_magic_folder(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            tempdir.child(u"folder"),
+            60,
+        )
+
+        folders = {
+            folder_name: StubMagicFolder(),
+        }
+
+        # A bare resource will result in 404s for all requests made.  That'll
+        # do.
+        treq = StubTreq(Resource())
+
+        self.assertThat(
+            status(folder_name, node_directory, treq),
+            failed(
+                AfterPreprocessing(
+                    lambda f: f.value,
+                    IsInstance(BadResponseCode),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+        dircaps(),
+        dircaps(),
+        tokens(),
         tokens(),
     )
     def test_magic_folder_not_ok(self, folder_name, collective_dircap, upload_dircap, good_token, bad_token):
