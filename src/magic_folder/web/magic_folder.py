@@ -16,8 +16,8 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
-from allmydata.web.common import (
-    WebError,
+from twisted.web.error import (
+    Error,
 )
 from allmydata.util.hashutil import (
     timing_safe_compare,
@@ -33,9 +33,9 @@ def magic_folder_web_service(reactor, webport, get_magic_folder, get_auth_token)
 
 def authorize(request, get_auth_token):
     if "token" in request.args:
-        raise WebError(
-            "Do not pass 'token' as URL argument",
+        raise Error(
             http.BAD_REQUEST,
+            "Do not pass 'token' as URL argument",
         )
 
     t = request.content.tell()
@@ -56,9 +56,9 @@ def authorize(request, get_auth_token):
     if fields and 'token' in fields:
         token = fields['token'].value.strip()
     if not token:
-        raise WebError("Missing token", http.UNAUTHORIZED)
+        raise Error(http.UNAUTHORIZED, "Missing token")
     if not timing_safe_compare(token, get_auth_token()):
-        raise WebError("Invalid token", http.UNAUTHORIZED)
+        raise Error(http.UNAUTHORIZED, "Invalid token")
 
 
 class MagicFolderWebApi(Resource):
@@ -80,9 +80,9 @@ class MagicFolderWebApi(Resource):
         try:
             magic_folder = self.get_magic_folder(nick)
         except KeyError:
-            raise WebError(
-                "No such magic-folder '{}'".format(nick),
+            raise Error(
                 404,
+                "No such magic-folder '{}'".format(nick),
             )
 
         data = []

@@ -14,15 +14,22 @@ from base64 import (
 )
 
 from hypothesis.strategies import (
+    just,
+    booleans,
     characters,
     text,
     lists,
     builds,
     binary,
+    integers,
+    fixed_dictionaries,
 )
 
 from allmydata.util import (
     base32,
+)
+from allmydata.uri import (
+    from_string as cap_from_string,
 )
 
 
@@ -83,6 +90,28 @@ def folder_names():
         min_size=1,
     )
 
+
+def tahoe_lafs_chk_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS CHK capability strings.
+    """
+    return builds(
+        lambda a, b, needed, extra, size: u"URI:CHK:{}:{}:{}:{}:{}".format(
+            base32.b2a(a),
+            base32.b2a(b),
+            needed,
+            # Total is how many you need plus how many more there might be.
+            needed + extra,
+            size,
+        ),
+        binary(min_size=16, max_size=16),
+        binary(min_size=32, max_size=32),
+        integers(min_value=1, max_value=128),
+        integers(min_value=0, max_value=127),
+        integers(min_value=56),
+    )
+
+
 def tahoe_lafs_dir_capabilities():
     """
     Build unicode strings which look like Tahoe-LAFS directory capability strings.
@@ -105,3 +134,30 @@ def tokens():
     ).map(
         urlsafe_b64encode,
     )
+
+
+def filenodes():
+    """
+    Build JSON-compatible descriptions of Tahoe-LAFS filenode metadata.
+    """
+    return fixed_dictionaries({
+        "ro_uri": tahoe_lafs_chk_capabilities().map(
+            lambda cap_text: cap_from_string(
+                cap_text.encode("ascii"),
+            ).get_readonly(
+            ).to_string(
+            ).decode(
+                "ascii",
+            ),
+        ),
+        "size": integers(min_value=0),
+        "format": just(u"CHK"),
+        "metadata": fixed_dictionaries({
+            "version": integers(min_value=0),
+            "deleted": booleans(),
+            "tahoe": fixed_dictionaries({
+                "linkmotime": integers(min_value=0),
+                "linkcrtime": integers(min_value=0),
+            }),
+        }),
+    })

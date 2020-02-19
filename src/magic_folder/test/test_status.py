@@ -68,6 +68,7 @@ from .strategies import (
     absolute_paths,
     tahoe_lafs_dir_capabilities as dircaps,
     tokens,
+    filenodes,
 )
 
 from .fixtures import (
@@ -186,8 +187,14 @@ class StatusTests(AsyncTestCase):
             ),
         )
 
-    @given(folder_names(), dircaps(), dircaps(), tokens())
-    def test_status(self, folder_name, collective_dircap, upload_dircap, token):
+    @given(
+        folder_names(),
+        dircaps(),
+        dircaps(),
+        tokens(),
+        filenodes(),
+    )
+    def test_status(self, folder_name, collective_dircap, upload_dircap, token, local_file):
         """
         ``status`` returns a ``Deferred`` that fires with a ``Status`` instance
         reflecting the status of the identified magic folder.
@@ -208,11 +215,11 @@ class StatusTests(AsyncTestCase):
         )
 
         local_files = {
-            u"foo": {},
+            u"foo": ["filenode", local_file],
         }
         remote_files = {
             u"participant-name": {
-                u"foo": node_json(u"foo"),
+                u"foo": local_files[u"foo"],
             },
         }
         folders = {
@@ -233,7 +240,7 @@ class StatusTests(AsyncTestCase):
                     folder_name=folder_name,
                     local_files=local_files,
                     remote_files=remote_files,
-                    folder_status=None,
+                    folder_status=[],
                 )),
             ),
         )
@@ -247,11 +254,8 @@ def magic_folder_uri_hierarchy(
         token,
 ):
     upload_json = dirnode_json(
-        upload_dircap, {
-            key: node_json(upload_dircap)
-            for key
-            in local_files
-        },
+        upload_dircap,
+        local_files,
     )
     upload = Data(
         dumps(upload_json),
@@ -284,7 +288,7 @@ def magic_folder_uri_hierarchy(
     )
 
     api = MagicFolderWebApi(
-        get_magic_folder=lambda name: folders[name],
+        get_magic_folder=lambda name: folders[name.decode("utf-8")],
         get_auth_token=lambda: token,
     )
 
@@ -310,30 +314,6 @@ def dirnode_json(cap_text, children):
     if cap.is_mutable():
         info["rw_uri"] = cap.to_string()
     return ["dirnode", info]
-
-
-def node_json(ro_cap):
-    return [
-        "filenode",
-        {
-            "mutable": False,
-            "size": 0,
-            "ro_uri": ro_cap,
-            "metadata": {
-                "last_uploaded_uri": ro_cap,
-                "deleted": True,
-                "user_mtime": 1581972550.542673,
-                "version": 1,
-                "tahoe": {
-                    "linkmotime": 1581972550.578338,
-                    "linkcrtime": 1581972248.578481
-                },
-                "last_downloaded_timestamp": 1581972550.54283,
-                "last_downloaded_uri": ro_cap,
-            },
-            "format": "CHK"
-        }
-    ]
 
 
 @attr.s
