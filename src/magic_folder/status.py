@@ -28,7 +28,7 @@ from .frontends.magic_folder import (
 )
 
 from hyperlink import (
-    URL,
+    DecodedURL,
 )
 
 from twisted.web.http import (
@@ -93,10 +93,10 @@ def status(folder_name, node_directory, treq=None):
     """
     magic_folders = load_magic_folders(node_directory.path)
     token = node_directory.descendant([u"private", u"api_auth_token"]).getContent()
-    node_root_url = URL.from_text(
+    node_root_url = DecodedURL.from_text(
         node_directory.child(u"node.url").getContent().decode("ascii").strip(),
     )
-    magic_root_url = URL.from_text(u"http://127.0.0.1:9889/")
+    magic_root_url = DecodedURL.from_text(u"http://127.0.0.1:9889/")
 
     try:
         folder_config = magic_folders[folder_name]
@@ -197,7 +197,7 @@ def _cap_metadata(treq, root_url, cap):
     Retrieve metadata about the object reachable via a capability.
 
     :param treq.HTTPClient treq:
-    :param hyperlink.URL root_url:
+    :param hyperlink.DecodedURL root_url:
     :param unicode cap:
 
     :return Deferred[something]:

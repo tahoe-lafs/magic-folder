@@ -18,7 +18,7 @@ from zope.interface import (
 )
 
 from hyperlink import (
-    URL,
+    DecodedURL,
 )
 
 import importlib_metadata
@@ -669,7 +669,9 @@ class MagicFolderService(MultiService):
     def __attrs_post_init__(self):
         MultiService.__init__(self)
         self.tahoe_client = TahoeClient(
-            URL.from_text(self.config.get_config_from_file(b"node.url").decode("utf-8")),
+            DecodedURL.from_text(
+                self.config.get_config_from_file(b"node.url").decode("utf-8"),
+            ),
             Agent(self.reactor),
         )
         magic_folder_web_service(

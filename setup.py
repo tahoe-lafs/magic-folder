@@ -56,6 +56,8 @@ install_requires = [
     # WebSocket library for twisted and asyncio
     "autobahn >= 19.5.2",
 
+    "hyperlink",
+
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
