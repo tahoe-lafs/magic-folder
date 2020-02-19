@@ -89,6 +89,7 @@ from ..status import (
     BadFolderName,
     BadResponseCode,
     BadDirectoryCapability,
+    BadMetadataResponse,
     Status,
     status,
 )
@@ -198,7 +199,7 @@ class StatusTests(AsyncTestCase):
         tokens(),
         tokens(),
     )
-    def test_cap_not_ok(self, folder_name, collective_dircap, upload_dircap, good_token, bad_token):
+    def test_magic_folder_not_ok(self, folder_name, collective_dircap, upload_dircap, good_token, bad_token):
         """
         If the response to a request for magic folder status does not receive an
         HTTP OK response, ``status`` fails with ``BadResponseCode``.
@@ -239,7 +240,6 @@ class StatusTests(AsyncTestCase):
             ),
         )
 
-
     @given(
         folder_names(),
         dircaps(),
@@ -253,6 +253,64 @@ class StatusTests(AsyncTestCase):
         ``status`` fails with ``BadDirectoryCapability`` if the upload dircap does
         not refer to a directory object.
         """
+        self._test_bad_dmd_metadata(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            token,
+            [u"filenode", filenode],
+            BadDirectoryCapability,
+        )
+
+    @given(
+        folder_names(),
+        dircaps(),
+        dircaps(),
+        tokens(),
+    )
+    def test_unrecognizable_dmd(self, folder_name, collective_dircap, upload_dircap, token):
+        """
+        ``status`` fails with ``BadMetadataResponse`` if the upload dircap json
+        metadata is not recognizable.
+        """
+        self._test_bad_dmd_metadata(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            token,
+            [u"filenode"],
+            BadMetadataResponse,
+        )
+
+    @given(
+        folder_names(),
+        dircaps(),
+        dircaps(),
+        tokens(),
+    )
+    def test_error_dmd(self, folder_name, collective_dircap, upload_dircap, token):
+        """
+        ``status`` fails with ``BadMetadataResponse`` if the request for upload
+        dircap json metadata returns an error dictionary.
+        """
+        self._test_bad_dmd_metadata(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            token,
+            {u"error": u"something went wrong"},
+            BadMetadataResponse,
+        )
+
+    def _test_bad_dmd_metadata(
+            self,
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            token,
+            upload_json,
+            exception_type,
+    ):
         assume(collective_dircap != upload_dircap)
 
         tempdir = FilePath(self.mktemp())
@@ -275,7 +333,7 @@ class StatusTests(AsyncTestCase):
             collective_dircap,
             dirnode_json(collective_dircap, {}),
             upload_dircap,
-            ["filenode", filenode],
+            upload_json,
             token,
         ))
 
@@ -284,7 +342,7 @@ class StatusTests(AsyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: f.value,
-                    IsInstance(BadDirectoryCapability),
+                    IsInstance(exception_type),
                 ),
             ),
         )

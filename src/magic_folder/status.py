@@ -209,7 +209,7 @@ def _cap_metadata(treq, root_url, cap):
         raise BadResponseCode(url, response.code)
     result = _check_result(loads((yield readBody(response))))
     if len(result) != 2:
-        raise BadCapabilityMetadata(result)
+        raise BadMetadataResponse(result)
     returnValue(result)
 
 
