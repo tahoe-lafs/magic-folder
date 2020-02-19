@@ -127,6 +127,9 @@ def status_from_folder_config(
     """
     Retrieve information about the current state of a magic folder given its
     configuration.
+
+    :return Deferred[Status]: Details about the current state of the named
+        magic folder.
     """
     dmd_stat = yield _cap_metadata(treq, node_url, upload_dircap)
     collective_stat = yield _cap_metadata(treq, node_url, collective_dircap)
@@ -138,8 +141,6 @@ def status_from_folder_config(
     )
 
     def dirnode_cap(cap_stat):
-        if len(cap_stat) != 2:
-            raise ValueError("Require length two sequence, got {}".format(cap_stat))
         captype, metadata = cap_stat
         if captype != u"dirnode":
             raise BadDirectoryCapability(captype)
@@ -206,8 +207,9 @@ def _cap_metadata(treq, root_url, cap):
     response = yield _get(treq, url)
     if response.code != OK:
         raise BadResponseCode(url, response.code)
-
     result = _check_result(loads((yield readBody(response))))
+    if len(result) != 2:
+        raise BadCapabilityMetadata(result)
     returnValue(result)
 
 
