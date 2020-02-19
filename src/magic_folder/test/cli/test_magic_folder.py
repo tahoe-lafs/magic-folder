@@ -6,9 +6,6 @@ import re
 import time
 from datetime import datetime
 
-from fixtures import (
-    TempDir,
-)
 from testtools.matchers import (
     Contains,
     Equals,
@@ -26,9 +23,6 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
-from twisted.python.filepath import (
-    FilePath,
-)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
@@ -52,9 +46,6 @@ from ..no_network import GridTestMixin
 from ..common_util import parse_cli
 from ..common import (
     AsyncTestCase,
-)
-from ..tahoe_lafs import (
-    create,
 )
 from ..fixtures import (
     SelfConnectedClient,
