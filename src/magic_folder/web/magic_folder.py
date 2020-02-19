@@ -9,6 +9,7 @@ from twisted.application.internet import (
 )
 from twisted.web.server import (
     Site,
+    NOT_DONE_YET,
 )
 from twisted.web import (
     http,
@@ -32,12 +33,18 @@ def magic_folder_web_service(reactor, webport, get_magic_folder, get_auth_token)
         Site(root),
     )
 
+def error(request, code, message):
+    request.setResponseCode(code, message)
+    request.finish()
+
 def authorize(request, get_auth_token):
     if "token" in request.args:
-        raise Error(
+        error(
+            request,
             http.BAD_REQUEST,
             "Do not pass 'token' as URL argument",
         )
+        return False
 
     t = request.content.tell()
     request.content.seek(0)
@@ -57,9 +64,13 @@ def authorize(request, get_auth_token):
     if fields and 'token' in fields:
         token = fields['token'].value.strip()
     if not token:
-        raise Error(http.UNAUTHORIZED, "Missing token")
+        error(request, http.UNAUTHORIZED, "Missing token")
+        return False
     if not timing_safe_compare(token, get_auth_token()):
-        raise Error(http.UNAUTHORIZED, "Invalid token")
+        error(request, http.UNAUTHORIZED, "Invalid token")
+        return False
+
+    return True
 
 
 class MagicFolderWebApi(Resource):
@@ -73,7 +84,8 @@ class MagicFolderWebApi(Resource):
         self.get_auth_token = get_auth_token
 
     def render_POST(self, request):
-        authorize(request, self.get_auth_token)
+        if not authorize(request, self.get_auth_token):
+            return NOT_DONE_YET
 
         request.setHeader("content-type", "application/json")
         nick = request.args.get("name", ["default"])[0]

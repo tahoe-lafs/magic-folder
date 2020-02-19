@@ -26,6 +26,7 @@ from hypothesis.strategies import (
 
 from testtools.matchers import (
     AfterPreprocessing,
+    IsInstance,
     Equals,
     raises,
 )
@@ -67,6 +68,7 @@ from .strategies import (
     folder_names,
     absolute_paths,
     tahoe_lafs_dir_capabilities as dircaps,
+    tahoe_lafs_chk_capabilities as chkcaps,
     tokens,
     filenodes,
 )
@@ -85,6 +87,8 @@ from ..web.magic_folder import (
 
 from ..status import (
     BadFolderName,
+    BadResponseCode,
+    BadDirectoryCapability,
     Status,
     status,
 )
@@ -192,6 +196,105 @@ class StatusTests(AsyncTestCase):
         dircaps(),
         dircaps(),
         tokens(),
+        tokens(),
+    )
+    def test_cap_not_ok(self, folder_name, collective_dircap, upload_dircap, good_token, bad_token):
+        """
+        If the response to a request for magic folder status does not receive an
+        HTTP OK response, ``status`` fails with ``BadResponseCode``.
+        """
+        assume(collective_dircap != upload_dircap)
+        assume(good_token != bad_token)
+
+        tempdir = FilePath(self.mktemp())
+        node_directory = tempdir.child(u"node")
+        node = self.useFixture(NodeDirectory(node_directory, good_token))
+
+        node.create_magic_folder(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            tempdir.child(u"folder"),
+            60,
+        )
+        folders = {
+            folder_name: StubMagicFolder(),
+        }
+        resource = magic_folder_uri_hierarchy(
+            folders,
+            collective_dircap,
+            upload_dircap,
+            {},
+            {},
+            bad_token,
+        )
+        treq = StubTreq(resource)
+        self.assertThat(
+            status(folder_name, node_directory, treq),
+            failed(
+                AfterPreprocessing(
+                    lambda f: f.value,
+                    IsInstance(BadResponseCode),
+                ),
+            ),
+        )
+
+
+    @given(
+        folder_names(),
+        dircaps(),
+        # Not a directory cap at all!
+        chkcaps(),
+        tokens(),
+        filenodes(),
+    )
+    def test_filenode_dmd(self, folder_name, collective_dircap, upload_dircap, token, filenode):
+        """
+        ``status`` fails with ``BadDirectoryCapability`` if the upload dircap does
+        not refer to a directory object.
+        """
+        assume(collective_dircap != upload_dircap)
+
+        tempdir = FilePath(self.mktemp())
+        node_directory = tempdir.child(u"node")
+        node = self.useFixture(NodeDirectory(node_directory, token))
+
+        node.create_magic_folder(
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            tempdir.child(u"folder"),
+            60,
+        )
+        folders = {
+            folder_name: StubMagicFolder(),
+        }
+
+        treq = StubTreq(magic_folder_uri_hierarchy_from_magic_folder_json(
+            folders,
+            collective_dircap,
+            dirnode_json(collective_dircap, {}),
+            upload_dircap,
+            ["filenode", filenode],
+            token,
+        ))
+
+        self.assertThat(
+            status(folder_name, node_directory, treq),
+            failed(
+                AfterPreprocessing(
+                    lambda f: f.value,
+                    IsInstance(BadDirectoryCapability),
+                ),
+            ),
+        )
+
+
+    @given(
+        folder_names(),
+        dircaps(),
+        dircaps(),
+        tokens(),
         filenodes(),
     )
     def test_status(self, folder_name, collective_dircap, upload_dircap, token, local_file):
@@ -218,9 +321,7 @@ class StatusTests(AsyncTestCase):
             u"foo": ["filenode", local_file],
         }
         remote_files = {
-            u"participant-name": {
-                u"foo": local_files[u"foo"],
-            },
+            u"participant-name": local_files,
         }
         folders = {
             folder_name: StubMagicFolder(),
@@ -257,16 +358,34 @@ def magic_folder_uri_hierarchy(
         upload_dircap,
         local_files,
     )
-    upload = Data(
-        dumps(upload_json),
-        b"text/plain",
-    )
     collective_json = dirnode_json(
         collective_dircap, {
             key: dirnode_json(upload_dircap, {})
             for key
             in remote_files
         },
+    )
+    return magic_folder_uri_hierarchy_from_magic_folder_json(
+        folders,
+        collective_dircap,
+        collective_json,
+        upload_dircap,
+        upload_json,
+        token,
+    )
+
+
+def magic_folder_uri_hierarchy_from_magic_folder_json(
+        folders,
+        collective_dircap,
+        collective_json,
+        upload_dircap,
+        upload_json,
+        token,
+):
+    upload = Data(
+        dumps(upload_json),
+        b"text/plain",
     )
     collective = Data(
         dumps(collective_json),
