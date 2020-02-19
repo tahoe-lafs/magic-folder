@@ -9,6 +9,10 @@ from os.path import (
     join,
 )
 
+from unicodedata import (
+    normalize,
+)
+
 from base64 import (
     urlsafe_b64encode,
 )
@@ -88,7 +92,17 @@ def folder_names():
     """
     return text(
         min_size=1,
+    ).map(
+        _normalized,
     )
+
+def _normalized(text):
+    # In the future we should generate text using different normalizations and
+    # denormalized.  The user is likely to be able to enter anything they
+    # want, we should know what our behavior is going to be.
+    #
+    # https://github.com/LeastAuthority/magic-folder/issues/36
+    return normalize("NFC", text)
 
 
 def tahoe_lafs_chk_capabilities():
