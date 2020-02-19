@@ -15,6 +15,7 @@ from twisted.web import (
 )
 from twisted.web.resource import (
     Resource,
+    NoResource,
 )
 from twisted.web.error import (
     Error,
@@ -80,10 +81,13 @@ class MagicFolderWebApi(Resource):
         try:
             magic_folder = self.get_magic_folder(nick)
         except KeyError:
-            raise Error(
-                404,
-                "No such magic-folder '{}'".format(nick),
-            )
+            request.setResponseCode(http.NOT_FOUND)
+            return json.dumps({
+                u"error":
+                u"No such magic-folder: {}".format(
+                    nick.decode("utf-8"),
+                ),
+            })
 
         data = []
         for item in magic_folder.uploader.get_status():
