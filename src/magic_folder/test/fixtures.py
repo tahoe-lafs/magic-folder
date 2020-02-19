@@ -212,12 +212,13 @@ class SelfConnectedClient(Fixture):
         """
         testcase.useFixture(self)
 
-        self.tempdir = self.useFixture(TempDir())
+        self.tempdir = FilePath(testcase.mktemp())
+        self.tempdir.makedirs()
 
         # Create an introducer.  This is necessary to have our node introduce
         # its own storage to itself.  This avoids needing to run a second node
         # for storage which would likely require an introducer anyway.
-        introducer_directory = FilePath(self.tempdir.join(u"introducer"))
+        introducer_directory = self.tempdir.child(u"introducer")
         self.introducer = yield create_introducer(self, introducer_directory)
         introducer = RunningTahoeLAFSNode(
             self.reactor,
@@ -234,7 +235,7 @@ class SelfConnectedClient(Fixture):
         ).getContent()
 
         # Create a node which will be the client and also act as storage.
-        self.node_directory = FilePath(self.tempdir.join(u"client-and-storage"))
+        self.node_directory = self.tempdir.child(u"client-and-storage")
         yield create(self.node_directory, configuration={
             u"node": {
                 u"web.port": u"tcp:0:interface=127.0.0.1",

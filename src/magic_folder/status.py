@@ -44,6 +44,8 @@ class BadFolderName(Exception):
     An operation was attempted on a magic folder using a name which does not
     exist.
     """
+    def __str__(self):
+        return "Folder named {!r} not found.".format(name)
 
 
 class BadResponseCode(Exception):
@@ -51,7 +53,12 @@ class BadResponseCode(Exception):
     An HTTP request received a response code which does not allow an operation
     to progress further.
     """
-
+    def __str__(self):
+        return "Request for {!r} received unexpected response code {!r}:\n{}".format(
+            self.args[0].to_text(),
+            self.args[1],
+            self.args[2],
+        )
 
 class BadMetadataResponse(Exception):
     """
@@ -78,7 +85,7 @@ class Status(object):
     folder_status = attr.ib()
 
 
-def status(folder_name, node_directory, treq=None):
+def status(folder_name, node_directory, treq):
     """
     Retrieve information about the current state of a named magic folder.
 
@@ -180,7 +187,7 @@ def magic_folder_status(folder_name, root_url, token, treq):
         body,
     )
     if response.code != OK:
-        raise BadResponseCode(url, response.code)
+        returnValue((yield bad_response(url, response)))
 
     result = _check_result(loads((yield readBody(response))))
     returnValue(result)
@@ -206,11 +213,16 @@ def _cap_metadata(treq, root_url, cap):
     url = root_url.child(u"uri", cap).add(u"t", u"json")
     response = yield _get(treq, url)
     if response.code != OK:
-        raise BadResponseCode(url, response.code)
+        returnValue((yield bad_response(url, response)))
     result = _check_result(loads((yield readBody(response))))
     if len(result) != 2:
         raise BadMetadataResponse(result)
     returnValue(result)
+
+@inline_callbacks
+def bad_response(url, response):
+    body = yield readBody(response)
+    raise BadResponseCode(url, response.code, body)
 
 
 def _check_result(result):

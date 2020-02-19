@@ -61,6 +61,13 @@ from twisted.internet.defer import (
     Deferred,
     returnValue,
 )
+from twisted.web.client import (
+    Agent,
+)
+
+from treq.client import (
+    HTTPClient,
+)
 
 from eliot.twisted import (
     inline_callbacks,
@@ -117,6 +124,7 @@ from ..web.magic_folder import (
 )
 
 from ..status import (
+    BadFolderName,
     status as _status,
 )
 
@@ -446,8 +454,15 @@ class StatusOptions(BasedirOptions):
     def parseArgs(self):
         BasedirOptions.parseArgs(self)
         node_url_file = os.path.join(self['node-directory'], u"node.url")
-        with open(node_url_file, "r") as f:
-            self['node-url'] = f.read().strip()
+        try:
+            with open(node_url_file, "r") as f:
+                self['node-url'] = f.read().strip()
+        except EnvironmentError as e:
+            raise usage.UsageError(
+                "Could not read node url from {!r}: {!r}".format(
+                    node_url_file,
+                    e,
+                ))
 
 
 @log_call
@@ -528,20 +543,24 @@ def _print_item_status(item, now, longest):
 
 @inline_callbacks
 def status(options):
-    from twisted.internet import  reactor
-
     nodedir = options["node-directory"]
     stdout, stderr = options.stdout, options.stderr
 
+    # Create a client without persistent connections to simplify testing.
+    # Connections will typically be to localhost anyway so there isn't
+    # much performance difference.
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
+
+    name = options["name"].decode("utf-8")
     try:
         status_obj = yield _status(
-            options["name"].decode("utf-8"),
+            name,
             FilePath(options["node-directory"]),
-            reactor,
+            treq,
         )
     except Exception as e:
         print(e, file=stderr)
-        raise
         returnValue(1)
     else:
         print(_format_status(datetime.now(), status_obj), file=stdout)

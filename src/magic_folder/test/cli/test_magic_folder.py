@@ -6,10 +6,15 @@ import re
 import time
 from datetime import datetime
 
+from testtools.content import (
+    text_content,
+)
 from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
+    Always,
+    raises,
 )
 
 from eliot import (
@@ -23,6 +28,9 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
+from twisted.python.filepath import (
+    FilePath,
+)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
@@ -49,6 +57,7 @@ from ..common import (
 )
 from ..fixtures import (
     SelfConnectedClient,
+    NodeDirectory,
 )
 
 from .common import (
@@ -354,14 +363,14 @@ class ListMagicFolder(AsyncTestCase):
         them.
         """
         # Get a magic folder.
-        folder_path = self.tempdir.join(b"magic-folder")
+        folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
                 b"create",
                 b"--name", b"list-some-folder",
                 b"magik:",
                 b"test_list_some",
-                folder_path,
+                folder_path.asBytesMode().path,
             ],
         )
         self.assertThat(
@@ -374,7 +383,7 @@ class ListMagicFolder(AsyncTestCase):
             [b"list"],
         )
         self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
-        self.expectThat(outcome.stdout, Contains(folder_path))
+        self.expectThat(outcome.stdout, Contains(folder_path.path))
 
     @defer.inlineCallbacks
     def test_list_some_json(self):
@@ -383,14 +392,14 @@ class ListMagicFolder(AsyncTestCase):
         them in JSON format if given ``--json``.
         """
         # Get a magic folder.
-        folder_path = self.tempdir.join(b"magic-folder")
+        folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
                 b"create",
                 b"--name", b"list-some-json-folder",
                 b"magik:",
                 b"test_list_some_json",
-                folder_path,
+                folder_path.asBytesMode().path,
             ],
         )
         self.assertThat(
@@ -407,7 +416,7 @@ class ListMagicFolder(AsyncTestCase):
                 json.loads,
                 Equals({
                     u"list-some-json-folder": {
-                        u"directory": folder_path,
+                        u"directory": folder_path.path,
                     },
                 }),
             ),
@@ -419,190 +428,100 @@ class StatusMagicFolder(AsyncTestCase):
     Tests for ``magic-folder status``.
     """
     @defer.inlineCallbacks
-    def setUp(self):
-        yield super(StatusMagicFolder, self).setUp()
-        self.client_fixture = SelfConnectedClient(reactor)
-        yield self.client_fixture.use_on(self)
-
-    def test_no_magic_folder_by_name(self):
+    def test_command_exists(self):
         """
-        ``magic-folder status --name <name>`` reports an error if there is no
-        magic folder by the given name.
+        There is a status command at all.
         """
-        stdout = yield cli(
-            self.client_fixture.node_directory,
-            [b"status", b"--name", b"no-such-folder"],
+        outcome = yield cli(
+            FilePath(self.mktemp()),
+            [b"status", b"--help"],
         )
+        addOutcomeDetails(self, outcome)
         self.assertThat(
-            stdout,
-            Equals(b"No such magic-folder 'no-such-folder'"),
+            outcome.succeeded(),
+            Equals(True),
         )
 
-    def test_server_not_reachable(self):
+    @defer.inlineCallbacks
+    def test_command_error(self):
         """
-        ``magic-folder status`` reports an error if it encounters an error trying
-        to retrieve information from the Tahoe-LAFS node's HTTP API.
+        If the status command encounters an error it reports it on stderr and
+        exits with a non-zero code.
         """
-        # Stop the node
-        yield self.client_fixture.client.stop()
-
-        stdout = yield cli(
-            self.client_fixture.node_directory,
+        outcome = yield cli(
+            # Pass in a fanciful node directory to provoke a predictable
+            # error.
+            FilePath(self.mktemp()),
             [b"status"],
         )
-        self.assertThat(
-            stdout,
-            Contains(b"Error from server"),
+        self.expectThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.expectThat(
+            outcome.stderr,
+            Contains(b"No such file or directory"),
         )
 
-    def test_collective_not_a_directory(self):
+    @defer.inlineCallbacks
+    def test_command_success(self):
         """
-        ``magic-folder status`` reports an e rror if the configured directory cap
-        refers to an object that is not a directory.
+        If the status command succeeds it reports some information on stdout.
         """
-        # Create a magic folder we can inspect.
-        yield cli(
-            self.client_fixture.node_directory,
-            [b"create", b"--name", b"magic-name", b"magic-alias:", b"user-alias",
-             self.client_fixture.tempdir.join(b"magic-folder-path"),
+        client_fixture = SelfConnectedClient(reactor)
+        yield client_fixture.use_on(self)
+
+        # Create a magic folder so that we can inspect its status.
+        magic_folder = client_fixture.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            client_fixture.node_directory,
+            [b"create",
+             b"magic-folder-alias:",
+             b"member-alias",
+             magic_folder.asBytesMode().path,
             ],
         )
-
-        # Create an immutable file and use it to trash the magic folder's
-        # configuration.
-
-
-    @defer.inlineCallbacks
-    def test_status(self):
-        now = datetime.now()
-        then = now.replace(year=now.year - 5)
-        five_year_interval = (now - then).total_seconds()
-
-        def json_for_cap(options, cap):
-            if cap.startswith('URI:DIR2:'):
-                return (
-                    'dirnode',
-                    {
-                        "children": {
-                            "foo": ('filenode', {
-                                "size": 1234,
-                                "metadata": {
-                                    "tahoe": {
-                                        "linkcrtime": (time.time() - five_year_interval),
-                                    },
-                                    "version": 1,
-                                },
-                                "ro_uri": "read-only URI",
-                            })
-                        }
-                    }
-                )
-            else:
-                return ('dirnode', {"children": {}})
-        jc = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_cap",
-            side_effect=json_for_cap,
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
 
-        def json_for_frag(options, fragment, method='GET', post_args=None):
-            return {}
-        jf = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_fragment",
-            side_effect=json_for_frag,
+        # Start the magic folder service after creating the magic folder so it
+        # will be noticed.
+        magic_folder_service = magic_folder_cli.MagicFolderService.from_node_directory(
+            reactor,
+            client_fixture.node_directory.path,
+            b"tcp:9889",
+        )
+        magic_folder_service.startService()
+        self.addCleanup(magic_folder_service.stopService)
+
+        outcome = yield cli(
+            client_fixture.node_directory,
+            [b"status"],
         )
 
-        with jc, jf:
-            rc, stdout, stderr = yield self.do_status(0)
-            self.assertEqual(rc, 0)
-            self.assertIn("default", stdout)
+        addOutcomeDetails(self, outcome)
 
-        self.assertIn(
-            "foo (1.23 kB): good, version=1, created 5 years ago",
-            stdout,
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
 
-    @defer.inlineCallbacks
-    def test_status_child_not_dirnode(self):
-        def json_for_cap(options, cap):
-            if cap.startswith('URI:DIR2'):
-                return (
-                    'dirnode',
-                    {
-                        "children": {
-                            "foo": ('filenode', {
-                                "size": 1234,
-                                "metadata": {
-                                    "tahoe": {
-                                        "linkcrtime": 0.0,
-                                    },
-                                    "version": 1,
-                                },
-                                "ro_uri": "read-only URI",
-                            })
-                        }
-                    }
-                )
-            elif cap == "read-only URI":
-                return {
-                    "error": "bad stuff",
-                }
-            else:
-                return ('dirnode', {"children": {}})
-        jc = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_cap",
-            side_effect=json_for_cap,
-        )
 
-        def json_for_frag(options, fragment, method='GET', post_args=None):
-            return {}
-        jf = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_fragment",
-            side_effect=json_for_frag,
-        )
-
-        with jc, jf:
-            rc, stdout, stderr = yield self.do_status(0)
-            self.assertEqual(rc, 0)
-
-        self.assertIn(
-            "expected a dirnode",
-            stdout + stderr,
-        )
-
-    @defer.inlineCallbacks
-    def test_status_error_not_dircap(self):
-        def json_for_cap(options, cap):
-            if cap.startswith('URI:DIR2:'):
-                return (
-                    'filenode',
-                    {}
-                )
-            else:
-                return ('dirnode', {"children": {}})
-        jc = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_cap",
-            side_effect=json_for_cap,
-        )
-
-        def json_for_frag(options, fragment, method='GET', post_args=None):
-            return {}
-        jf = mock.patch(
-            "allmydata.scripts.magic_folder_cli._get_json_for_fragment",
-            side_effect=json_for_frag,
-        )
-
-        with jc, jf:
-            rc, stdout, stderr = yield self.do_status(0)
-            self.assertEqual(rc, 2)
-        self.assertIn(
-            "magic_folder_dircap isn't a directory capability",
-            stdout + stderr,
-        )
-
-    @defer.inlineCallbacks
-    def test_status_nothing(self):
-        rc, stdout, stderr = yield self.do_status(0, name="blam")
-        self.assertIn("No such magic-folder 'blam'", stderr)
+def addOutcomeDetails(testcase, outcome):
+    testcase.addDetail(
+        u"stdout",
+        text_content(outcome.stdout),
+    )
+    testcase.addDetail(
+        u"stderr",
+        text_content(outcome.stderr),
+    )
+    testcase.addDetail(
+        u"code",
+        text_content(unicode(outcome.code)),
+    )
 
 
 class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
