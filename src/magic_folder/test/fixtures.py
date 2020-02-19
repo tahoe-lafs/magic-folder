@@ -30,7 +30,6 @@ import attr
 
 from fixtures import (
     Fixture,
-    TempDir,
 )
 
 from twisted.python.filepath import (

@@ -42,3 +42,16 @@ class StrategyTests(SyncTestCase):
             cap_text,
             Equals(serialized),
         )
+
+    @given(tahoe_lafs_dir_capabilities())
+    def test_dir_roundtrips(self, cap_text):
+        """
+        Values built by ``tahoe_lafs_dir_capabilities`` round-trip through ASCII
+        and ``allmydata.uri.from_string`` and their ``to_string`` method.
+        """
+        cap = cap_from_string(cap_text.encode("ascii"))
+        serialized = cap.to_string().decode("ascii")
+        self.assertThat(
+            cap_text,
+            Equals(serialized),
+        )

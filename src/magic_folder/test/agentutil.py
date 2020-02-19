@@ -6,7 +6,6 @@ Testing helpers related to Twisted's ``IAgent``.
 """
 
 from zope.interface import (
-    Interface,
     implementer,
 )
 from zope.interface.verify import (
@@ -35,3 +34,5 @@ class FailingAgent(object):
 
     def request(self, method, url, headers=None, bodyProducer=None):
         return fail(self.reason)
+
+verifyClass(FailingAgent, IAgent)

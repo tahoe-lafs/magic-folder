@@ -1,10 +1,6 @@
 import json
-import shutil
 import os.path
-import mock
 import re
-import time
-from datetime import datetime
 
 from testtools.content import (
     text_content,
@@ -13,8 +9,6 @@ from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
-    Always,
-    raises,
 )
 
 from eliot import (
@@ -57,7 +51,6 @@ from ..common import (
 )
 from ..fixtures import (
     SelfConnectedClient,
-    NodeDirectory,
 )
 
 from .common import (

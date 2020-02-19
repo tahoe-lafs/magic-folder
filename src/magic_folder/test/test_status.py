@@ -49,7 +49,6 @@ from twisted.web.static import (
 )
 
 from treq.testing import (
-    RequestTraversalAgent,
     StubTreq,
 )
 from treq.client import (
@@ -215,10 +214,6 @@ class StatusTests(AsyncTestCase):
             tempdir.child(u"folder"),
             60,
         )
-
-        folders = {
-            folder_name: StubMagicFolder(),
-        }
 
         # A bare resource will result in 404s for all requests made.  That'll
         # do.

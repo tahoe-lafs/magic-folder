@@ -61,9 +61,6 @@ from twisted.internet.defer import (
     Deferred,
     returnValue,
 )
-from twisted.web.client import (
-    Agent,
-)
 
 from treq.client import (
     HTTPClient,
@@ -124,7 +121,6 @@ from ..web.magic_folder import (
 )
 
 from ..status import (
-    BadFolderName,
     status as _status,
 )
 
@@ -556,7 +552,7 @@ def status(options):
     try:
         status_obj = yield _status(
             name,
-            FilePath(options["node-directory"]),
+            FilePath(nodedir),
             treq,
         )
     except Exception as e:

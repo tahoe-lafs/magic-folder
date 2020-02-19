@@ -5,10 +5,6 @@
 Present status information about magic folders.
 """
 
-from io import (
-    BytesIO,
-)
-
 from json import (
     loads,
 )
@@ -35,7 +31,6 @@ from twisted.web.http import (
     OK,
 )
 from twisted.web.client import (
-    FileBodyProducer,
     readBody,
 )
 
@@ -45,7 +40,7 @@ class BadFolderName(Exception):
     exist.
     """
     def __str__(self):
-        return "Folder named {!r} not found.".format(name)
+        return "Folder named {!r} not found.".format(self.args[0])
 
 
 class BadResponseCode(Exception):

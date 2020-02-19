@@ -16,10 +16,6 @@ from twisted.web import (
 )
 from twisted.web.resource import (
     Resource,
-    NoResource,
-)
-from twisted.web.error import (
-    Error,
 )
 from allmydata.util.hashutil import (
     timing_safe_compare,
