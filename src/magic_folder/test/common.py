@@ -12,7 +12,6 @@ __all__ = [
 
 import os, random, struct
 import tempfile
-from tempfile import mktemp
 from functools import partial
 from unittest import case as _case
 from socket import (
@@ -1080,7 +1079,24 @@ class _TestCaseMixin(object):
     _dummyCase = _DummyCase("dummy")
 
     def mktemp(self):
-        return mktemp()
+        """
+        Create a new path name which can be used for a new file or directory.
+
+        The result is a path that is guaranteed to be unique within the
+        current working directory.  The parent of the path will exist, but the
+        path will not.
+
+        :return bytes: The newly created path
+        """
+        cwd = FilePath(u".")
+        # self.id returns a native string so split it on a native "."
+        tmp = cwd.descendant(self.id().split("."))
+        tmp.makedirs(ignoreExistingDirectory=True)
+        # Remove group and other write permission, in case it was somehow
+        # granted, so that when we invent a temporary filename beneath this
+        # directory we're not subject to a collision attack.
+        tmp.chmod(0o755)
+        return tmp.child(u"tmp").temporarySibling().asBytesMode().path
 
     def assertRaises(self, *a, **kw):
         return self._dummyCase.assertRaises(*a, **kw)
