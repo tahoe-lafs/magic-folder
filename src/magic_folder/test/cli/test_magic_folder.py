@@ -2,6 +2,15 @@ import json
 import os.path
 import re
 
+from hypothesis import (
+    given,
+)
+from hypothesis.strategies import (
+    datetimes,
+    dictionaries,
+    lists,
+)
+
 from testtools.content import (
     text_content,
 )
@@ -9,6 +18,7 @@ from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
+    IsInstance,
 )
 
 from eliot import (
@@ -43,6 +53,12 @@ from ...frontends.magic_folder import (
 from ...scripts import (
     magic_folder_cli,
 )
+from ...web.magic_folder import (
+    status_for_item,
+)
+from ...status import (
+    Status,
+)
 
 from ..no_network import GridTestMixin
 from ..common_util import parse_cli
@@ -52,7 +68,12 @@ from ..common import (
 from ..fixtures import (
     SelfConnectedClient,
 )
-
+from ..strategies import (
+    folder_names,
+    queued_items,
+    path_segments,
+    filenodes,
+)
 from .common import (
     CLITestMixin,
     cli,
@@ -499,6 +520,39 @@ class StatusMagicFolder(AsyncTestCase):
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
+        )
+
+    @given(
+        folder_names(),
+        datetimes(),
+        dictionaries(
+            path_segments(),
+            filenodes(),
+        ),
+        # Laziness
+        path_segments(),
+        lists(queued_items()),
+        lists(queued_items()),
+    )
+    def test_formatting(self, folder_name, now, local_files, remote_name, upload_items, download_items):
+        self.assertThat(
+            magic_folder_cli._format_status(
+                now,
+                Status(
+                    folder_name,
+                    local_files=local_files,
+                    remote_files={remote_name: local_files},
+                    folder_status=list(
+                        status_for_item(kind, item)
+                        for (kind, items) in [
+                                ("upload", upload_items),
+                                ("download", download_items),
+                        ]
+                        for item in items
+                    ),
+                ),
+            ),
+            IsInstance(unicode),
         )
 
 
