@@ -99,27 +99,22 @@ class MagicFolderWebApi(Resource):
 
         data = []
         for item in magic_folder.uploader.get_status():
-            d = dict(
-                path=item.relpath_u,
-                status=item.status_history()[-1][0],
-                kind='upload',
-            )
-            for (status, ts) in item.status_history():
-                d[status + '_at'] = ts
-            d['percent_done'] = item.progress.progress
-            d['size'] = item.size
-            data.append(d)
+            data.append(status_for_item("upload", item))
 
         for item in magic_folder.downloader.get_status():
-            d = dict(
-                path=item.relpath_u,
-                status=item.status_history()[-1][0],
-                kind='download',
-            )
-            for (status, ts) in item.status_history():
-                d[status + '_at'] = ts
-            d['percent_done'] = item.progress.progress
-            d['size'] = item.size
-            data.append(d)
+            data.append(status_for_item("download", item))
 
         return json.dumps(data)
+
+
+def status_for_item(kind, item):
+    d = dict(
+        path=item.relpath_u,
+        status=item.status_history()[-1][0],
+        kind='upload',
+    )
+    for (status, ts) in item.status_history():
+        d[status + '_at'] = ts
+    d['percent_done'] = item.progress.progress
+    d['size'] = item.size
+    return d

@@ -30,6 +30,7 @@ from hypothesis.strategies import (
     builds,
     binary,
     integers,
+    floats,
     fixed_dictionaries,
     sampled_from,
 )
@@ -37,8 +38,14 @@ from hypothesis.strategies import (
 from allmydata.util import (
     base32,
 )
+from allmydata.util.progress import (
+    PercentProgress,
+)
 from allmydata.uri import (
     from_string as cap_from_string,
+)
+from ..frontends.magic_folder import (
+    QueuedItem,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -200,3 +207,43 @@ def filenodes():
             }),
         }),
     })
+
+
+
+def progresses():
+    """
+    Build ``PercentProgress`` instances.
+    """
+    def a_progress(progress, total_size):
+        p = PercentProgress(total_size)
+        p.set_progress(progress)
+        return p
+
+    return builds(
+        a_progress,
+        floats(
+            min_value=0.0,
+            max_value=100.0,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        integers(min_value=0),
+    )
+
+
+def queued_items():
+    """
+    Build ``QueuedItem`` instances.
+    """
+    def an_item(path, progress, size, when):
+        item = QueuedItem(path, progress, size)
+        item.set_status('queued', when)
+        return item
+
+    return builds(
+        an_item,
+        relative_paths(),
+        progresses(),
+        integers(min_value=0),
+        integers(min_value=0, max_value=2 ** 31 - 1),
+    )

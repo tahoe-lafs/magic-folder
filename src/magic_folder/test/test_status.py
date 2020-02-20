@@ -70,6 +70,7 @@ from .strategies import (
     tahoe_lafs_chk_capabilities as chkcaps,
     tokens,
     filenodes,
+    queued_items,
 )
 
 from .fixtures import (
@@ -82,6 +83,7 @@ from .agentutil import (
 
 from ..web.magic_folder import (
     MagicFolderWebApi,
+    status_for_item,
 )
 
 from ..status import (
@@ -391,8 +393,19 @@ class StatusTests(AsyncTestCase):
         dircaps(),
         tokens(),
         filenodes(),
+        lists(queued_items()),
+        lists(queued_items()),
     )
-    def test_status(self, folder_name, collective_dircap, upload_dircap, token, local_file):
+    def test_status(
+            self,
+            folder_name,
+            collective_dircap,
+            upload_dircap,
+            token,
+            local_file,
+            upload_items,
+            download_items,
+    ):
         """
         ``status`` returns a ``Deferred`` that fires with a ``Status`` instance
         reflecting the status of the identified magic folder.
@@ -419,7 +432,10 @@ class StatusTests(AsyncTestCase):
             u"participant-name": local_files,
         }
         folders = {
-            folder_name: StubMagicFolder(),
+            folder_name: StubMagicFolder(
+                uploader=StubQueue(upload_items),
+                downloader=StubQueue(download_items),
+            ),
         }
         treq = StubTreq(magic_folder_uri_hierarchy(
             folders,
@@ -436,10 +452,18 @@ class StatusTests(AsyncTestCase):
                     folder_name=folder_name,
                     local_files=local_files,
                     remote_files=remote_files,
-                    folder_status=[],
+                    folder_status=list(
+                        status_for_item(kind, item)
+                        for (kind, items) in [
+                                ("upload", upload_items),
+                                ("download", download_items),
+                        ]
+                        for item in items
+                    ),
                 )),
             ),
         )
+
 
 def magic_folder_uri_hierarchy(
         folders,
@@ -532,9 +556,11 @@ def dirnode_json(cap_text, children):
 
 @attr.s
 class StubQueue(object):
+    items = attr.ib(default=attr.Factory(list))
+
     def get_status(self):
-        if False:
-            yield
+        for item in self.items:
+            yield item
 
 
 @attr.s
