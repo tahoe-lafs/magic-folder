@@ -35,4 +35,4 @@ class FailingAgent(object):
     def request(self, method, url, headers=None, bodyProducer=None):
         return fail(self.reason)
 
-verifyClass(FailingAgent, IAgent)
+verifyClass(IAgent, FailingAgent)
