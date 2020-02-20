@@ -329,11 +329,11 @@ class ListMagicFolder(AsyncTestCase):
         When there are no Magic Folders at all, the output of the list command
         reports this.
         """
-        stdout = yield cli(
+        outcome = yield cli(
             self.node_directory,
             [b"list"],
         )
-        self.assertThat(stdout, Contains(u"No magic-folders"))
+        self.assertThat(outcome.stdout, Contains(u"No magic-folders"))
 
     @defer.inlineCallbacks
     def test_list_none_json(self):
@@ -341,11 +341,11 @@ class ListMagicFolder(AsyncTestCase):
         When there are no Magic Folders at all, the output of the list command
         reports this in JSON format if given ``--json``.
         """
-        stdout = yield cli(
+        outcome = yield cli(
             self.node_directory,
             [b"list", b"--json"],
         )
-        self.assertThat(stdout, AfterPreprocessing(json.loads, Equals({})))
+        self.assertThat(outcome.stdout, AfterPreprocessing(json.loads, Equals({})))
 
     @defer.inlineCallbacks
     def test_list_some(self):
@@ -355,7 +355,7 @@ class ListMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         folder_path = self.tempdir.join(b"magic-folder")
-        yield cli(
+        outcome = yield cli(
             self.node_directory, [
                 b"create",
                 b"--name", b"list-some-folder",
@@ -364,13 +364,17 @@ class ListMagicFolder(AsyncTestCase):
                 folder_path,
             ],
         )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-        stdout = yield cli(
+        outcome = yield cli(
             self.node_directory,
             [b"list"],
         )
-        self.expectThat(stdout, Contains(b"list-some-folder"))
-        self.expectThat(stdout, Contains(folder_path))
+        self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
+        self.expectThat(outcome.stdout, Contains(folder_path))
 
     @defer.inlineCallbacks
     def test_list_some_json(self):
@@ -380,7 +384,7 @@ class ListMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         folder_path = self.tempdir.join(b"magic-folder")
-        yield cli(
+        outcome = yield cli(
             self.node_directory, [
                 b"create",
                 b"--name", b"list-some-json-folder",
@@ -389,15 +393,23 @@ class ListMagicFolder(AsyncTestCase):
                 folder_path,
             ],
         )
-        stdout = yield cli(
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+        outcome = yield cli(
             self.node_directory,
             [b"list", b"--json"],
         )
         self.expectThat(
-            stdout,
+            outcome.stdout,
             AfterPreprocessing(
                 json.loads,
-                Equals({u"list-some-json-folder": {u"directory": folder_path}}),
+                Equals({
+                    u"list-some-json-folder": {
+                        u"directory": folder_path,
+                    },
+                }),
             ),
         )
 

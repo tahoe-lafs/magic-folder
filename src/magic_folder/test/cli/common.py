@@ -1,3 +1,6 @@
+from __future__ import (
+    print_function,
+)
 
 from six.moves import (
     StringIO as MixedIO,
@@ -5,9 +8,18 @@ from six.moves import (
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata.scripts import runner
 
+from twisted.python.usage import (
+    UsageError,
+)
+from twisted.internet.defer import (
+    inlineCallbacks,
+    returnValue,
+)
+
+import attr
+
 from eliot import (
     Message,
-    log_call,
 )
 
 from ..common_util import ReallyEqualMixin, run_cli
@@ -34,7 +46,16 @@ class CLITestMixin(ReallyEqualMixin):
         return run_cli(verb, nodeargs=nodeargs, *args, **kwargs)
 
 
-@log_call(action_type=u"test:cli", include_args=["argv"])
+@attr.s
+class ProcessOutcome(object):
+    stdout = attr.ib()
+    stderr = attr.ib()
+    code = attr.ib()
+
+    def succeeded(self):
+        return self.code == 0
+
+@inlineCallbacks
 def cli(node_directory, argv):
     """
     Perform an in-process equivalent to the given magic-folder command.
@@ -46,20 +67,27 @@ def cli(node_directory, argv):
         command to run.  This does not include "magic-folder" itself, just the
         following arguments.  For example, ``[b"list"]``.
 
-    :return bytes: The bytes that would be produced on standard output if the
-        command were run as a normal process.
-
-    :raise Exception: If any problems are encountered with the command.
+    :return Deferred[ProcessOutcome]: The side-effects and result of the
+        process.
     """
     options = MagicFolderCommand()
     options.stdout = MixedIO()
     options.stderr = MixedIO()
-    options.parseOptions([
-        b"--debug",
-        b"--node-directory",
-        node_directory.asBytesMode().path,
-    ] + argv)
-    result = do_magic_folder(options)
+    try:
+        try:
+            options.parseOptions([
+                b"--debug",
+                b"--node-directory",
+                node_directory.asBytesMode().path,
+            ] + argv)
+        except UsageError as e:
+            print(e, file=options.stderr)
+            result = 1
+        else:
+            result = yield do_magic_folder(options)
+    except SystemExit as e:
+        result = e.code
+
     Message.log(
         message_type=u"stdout",
         value=options.stdout.getvalue(),
@@ -68,6 +96,9 @@ def cli(node_directory, argv):
         message_type=u"stderr",
         value=options.stderr.getvalue(),
     )
-    if result != 0:
-        raise Exception("Got result {} from magic-folder {}".format(result, argv))
-    return options.stdout.getvalue()
+
+    returnValue(ProcessOutcome(
+        options.stdout.getvalue(),
+        options.stderr.getvalue(),
+        result,
+    ))
