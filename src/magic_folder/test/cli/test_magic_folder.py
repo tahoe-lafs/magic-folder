@@ -9,6 +9,8 @@ from hypothesis.strategies import (
     datetimes,
     dictionaries,
     lists,
+    tuples,
+    just,
 )
 
 from testtools.content import (
@@ -527,14 +529,22 @@ class StatusMagicFolder(AsyncTestCase):
         datetimes(),
         dictionaries(
             path_segments(),
-            filenodes(),
+            tuples(just(u"filenode"), filenodes()),
         ),
         # Laziness
         path_segments(),
         lists(queued_items()),
         lists(queued_items()),
     )
-    def test_formatting(self, folder_name, now, local_files, remote_name, upload_items, download_items):
+    def test_formatting(
+            self,
+            folder_name,
+            now,
+            local_files,
+            remote_name,
+            upload_items,
+            download_items,
+    ):
         self.assertThat(
             magic_folder_cli._format_status(
                 now,

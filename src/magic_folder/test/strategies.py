@@ -202,8 +202,8 @@ def filenodes():
             "version": integers(min_value=0),
             "deleted": booleans(),
             "tahoe": fixed_dictionaries({
-                "linkmotime": integers(min_value=0),
-                "linkcrtime": integers(min_value=0),
+                "linkmotime": integers(min_value=0, max_value=2 ** 31 - 1),
+                "linkcrtime": integers(min_value=0, max_value=2 ** 31 - 1),
             }),
         }),
     })
