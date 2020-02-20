@@ -502,7 +502,7 @@ def _get_json_for_cap(options, cap):
         'uri/%s?t=json' % urllib.quote(cap),
     )
 
-def _print_item_status(item, now, longest):
+def _item_status(item, now, longest):
     paddedname = (' ' * (longest - len(item['path']))) + item['path']
     if 'failure_at' in item:
         ts = datetime.fromtimestamp(item['started_at'])
@@ -534,7 +534,7 @@ def _print_item_status(item, now, longest):
                 prog = '%s %s' % (verb, abbreviate_time(now - when))
                 break
 
-    print("  %s: %s" % (paddedname, prog))
+    return "  %s: %s" % (paddedname, prog)
 
 
 @inline_callbacks
@@ -572,10 +572,19 @@ Local files:
 
 Remote files:
 {remote_files}
+
+{magic_folder_status}
 """.format(
     folder_name=status_obj.folder_name,
-    local_files=u"\n".join(list(_format_local_files(now, status_obj.local_files))),
-    remote_files=u"\n".join(list(_format_remote_files(now, status_obj.remote_files))),
+    local_files=u"\n".join(list(
+        _format_local_files(now, status_obj.local_files)
+    )),
+    remote_files=u"\n".join(list(
+        _format_remote_files(now, status_obj.remote_files)
+    )),
+    magic_folder_status=u"\n".join(list(
+        _format_magic_folder_status(now, status_obj.folder_status)
+    )),
 )
 
 
@@ -611,7 +620,7 @@ def _format_remote_files(now, remote_files):
             yield _format_file_line(now, n, d)
 
 
-def _format_magic_folder_status(magic_folder_status):
+def _format_magic_folder_status(now, magic_data):
     if len(magic_data):
         uploads = [item for item in magic_data if item['kind'] == 'upload']
         downloads = [item for item in magic_data if item['kind'] == 'download']
@@ -622,22 +631,20 @@ def _format_magic_folder_status(magic_folder_status):
         downloads = [item for item in downloads if item['status'] != 'success']
 
         if len(uploads):
-            print()
-            print("Uploads:", file=stdout)
+            yield u""
+            yield u"Uploads:"
             for item in uploads:
-                _print_item_status(item, now, longest)
+                yield _item_status(item, now, longest)
 
         if len(downloads):
-            print()
-            print("Downloads:", file=stdout)
+            yield u""
+            yield "Downloads:"
             for item in downloads:
-                _print_item_status(item, now, longest)
+                yield _item_status(item, now, longest)
 
         for item in magic_data:
             if item['status'] == 'failure':
-                print("Failed:", item, file=stdout)
-
-    return 0
+                yield u"Failed: {}".format(item)
 
 
 class RunOptions(BasedirOptions):
