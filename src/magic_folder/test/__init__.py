@@ -1,5 +1,13 @@
+from __future__ import (
+    print_function,
+)
+
+from sys import (
+    stderr,
+)
 
 from foolscap.logging.incident import IncidentQualifier
+
 class NonQualifier(IncidentQualifier, object):
     def check_event(self, ev):
         return False
@@ -49,6 +57,7 @@ def _configure_hypothesis():
     )
 
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
+    print("Loading Hypothesis profile {}".format(profile_name), file=stderr)
     settings.load_profile(profile_name)
 _configure_hypothesis()
 
