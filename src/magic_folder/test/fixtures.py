@@ -272,6 +272,10 @@ class NodeDirectory(Fixture):
         return self.path.child(u"node.url")
 
     @property
+    def magic_folder_url(self):
+        return self.path.child(u"magic-folder.url")
+
+    @property
     def private(self):
         return self.path.child(u"private")
 
@@ -316,5 +320,6 @@ class NodeDirectory(Fixture):
         self.path.makedirs()
         self.tahoe_cfg.touch()
         self.node_url.setContent(b"http://127.0.0.1:9876/")
+        self.magic_folder_url.setContent(b"http://127.0.0.1:5432/")
         self.private.makedirs()
         self.api_auth_token.setContent(self.token)
