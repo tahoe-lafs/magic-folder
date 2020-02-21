@@ -1,7 +1,16 @@
+# Copyright (c) Least Authority TFA GmbH.
+# See COPYING.* for details.
+
+"""
+The unit test package for Magic Folder.
+
+This also does some test-only related setup.  The expectation is that this
+code will never be loaded under real usage.
+"""
+
 from __future__ import (
     print_function,
 )
-
 from sys import (
     stderr,
 )
