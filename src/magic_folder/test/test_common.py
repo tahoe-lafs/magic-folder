@@ -7,6 +7,9 @@ Tests for ``magic_folder.test.common``.
 
 import os
 import os.path
+from sys import (
+    modules,
+)
 from stat import (
     S_IWUSR,
     S_IWGRP,
@@ -15,6 +18,11 @@ from stat import (
 
 from unittest import (
     TestCase,
+)
+
+from testtools.matchers import (
+    Not,
+    Contains,
 )
 
 from .common import (
@@ -108,7 +116,6 @@ class SyncTestCaseTests(TestCase):
             "Expected {!r} not to exist".format(tmp),
         )
 
-
 def is_sublist(needle, haystack):
     """
     Determine if a list exists as a sublist of another list.
@@ -122,3 +129,18 @@ def is_sublist(needle, haystack):
         if needle == haystack[i:i + len(needle)]:
             return True
     return False
+
+class OtherTests(SyncTestCase):
+    """
+    Tests for other behaviors that don't obviously fit anywhere better.
+    """
+    def test_allmydata_test_not_loaded(self):
+        """
+        ``allmydata.test`` makes Hypothesis profile changes that are not
+        compatible with our test suite.  If it is loaded, this is a problem.
+        Verify that it is not loaded.
+        """
+        self.assertThat(
+            modules,
+            Not(Contains("allmydata.test")),
+        )
