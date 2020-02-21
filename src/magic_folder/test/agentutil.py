@@ -30,6 +30,12 @@ from twisted.web.iweb import (
 @implementer(IAgent)
 @attr.s
 class FailingAgent(object):
+    """
+    An ``IAgent`` implementation which returns failures for every request
+    attempt.
+
+    :ivar Failure reason: The reason to give for every failure.
+    """
     reason = attr.ib(validator=attr.validators.instance_of(Failure))
 
     def request(self, method, url, headers=None, bodyProducer=None):
