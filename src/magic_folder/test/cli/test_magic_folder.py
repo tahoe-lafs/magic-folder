@@ -27,7 +27,6 @@ from twisted.python import usage
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
 from allmydata.scripts.common import get_aliases
-from allmydata.test.common_util import NonASCIIPathMixin
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata import uri
@@ -43,7 +42,10 @@ from ...scripts import (
 )
 
 from ..no_network import GridTestMixin
-from ..common_util import parse_cli
+from ..common_util import (
+    parse_cli,
+    NonASCIIPathMixin,
+)
 from ..common import (
     AsyncTestCase,
 )
