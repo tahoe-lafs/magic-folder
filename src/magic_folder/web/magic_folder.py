@@ -14,10 +14,6 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
-)
 from allmydata.util.hashutil import (
     timing_safe_compare,
 )
