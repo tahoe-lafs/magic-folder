@@ -539,6 +539,14 @@ def _item_status(item, now, longest):
 
 @inline_callbacks
 def status(options):
+    """
+    ``magic-folder status`` entry-point.
+
+    :param StatusOptions options: Values for configurable status parameters.
+
+    :return Deferred: A ``Deferred`` which fires with an exit status for the
+        process when the status operation has completed.
+    """
     nodedir = options["node-directory"]
     stdout, stderr = options.stdout, options.stderr
 
@@ -564,6 +572,16 @@ def status(options):
 
 
 def _format_status(now, status_obj):
+    """
+    Format a ``Status`` as a unicode string.
+
+    :param datetime now: A time to use as current.
+
+    :param Status status_obj: The object to use to fill the string with
+        details.
+
+    :return unicode: Text roughly describing ``status_obj`` to a person.
+    """
     return u"""
 Magic-folder status for '{folder_name}':
 
@@ -589,11 +607,33 @@ Remote files:
 
 
 def _format_local_files(now, local_files):
+    """
+    Format some local files as unicode strings.
+
+    :param datetime now: A time to use as current.
+
+    :param dict local_files: A mapping from filenames to filenodes.  See
+        ``_format_file_line`` for details of filenodes.
+
+    :return: A generator of unicode strings describing the files.
+    """
     for (name, child) in local_files.items():
         yield _format_file_line(now, name, child)
 
 
 def _format_file_line(now, name, child):
+    """
+    Format one Tahoe-LAFS filenode as a unicode string.
+
+    :param datetime now: A time to use as current.
+    :param unicode name: The name of the file.
+
+    :param child: Metadata describing the file.  The format is like the format
+        of a filenode inside a dirnode's **children**.  See the Tahoe-LAFS Web
+        API frontend documentation for details.
+
+    :return unicode: Text roughly describing the filenode to a person.
+    """
     captype, meta = child
     if captype != 'filenode':
         return u"%20s: error, should be a filecap (not %s)" % (name, captype)
@@ -614,13 +654,34 @@ def _format_file_line(now, name, child):
 
 
 def _format_remote_files(now, remote_files):
+    """
+    Format some files from peer DMDs as unicode strings.
+
+    :param datetime now: A time to use as current.
+
+    :param dict remote_files: A mapping from DMD names to dictionaries.  The
+        inner dictionaries are like those which may be passed to
+        ``_format_local_files``.
+
+    :return: A generator of unicode strings describing the files.
+    """
     for (name, children) in remote_files.items():
         yield u"  %s's remote:" % name
-        for (n, d) in children.items():
-            yield _format_file_line(now, n, d)
+        yield _format_local_files(now, children)
 
 
 def _format_magic_folder_status(now, magic_data):
+    """
+    Format details about magic folder activities as a unicode string.
+
+    :param datetime now: A time to use as current.
+
+    :param list[dict] magic_data: Activity to include in the result.  The
+        elements are formatted like the result of
+        ``magic_folder.web.magic_folder.status_for_item``.
+
+    :return: A generator of unicode strings describing the activities.
+    """
     if len(magic_data):
         uploads = [item for item in magic_data if item['kind'] == 'upload']
         downloads = [item for item in magic_data if item['kind'] == 'download']
@@ -638,7 +699,7 @@ def _format_magic_folder_status(now, magic_data):
 
         if len(downloads):
             yield u""
-            yield "Downloads:"
+            yield u"Downloads:"
             for item in downloads:
                 yield _item_status(item, now, longest)
 
