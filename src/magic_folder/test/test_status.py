@@ -146,6 +146,7 @@ class StatusTests(AsyncTestCase):
         print("Hypothesis function settings: {}".format(
             self.test_unknown_magic_folder_name._hypothesis_internal_use_settings,
         ))
+        print("Hypothesis profile: {}".format(settings._current_profile))
         assume(collective_dircap != upload_dircap)
 
         tempdir = FilePath(self.mktemp())

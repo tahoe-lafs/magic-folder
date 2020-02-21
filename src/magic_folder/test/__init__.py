@@ -69,6 +69,7 @@ def _configure_hypothesis():
     print("Loading Hypothesis profile {}".format(profile_name), file=stderr)
     settings.load_profile(profile_name)
     print("Settings are now: {}".format(settings.default))
+    del settings.load_profile
 _configure_hypothesis()
 
 
