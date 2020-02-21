@@ -138,6 +138,8 @@ class StatusTests(AsyncTestCase):
         If a name which does not correspond to an existing magic folder is given,
         ``status`` raises ``BadFolderName``.
         """
+        from hypothesis import settings
+        print("Hypothesis settings: {}".format(settings.default))
         assume(collective_dircap != upload_dircap)
 
         tempdir = FilePath(self.mktemp())
