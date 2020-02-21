@@ -68,6 +68,7 @@ def _configure_hypothesis():
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
     print("Loading Hypothesis profile {}".format(profile_name), file=stderr)
     settings.load_profile(profile_name)
+    print("Settings are now: {}".format(settings.default))
 _configure_hypothesis()
 
 

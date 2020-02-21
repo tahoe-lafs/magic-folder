@@ -5,9 +5,12 @@
 Tests for ``magic_folder.status``.
 """
 
+
 from __future__ import (
     unicode_literals,
 )
+
+print("test_status.py evaluating")
 
 from json import (
     dumps,
@@ -140,6 +143,9 @@ class StatusTests(AsyncTestCase):
         """
         from hypothesis import settings
         print("Hypothesis settings: {}".format(settings.default))
+        print("Hypothesis function settings: {}".format(
+            self.test_unknown_magic_folder_name._hypothesis_internal_use_settings,
+        ))
         assume(collective_dircap != upload_dircap)
 
         tempdir = FilePath(self.mktemp())
