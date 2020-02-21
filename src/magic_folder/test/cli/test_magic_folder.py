@@ -68,6 +68,7 @@ from ..common_util import (
 )
 from ..common import (
     AsyncTestCase,
+    SameProcessStreamEndpointAssigner,
 )
 from ..fixtures import (
     SelfConnectedClient,
@@ -504,12 +505,17 @@ class StatusMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
+        assigner = SameProcessStreamEndpointAssigner()
+        assigner.setUp()
+        self.addCleanup(assigner.tearDown)
+        ignored, endpoint_description = assigner.assign(reactor)
+
         # Start the magic folder service after creating the magic folder so it
         # will be noticed.
         magic_folder_service = magic_folder_cli.MagicFolderService.from_node_directory(
             reactor,
             client_fixture.node_directory.path,
-            b"tcp:9889",
+            endpoint_description,
         )
         magic_folder_service.startService()
         self.addCleanup(magic_folder_service.stopService)

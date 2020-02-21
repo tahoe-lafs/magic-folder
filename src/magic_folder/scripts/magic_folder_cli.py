@@ -36,6 +36,13 @@ from eliot.twisted import (
     DeferredContext,
 )
 
+from twisted.internet.interfaces import (
+    IStreamServerEndpoint,
+)
+from twisted.internet.endpoints import (
+    serverFromString,
+)
+
 from twisted.web.client import (
     Agent,
     readBody,
@@ -59,6 +66,7 @@ from twisted.internet.defer import (
     maybeDeferred,
     gatherResults,
     Deferred,
+    inlineCallbacks,
     returnValue,
 )
 
@@ -743,6 +751,23 @@ def poll(label, operation, reactor):
 
 
 @attr.s
+@implementer(IStreamServerEndpoint)
+class RecordLocation(object):
+    """
+    An endpoint wrapper which supports an observer which gets called with the
+    address of the listening port whenever one is created.
+    """
+    _endpoint = attr.ib()
+    _recorder = attr.ib()
+
+    @inlineCallbacks
+    def listen(self, protocolFactory):
+        port = yield self._endpoint.listen(protocolFactory)
+        self._recorder(port.getHost())
+        returnValue(port)
+
+
+@attr.s
 class MagicFolderService(MultiService):
     reactor = attr.ib()
     config = attr.ib()
@@ -758,12 +783,28 @@ class MagicFolderService(MultiService):
             ),
             Agent(self.reactor),
         )
+        web_endpoint = RecordLocation(
+            serverFromString(self.reactor, self.webport),
+            self._write_web_url,
+        )
         magic_folder_web_service(
-            self.reactor,
-            self.webport,
+            web_endpoint,
             self._get_magic_folder,
             self._get_auth_token,
         ).setServiceParent(self)
+
+    def _write_web_url(self, host):
+        """
+        Write a state file to the Tahoe-LAFS node directory containing a URL
+        pointing to our web server listening at the given address.
+
+        :param twisted.internet.address.IPv4Address host: The address where
+            our web server is listening.
+        """
+        self.config.write_config_file(
+            u"magic-folder.url",
+            "http://{}:{}/".format(host.host, host.port),
+        )
 
     def _get_magic_folder(self, name):
         return self.magic_folder_services[name]

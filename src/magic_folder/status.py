@@ -98,7 +98,9 @@ def status(folder_name, node_directory, treq):
     node_root_url = DecodedURL.from_text(
         node_directory.child(u"node.url").getContent().decode("ascii").strip(),
     )
-    magic_root_url = DecodedURL.from_text(u"http://127.0.0.1:9889/")
+    magic_root_url = DecodedURL.from_text(
+        node_directory.child(u"magic-folder.url").getContent().decode("ascii").strip(),
+    )
 
     try:
         folder_config = magic_folders[folder_name]

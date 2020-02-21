@@ -1,9 +1,6 @@
 import json
 import cgi
 
-from twisted.internet.endpoints import (
-    serverFromString,
-)
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
@@ -17,15 +14,19 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
+from twisted.internet.defer import (
+    inlineCallbacks,
+    returnValue,
+)
 from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
-def magic_folder_web_service(reactor, webport, get_magic_folder, get_auth_token):
+def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
     root = Resource()
     root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
     return StreamServerEndpointService(
-        serverFromString(reactor, webport),
+        web_endpoint,
         Site(root),
     )
 
