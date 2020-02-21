@@ -167,6 +167,22 @@ def status_from_folder_config(
 
 @inline_callbacks
 def magic_folder_status(folder_name, root_url, token, treq):
+    """
+    Retrieve magic folder status information from the magic folder web API.
+
+    :param unicode folder_name: The name of the folder for which to retrieve
+        information.
+
+    :param DecodedURL root_url: The root of the magic folder API.
+
+    :param unicode token: The secret API token to use to query the API.
+
+    :param treq: An ``HTTPClient`` or similar object to use to make the
+        queries.
+
+    :return Deferred[list]: The status information returned by the API
+        endpoint.
+    """
     body = u"token={}".format(token).encode("ascii")
     url = root_url.child(
         u"api",
@@ -187,13 +203,6 @@ def magic_folder_status(folder_name, root_url, token, treq):
     result = _check_result(loads((yield readBody(response))))
     returnValue(result)
 
-
-def _get(treq, url):
-    return treq.get(
-        url.to_uri().to_text().encode("ascii"),
-    )
-
-
 @inline_callbacks
 def _cap_metadata(treq, root_url, cap):
     """
@@ -206,7 +215,7 @@ def _cap_metadata(treq, root_url, cap):
     :return Deferred[something]:
     """
     url = root_url.child(u"uri", cap).add(u"t", u"json")
-    response = yield _get(treq, url)
+    response = yield treq.get(url.to_uri().to_text().encode("ascii"))
     if response.code != OK:
         returnValue((yield bad_response(url, response)))
     result = _check_result(loads((yield readBody(response))))
@@ -216,11 +225,29 @@ def _cap_metadata(treq, root_url, cap):
 
 @inline_callbacks
 def bad_response(url, response):
+    """
+    Convert an ``IResponse`` with an unexpected status code into a
+    ``BadResponseCode`` containing the URL, response code, and response body.
+
+    :param DecodedURL url: The URL to include in the exception.
+
+    :param IResponse response: The response from which the body can be read.
+
+    :return: A ``Deferred`` which fails with ``BadResponseCode``.
+    """
     body = yield readBody(response)
     raise BadResponseCode(url, response.code, body)
 
-
 def _check_result(result):
+    """
+    Inspect a decoded response body to see if it is an error.
+
+    :param result: An object loaded from a JSON response to an API endpoint.
+
+    :raise BadMetadataResponse: If ``result`` represents an error.
+
+    :return: Exactly ``result`` if it does not represent an error.
+    """
     if isinstance(result, dict) and u"error" in result:
         raise BadMetadataResponse(result)
     return result
