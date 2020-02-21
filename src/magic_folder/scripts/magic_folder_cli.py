@@ -667,7 +667,8 @@ def _format_remote_files(now, remote_files):
     """
     for (name, children) in remote_files.items():
         yield u"  %s's remote:" % name
-        yield _format_local_files(now, children)
+        for text in _format_local_files(now, children):
+            yield text
 
 
 def _format_magic_folder_status(now, magic_data):
