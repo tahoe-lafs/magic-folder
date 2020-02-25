@@ -108,7 +108,7 @@ def status_for_item(kind, item):
     d = dict(
         path=item.relpath_u,
         status=item.status_history()[-1][0],
-        kind='upload',
+        kind=kind,
     )
     for (status, ts) in item.status_history():
         d[status + '_at'] = ts
