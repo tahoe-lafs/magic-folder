@@ -18,7 +18,7 @@ from zope.interface import (
 )
 
 from hyperlink import (
-    URL,
+    DecodedURL,
 )
 
 import importlib_metadata
@@ -36,10 +36,20 @@ from eliot.twisted import (
     DeferredContext,
 )
 
+from twisted.internet.interfaces import (
+    IStreamServerEndpoint,
+)
+from twisted.internet.endpoints import (
+    serverFromString,
+)
+
 from twisted.web.client import (
     Agent,
     readBody,
     FileBodyProducer,
+)
+from twisted.python.filepath import (
+    FilePath,
 )
 from twisted.python import usage
 from twisted.python.failure import (
@@ -56,7 +66,12 @@ from twisted.internet.defer import (
     maybeDeferred,
     gatherResults,
     Deferred,
+    inlineCallbacks,
     returnValue,
+)
+
+from treq.client import (
+    HTTPClient,
 )
 
 from eliot.twisted import (
@@ -111,6 +126,10 @@ from ..frontends.magic_folder import (
 )
 from ..web.magic_folder import (
     magic_folder_web_service,
+)
+
+from ..status import (
+    status as _status,
 )
 
 from .._coverage import (
@@ -439,8 +458,15 @@ class StatusOptions(BasedirOptions):
     def parseArgs(self):
         BasedirOptions.parseArgs(self)
         node_url_file = os.path.join(self['node-directory'], u"node.url")
-        with open(node_url_file, "r") as f:
-            self['node-url'] = f.read().strip()
+        try:
+            with open(node_url_file, "r") as f:
+                self['node-url'] = f.read().strip()
+        except EnvironmentError as e:
+            raise usage.UsageError(
+                "Could not read node url from {!r}: {!r}".format(
+                    node_url_file,
+                    e,
+                ))
 
 
 @log_call
@@ -484,7 +510,7 @@ def _get_json_for_cap(options, cap):
         'uri/%s?t=json' % urllib.quote(cap),
     )
 
-def _print_item_status(item, now, longest):
+def _item_status(item, now, longest):
     paddedname = (' ' * (longest - len(item['path']))) + item['path']
     if 'failure_at' in item:
         ts = datetime.fromtimestamp(item['started_at'])
@@ -516,100 +542,155 @@ def _print_item_status(item, now, longest):
                 prog = '%s %s' % (verb, abbreviate_time(now - when))
                 break
 
-    print("  %s: %s" % (paddedname, prog))
+    return "  %s: %s" % (paddedname, prog)
 
 
+@inline_callbacks
 def status(options):
+    """
+    ``magic-folder status`` entry-point.
+
+    :param StatusOptions options: Values for configurable status parameters.
+
+    :return Deferred: A ``Deferred`` which fires with an exit status for the
+        process when the status operation has completed.
+    """
     nodedir = options["node-directory"]
     stdout, stderr = options.stdout, options.stderr
-    magic_folders = load_magic_folders(os.path.join(options["node-directory"]))
 
-    with open(os.path.join(nodedir, u'private', u'api_auth_token'), 'rb') as f:
-        token = f.read()
+    # Create a client without persistent connections to simplify testing.
+    # Connections will typically be to localhost anyway so there isn't
+    # much performance difference.
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
 
-    print("Magic-folder status for '{}':".format(options["name"]), file=stdout)
-
-    if options["name"] not in magic_folders:
-        raise Exception(
-            "No such magic-folder '{}'".format(options["name"])
-        )
-
-    dmd_cap = magic_folders[options["name"]]["upload_dircap"]
-    collective_readcap = magic_folders[options["name"]]["collective_dircap"]
-
-    # do *all* our data-retrievals first in case there's an error
+    name = options["name"].decode("utf-8")
     try:
-        dmd_data = _get_json_for_cap(options, dmd_cap)
-        remote_data = _get_json_for_cap(options, collective_readcap)
-        magic_data = _get_json_for_fragment(
-            options,
-            'magic_folder?t=json',
-            method='POST',
-            post_args=dict(
-                t='json',
-                name=options["name"],
-                token=token,
-            )
+        status_obj = yield _status(
+            name,
+            FilePath(nodedir),
+            treq,
         )
     except Exception as e:
-        print("failed to retrieve data: %s" % str(e), file=stderr)
-        return 2
+        print(e, file=stderr)
+        returnValue(1)
+    else:
+        print(_format_status(datetime.now(), status_obj), file=stdout)
+        returnValue(0)
 
-    for d in [dmd_data, remote_data, magic_data]:
-        if isinstance(d, dict) and 'error' in d:
-            print("Error from server: %s" % d['error'], file=stderr)
-            print("This means we can't retrieve the remote shared directory.", file=stderr)
-            return 3
 
-    captype, dmd = dmd_data
-    if captype != 'dirnode':
-        print("magic_folder_dircap isn't a directory capability", file=stderr)
-        return 2
+def _format_status(now, status_obj):
+    """
+    Format a ``Status`` as a unicode string.
 
-    now = datetime.now()
+    :param datetime now: A time to use as current.
 
-    print("Local files:", file=stdout)
-    for (name, child) in dmd['children'].items():
-        captype, meta = child
-        status = 'good'
-        size = meta['size']
-        created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
-        version = meta['metadata']['version']
-        nice_size = abbreviate_space(size)
-        nice_created = abbreviate_time(now - created)
-        if captype != 'filenode':
-            print("%20s: error, should be a filecap" % name, file=stdout)
-            continue
-        print("  %s (%s): %s, version=%s, created %s" % (name, nice_size, status, version, nice_created), file=stdout)
+    :param Status status_obj: The object to use to fill the string with
+        details.
 
-    print(file=stdout)
-    print("Remote files:", file=stdout)
+    :return unicode: Text roughly describing ``status_obj`` to a person.
+    """
+    return u"""
+Magic-folder status for '{folder_name}':
 
-    captype, collective = remote_data
-    for (name, data) in collective['children'].items():
-        if data[0] != 'dirnode':
-            print("Error: '%s': expected a dirnode, not '%s'" % (name, data[0]), file=stdout)
-        print("  %s's remote:" % name, file=stdout)
-        dmd = _get_json_for_cap(options, data[1]['ro_uri'])
-        if isinstance(dmd, dict) and 'error' in dmd:
-            print("    Error: could not retrieve directory", file=stdout)
-            continue
-        if dmd[0] != 'dirnode':
-            print("Error: should be a dirnode", file=stdout)
-            continue
-        for (n, d) in dmd[1]['children'].items():
-            if d[0] != 'filenode':
-                print("Error: expected '%s' to be a filenode." % (n,), file=stdout)
+Local files:
+{local_files}
 
-            meta = d[1]
-            status = 'good'
-            size = meta['size']
-            created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
-            version = meta['metadata']['version']
-            nice_size = abbreviate_space(size)
-            nice_created = abbreviate_time(now - created)
-            print("    %s (%s): %s, version=%s, created %s" % (n, nice_size, status, version, nice_created), file=stdout)
+Remote files:
+{remote_files}
 
+{magic_folder_status}
+""".format(
+    folder_name=status_obj.folder_name,
+    local_files=u"\n".join(list(
+        _format_local_files(now, status_obj.local_files)
+    )),
+    remote_files=u"\n".join(list(
+        _format_remote_files(now, status_obj.remote_files)
+    )),
+    magic_folder_status=u"\n".join(list(
+        _format_magic_folder_status(now, status_obj.folder_status)
+    )),
+)
+
+
+def _format_local_files(now, local_files):
+    """
+    Format some local files as unicode strings.
+
+    :param datetime now: A time to use as current.
+
+    :param dict local_files: A mapping from filenames to filenodes.  See
+        ``_format_file_line`` for details of filenodes.
+
+    :return: A generator of unicode strings describing the files.
+    """
+    for (name, child) in local_files.items():
+        yield _format_file_line(now, name, child)
+
+
+def _format_file_line(now, name, child):
+    """
+    Format one Tahoe-LAFS filenode as a unicode string.
+
+    :param datetime now: A time to use as current.
+    :param unicode name: The name of the file.
+
+    :param child: Metadata describing the file.  The format is like the format
+        of a filenode inside a dirnode's **children**.  See the Tahoe-LAFS Web
+        API frontend documentation for details.
+
+    :return unicode: Text roughly describing the filenode to a person.
+    """
+    captype, meta = child
+    if captype != 'filenode':
+        return u"%20s: error, should be a filecap (not %s)" % (name, captype)
+
+    status = 'good'
+    size = meta['size']
+    created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
+    version = meta['metadata']['version']
+    nice_size = abbreviate_space(size)
+    nice_created = abbreviate_time(now - created)
+    return u"  %s (%s): %s, version=%s, created %s" % (
+        name,
+        nice_size,
+        status,
+        version,
+        nice_created,
+    )
+
+
+def _format_remote_files(now, remote_files):
+    """
+    Format some files from peer DMDs as unicode strings.
+
+    :param datetime now: A time to use as current.
+
+    :param dict remote_files: A mapping from DMD names to dictionaries.  The
+        inner dictionaries are like those which may be passed to
+        ``_format_local_files``.
+
+    :return: A generator of unicode strings describing the files.
+    """
+    for (name, children) in remote_files.items():
+        yield u"  %s's remote:" % name
+        for text in _format_local_files(now, children):
+            yield text
+
+
+def _format_magic_folder_status(now, magic_data):
+    """
+    Format details about magic folder activities as a unicode string.
+
+    :param datetime now: A time to use as current.
+
+    :param list[dict] magic_data: Activity to include in the result.  The
+        elements are formatted like the result of
+        ``magic_folder.web.magic_folder.status_for_item``.
+
+    :return: A generator of unicode strings describing the activities.
+    """
     if len(magic_data):
         uploads = [item for item in magic_data if item['kind'] == 'upload']
         downloads = [item for item in magic_data if item['kind'] == 'download']
@@ -620,22 +701,20 @@ def status(options):
         downloads = [item for item in downloads if item['status'] != 'success']
 
         if len(uploads):
-            print()
-            print("Uploads:", file=stdout)
+            yield u""
+            yield u"Uploads:"
             for item in uploads:
-                _print_item_status(item, now, longest)
+                yield _item_status(item, now, longest)
 
         if len(downloads):
-            print()
-            print("Downloads:", file=stdout)
+            yield u""
+            yield u"Downloads:"
             for item in downloads:
-                _print_item_status(item, now, longest)
+                yield _item_status(item, now, longest)
 
         for item in magic_data:
             if item['status'] == 'failure':
-                print("Failed:", item, file=stdout)
-
-    return 0
+                yield u"Failed: {}".format(item)
 
 
 class RunOptions(BasedirOptions):
@@ -672,6 +751,23 @@ def poll(label, operation, reactor):
 
 
 @attr.s
+@implementer(IStreamServerEndpoint)
+class RecordLocation(object):
+    """
+    An endpoint wrapper which supports an observer which gets called with the
+    address of the listening port whenever one is created.
+    """
+    _endpoint = attr.ib()
+    _recorder = attr.ib()
+
+    @inlineCallbacks
+    def listen(self, protocolFactory):
+        port = yield self._endpoint.listen(protocolFactory)
+        self._recorder(port.getHost())
+        returnValue(port)
+
+
+@attr.s
 class MagicFolderService(MultiService):
     reactor = attr.ib()
     config = attr.ib()
@@ -682,15 +778,33 @@ class MagicFolderService(MultiService):
     def __attrs_post_init__(self):
         MultiService.__init__(self)
         self.tahoe_client = TahoeClient(
-            URL.from_text(self.config.get_config_from_file(b"node.url").decode("utf-8")),
+            DecodedURL.from_text(
+                self.config.get_config_from_file(b"node.url").decode("utf-8"),
+            ),
             Agent(self.reactor),
         )
+        web_endpoint = RecordLocation(
+            serverFromString(self.reactor, self.webport),
+            self._write_web_url,
+        )
         magic_folder_web_service(
-            self.reactor,
-            self.webport,
+            web_endpoint,
             self._get_magic_folder,
             self._get_auth_token,
         ).setServiceParent(self)
+
+    def _write_web_url(self, host):
+        """
+        Write a state file to the Tahoe-LAFS node directory containing a URL
+        pointing to our web server listening at the given address.
+
+        :param twisted.internet.address.IPv4Address host: The address where
+            our web server is listening.
+        """
+        self.config.write_config_file(
+            u"magic-folder.url",
+            "http://{}:{}/".format(host.host, host.port),
+        )
 
     def _get_magic_folder(self, name):
         return self.magic_folder_services[name]
@@ -769,8 +883,9 @@ class ClientStandIn(object):
     convergence = attr.ib(default=None)
 
     def __attrs_post_init__(self):
-        convergence_s = self.config.get_private_config('convergence')
-        self.convergence = base32.a2b(convergence_s)
+        if self.convergence is None:
+            convergence_s = self.config.get_private_config('convergence')
+            self.convergence = base32.a2b(convergence_s)
 
     def create_node_from_uri(self, uri, rouri=None):
         return Node(self.tahoe_client, from_string(rouri if uri is None else uri))
