@@ -638,6 +638,46 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(False),
         )
 
+    @defer.inlineCallbacks
+    def test_create_duplicate_name(self):
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+            b"create",
+            b"--name",
+            b"foo",
+            b"magik:",
+            b"test_create_duplicate",
+            magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        outcome = yield cli(
+            self.node_directory, [
+            b"create",
+            b"--name",
+            b"foo",
+            b"magik:",
+            b"test_create_duplicate",
+            magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            "Already have a magic-folder named 'foo'",
+            outcome.stderr
+        )
+
     # def test_create_and_then_invite_join(self):
     #     self.basedir = "cli/MagicFolder/create-and-then-invite-join"
     #     self.set_up_grid(oneshare=True)
@@ -658,27 +698,6 @@ class CreateMagicFolder(AsyncTestCase):
     #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
     #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
     #     return d
-
-    # @defer.inlineCallbacks
-    # def test_create_duplicate_name(self):
-    #     self.basedir = "cli/MagicFolder/create-dup"
-    #     self.set_up_grid(oneshare=True)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "create", "magic:", "--name", "foo",
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 0)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "create", "magic:", "--name", "foo",
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 1)
-    #     self.assertIn(
-    #         "Already have a magic-folder named 'default'",
-    #         stderr
-    #     )
 
     # @defer.inlineCallbacks
     # def test_leave_wrong_folder(self):
