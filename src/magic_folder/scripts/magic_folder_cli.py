@@ -406,7 +406,7 @@ def join(options):
 
 
 class LeaveOptions(BasedirOptions):
-    synopsis = "Remove a magic-folder and forget all state"
+    description = "Remove a magic-folder and forget all state"
     optParameters = [
         ("name", "n", "default", "Name of magic-folder to leave"),
     ]
