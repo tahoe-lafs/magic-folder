@@ -659,18 +659,6 @@ class CreateMagicFolder(AsyncTestCase):
     #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
     #     return d
 
-    # def test_create_error(self):
-    #     self.basedir = "cli/MagicFolder/create-error"
-    #     self.set_up_grid(oneshare=True)
-
-    #     d = self.do_cli("magic-folder", "create", "m a g i c:", client_num=0)
-    #     def _done(args):
-    #         (rc, stdout, stderr) = args
-    #         self.assertNotEqual(rc, 0)
-    #         self.assertIn("Alias names cannot contain spaces.", stderr)
-    #     d.addCallback(_done)
-    #     return d
-
     # @defer.inlineCallbacks
     # def test_create_duplicate_name(self):
     #     self.basedir = "cli/MagicFolder/create-dup"
