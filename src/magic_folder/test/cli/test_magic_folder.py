@@ -798,6 +798,25 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
+    @defer.inlineCallbacks
+    def test_leave_no_folders_at_all(self):
+        outcome = yield cli(
+            self.node_directory, [
+            b"leave",
+            b"--name",
+            b"foo",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            "No magic-folders at all",
+            outcome.stderr
+        )
+
     # def test_create_and_then_invite_join(self):
     #     self.basedir = "cli/MagicFolder/create-and-then-invite-join"
     #     self.set_up_grid(oneshare=True)
@@ -818,21 +837,6 @@ class CreateMagicFolder(AsyncTestCase):
     #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
     #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
     #     return d
-
-    # @defer.inlineCallbacks
-    # def test_leave_no_folders_at_all(self):
-    #     self.basedir = "cli/MagicFolder/leave_no_folders_at_all"
-    #     yield self.set_up_grid(oneshare=True)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "leave",
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 1)
-    #     self.assertIn(
-    #         "No magic-folders at all",
-    #         stderr,
-    #     )
 
     # def test_create_invite_join(self):
     #     self.basedir = "cli/MagicFolder/create-invite-join"
