@@ -748,6 +748,56 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
+    @defer.inlineCallbacks
+    def test_leave_no_folder(self):
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+            b"create",
+            b"--name",
+            b"foo",
+            b"magik:",
+            b"test_create_leave_folder",
+            magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        outcome = yield cli(
+            self.node_directory, [
+            b"leave",
+            b"--name",
+            b"foo",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        outcome = yield cli(
+            self.node_directory, [
+            b"leave",
+            b"--name",
+            b"foo",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            "No magic-folders at all",
+            outcome.stderr
+        )
+
     # def test_create_and_then_invite_join(self):
     #     self.basedir = "cli/MagicFolder/create-and-then-invite-join"
     #     self.set_up_grid(oneshare=True)
@@ -768,35 +818,6 @@ class CreateMagicFolder(AsyncTestCase):
     #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
     #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
     #     return d
-
-    # @defer.inlineCallbacks
-    # def test_leave_no_folder(self):
-    #     self.basedir = "cli/MagicFolder/leave_no_folders"
-    #     yield self.set_up_grid(oneshare=True)
-    #     magic_dir = os.path.join(self.basedir, 'magic')
-    #     os.mkdir(magic_dir)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "create", "--name", "foo", "magic:", "my_name", magic_dir,
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 0)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "leave", "--name", "foo",
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 0)
-
-    #     rc, stdout, stderr = yield self.do_cli(
-    #         "magic-folder", "leave", "--name", "foo",
-    #         client_num=0,
-    #     )
-    #     self.assertEqual(rc, 1)
-    #     self.assertIn(
-    #         "No magic-folders at all",
-    #         stderr,
-    #     )
 
     # @defer.inlineCallbacks
     # def test_leave_no_folders_at_all(self):
