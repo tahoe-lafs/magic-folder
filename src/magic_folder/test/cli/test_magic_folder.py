@@ -817,6 +817,54 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
+    @defer.inlineCallbacks
+    def test_create_and_then_invite_join(self):
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+            b"create",
+            b"magik:",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # create invite code for Alice
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"magik:",
+                b"alice",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
+
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                b"alice",
+                ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+
     # def test_create_and_then_invite_join(self):
     #     self.basedir = "cli/MagicFolder/create-and-then-invite-join"
     #     self.set_up_grid(oneshare=True)
