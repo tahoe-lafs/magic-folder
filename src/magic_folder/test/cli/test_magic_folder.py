@@ -820,7 +820,6 @@ class CreateMagicFolder(AsyncTestCase):
     @defer.inlineCallbacks
     def test_create_and_then_invite_join(self):
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
             b"create",
