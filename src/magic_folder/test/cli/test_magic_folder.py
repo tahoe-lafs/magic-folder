@@ -30,7 +30,6 @@ from eliot import (
 from eliot.twisted import (
     DeferredContext,
 )
-
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
@@ -829,8 +828,6 @@ class CreateMagicFolder(AsyncTestCase):
             self.node_directory, [
                 b"create",
                 b"magik:",
-#                b"alice",
-#                local_dir.asBytesMode().path,
             ],
         )
 
@@ -872,29 +869,6 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(True),
         )
-
-        # read collective_dircap and upload_dircap from config files:
-        # `tahoe -d <node-directory> ls <dircap>' to read the contents of
-        # the dir. This should list all the links to the client DMDs if
-        # used with collective_dircap.
-        # collective_dircap, upload_dircap = self.get_caps_from_files(self.node_directory.asBytesMode().path)
-
-        # # Now, derive a Read-only cap from the upload_dircap and search for
-        # # it inside the `tahoe ls --json` output.
-
-        # node_dir_path = FilePath(self.node_directory.asBytesMode().path)
-        # url = DecodedURL.from_text(
-        #     node_dir_path.child(u"node.url").getContent().strip().decode("utf-8")
-        # )
-        # tahoe = magic_folder_cli.TahoeClient(url, Agent(reactor))
-
-        # collective_dircap_uri = uri.from_string(collective_dircap)
-        # ls_output = yield tahoe.list_directory(collective_dircap_uri)
-        # readonly_cap = unicode(uri.from_string(upload_dircap).get_readonly().to_string(), 'utf-8')
-        # self.assertThat(
-        #     ls_output[b'bob'][1],
-        #     readonly_cap
-        # )
 
     @defer.inlineCallbacks
     def test_join_leave_join(self):
