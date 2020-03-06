@@ -818,12 +818,18 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
     @defer.inlineCallbacks
-    def test_create_and_then_invite_join(self):
+    def test_create_invite_join(self):
         # Get a magic folder.
+        basedir = self.tempdir.child(u"magic-folder")
+        local_dir = basedir.child(u"alice")
+        local_dir.makedirs()
+        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"magik:",
+                b"create",
+                b"magik:",
+#                b"alice",
             ],
         )
 
@@ -832,12 +838,12 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # create invite code for Alice
+        # create invite code for alice
         outcome = yield cli(
             self.node_directory, [
                 b"invite",
                 b"magik:",
-                b"alice",
+                b"bob",
             ],
         )
 
@@ -849,13 +855,16 @@ class CreateMagicFolder(AsyncTestCase):
         # capture the invite code from stdout
         invite_code = outcome.stdout.strip()
 
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
         # join
         outcome = yield cli(
             self.node_directory, [
                 b"join",
                 invite_code,
-                b"alice",
-                ],
+                mf_bob.asBytesMode().path,
+            ],
         )
 
         self.assertThat(
@@ -864,78 +873,136 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
 
-    # def test_create_and_then_invite_join(self):
-    #     self.basedir = "cli/MagicFolder/create-and-then-invite-join"
-    #     self.set_up_grid(oneshare=True)
-    #     local_dir = os.path.join(self.basedir, "magic")
-    #     os.mkdir(local_dir)
-    #     abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+    @defer.inlineCallbacks
+    def test_join_leave_join(self):
+        # Get a magic folder.
+        basedir = self.tempdir.child(u"magic-folder")
+        local_dir = basedir.child(u"alice")
+        local_dir.makedirs()
+        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
-    #     d = self.do_create_magic_folder(0)
-    #     d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-    #     def get_invite_code_and_join(args):
-    #         (rc, stdout, stderr) = args
-    #         invite_code = stdout.strip()
-    #         return self.do_join(0, unicode(local_dir), invite_code)
-    #     d.addCallback(get_invite_code_and_join)
-    #     def get_caps(ign):
-    #         self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-    #     d.addCallback(get_caps)
-    #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-    #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-    #     return d
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"magik:",
+            ],
+        )
 
-    # def test_create_invite_join(self):
-    #     self.basedir = "cli/MagicFolder/create-invite-join"
-    #     self.set_up_grid(oneshare=True)
-    #     local_dir = os.path.join(self.basedir, "magic")
-    #     abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-    #     d = self.do_cli("magic-folder", "create", "magic:", "Alice", local_dir)
-    #     def _done(args):
-    #         (rc, stdout, stderr) = args
-    #         self.assertEqual(rc, 0)
-    #         self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-    #     d.addCallback(_done)
-    #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-    #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-    #     return d
+        # create invite code for alice
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"magik:",
+                b"bob",
+            ],
+        )
 
-    # def test_help_synopsis(self):
-    #     self.basedir = "cli/MagicFolder/help_synopsis"
-    #     os.makedirs(self.basedir)
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-    #     o = magic_folder_cli.CreateOptions()
-    #     o.parent = magic_folder_cli.MagicFolderCommand()
-    #     o.parent.getSynopsis()
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
 
-    # def test_create_invite_join_failure(self):
-    #     self.basedir = "cli/MagicFolder/create-invite-join-failure"
-    #     os.makedirs(self.basedir)
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
 
-    #     o = magic_folder_cli.CreateOptions()
-    #     o.parent = magic_folder_cli.MagicFolderCommand()
-    #     o.parent['node-directory'] = self.basedir
-    #     try:
-    #         o.parseArgs("magic:", "Alice", "-foo")
-    #     except usage.UsageError as e:
-    #         self.assertIn("cannot start with '-'", str(e))
-    #     else:
-    #         self.fail("expected UsageError")
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
 
-    # def test_join_failure(self):
-    #     self.basedir = "cli/MagicFolder/create-join-failure"
-    #     os.makedirs(self.basedir)
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-    #     o = magic_folder_cli.JoinOptions()
-    #     o.parent = magic_folder_cli.MagicFolderCommand()
-    #     o.parent['node-directory'] = self.basedir
-    #     try:
-    #         o.parseArgs("URI:invite+URI:code", "-foo")
-    #     except usage.UsageError as e:
-    #         self.assertIn("cannot start with '-'", str(e))
-    #     else:
-    #         self.fail("expected UsageError")
+        # leave
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+    def test_join_failure(self):
+        self.basedir = "cli/MagicFolder/create-join-failure"
+        os.makedirs(self.basedir)
+
+        o = magic_folder_cli.JoinOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+        o.parent['node-directory'] = self.basedir
+        try:
+            o.parseArgs("URI:invite+URI:code", "-foo")
+        except usage.UsageError as e:
+            self.assertIn("cannot start with '-'", str(e))
+        else:
+            self.fail("expected UsageError")
+
+    def test_help_synopsis(self):
+        self.basedir = "cli/MagicFolder/help_synopsis"
+        os.makedirs(self.basedir)
+
+        o = magic_folder_cli.CreateOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+        o.parent.getSynopsis()
+
+    def test_create_invite_join_failure(self):
+        self.basedir = "cli/MagicFolder/create-invite-join-failure"
+        os.makedirs(self.basedir)
+
+        o = magic_folder_cli.CreateOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+        o.parent['node-directory'] = self.basedir
+        try:
+            o.parseArgs("magic:", "Alice", "-foo")
+        except usage.UsageError as e:
+            self.assertIn("cannot start with '-'", str(e))
+        else:
+            self.fail("expected UsageError")
+
+    def test_join_failure(self):
+        self.basedir = "cli/MagicFolder/create-join-failure"
+        os.makedirs(self.basedir)
+
+        o = magic_folder_cli.JoinOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+        o.parent['node-directory'] = self.basedir
+        try:
+            o.parseArgs("URI:invite+URI:code", "-foo")
+        except usage.UsageError as e:
+            self.assertIn("cannot start with '-'", str(e))
+        else:
+            self.fail("expected UsageError")
 
     # def test_join_twice_failure(self):
     #     self.basedir = "cli/MagicFolder/create-join-twice-failure"
