@@ -822,7 +822,6 @@ class CreateMagicFolder(AsyncTestCase):
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
         local_dir.makedirs()
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
         outcome = yield cli(
             self.node_directory, [
@@ -876,7 +875,6 @@ class CreateMagicFolder(AsyncTestCase):
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
         local_dir.makedirs()
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
         outcome = yield cli(
             self.node_directory, [
@@ -987,27 +985,12 @@ class CreateMagicFolder(AsyncTestCase):
         else:
             self.fail("expected UsageError")
 
-    def test_join_failure(self):
-        self.basedir = "cli/MagicFolder/create-join-failure"
-        os.makedirs(self.basedir)
-
-        o = magic_folder_cli.JoinOptions()
-        o.parent = magic_folder_cli.MagicFolderCommand()
-        o.parent['node-directory'] = self.basedir
-        try:
-            o.parseArgs("URI:invite+URI:code", "-foo")
-        except usage.UsageError as e:
-            self.assertIn("cannot start with '-'", str(e))
-        else:
-            self.fail("expected UsageError")
-
     @defer.inlineCallbacks
     def test_join_twice_failure(self):
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
         local_dir.makedirs()
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
 
         outcome = yield cli(
             self.node_directory, [
