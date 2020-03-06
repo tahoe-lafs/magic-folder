@@ -1101,57 +1101,6 @@ class CreateMagicFolder(AsyncTestCase):
             "This client already has a magic-folder named 'default'\n"
         )
 
-    # def test_join_failures(self):
-    #     self.basedir = "cli/MagicFolder/create-join-failures"
-    #     os.makedirs(self.basedir)
-    #     self.set_up_grid(oneshare=True)
-    #     local_dir = os.path.join(self.basedir, "magic")
-    #     os.mkdir(local_dir)
-    #     abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
-
-    #     self.invite_code = None
-    #     d = self.do_create_magic_folder(0)
-    #     d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-    #     def get_invite_code_and_join(args):
-    #         (rc, stdout, stderr) = args
-    #         self.assertEqual(rc, 0)
-    #         self.invite_code = stdout.strip()
-    #         return self.do_join(0, unicode(local_dir), self.invite_code)
-    #     d.addCallback(get_invite_code_and_join)
-    #     def get_caps(ign):
-    #         self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-    #     d.addCallback(get_caps)
-    #     d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-    #     d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-
-    #     def check_success(result):
-    #         (rc, out, err) = result
-    #         self.assertEqual(rc, 0, out + err)
-    #     def check_failure(result):
-    #         (rc, out, err) = result
-    #         self.failIfEqual(rc, 0)
-
-    #     def leave(ign):
-    #         return self.do_cli("magic-folder", "leave", client_num=0)
-    #     d.addCallback(leave)
-    #     d.addCallback(check_success)
-
-    #     magic_folder_db_file = os.path.join(self.get_clientdir(i=0), u"private", u"magicfolder_default.sqlite")
-
-    #     def check_join_if_file(my_file):
-    #         fileutil.write(my_file, "my file data")
-    #         d2 = self.do_cli("magic-folder", "join", self.invite_code, local_dir, client_num=0)
-    #         d2.addCallback(check_failure)
-    #         return d2
-
-    #     for my_file in [magic_folder_db_file]:
-    #         d.addCallback(lambda ign, my_file: check_join_if_file(my_file), my_file)
-    #         d.addCallback(leave)
-    #         # we didn't successfully join, so leaving should be an error
-    #         d.addCallback(check_failure)
-
-    #     return d
-
 class CreateErrors(AsyncTestCase):
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
