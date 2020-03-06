@@ -949,20 +949,6 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-    def test_join_failure(self):
-        self.basedir = "cli/MagicFolder/create-join-failure"
-        os.makedirs(self.basedir)
-
-        o = magic_folder_cli.JoinOptions()
-        o.parent = magic_folder_cli.MagicFolderCommand()
-        o.parent['node-directory'] = self.basedir
-        try:
-            o.parseArgs("URI:invite+URI:code", "-foo")
-        except usage.UsageError as e:
-            self.assertIn("cannot start with '-'", str(e))
-        else:
-            self.fail("expected UsageError")
-
     def test_help_synopsis(self):
         self.basedir = "cli/MagicFolder/help_synopsis"
         os.makedirs(self.basedir)
@@ -980,6 +966,20 @@ class CreateMagicFolder(AsyncTestCase):
         o.parent['node-directory'] = self.basedir
         try:
             o.parseArgs("magic:", "Alice", "-foo")
+        except usage.UsageError as e:
+            self.assertIn("cannot start with '-'", str(e))
+        else:
+            self.fail("expected UsageError")
+
+    def test_join_failure(self):
+        self.basedir = "cli/MagicFolder/create-join-failure"
+        os.makedirs(self.basedir)
+
+        o = magic_folder_cli.JoinOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+        o.parent['node-directory'] = self.basedir
+        try:
+            o.parseArgs("URI:invite+URI:code", "-foo")
         except usage.UsageError as e:
             self.assertIn("cannot start with '-'", str(e))
         else:
