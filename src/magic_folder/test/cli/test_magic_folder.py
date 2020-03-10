@@ -604,6 +604,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_create_magic_folder(self):
+        """
+        Create a new magic folder with a nickname and local directory so
+        that this folder is also invited and joined with the given nickname.
+        """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
@@ -622,6 +626,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_create_error(self):
+        """
+        Try to create a magic folder with an invalid nickname and check if
+        this results in an error.
+        """
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
@@ -639,6 +647,11 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_create_duplicate_name(self):
+        """
+        Create a magic folder and if that succeeds, then create another
+        magic folder with the same name and check if this results in an
+        error.
+        """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
@@ -679,6 +692,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_create_leave_folder(self):
+        """
+        Create a magic folder and then leave the folder and check
+        whether it was successful.
+        """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
@@ -712,6 +729,11 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_leave_wrong_folder(self):
+        """
+        Create a magic folder with a specified name and then invoke
+        the leave command with a different specified name. This should
+        result in a failure.
+        """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
@@ -749,6 +771,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_leave_no_folder(self):
+        """
+        Create a magic folder and then leave the folder. Leaving it again
+        should result in an error.
+        """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
@@ -799,6 +825,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_leave_no_folders_at_all(self):
+        """
+        Leave a non-existant magic folder. This should result in
+        an error.
+        """
         outcome = yield cli(
             self.node_directory, [
             b"leave",
@@ -818,6 +848,10 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_create_invite_join(self):
+        """
+        Create a magic folder, create an invite code and use the
+        code to join.
+        """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
@@ -871,6 +905,11 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_join_leave_join(self):
+        """
+        Create a magic folder, create an invite code, use the
+        code to join, leave the folder and then join again with
+        the same invite code.
+        """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
@@ -950,6 +989,9 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
     def test_help_synopsis(self):
+        """
+        Test if synonsis is defined for the help switch.
+        """
         self.basedir = "cli/MagicFolder/help_synopsis"
         os.makedirs(self.basedir)
 
@@ -958,6 +1000,9 @@ class CreateMagicFolder(AsyncTestCase):
         o.parent.getSynopsis()
 
     def test_create_invite_join_failure(self):
+        """
+        Test the cli input for valid local directory name.
+        """
         self.basedir = "cli/MagicFolder/create-invite-join-failure"
         os.makedirs(self.basedir)
 
@@ -972,6 +1017,9 @@ class CreateMagicFolder(AsyncTestCase):
             self.fail("expected UsageError")
 
     def test_join_failure(self):
+        """
+        Test the cli input for valid invite code.
+        """
         self.basedir = "cli/MagicFolder/create-join-failure"
         os.makedirs(self.basedir)
 
@@ -987,6 +1035,11 @@ class CreateMagicFolder(AsyncTestCase):
 
     @defer.inlineCallbacks
     def test_join_twice_failure(self):
+        """
+        Create a magic folder, create an invite code, use it to join and then
+        join again with the same code without leaving. This should result
+        in an error.
+        """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
         local_dir = basedir.child(u"alice")
