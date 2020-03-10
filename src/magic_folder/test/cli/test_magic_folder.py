@@ -612,10 +612,10 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"magik:",
-            b"test_create",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"magik:",
+                b"test_create",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -637,8 +637,8 @@ class CreateMagicFolder(AsyncTestCase):
                 b"m a g i k",
                 b"test_create_error",
                 magic_folder.asBytesMode().path,
-                ]
-            )
+            ]
+        )
 
         self.assertThat(
             outcome.succeeded(),
@@ -656,12 +656,12 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"--name",
-            b"foo",
-            b"magik:",
-            b"test_create_duplicate",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_duplicate",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -672,12 +672,12 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"--name",
-            b"foo",
-            b"magik:",
-            b"test_create_duplicate",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_duplicate",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -700,12 +700,12 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"--name",
-            b"foo",
-            b"magik:",
-            b"test_create_leave_folder",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -716,9 +716,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.node_directory, [
-            b"leave",
-            b"--name",
-            b"foo",
+                b"leave",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -738,12 +738,12 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"--name",
-            b"foo",
-            b"magik:",
-            b"test_create_leave_folder",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -754,9 +754,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.node_directory, [
-            b"leave",
-            b"--name",
-            b"bar",
+                b"leave",
+                b"--name",
+                b"bar",
             ],
         )
 
@@ -779,12 +779,12 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.node_directory, [
-            b"create",
-            b"--name",
-            b"foo",
-            b"magik:",
-            b"test_create_leave_folder",
-            magic_folder.asBytesMode().path,
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
             ],
         )
 
@@ -795,9 +795,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.node_directory, [
-            b"leave",
-            b"--name",
-            b"foo",
+                b"leave",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -808,9 +808,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.node_directory, [
-            b"leave",
-            b"--name",
-            b"foo",
+                b"leave",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -831,9 +831,9 @@ class CreateMagicFolder(AsyncTestCase):
         """
         outcome = yield cli(
             self.node_directory, [
-            b"leave",
-            b"--name",
-            b"foo",
+                b"leave",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -912,8 +912,6 @@ class CreateMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
-        local_dir = basedir.child(u"alice")
-        local_dir.makedirs()
 
         outcome = yield cli(
             self.node_directory, [
@@ -927,7 +925,7 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # create invite code for alice
+        # create invite code for bob
         outcome = yield cli(
             self.node_directory, [
                 b"invite",
