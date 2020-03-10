@@ -30,7 +30,6 @@ from eliot import (
 from eliot.twisted import (
     DeferredContext,
 )
-
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
@@ -589,145 +588,408 @@ def addOutcomeDetails(testcase, outcome):
     )
 
 
-class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
-    def test_create_and_then_invite_join(self):
-        self.basedir = "cli/MagicFolder/create-and-then-invite-join"
-        self.set_up_grid(oneshare=True)
-        local_dir = os.path.join(self.basedir, "magic")
-        os.mkdir(local_dir)
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+class CreateMagicFolder(AsyncTestCase):
+    @defer.inlineCallbacks
+    def setUp(self):
+        """
+        Create a Tahoe-LAFS node which can contain some magic folder configuration
+        and run it.
+        """
+        yield super(CreateMagicFolder, self).setUp()
+        self.client_fixture = SelfConnectedClient(reactor)
+        yield self.client_fixture.use_on(self)
 
-        d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code_and_join(args):
-            (rc, stdout, stderr) = args
-            invite_code = stdout.strip()
-            return self.do_join(0, unicode(local_dir), invite_code)
-        d.addCallback(get_invite_code_and_join)
-        def get_caps(ign):
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-        return d
+        self.tempdir = self.client_fixture.tempdir
+        self.node_directory = self.client_fixture.node_directory
 
+    @defer.inlineCallbacks
+    def test_create_magic_folder(self):
+        """
+        Create a new magic folder with a nickname and local directory so
+        that this folder is also invited and joined with the given nickname.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"magik:",
+                b"test_create",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+    @defer.inlineCallbacks
     def test_create_error(self):
-        self.basedir = "cli/MagicFolder/create-error"
-        self.set_up_grid(oneshare=True)
+        """
+        Try to create a magic folder with an invalid nickname and check if
+        this results in an error.
+        """
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"m a g i k",
+                b"test_create_error",
+                magic_folder.asBytesMode().path,
+            ]
+        )
 
-        d = self.do_cli("magic-folder", "create", "m a g i c:", client_num=0)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertNotEqual(rc, 0)
-            self.assertIn("Alias names cannot contain spaces.", stderr)
-        d.addCallback(_done)
-        return d
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
 
     @defer.inlineCallbacks
     def test_create_duplicate_name(self):
-        self.basedir = "cli/MagicFolder/create-dup"
-        self.set_up_grid(oneshare=True)
-
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "create", "magic:", "--name", "foo",
-            client_num=0,
+        """
+        Create a magic folder and if that succeeds, then create another
+        magic folder with the same name and check if this results in an
+        error.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_duplicate",
+                magic_folder.asBytesMode().path,
+            ],
         )
-        self.assertEqual(rc, 0)
 
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "create", "magic:", "--name", "foo",
-            client_num=0,
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
-        self.assertEqual(rc, 1)
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_duplicate",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
         self.assertIn(
-            "Already have a magic-folder named 'default'",
-            stderr
+            "Already have a magic-folder named 'foo'",
+            outcome.stderr
+        )
+
+    @defer.inlineCallbacks
+    def test_create_leave_folder(self):
+        """
+        Create a magic folder and then leave the folder and check
+        whether it was successful.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+                b"--name",
+                b"foo",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
 
     @defer.inlineCallbacks
     def test_leave_wrong_folder(self):
-        self.basedir = "cli/MagicFolder/leave_wrong_folders"
-        yield self.set_up_grid(oneshare=True)
-        magic_dir = os.path.join(self.basedir, 'magic')
-        os.mkdir(magic_dir)
-
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "create", "--name", "foo", "magic:", "my_name", magic_dir,
-            client_num=0,
+        """
+        Create a magic folder with a specified name and then invoke
+        the leave command with a different specified name. This should
+        result in a failure.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
+            ],
         )
-        self.assertEqual(rc, 0)
 
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "leave", "--name", "bar",
-            client_num=0,
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
-        self.assertNotEqual(rc, 0)
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+                b"--name",
+                b"bar",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
         self.assertIn(
             "No such magic-folder 'bar'",
-            stdout + stderr,
+            outcome.stderr
         )
 
     @defer.inlineCallbacks
     def test_leave_no_folder(self):
-        self.basedir = "cli/MagicFolder/leave_no_folders"
-        yield self.set_up_grid(oneshare=True)
-        magic_dir = os.path.join(self.basedir, 'magic')
-        os.mkdir(magic_dir)
-
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "create", "--name", "foo", "magic:", "my_name", magic_dir,
-            client_num=0,
+        """
+        Create a magic folder and then leave the folder. Leaving it again
+        should result in an error.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name",
+                b"foo",
+                b"magik:",
+                b"test_create_leave_folder",
+                magic_folder.asBytesMode().path,
+            ],
         )
-        self.assertEqual(rc, 0)
 
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "leave", "--name", "foo",
-            client_num=0,
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
         )
-        self.assertEqual(rc, 0)
 
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "leave", "--name", "foo",
-            client_num=0,
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+                b"--name",
+                b"foo",
+            ],
         )
-        self.assertEqual(rc, 1)
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+                b"--name",
+                b"foo",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
         self.assertIn(
             "No magic-folders at all",
-            stderr,
+            outcome.stderr
         )
 
     @defer.inlineCallbacks
     def test_leave_no_folders_at_all(self):
-        self.basedir = "cli/MagicFolder/leave_no_folders_at_all"
-        yield self.set_up_grid(oneshare=True)
-
-        rc, stdout, stderr = yield self.do_cli(
-            "magic-folder", "leave",
-            client_num=0,
+        """
+        Leave a non-existant magic folder. This should result in
+        an error.
+        """
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+                b"--name",
+                b"foo",
+            ],
         )
-        self.assertEqual(rc, 1)
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
         self.assertIn(
             "No magic-folders at all",
-            stderr,
+            outcome.stderr
         )
 
+    @defer.inlineCallbacks
     def test_create_invite_join(self):
-        self.basedir = "cli/MagicFolder/create-invite-join"
-        self.set_up_grid(oneshare=True)
-        local_dir = os.path.join(self.basedir, "magic")
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+        """
+        Create a magic folder, create an invite code and use the
+        code to join.
+        """
+        # Get a magic folder.
+        basedir = self.tempdir.child(u"magic-folder")
+        local_dir = basedir.child(u"alice")
+        local_dir.makedirs()
 
-        d = self.do_cli("magic-folder", "create", "magic:", "Alice", local_dir)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(_done)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-        return d
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"magik:",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # create invite code for alice
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"magik:",
+                b"bob",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
+
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+    @defer.inlineCallbacks
+    def test_join_leave_join(self):
+        """
+        Create a magic folder, create an invite code, use the
+        code to join, leave the folder and then join again with
+        the same invite code.
+        """
+        # Get a magic folder.
+        basedir = self.tempdir.child(u"magic-folder")
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"magik:",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # create invite code for bob
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"magik:",
+                b"bob",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
+
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
+
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # leave
+        outcome = yield cli(
+            self.node_directory, [
+                b"leave",
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
     def test_help_synopsis(self):
+        """
+        Test if synonsis is defined for the help switch.
+        """
         self.basedir = "cli/MagicFolder/help_synopsis"
         os.makedirs(self.basedir)
 
@@ -736,6 +998,9 @@ class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
         o.parent.getSynopsis()
 
     def test_create_invite_join_failure(self):
+        """
+        Test the cli input for valid local directory name.
+        """
         self.basedir = "cli/MagicFolder/create-invite-join-failure"
         os.makedirs(self.basedir)
 
@@ -750,6 +1015,9 @@ class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
             self.fail("expected UsageError")
 
     def test_join_failure(self):
+        """
+        Test the cli input for valid invite code.
+        """
         self.basedir = "cli/MagicFolder/create-join-failure"
         os.makedirs(self.basedir)
 
@@ -763,118 +1031,83 @@ class CreateMagicFolder(MagicFolderCLITestMixin, AsyncTestCase):
         else:
             self.fail("expected UsageError")
 
+    @defer.inlineCallbacks
     def test_join_twice_failure(self):
-        self.basedir = "cli/MagicFolder/create-join-twice-failure"
-        os.makedirs(self.basedir)
-        self.set_up_grid(oneshare=True)
-        local_dir = os.path.join(self.basedir, "magic")
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+        """
+        Create a magic folder, create an invite code, use it to join and then
+        join again with the same code without leaving. This should result
+        in an error.
+        """
+        # Get a magic folder.
+        basedir = self.tempdir.child(u"magic-folder")
+        local_dir = basedir.child(u"alice")
+        local_dir.makedirs()
 
-        d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code_and_join(args):
-            (rc, stdout, stderr) = args
-            self.invite_code = stdout.strip()
-            return self.do_join(0, unicode(local_dir), self.invite_code)
-        d.addCallback(get_invite_code_and_join)
-        def get_caps(ign):
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-        def join_again(ignore):
-            return self.do_cli("magic-folder", "join", self.invite_code, local_dir, client_num=0)
-        d.addCallback(join_again)
-        def get_results(result):
-            (rc, out, err) = result
-            self.assertEqual(out, "")
-            self.assertIn("This client already has a magic-folder", err)
-            self.failIfEqual(rc, 0)
-        d.addCallback(get_results)
-        return d
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"magik:",
+            ],
+        )
 
-    def test_join_leave_join(self):
-        self.basedir = "cli/MagicFolder/create-join-leave-join"
-        os.makedirs(self.basedir)
-        self.set_up_grid(oneshare=True)
-        local_dir = os.path.join(self.basedir, "magic")
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-        self.invite_code = None
-        d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code_and_join(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
-            self.invite_code = stdout.strip()
-            return self.do_join(0, unicode(local_dir), self.invite_code)
-        d.addCallback(get_invite_code_and_join)
-        def get_caps(ign):
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
-        d.addCallback(lambda ign: self.do_leave(0))
+        # create invite code for alice
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"magik:",
+                b"bob",
+            ],
+        )
 
-        d.addCallback(lambda ign: self.do_join(0, unicode(local_dir), self.invite_code))
-        def get_caps(ign):
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-        return d
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
 
-    def test_join_failures(self):
-        self.basedir = "cli/MagicFolder/create-join-failures"
-        os.makedirs(self.basedir)
-        self.set_up_grid(oneshare=True)
-        local_dir = os.path.join(self.basedir, "magic")
-        os.mkdir(local_dir)
-        abs_local_dir_u = abspath_expanduser_unicode(unicode(local_dir), long_path=False)
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
 
-        self.invite_code = None
-        d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code_and_join(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
-            self.invite_code = stdout.strip()
-            return self.do_join(0, unicode(local_dir), self.invite_code)
-        d.addCallback(get_invite_code_and_join)
-        def get_caps(ign):
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, abs_local_dir_u))
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
 
-        def check_success(result):
-            (rc, out, err) = result
-            self.assertEqual(rc, 0, out + err)
-        def check_failure(result):
-            (rc, out, err) = result
-            self.failIfEqual(rc, 0)
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
 
-        def leave(ign):
-            return self.do_cli("magic-folder", "leave", client_num=0)
-        d.addCallback(leave)
-        d.addCallback(check_success)
+        # join
+        outcome = yield cli(
+            self.node_directory, [
+                b"join",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
 
-        magic_folder_db_file = os.path.join(self.get_clientdir(i=0), u"private", u"magicfolder_default.sqlite")
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
 
-        def check_join_if_file(my_file):
-            fileutil.write(my_file, "my file data")
-            d2 = self.do_cli("magic-folder", "join", self.invite_code, local_dir, client_num=0)
-            d2.addCallback(check_failure)
-            return d2
-
-        for my_file in [magic_folder_db_file]:
-            d.addCallback(lambda ign, my_file: check_join_if_file(my_file), my_file)
-            d.addCallback(leave)
-            # we didn't successfully join, so leaving should be an error
-            d.addCallback(check_failure)
-
-        return d
+        self.assertIn(
+            outcome.stderr,
+            "This client already has a magic-folder named 'default'\n"
+        )
 
 class CreateErrors(AsyncTestCase):
     def test_poll_interval(self):
