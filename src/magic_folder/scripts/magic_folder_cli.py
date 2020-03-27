@@ -371,39 +371,51 @@ class JoinOptions(BasedirOptions):
         self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
         self.invite_code = to_str(argv_to_unicode(invite_code))
 
-def join(options):
-    fields = options.invite_code.split(INVITE_SEPARATOR)
+def _join(invite_code, node_directory, local_dir, name, poll_interval):
+    fields = invite_code.split(INVITE_SEPARATOR)
     if len(fields) != 2:
         raise usage.UsageError("Invalid invite code.")
     magic_readonly_cap, dmd_write_cap = fields
 
-    maybe_upgrade_magic_folders(options["node-directory"])
-    existing_folders = load_magic_folders(options["node-directory"])
+    maybe_upgrade_magic_folders(node_directory)
+    existing_folders = load_magic_folders(node_directory)
 
-    if options['name'] in existing_folders:
-        print("This client already has a magic-folder named '{}'".format(options['name']), file=options.stderr)
-        return 1
+    if name in existing_folders:
+        raise Exception("This client already has a magic-folder named '{}'".format(name))
 
     db_fname = os.path.join(
-        options["node-directory"],
+        node_directory,
         u"private",
-        u"magicfolder_{}.sqlite".format(options['name']),
+        u"magicfolder_{}.sqlite".format(name),
     )
     if os.path.exists(db_fname):
-        print("Database '{}' already exists; not overwriting".format(db_fname), file=options.stderr)
-        return 1
+        raise Exception("Database '{}' already exists; not overwriting".format(db_fname))
 
     folder = {
-        u"directory": options.local_dir.encode('utf-8'),
+        u"directory": local_dir.encode('utf-8'),
         u"collective_dircap": magic_readonly_cap,
         u"upload_dircap": dmd_write_cap,
-        u"poll_interval": options["poll-interval"],
+        u"poll_interval": poll_interval,
     }
-    existing_folders[options["name"]] = folder
+    existing_folders[name] = folder
 
-    save_magic_folders(options["node-directory"], existing_folders)
+    save_magic_folders(node_directory, existing_folders)
     return 0
 
+def join(options):
+    try:
+        invite_code = options.invite_code
+        node_directory = options["node-directory"]
+        local_directory = options.local_dir
+        name = options['name']
+        poll_interval = options["poll-interval"]
+
+        rc = _join(invite_code, node_directory, local_directory, name, poll_interval)
+    except Exception as e:
+        print("%s" % str(e), file=options.stderr)
+        return 1
+
+    return rc
 
 class LeaveOptions(BasedirOptions):
     description = "Remove a magic-folder and forget all state"
