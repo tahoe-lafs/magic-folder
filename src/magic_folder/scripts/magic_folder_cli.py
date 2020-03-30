@@ -450,7 +450,7 @@ def leave(options):
         return 1
 
     try:
-        rc = _leave(options["node-directory"], options["name"], existing_folders)
+        _leave(options["node-directory"], options["name"], existing_folders)
     except Exception as e:
         print("Warning: {}".format(str(e)))
         return 1
