@@ -244,7 +244,6 @@ def create(options):
         .format(options['name'], options.alias, options.nickname), file=options.stdout)
     return 0
 
-
 class ListOptions(BasedirOptions):
     description = (
         "List all magic-folders this client has joined"
@@ -315,7 +314,7 @@ class InviteOptions(BasedirOptions):
         aliases = get_aliases(self['node-directory'])
         self.aliases = aliases
 
-
+@inlineCallbacks
 def invite(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
