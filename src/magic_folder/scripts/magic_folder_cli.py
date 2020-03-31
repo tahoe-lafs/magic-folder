@@ -319,34 +319,17 @@ def invite(options):
     mkdir_options = _delegate_options(options, MakeDirectoryOptions())
     mkdir_options.where = None
 
-    rc = tahoe_mkdir.mkdir(mkdir_options)
-    if rc != 0:
-        print("magic-folder: failed to mkdir\n", file=options.stderr)
-        return rc
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
 
-    # FIXME this assumes caps are ASCII.
-    dmd_write_cap = mkdir_options.stdout.getvalue().strip()
-    dmd_readonly_cap = uri.from_string(dmd_write_cap).get_readonly().to_string()
-    if dmd_readonly_cap is None:
-        print("magic-folder: failed to diminish dmd write cap\n", file=options.stderr)
-        return 1
+    try:
+        invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+    except Exception as e:
+        print("magic-folder: {}".format(str(e)))
+        returnValue(1)
 
-    magic_write_cap = get_aliases(options["node-directory"])[options.alias]
-    magic_readonly_cap = uri.from_string(magic_write_cap).get_readonly().to_string()
-
-    # tahoe ln CLIENT_READCAP COLLECTIVE_WRITECAP/NICKNAME
-    ln_options = _delegate_options(options, LnOptions())
-    ln_options.from_file = unicode(dmd_readonly_cap, 'utf-8')
-    ln_options.to_file = u"%s/%s" % (unicode(magic_write_cap, 'utf-8'), options.nickname)
-    rc = tahoe_mv.mv(ln_options, mode="link")
-    if rc != 0:
-        print("magic-folder: failed to create link\n", file=options.stderr)
-        print(ln_options.stderr.getvalue(), file=options.stderr)
-        return rc
-
-    # FIXME: this assumes caps are ASCII.
-    print("%s%s%s" % (magic_readonly_cap, INVITE_SEPARATOR, dmd_write_cap), file=options.stdout)
-    return 0
+    print("%s" % invite_code, file=options.stdout)
+    returnValue(0)
 
 class JoinOptions(BasedirOptions):
     synopsis = "INVITE_CODE LOCAL_DIR"
