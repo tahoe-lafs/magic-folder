@@ -4,6 +4,7 @@
 """
 Common functions and types used by other modules.
 """
+import os
 
 from eliot.twisted import (
     inline_callbacks,
@@ -12,6 +13,10 @@ from eliot.twisted import (
 from twisted.web.client import (
     readBody,
 )
+
+from allmydata.util import fileutil
+
+INVITE_SEPARATOR = "+"
 
 class BadFolderName(Exception):
     """
@@ -76,3 +81,8 @@ def bad_response(url, response):
     body = yield readBody(response)
     raise BadResponseCode(url, response.code, body)
 
+def get_node_url(node_directory):
+    node_url_file = os.path.join(node_directory, u"node.url")
+    node_url = fileutil.read(node_url_file).strip()
+
+    return node_url

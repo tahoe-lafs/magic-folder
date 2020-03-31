@@ -38,15 +38,10 @@ from eliot.twisted import (
 )
 
 from .common import (
-    bad_response
+    bad_response,
+    get_node_url,
+    INVITE_SEPARATOR,
 )
-INVITE_SEPARATOR = "+"
-
-def get_node_url(node_directory):
-    node_url_file = os.path.join(node_directory, u"node.url")
-    node_url = fileutil.read(node_url_file).strip()
-
-    return node_url
 
 @inlineCallbacks
 def tahoe_mkdir(nodeurl, aliases, treq):
