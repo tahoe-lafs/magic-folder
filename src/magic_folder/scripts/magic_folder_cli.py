@@ -412,6 +412,32 @@ class LeaveOptions(BasedirOptions):
     ]
 
 
+def _leave(node_directory, name, existing_folders):
+    privdir = os.path.join(node_directory, u"private")
+    db_fname = os.path.join(privdir, u"magicfolder_{}.sqlite".format(name))
+
+    # delete from YAML file and re-write it
+    del existing_folders[name]
+    save_magic_folders(node_directory, existing_folders)
+
+    # delete the database file
+    try:
+        fileutil.remove(db_fname)
+    except Exception as e:
+        raise Exception("unable to remove %s due to %s: %s"
+                        % (quote_local_unicode_path(db_fname),
+                           e.__class__.__name__, str(e)))
+
+    # if this was the last magic-folder, disable them entirely
+    if not existing_folders:
+        parser = SafeConfigParser()
+        parser.read(os.path.join(node_directory, u"tahoe.cfg"))
+        parser.remove_section("magic_folder")
+        with open(os.path.join(node_directory, u"tahoe.cfg"), "w") as f:
+            parser.write(f)
+
+    return 0
+
 def leave(options):
     existing_folders = load_magic_folders(options["node-directory"])
 
@@ -423,27 +449,11 @@ def leave(options):
         print("No such magic-folder '{}'".format(options["name"]), file=options.stderr)
         return 1
 
-    privdir = os.path.join(options["node-directory"], u"private")
-    db_fname = os.path.join(privdir, u"magicfolder_{}.sqlite".format(options["name"]))
-
-    # delete from YAML file and re-write it
-    del existing_folders[options["name"]]
-    save_magic_folders(options["node-directory"], existing_folders)
-
-    # delete the database file
     try:
-        fileutil.remove(db_fname)
+        _leave(options["node-directory"], options["name"], existing_folders)
     except Exception as e:
-        print("Warning: unable to remove %s due to %s: %s"
-            % (quote_local_unicode_path(db_fname), e.__class__.__name__, str(e)), file=options.stderr)
-
-    # if this was the last magic-folder, disable them entirely
-    if not existing_folders:
-        parser = SafeConfigParser()
-        parser.read(os.path.join(options["node-directory"], u"tahoe.cfg"))
-        parser.remove_section("magic_folder")
-        with open(os.path.join(options["node-directory"], u"tahoe.cfg"), "w") as f:
-            parser.write(f)
+        print("Warning: {}".format(str(e)))
+        return 1
 
     return 0
 
