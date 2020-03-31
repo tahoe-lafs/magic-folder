@@ -132,6 +132,10 @@ from ..status import (
     status as _status,
 )
 
+from ..invite import (
+    magic_folder_invite as _invite
+)
+
 from .._coverage import (
     coverage_service,
 )
