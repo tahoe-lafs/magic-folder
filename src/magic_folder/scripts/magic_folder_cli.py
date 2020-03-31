@@ -372,6 +372,9 @@ class JoinOptions(BasedirOptions):
         self.invite_code = to_str(argv_to_unicode(invite_code))
 
 def _join(invite_code, node_directory, local_dir, name, poll_interval):
+    """
+    Join a magic-folder specified by the ``name`` and create the config files.
+    """
     fields = invite_code.split(INVITE_SEPARATOR)
     if len(fields) != 2:
         raise usage.UsageError("Invalid invite code.")
@@ -403,6 +406,9 @@ def _join(invite_code, node_directory, local_dir, name, poll_interval):
     return 0
 
 def join(options):
+    """
+    ``magic-folder join`` entrypoint
+    """
     try:
         invite_code = options.invite_code
         node_directory = options["node-directory"]
