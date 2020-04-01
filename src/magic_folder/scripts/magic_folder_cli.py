@@ -418,7 +418,7 @@ def join(options):
 
         rc = _join(invite_code, node_directory, local_directory, name, poll_interval)
     except Exception as e:
-        print("{}".format(e), file=options.stderr)
+        print(e, file=options.stderr)
         return 1
 
     return rc
