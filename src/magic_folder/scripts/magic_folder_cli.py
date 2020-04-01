@@ -190,6 +190,7 @@ def _delegate_options(source_options, target_options):
     target_options.stderr = MixedIO()
     return target_options
 
+@inlineCallbacks
 def create(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, (unicode, NoneType)), nickname=options.nickname)
@@ -200,7 +201,7 @@ def create(options):
     folders = load_magic_folders(options["node-directory"])
     if options['name'] in folders:
         print("Already have a magic-folder named '{}'".format(options['name']), file=options.stderr)
-        return 1
+        returnValue(1)
 
     # create an alias; this basically just remembers the cap for the
     # master directory
@@ -210,7 +211,7 @@ def create(options):
     rc = tahoe_add_alias.create_alias(create_alias_options)
     if rc != 0:
         print(create_alias_options.stderr.getvalue(), file=options.stderr)
-        return rc
+        returnValue(rc)
     print(create_alias_options.stdout.getvalue(), file=options.stdout)
 
     if options.nickname is not None:
@@ -219,13 +220,18 @@ def create(options):
         invite_options.alias = options.alias
         invite_options.nickname = options.nickname
         invite_options['name'] = options['name']
-        rc = invite(invite_options)
-        if rc != 0:
+
+        from twisted.internet import reactor
+        treq = HTTPClient(Agent(reactor))
+
+        try:
+            invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+            options.invite_code = invite_code
+        except Exception as e:
             print(u"magic-folder: failed to invite after create\n", file=options.stderr)
             print(invite_options.stderr.getvalue(), file=options.stderr)
-            return rc
-        invite_code = invite_options.stdout.getvalue().strip()
-        print(u"  created invite code", file=options.stdout)
+            returnValue(1)
+
         join_options = _delegate_options(options, JoinOptions())
         join_options['poll-interval'] = options['poll-interval']
         join_options.nickname = options.nickname
@@ -235,14 +241,14 @@ def create(options):
         if rc != 0:
             print(u"magic-folder: failed to join after create\n", file=options.stderr)
             print(join_options.stderr.getvalue(), file=options.stderr)
-            return rc
+            returnValue(rc)
         print(u"  joined new magic-folder", file=options.stdout)
         print(
             u"Successfully created magic-folder '{}' with alias '{}:' "
             u"and client '{}'\nYou must re-start your node before the "
             u"magic-folder will be active."
         .format(options['name'], options.alias, options.nickname), file=options.stdout)
-    return 0
+    returnValue(0)
 
 class ListOptions(BasedirOptions):
     description = (
@@ -327,11 +333,11 @@ def invite(options):
 
     try:
         invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+        print("{}".format(invite_code), file=options.stdout)
     except Exception as e:
         print("magic-folder: {}".format(str(e)))
         returnValue(1)
 
-    print("%s" % invite_code, file=options.stdout)
     returnValue(0)
 
 class JoinOptions(BasedirOptions):
