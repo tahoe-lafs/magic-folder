@@ -100,7 +100,6 @@ from allmydata.util.encodingutil import (
 )
 from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
-from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 
 from allmydata.scripts.common import (
