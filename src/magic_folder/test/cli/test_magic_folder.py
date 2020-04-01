@@ -47,8 +47,9 @@ from allmydata.util.eliotutil import (
     log_call_deferred,
 )
 
-from ...frontends.magic_folder import (
+from ...magic_folder import (
     MagicFolder,
+    load_magic_folders,
 )
 from ... import cli as magic_folder_cli
 
@@ -220,7 +221,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d.addActionFinish()
 
     def get_caps_from_files(self, client_num):
-        from allmydata.frontends.magic_folder import load_magic_folders
         folders = load_magic_folders(self.get_clientdir(i=client_num))
         mf = folders["default"]
         return mf['collective_dircap'], mf['upload_dircap']

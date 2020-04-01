@@ -8,7 +8,7 @@ import os
 
 from twisted.python import usage
 
-from .frontends.magic_folder import (
+from .magic_folder import (
     load_magic_folders,
     maybe_upgrade_magic_folders,
     save_magic_folders,

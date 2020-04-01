@@ -19,7 +19,7 @@ from twisted.internet.defer import (
     returnValue,
 )
 
-from .frontends.magic_folder import (
+from .magic_folder import (
     load_magic_folders,
 )
 
