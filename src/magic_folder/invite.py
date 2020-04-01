@@ -11,7 +11,13 @@ import urllib
 import json
 
 from allmydata.util import fileutil
-from allmydata.scripts.common import get_aliases, get_alias, DEFAULT_ALIAS, escape_path
+from allmydata.scripts.common import (
+    get_aliases,
+    get_alias,
+    DEFAULT_ALIAS,
+    escape_path,
+    format_http_error,
+)
 from allmydata import uri
 from allmydata.util.encodingutil import to_str
 
@@ -104,7 +110,7 @@ def tahoe_mv(nodeurl, aliases, from_file, to_file, treq):
         if response.code == CONFLICT:
             raise Exception("You cannot overwrite a directory with a file")
         else:
-            raise Exception(format_http_error("Error", resp))
+            raise Exception(format_http_error("Error", response))
 
     returnValue(0)
 
