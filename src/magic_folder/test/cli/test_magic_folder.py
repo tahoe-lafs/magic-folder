@@ -50,7 +50,7 @@ from allmydata.util.eliotutil import (
 from ...frontends.magic_folder import (
     MagicFolder,
 )
-from magic_folder import cli as magic_folder_cli
+from ... import cli as magic_folder_cli
 
 from ...web.magic_folder import (
     status_for_item,
