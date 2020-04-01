@@ -328,7 +328,8 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
             "--poll-interval", "2",
             "magik:", "edmond_magic", magic_folder,
         ])
-        assert 0 == do_magic_folder(o)
+        rc = yield do_magic_folder(o)
+        assert 0 == rc
 
         # to actually-start the magic-folder we have to re-start
         yield edmond.restart_magic_folder()

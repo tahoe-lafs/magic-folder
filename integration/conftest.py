@@ -497,7 +497,7 @@ def alice_invite(reactor, alice, temp_dir, request):
             "create",
             "--poll-interval", "2", "magik:", "alice", join(temp_dir, "magic-alice"),
         ])
-        assert 0 == do_magic_folder(o)
+        assert 0 == pytest_twisted.blockon(do_magic_folder(o))
 
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
@@ -509,7 +509,7 @@ def alice_invite(reactor, alice, temp_dir, request):
             "invite",
             "magik:", "bob",
         ])
-        assert 0 == do_magic_folder(o)
+        assert 0 == pytest_twisted.blockon(do_magic_folder(o))
         invite = o.stdout.getvalue()
         a.add_success_fields(invite=invite)
 
