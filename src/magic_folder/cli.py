@@ -103,9 +103,6 @@ from allmydata.scripts.common import (
     BasedirOptions,
     get_aliases,
 )
-from allmydata.scripts.cli import (
-    CreateAliasOptions,
-)
 from allmydata.client import (
     read_config,
 )
@@ -114,7 +111,6 @@ from .frontends.magic_folder import (
     MagicFolder,
     load_magic_folders,
     save_magic_folders,
-    maybe_upgrade_magic_folders,
 )
 from .web.magic_folder import (
     magic_folder_web_service,

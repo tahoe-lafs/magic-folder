@@ -44,10 +44,11 @@ from .frontends.magic_folder import (
     maybe_upgrade_magic_folders,
 )
 
-from allmydata.scripts.common_http import do_http, check_http_error
+from allmydata.scripts.common_http import format_http_error
 from allmydata.scripts.common import get_aliases
 from allmydata import uri
 from allmydata.util import fileutil
+from allmydata.util.encodingutil import quote_output
 
 # Until there is a web API, we replicate add_alias.
 # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3286
@@ -92,7 +93,7 @@ def tahoe_create_alias(node_directory, alias, treq):
 
     node_url = get_node_url(node_directory)
     if not node_url.endswith("/"):
-        nodeurl += "/"
+        node_url += "/"
     url = node_url + "uri?t=mkdir"
 
     response = yield treq.post(url)
@@ -128,7 +129,7 @@ def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_i
 
         try:
             invite_code = yield _invite(node_directory, alias, nickname, treq)
-        except Exception as e:
+        except Exception:
             raise Exception("Failed to invite after create")
 
         rc = _join(invite_code, node_directory, local_dir, name, poll_interval)
