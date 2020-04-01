@@ -107,8 +107,6 @@ from allmydata.scripts.common import (
     get_aliases,
 )
 from allmydata.scripts.cli import (
-    MakeDirectoryOptions,
-    LnOptions,
     CreateAliasOptions,
 )
 from allmydata.client import (
@@ -321,9 +319,6 @@ class InviteOptions(BasedirOptions):
 def invite(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
-
-    mkdir_options = _delegate_options(options, MakeDirectoryOptions())
-    mkdir_options.where = None
 
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))

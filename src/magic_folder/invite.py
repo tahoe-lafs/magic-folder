@@ -158,7 +158,7 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
 
     try:
         yield tahoe_mv(node_url.to_text(), aliases, from_file, to_file, treq)
-    except Exception as e:
+    except Exception:
         raise
         # return invite code, which is:
     #    magic_readonly_cap + INVITE_SEPARATOR + dmd_write_cap

@@ -33,7 +33,6 @@ from twisted.web.http import (
 
 from .common import (
     BadFolderName,
-    BadResponseCode,
     BadMetadataResponse,
     BadDirectoryCapability,
     _check_result,
