@@ -14,8 +14,9 @@ from allmydata.scripts.common import (
     get_alias,
     DEFAULT_ALIAS,
     escape_path,
-    format_http_error,
 )
+from allmydata.scripts.common_http import format_http_error
+
 from allmydata import uri
 from allmydata.util.encodingutil import to_str
 
