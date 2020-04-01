@@ -127,7 +127,7 @@ from .status import (
     status as _status,
 )
 
-from ..invite import (
+from .invite import (
     magic_folder_invite as _invite
 )
 
