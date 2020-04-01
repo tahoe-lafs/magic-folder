@@ -113,17 +113,17 @@ from allmydata.client import (
     read_config,
 )
 
-from ..frontends.magic_folder import (
+from .frontends.magic_folder import (
     MagicFolder,
     load_magic_folders,
     save_magic_folders,
     maybe_upgrade_magic_folders,
 )
-from ..web.magic_folder import (
+from .web.magic_folder import (
     magic_folder_web_service,
 )
 
-from ..status import (
+from .status import (
     status as _status,
 )
 
@@ -131,7 +131,7 @@ from ..invite import (
     magic_folder_invite as _invite
 )
 
-from .._coverage import (
+from ._coverage import (
     coverage_service,
 )
 

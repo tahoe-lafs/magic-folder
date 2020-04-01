@@ -24,7 +24,7 @@ from eliot import (
 
 from ..common_util import ReallyEqualMixin, run_cli
 
-from ...scripts.magic_folder_cli import (
+from ...cli import (
     MagicFolderCommand,
     do_magic_folder,
 )

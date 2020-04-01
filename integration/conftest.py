@@ -32,7 +32,7 @@ from twisted.internet.error import (
     ProcessTerminated,
 )
 
-from magic_folder.scripts.magic_folder_cli import (
+from magic_folder.cli import (
     MagicFolderCommand,
     do_magic_folder,
 )

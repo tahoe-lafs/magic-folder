@@ -14,7 +14,7 @@ from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encodi
                                          get_io_encoding)
 from allmydata.scripts import runner
 
-from ..scripts.magic_folder_cli import (
+from ..cli import (
     MagicFolderCommand,
 )
 

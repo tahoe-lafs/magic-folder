@@ -27,7 +27,7 @@ from twisted.web.client import (
 from magic_folder.frontends.magic_folder import (
     load_magic_folders,
 )
-from magic_folder.scripts.magic_folder_cli import (
+from magic_folder.cli import (
     MagicFolderCommand,
     do_magic_folder,
     poll,
@@ -343,7 +343,7 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
     # let it upload; poll the HTTP magic-folder status API until it is
     # uploaded
-    from magic_folder.scripts.magic_folder_cli import _get_json_for_fragment
+    from magic_folder.cli import _get_json_for_fragment
 
     with open(join(edmond.node_directory, u'private', u'api_auth_token'), 'rb') as f:
         token = f.read()

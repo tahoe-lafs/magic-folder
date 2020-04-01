@@ -302,7 +302,7 @@ setup(name="magic_folder",
       setup_requires=setup_requires,
       entry_points = {
           "console_scripts": [
-              "magic-folder = magic_folder.scripts.magic_folder_cli:run",
+              "magic-folder = magic_folder.cli:run",
           ],
       },
       **setup_args
