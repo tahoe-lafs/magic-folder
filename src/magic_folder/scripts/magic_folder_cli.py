@@ -90,8 +90,6 @@ from allmydata.util import (
     base32,
 )
 from allmydata.scripts import (
-    tahoe_mv,
-    tahoe_mkdir,
     tahoe_add_alias,
 )
 from allmydata.util.encodingutil import (
@@ -102,7 +100,6 @@ from allmydata.util.encodingutil import (
 )
 from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
-from allmydata import uri
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 
 from allmydata.scripts.common import (
@@ -110,8 +107,6 @@ from allmydata.scripts.common import (
     get_aliases,
 )
 from allmydata.scripts.cli import (
-    MakeDirectoryOptions,
-    LnOptions,
     CreateAliasOptions,
 )
 from allmydata.client import (
@@ -130,6 +125,10 @@ from ..web.magic_folder import (
 
 from ..status import (
     status as _status,
+)
+
+from ..invite import (
+    magic_folder_invite as _invite
 )
 
 from .._coverage import (
@@ -186,6 +185,7 @@ def _delegate_options(source_options, target_options):
     target_options.stderr = MixedIO()
     return target_options
 
+@inlineCallbacks
 def create(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, (unicode, NoneType)), nickname=options.nickname)
@@ -196,7 +196,7 @@ def create(options):
     folders = load_magic_folders(options["node-directory"])
     if options['name'] in folders:
         print("Already have a magic-folder named '{}'".format(options['name']), file=options.stderr)
-        return 1
+        returnValue(1)
 
     # create an alias; this basically just remembers the cap for the
     # master directory
@@ -206,7 +206,7 @@ def create(options):
     rc = tahoe_add_alias.create_alias(create_alias_options)
     if rc != 0:
         print(create_alias_options.stderr.getvalue(), file=options.stderr)
-        return rc
+        returnValue(rc)
     print(create_alias_options.stdout.getvalue(), file=options.stdout)
 
     if options.nickname is not None:
@@ -215,13 +215,18 @@ def create(options):
         invite_options.alias = options.alias
         invite_options.nickname = options.nickname
         invite_options['name'] = options['name']
-        rc = invite(invite_options)
-        if rc != 0:
+
+        from twisted.internet import reactor
+        treq = HTTPClient(Agent(reactor))
+
+        try:
+            invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+            options.invite_code = invite_code
+        except Exception:
             print(u"magic-folder: failed to invite after create\n", file=options.stderr)
             print(invite_options.stderr.getvalue(), file=options.stderr)
-            return rc
-        invite_code = invite_options.stdout.getvalue().strip()
-        print(u"  created invite code", file=options.stdout)
+            returnValue(1)
+
         join_options = _delegate_options(options, JoinOptions())
         join_options['poll-interval'] = options['poll-interval']
         join_options.nickname = options.nickname
@@ -231,15 +236,14 @@ def create(options):
         if rc != 0:
             print(u"magic-folder: failed to join after create\n", file=options.stderr)
             print(join_options.stderr.getvalue(), file=options.stderr)
-            return rc
+            returnValue(rc)
         print(u"  joined new magic-folder", file=options.stdout)
         print(
             u"Successfully created magic-folder '{}' with alias '{}:' "
             u"and client '{}'\nYou must re-start your node before the "
             u"magic-folder will be active."
         .format(options['name'], options.alias, options.nickname), file=options.stdout)
-    return 0
-
+    returnValue(0)
 
 class ListOptions(BasedirOptions):
     description = (
@@ -311,42 +315,22 @@ class InviteOptions(BasedirOptions):
         aliases = get_aliases(self['node-directory'])
         self.aliases = aliases
 
-
+@inlineCallbacks
 def invite(options):
     precondition(isinstance(options.alias, unicode), alias=options.alias)
     precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
 
-    mkdir_options = _delegate_options(options, MakeDirectoryOptions())
-    mkdir_options.where = None
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
 
-    rc = tahoe_mkdir.mkdir(mkdir_options)
-    if rc != 0:
-        print("magic-folder: failed to mkdir\n", file=options.stderr)
-        return rc
+    try:
+        invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+        print("{}".format(invite_code), file=options.stdout)
+    except Exception as e:
+        print("magic-folder: {}".format(str(e)))
+        returnValue(1)
 
-    # FIXME this assumes caps are ASCII.
-    dmd_write_cap = mkdir_options.stdout.getvalue().strip()
-    dmd_readonly_cap = uri.from_string(dmd_write_cap).get_readonly().to_string()
-    if dmd_readonly_cap is None:
-        print("magic-folder: failed to diminish dmd write cap\n", file=options.stderr)
-        return 1
-
-    magic_write_cap = get_aliases(options["node-directory"])[options.alias]
-    magic_readonly_cap = uri.from_string(magic_write_cap).get_readonly().to_string()
-
-    # tahoe ln CLIENT_READCAP COLLECTIVE_WRITECAP/NICKNAME
-    ln_options = _delegate_options(options, LnOptions())
-    ln_options.from_file = unicode(dmd_readonly_cap, 'utf-8')
-    ln_options.to_file = u"%s/%s" % (unicode(magic_write_cap, 'utf-8'), options.nickname)
-    rc = tahoe_mv.mv(ln_options, mode="link")
-    if rc != 0:
-        print("magic-folder: failed to create link\n", file=options.stderr)
-        print(ln_options.stderr.getvalue(), file=options.stderr)
-        return rc
-
-    # FIXME: this assumes caps are ASCII.
-    print("%s%s%s" % (magic_readonly_cap, INVITE_SEPARATOR, dmd_write_cap), file=options.stdout)
-    return 0
+    returnValue(0)
 
 class JoinOptions(BasedirOptions):
     synopsis = "INVITE_CODE LOCAL_DIR"

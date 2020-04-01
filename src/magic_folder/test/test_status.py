@@ -88,14 +88,16 @@ from ..web.magic_folder import (
 )
 
 from ..status import (
-    BadFolderName,
-    BadResponseCode,
-    BadDirectoryCapability,
-    BadMetadataResponse,
     Status,
     status,
 )
 
+from ..common import (
+    BadFolderName,
+    BadResponseCode,
+    BadDirectoryCapability,
+    BadMetadataResponse,
+)
 class StatusTests(AsyncTestCase):
     """
     Tests for ``magic_folder.status.status``.
