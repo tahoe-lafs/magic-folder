@@ -107,7 +107,7 @@ from allmydata.client import (
     read_config,
 )
 
-from .frontends.magic_folder import (
+from .magic_folder import (
     MagicFolder,
     load_magic_folders,
     save_magic_folders,

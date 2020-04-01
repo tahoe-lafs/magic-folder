@@ -55,7 +55,7 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
 
-from .. import (
+from . import (
     magicfolderdb,
     magicpath,
 )
