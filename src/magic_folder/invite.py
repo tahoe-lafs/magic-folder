@@ -5,12 +5,10 @@
 Implements the magic-folder invite command.
 """
 
-import os
 import re
 import urllib
 import json
 
-from allmydata.util import fileutil
 from allmydata.scripts.common import (
     get_aliases,
     get_alias,
@@ -37,10 +35,6 @@ from twisted.web.client import (
 from twisted.web.http import (
     OK,
     CONFLICT,
-)
-
-from eliot.twisted import (
-    inline_callbacks,
 )
 
 from .common import (
@@ -161,9 +155,11 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
     from_file = unicode(dmd_readonly_cap, 'utf-8')
     to_file = u"%s/%s" % (unicode(magic_write_cap, 'utf-8'), nickname)
 
-    rc = yield tahoe_mv(node_url.to_text(), aliases, from_file, to_file, treq)
-
-    # return invite code, which is:
+    try:
+        yield tahoe_mv(node_url.to_text(), aliases, from_file, to_file, treq)
+    except Exception as e:
+        raise
+        # return invite code, which is:
     #    magic_readonly_cap + INVITE_SEPARATOR + dmd_write_cap
     invite_code = "{}{}{}".format(magic_readonly_cap, INVITE_SEPARATOR, dmd_write_cap)
 
