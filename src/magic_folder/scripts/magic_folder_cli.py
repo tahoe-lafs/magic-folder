@@ -222,7 +222,7 @@ def create(options):
         try:
             invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
             options.invite_code = invite_code
-        except Exception as e:
+        except Exception:
             print(u"magic-folder: failed to invite after create\n", file=options.stderr)
             print(invite_options.stderr.getvalue(), file=options.stderr)
             returnValue(1)
