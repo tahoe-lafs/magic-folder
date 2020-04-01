@@ -16,3 +16,8 @@ _trial_temp/
 .tox/
 
 .coverage*
+
+# eliot files
+magic-folder-cli.*.eliot
+eliot.log
+integration.eliot.json
