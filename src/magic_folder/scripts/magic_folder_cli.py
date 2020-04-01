@@ -90,8 +90,6 @@ from allmydata.util import (
     base32,
 )
 from allmydata.scripts import (
-    tahoe_mv,
-    tahoe_mkdir,
     tahoe_add_alias,
 )
 from allmydata.util.encodingutil import (
