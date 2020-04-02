@@ -21,6 +21,22 @@ from .common import (
 def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interval):
     """
     Join a magic-folder specified by the ``name`` and create the config files.
+
+    :param unicode invite_code: The code used to join a magic folder.
+
+    :param unicode node_directory: The path to the Tahoe-LAFS node directory
+        which owns the magic folder in question.
+
+    :param unicode local_dir: The directory in the local filesystem that holds
+        the files to be synchronized across computers.
+
+    :param unicode name: The magic-folder name.
+
+    :param integer poll_interval: Periodic time interval after which the
+        client polls for updates.
+
+    :return integer: If the function succeeds, returns 0, else an exception
+        is raised.
     """
     fields = invite_code.split(INVITE_SEPARATOR)
     if len(fields) != 2:
