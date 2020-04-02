@@ -157,8 +157,8 @@ def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_i
 
         try:
             invite_code = yield _invite(node_directory, alias, nickname, treq)
-        except Exception:
-            raise Exception("Failed to invite after create")
+        except Exception as e:
+            raise Exception("Failed to invite after create: {}".format(str(e)))
 
         rc = _join(invite_code, node_directory, local_dir, name, poll_interval)
         if rc != 0:
