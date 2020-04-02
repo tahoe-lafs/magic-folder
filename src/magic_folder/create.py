@@ -57,17 +57,17 @@ def add_line_to_aliasfile(aliasfile, alias, cap):
     # clobbering the valuable alias file in case of spurious or transient
     # filesystem errors.
     if os.path.exists(aliasfile):
-        f = codecs.open(aliasfile, "r", "utf-8")
-        aliases = f.read()
-        f.close()
+        with codecs.open(aliasfile, "r", "utf-8") as f:
+            aliases = f.read()
+            f.close()
         if not aliases.endswith("\n"):
             aliases += "\n"
     else:
         aliases = ""
     aliases += "%s: %s\n" % (alias, cap)
-    f = codecs.open(aliasfile+".tmp", "w", "utf-8")
-    f.write(aliases)
-    f.close()
+    with codecs.open(aliasfile+".tmp", "w", "utf-8") as f:
+        f.write(aliases)
+        f.close()
     fileutil.move_into_place(aliasfile+".tmp", aliasfile)
 
 def _add_alias(node_directory, alias, cap):
