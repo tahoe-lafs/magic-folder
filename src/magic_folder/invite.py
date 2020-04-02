@@ -118,7 +118,7 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
     :param unicode node_directory: The root of the Tahoe-LAFS node.
 
     :param unicode alias: The alias of the folder to which the invitation is
-        is being generated.
+        being generated.
 
     :param unicode nickname: The nickname of the invitee.
 

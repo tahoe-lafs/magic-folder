@@ -108,6 +108,29 @@ def tahoe_create_alias(node_directory, alias, treq):
 
 @inlineCallbacks
 def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_interval, treq):
+    """
+    Create a magic-folder with the specified ``name`` (or ``default``
+    if not specified) and optionally invite the client and join with
+    the specified ``nickname`` and the specified ``local_dir``.
+
+    :param unicode alias: The alias of the folder to which the invitation is
+        being generated.
+
+    :param unicode nickname: The nickname of the invitee.
+
+    :param unicode name: The name of the magic-folder.
+
+    :param unicode node_directory: The root of the Tahoe-LAFS node.
+
+    :param unicode local_dir: The directory on the filesystem that the user wants
+        to sync between different computers.
+
+    :param integer poll_interval: Periodic time interval after which the
+        client polls for updates.
+
+    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
+        the queries.
+    """
 
     # make sure we don't already have a magic-folder with this name before we create the alias
     maybe_upgrade_magic_folders(node_directory)
