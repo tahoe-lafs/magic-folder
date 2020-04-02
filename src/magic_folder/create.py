@@ -32,14 +32,6 @@ from treq.client import (
     HTTPClient,
 )
 
-from twisted.web.http import (
-    OK,
-)
-
-from twisted.web.client import (
-    readBody,
-)
-
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue
@@ -49,7 +41,6 @@ from .frontends.magic_folder import (
     maybe_upgrade_magic_folders,
 )
 
-from allmydata.scripts.common_http import format_http_error
 from allmydata.scripts.common import get_aliases
 from allmydata import uri
 from allmydata.util import fileutil

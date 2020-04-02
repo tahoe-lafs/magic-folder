@@ -6,7 +6,6 @@ Implements the magic-folder invite command.
 """
 
 import re
-import urllib
 import json
 
 from allmydata.scripts.common import (
