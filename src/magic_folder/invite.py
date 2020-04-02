@@ -67,12 +67,25 @@ def tahoe_mv(nodeurl, aliases, from_file, to_file, treq):
     except Exception as e:
         raise e
 
-    from_url = nodeurl + "uri/%s" % urllib.quote(rootcap)
+    from_url = nodeurl.child(
+        u"uri",
+        u"{}".format(rootcap),
+    )
+
     if from_path:
-        from_url += "/" + escape_path(from_path)
-    response = yield treq.get(from_url + "?t=json")
+        from_url = from_url.child(
+            u"{}".format(escape_path(from_path))
+        )
+
+    from_url = from_url.add(
+        u"t",
+        u"json",
+    )
+
+    get_url = from_url.to_uri().to_text().encode("ascii")
+    response = yield treq.get(get_url)
     if response.code != OK:
-        returnValue((yield bad_response(from_url, response)))
+        returnValue((yield bad_response(get_url, response)))
     result = yield readBody(response)
 
     nodetype, attrs = json.loads(result)
@@ -84,17 +97,31 @@ def tahoe_mv(nodeurl, aliases, from_file, to_file, treq):
     except Exception as e:
         raise e
 
-    to_url = nodeurl + "uri/%s" % urllib.quote(rootcap)
+    to_url = nodeurl.child(
+        u"uri",
+        u"{}".format(rootcap)
+    )
+
     if path:
-        to_url += "/" + escape_path(path)
+        to_url = to_url.child(
+            u"{}".format(escape_path(path))
+        )
 
-    if to_url.endswith("/"):
+    if path.endswith("/"):
         # "mv foo.txt bar/" == "mv foo.txt bar/foo.txt"
-        to_url += escape_path(from_path[from_path.rfind("/")+1:])
+        to_url = to_url.child(
+            u"{}".format(escape_path(from_path[from_path.rfind("/")+1:]))
+        )
 
-    to_url += "?t=uri&replace=only-files"
+    put_url = to_url.add(
+        u"t",
+        u"uri",
+    ).add(
+        u"replace",
+        u"only-files",
+    )
 
-    response = yield treq.put(to_url, cap)
+    response = yield treq.put(put_url.to_text(), cap)
     if not re.search(r'^2\d\d$', str(response.code)):
         if response.code == CONFLICT:
             raise Exception("You cannot overwrite a directory with a file")
@@ -151,7 +178,7 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
     to_file = u"%s/%s" % (unicode(magic_write_cap, 'utf-8'), nickname)
 
     try:
-        yield tahoe_mv(node_url.to_text(), aliases, from_file, to_file, treq)
+        yield tahoe_mv(node_url, aliases, from_file, to_file, treq)
     except Exception:
         raise
         # return invite code, which is:
