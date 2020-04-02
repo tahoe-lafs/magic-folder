@@ -103,9 +103,7 @@ def tahoe_create_alias(node_directory, alias, treq):
     new_uri = yield readBody(response)
 
     _add_alias(node_directory, alias, new_uri)
-    # probably check for others..
 
-    # add_line_to_aliasfile(aliasfile, alias, new_uri)
     returnValue(0)
 
 @inlineCallbacks
