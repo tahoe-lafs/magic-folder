@@ -150,8 +150,6 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
     """
     aliases = get_aliases(node_directory)[alias]
     nodeurl = get_node_url(node_directory)
-    if not nodeurl.endswith("/"):
-        nodeurl += "/"
 
     node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
 

@@ -97,8 +97,6 @@ def tahoe_create_alias(node_directory, alias, treq):
     # mkdir+add_alias
 
     nodeurl = get_node_url(node_directory)
-    if not nodeurl.endswith("/"):
-        nodeurl += "/"
 
     try:
         node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
