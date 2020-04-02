@@ -47,9 +47,21 @@ from .common import (
 
 @inlineCallbacks
 def tahoe_mv(nodeurl, aliases, from_file, to_file, treq):
-    if nodeurl[-1] != u"/":
-        nodeurl += u"/"
+    """
+    :param DecodedURL nodeurl: The web end point of the Tahoe-LAFS node associated
+        with the magic-folder client.
+    :param [unicode] aliases: XXX
 
+    :param unicode from_file: cap of the source.
+
+    :param unicode to_file: cap of the destination.
+
+    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
+        the queries.
+
+    :return integer: Returns 0 for successful execution. In the case of a failure,
+        an exception is raised.
+    """
     try:
         rootcap, from_path = get_alias(aliases, from_file, DEFAULT_ALIAS)
     except Exception as e:
