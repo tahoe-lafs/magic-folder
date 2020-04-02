@@ -41,27 +41,9 @@ from twisted.web.http import (
 from .common import (
     bad_response,
     get_node_url,
+    tahoe_mkdir,
     INVITE_SEPARATOR,
 )
-
-@inlineCallbacks
-def tahoe_mkdir(nodeurl, aliases, treq):
-
-    url = nodeurl.child(
-        u"uri",
-    ).add(
-        u"t",
-        u"mkdir",
-    )
-
-    post_uri = url.to_uri().to_text().encode("ascii")
-    response = yield treq.post(post_uri)
-    if response.code != OK:
-        returnValue((yield bad_response(url, response)))
-
-    result = yield readBody(response)
-    # emit its write-cap
-    returnValue(result)
 
 @inlineCallbacks
 def tahoe_mv(nodeurl, aliases, from_file, to_file, treq):
@@ -135,7 +117,7 @@ def magic_folder_invite(node_directory, alias, nickname, treq):
     node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
 
     # create an unlinked directory and get the dmd write-cap
-    dmd_write_cap = yield tahoe_mkdir(node_url, aliases, treq)
+    dmd_write_cap = yield tahoe_mkdir(node_url, treq)
 
     # derive a dmd read-only cap from it.
     dmd_readonly_cap = uri.from_string(dmd_write_cap).get_readonly().to_string()

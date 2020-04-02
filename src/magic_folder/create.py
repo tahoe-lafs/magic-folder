@@ -11,6 +11,10 @@ from twisted.web.client import (
     Agent,
 )
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from .invite import (
     magic_folder_invite as _invite
 )
@@ -20,7 +24,8 @@ from .join import (
 )
 
 from .common import (
-    get_node_url
+    get_node_url,
+    tahoe_mkdir,
 )
 
 from treq.client import (
@@ -91,16 +96,15 @@ def _add_alias(node_directory, alias, cap):
 def tahoe_create_alias(node_directory, alias, treq):
     # mkdir+add_alias
 
-    node_url = get_node_url(node_directory)
-    if not node_url.endswith("/"):
-        node_url += "/"
-    url = node_url + "uri?t=mkdir"
+    nodeurl = get_node_url(node_directory)
+    if not nodeurl.endswith("/"):
+        nodeurl += "/"
 
-    response = yield treq.post(url)
-    if response.code != OK:
-        raise Exception(format_http_error("Error", response))
-
-    new_uri = yield readBody(response)
+    try:
+        node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
+        new_uri = yield tahoe_mkdir(node_url, treq)
+    except Exception:
+        raise
 
     _add_alias(node_directory, alias, new_uri)
 
