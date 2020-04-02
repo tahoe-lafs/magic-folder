@@ -134,6 +134,9 @@ def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_i
 
     :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
         the queries.
+
+    :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
+        an appropriate exception is raised.
     """
 
     # make sure we don't already have a magic-folder with this name before we create the alias
