@@ -55,7 +55,6 @@ def add_line_to_aliasfile(aliasfile, alias, cap):
     if os.path.exists(aliasfile):
         with codecs.open(aliasfile, "r", "utf-8") as f:
             aliases = f.read()
-            f.close()
         if not aliases.endswith("\n"):
             aliases += "\n"
     else:
@@ -63,7 +62,6 @@ def add_line_to_aliasfile(aliasfile, alias, cap):
     aliases += "%s: %s\n" % (alias, cap)
     with codecs.open(aliasfile+".tmp", "w", "utf-8") as f:
         f.write(aliases)
-        f.close()
     fileutil.move_into_place(aliasfile+".tmp", aliasfile)
 
 def _add_alias(node_directory, alias, cap):
