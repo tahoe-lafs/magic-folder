@@ -7,12 +7,32 @@ Implements the magic-folder create command.
 import codecs
 import os
 
+
+from hyperlink import (
+    DecodedURL,
+)
+
+from treq.client import (
+    HTTPClient,
+)
+
 from twisted.web.client import (
     Agent,
 )
 
-from hyperlink import (
-    DecodedURL,
+from twisted.internet.defer import (
+    inlineCallbacks,
+    returnValue,
+)
+
+from allmydata.scripts.common import get_aliases
+from allmydata import uri
+from allmydata.util import fileutil
+from allmydata.util.encodingutil import quote_output
+
+from .frontends.magic_folder import (
+    load_magic_folders,
+    maybe_upgrade_magic_folders,
 )
 
 from .invite import (
@@ -27,24 +47,6 @@ from .common import (
     get_node_url,
     tahoe_mkdir,
 )
-
-from treq.client import (
-    HTTPClient,
-)
-
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue
-)
-from .frontends.magic_folder import (
-    load_magic_folders,
-    maybe_upgrade_magic_folders,
-)
-
-from allmydata.scripts.common import get_aliases
-from allmydata import uri
-from allmydata.util import fileutil
-from allmydata.util.encodingutil import quote_output
 
 # Until there is a web API, we replicate add_alias.
 # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3286
