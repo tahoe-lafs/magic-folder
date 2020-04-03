@@ -89,9 +89,6 @@ from allmydata.util.assertutil import precondition
 from allmydata.util import (
     base32,
 )
-from allmydata.scripts import (
-    tahoe_add_alias,
-)
 from allmydata.util.encodingutil import (
     argv_to_abspath,
     argv_to_unicode,
@@ -106,9 +103,6 @@ from allmydata.scripts.common import (
     BasedirOptions,
     get_aliases,
 )
-from allmydata.scripts.cli import (
-    CreateAliasOptions,
-)
 from allmydata.client import (
     read_config,
 )
@@ -117,7 +111,6 @@ from .frontends.magic_folder import (
     MagicFolder,
     load_magic_folders,
     save_magic_folders,
-    maybe_upgrade_magic_folders,
 )
 from .web.magic_folder import (
     magic_folder_web_service,
@@ -131,11 +124,17 @@ from .invite import (
     magic_folder_invite as _invite
 )
 
+from .create import (
+    magic_folder_create as _create
+)
+
+from .join import (
+    magic_folder_join as _join
+)
+
 from ._coverage import (
     coverage_service,
 )
-
-INVITE_SEPARATOR = "+"
 
 class CreateOptions(BasedirOptions):
     nickname = None  # NOTE: *not* the "name of this magic-folder"
@@ -191,59 +190,19 @@ def create(options):
     precondition(isinstance(options.nickname, (unicode, NoneType)), nickname=options.nickname)
     precondition(isinstance(options.local_dir, (unicode, NoneType)), local_dir=options.local_dir)
 
-    # make sure we don't already have a magic-folder with this name before we create the alias
-    maybe_upgrade_magic_folders(options["node-directory"])
-    folders = load_magic_folders(options["node-directory"])
-    if options['name'] in folders:
-        print("Already have a magic-folder named '{}'".format(options['name']), file=options.stderr)
-        returnValue(1)
-
-    # create an alias; this basically just remembers the cap for the
-    # master directory
-    create_alias_options = _delegate_options(options, CreateAliasOptions())
-    create_alias_options.alias = options.alias
-
-    rc = tahoe_add_alias.create_alias(create_alias_options)
-    if rc != 0:
-        print(create_alias_options.stderr.getvalue(), file=options.stderr)
-        returnValue(rc)
-    print(create_alias_options.stdout.getvalue(), file=options.stdout)
-
-    if options.nickname is not None:
-        print(u"Inviting myself as client '{}':".format(options.nickname), file=options.stdout)
-        invite_options = _delegate_options(options, InviteOptions())
-        invite_options.alias = options.alias
-        invite_options.nickname = options.nickname
-        invite_options['name'] = options['name']
-
+    try:
         from twisted.internet import reactor
         treq = HTTPClient(Agent(reactor))
 
-        try:
-            invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
-            options.invite_code = invite_code
-        except Exception:
-            print(u"magic-folder: failed to invite after create\n", file=options.stderr)
-            print(invite_options.stderr.getvalue(), file=options.stderr)
-            returnValue(1)
+        name = options['name']
+        nodedir = options["node-directory"]
+        localdir = options.local_dir
+        rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
+    except Exception as e:
+        print("%s" % str(e), file=options.stderr)
+        returnValue(1)
 
-        join_options = _delegate_options(options, JoinOptions())
-        join_options['poll-interval'] = options['poll-interval']
-        join_options.nickname = options.nickname
-        join_options.local_dir = options.local_dir
-        join_options.invite_code = invite_code
-        rc = join(join_options)
-        if rc != 0:
-            print(u"magic-folder: failed to join after create\n", file=options.stderr)
-            print(join_options.stderr.getvalue(), file=options.stderr)
-            returnValue(rc)
-        print(u"  joined new magic-folder", file=options.stdout)
-        print(
-            u"Successfully created magic-folder '{}' with alias '{}:' "
-            u"and client '{}'\nYou must re-start your node before the "
-            u"magic-folder will be active."
-        .format(options['name'], options.alias, options.nickname), file=options.stdout)
-    returnValue(0)
+    returnValue(rc)
 
 class ListOptions(BasedirOptions):
     description = (
@@ -354,40 +313,6 @@ class JoinOptions(BasedirOptions):
         # Expand the path relative to the current directory of the CLI command, not the node.
         self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
         self.invite_code = to_str(argv_to_unicode(invite_code))
-
-def _join(invite_code, node_directory, local_dir, name, poll_interval):
-    """
-    Join a magic-folder specified by the ``name`` and create the config files.
-    """
-    fields = invite_code.split(INVITE_SEPARATOR)
-    if len(fields) != 2:
-        raise usage.UsageError("Invalid invite code.")
-    magic_readonly_cap, dmd_write_cap = fields
-
-    maybe_upgrade_magic_folders(node_directory)
-    existing_folders = load_magic_folders(node_directory)
-
-    if name in existing_folders:
-        raise Exception("This client already has a magic-folder named '{}'".format(name))
-
-    db_fname = os.path.join(
-        node_directory,
-        u"private",
-        u"magicfolder_{}.sqlite".format(name),
-    )
-    if os.path.exists(db_fname):
-        raise Exception("Database '{}' already exists; not overwriting".format(db_fname))
-
-    folder = {
-        u"directory": local_dir.encode('utf-8'),
-        u"collective_dircap": magic_readonly_cap,
-        u"upload_dircap": dmd_write_cap,
-        u"poll_interval": poll_interval,
-    }
-    existing_folders[name] = folder
-
-    save_magic_folders(node_directory, existing_folders)
-    return 0
 
 def join(options):
     """
