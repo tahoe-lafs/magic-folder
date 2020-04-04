@@ -18,13 +18,26 @@ from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
+
 def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
+    """
+    :param get_magic_folder: a callable taking a `nickname` and
+        returning a MagicFolder
+
+    :param get_auth_token: a callable returning the current auth-token
+
+    :returns: a new IService implementing the token-based Web API
+    """
     root = Resource()
     root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
-    return StreamServerEndpointService(
+    srv = StreamServerEndpointService(
         web_endpoint,
         Site(root),
     )
+    srv._raiseSynchronously = True
+    return srv
+
+
 
 def error(request, code, message):
     request.setResponseCode(code, message)
