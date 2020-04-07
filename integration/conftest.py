@@ -47,6 +47,7 @@ from util import (
 from helpers import (
     _command,
     _pair_magic_folder,
+    _generate_invite,
 )
 
 
@@ -487,35 +488,10 @@ def edmond(reactor, temp_dir, introducer_furl, flog_gatherer, request):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice:invite", include_args=["temp_dir"])
-def alice_invite(reactor, alice, temp_dir, request):
-    node_dir = join(temp_dir, 'alice')
-
-    with start_action(action_type=u"integration:alice:magic_folder:create"):
-        print("Creating magic-folder for {}".format(node_dir))
-        pytest_twisted.blockon(
-            _command(
-                "--node-directory", node_dir,
-                "create",
-                "--poll-interval", "2", "magik:", "alice", join(temp_dir, "magic-alice"),
-            )
-        )
-
-
-    with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
-        print("Inviting bob to magic-folder for {}".format(node_dir))
-        invite = pytest_twisted.blockon(
-            _command(
-                "--node-directory", node_dir,
-                "invite",
-                "magik:", "bob",
-            )
-        )
-        a.add_success_fields(invite=invite)
-
-    with start_action(action_type=u"integration:alice:magic_folder:restart"):
-        # before magic-folder works, we have to stop and restart (this is
-        # crappy for the tests -- can we fix it in magic-folder?)
-        pytest_twisted.blockon(alice.restart_magic_folder())
+def alice_invite(reactor, alice, temp_dir):
+    invite = pytest_twisted.blockon(
+        _generate_invite(reactor, alice, "bob")
+    )
     return invite
 
 
@@ -524,8 +500,8 @@ def alice_invite(reactor, alice, temp_dir, request):
     action_type=u"integration:magic_folder",
     include_args=["alice_invite"],
 )
-def magic_folder(reactor, alice_invite, alice, bob, request):
+def magic_folder(reactor, alice_invite, alice, bob):
     print("pairing magic-folder")
     return pytest_twisted.blockon(
-        _pair_magic_folder(reactor, alice_invite, alice, bob, request)
+        _pair_magic_folder(reactor, alice_invite, alice, bob)
     )
