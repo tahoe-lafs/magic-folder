@@ -270,6 +270,10 @@ class MagicFolderEnabledNode(object):
     def node_directory(self):
         return join(self.temp_dir, self.name)
 
+    @property
+    def magic_directory(self):
+        return join(self.temp_dir, "magic-{}".format(self.name))
+
     @classmethod
     def create(
             cls,
@@ -517,20 +521,19 @@ def alice_invite(reactor, alice, temp_dir, request):
 @pytest.fixture(scope='session')
 @log_call(
     action_type=u"integration:magic_folder",
-    include_args=["alice_invite", "temp_dir"],
+    include_args=["alice_invite"],
 )
-def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
+def magic_folder(reactor, alice_invite, alice, bob, request):
     print("pairing magic-folder")
-    bob_dir = join(temp_dir, 'bob')
 
     print("Joining bob to magic-folder")
     pytest_twisted.blockon(
         _command(
-            "--node-directory", bob_dir,
+            "--node-directory", bob.node_directory,
             "join",
             "--poll-interval", "1",
             alice_invite,
-            join(temp_dir, "magic-bob"),
+            bob.magic_directory,
         )
     )
 
@@ -538,4 +541,4 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     # crappy for the tests -- can we fix it in magic-folder?)
     pytest_twisted.blockon(bob.restart_magic_folder())
 
-    return (join(temp_dir, 'magic-alice'), join(temp_dir, 'magic-bob'))
+    return (alice.magic_directory, bob.magic_directory)
