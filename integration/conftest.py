@@ -36,8 +36,6 @@ from util import (
     _cleanup_tahoe_process,
     _tahoe_runner,
     TahoeProcess,
-)
-from helpers import (
     _command,
     _pair_magic_folder,
     _generate_invite,
