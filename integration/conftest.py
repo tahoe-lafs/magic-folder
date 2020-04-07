@@ -46,6 +46,7 @@ from util import (
 )
 from helpers import (
     _command,
+    _pair_magic_folder,
 )
 
 
@@ -525,20 +526,6 @@ def alice_invite(reactor, alice, temp_dir, request):
 )
 def magic_folder(reactor, alice_invite, alice, bob, request):
     print("pairing magic-folder")
-
-    print("Joining bob to magic-folder")
-    pytest_twisted.blockon(
-        _command(
-            "--node-directory", bob.node_directory,
-            "join",
-            "--poll-interval", "1",
-            alice_invite,
-            bob.magic_directory,
-        )
+    return pytest_twisted.blockon(
+        _pair_magic_folder(reactor, alice_invite, alice, bob, request)
     )
-
-    # before magic-folder works, we have to stop and restart (this is
-    # crappy for the tests -- can we fix it in magic-folder?)
-    pytest_twisted.blockon(bob.restart_magic_folder())
-
-    return (alice.magic_directory, bob.magic_directory)
