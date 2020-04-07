@@ -1073,17 +1073,23 @@ subDispatch = {
     "run": main,
 }
 
+
 def do_magic_folder(options):
+    """
+    :returns: a Deferred which fires with the result of doig this
+        magic-folder subcommand.
+    """
     so = options.subOptions
     so.stdout = options.stdout
     so.stderr = options.stderr
     f = subDispatch[options.subCommand]
     try:
-        return f(so)
+        return maybeDeferred(f, so)
     except Exception as e:
         print(u"Error: {}".format(e), file=options.stderr)
         if options['debug']:
             raise
+
 
 class _MagicFolderService(Service):
     def __init__(self, options):
