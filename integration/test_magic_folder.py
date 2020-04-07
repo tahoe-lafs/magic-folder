@@ -454,3 +454,72 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
             in conflict_files
         ),
     )
+
+
+@pytest_twisted.inlineCallbacks
+def test_francis_leaves(reactor, request, temp_dir, magic_folder):
+    """
+    Set up a magic-folder with francis + gloria; after francis leaves
+    she shouldn't receive any more updates.
+    """
+    alice_magic_dir, bob_magic_dir = magic_folder
+    alice_node_dir = join(temp_dir, "alice")
+
+    # Take Bob offline.
+    yield bob.stop_magic_folder()
+
+    # Create a couple files in Alice's local directory.
+    some_files = list(
+        (name * 3) + ".added-while-offline"
+        for name
+        in "xyz"
+    )
+    for name in some_files:
+        with open(join(alice_magic_dir, name), "w") as f:
+            f.write(name + " some content")
+
+    agent = Agent(reactor)
+
+    upload_dircap = load_magic_folders(alice_node_dir)["default"]["upload_dircap"]
+
+    # Alice's tahoe-lafs web api
+    uri = "http://127.0.0.1:9980/uri/{}?t=json".format(upload_dircap)
+
+    @pytest_twisted.inlineCallbacks
+    def good_remote_state(agent):
+        response = yield agent.request(
+            b"GET",
+            uri,
+        )
+        if response.code != 200:
+            returnValue(False)
+
+        files = json.loads((yield readBody(response)))
+        print(files)
+        returnValue(True)
+
+    yield poll("good-remote-state", partial(good_remote_state, agent), reactor)
+
+    # Start Bob up again
+    yield bob.start_magic_folder()
+
+    yield util.await_files_exist(
+        list(
+            join(bob_magic_dir, name)
+            for name
+            in some_files
+        ),
+        await_all=True,
+    )
+    # Let it settle.  It would be nicer to have a readable status output we
+    # could query.  Parsing the current text format is more than I want to
+    # deal with right now.
+    time.sleep(1.0)
+    conflict_files = list(name + ".conflict" for name in some_files)
+    assert all(
+        list(
+            not exists(join(bob_magic_dir, name))
+            for name
+            in conflict_files
+        ),
+    )
