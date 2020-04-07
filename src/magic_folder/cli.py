@@ -112,7 +112,7 @@ from .frontends.magic_folder import (
     load_magic_folders,
     save_magic_folders,
 )
-from .web.magic_folder import (
+from .web import (
     magic_folder_web_service,
 )
 
@@ -624,7 +624,7 @@ def _format_magic_folder_status(now, magic_data):
 
     :param list[dict] magic_data: Activity to include in the result.  The
         elements are formatted like the result of
-        ``magic_folder.web.magic_folder.status_for_item``.
+        ``magic_folder.web.status_for_item``.
 
     :return: A generator of unicode strings describing the activities.
     """

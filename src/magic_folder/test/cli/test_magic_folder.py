@@ -52,7 +52,7 @@ from ...frontends.magic_folder import (
 )
 from ... import cli as magic_folder_cli
 
-from ...web.magic_folder import (
+from ...web import (
     status_for_item,
 )
 from ...status import (

@@ -82,7 +82,7 @@ from .agentutil import (
     FailingAgent,
 )
 
-from ..web.magic_folder import (
+from ..web import (
     MagicFolderWebApi,
     status_for_item,
 )
