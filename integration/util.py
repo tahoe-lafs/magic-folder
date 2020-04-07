@@ -101,6 +101,7 @@ class _MagicTextProtocol(ProcessProtocol):
         self._magic_text = magic_text
         self._output = StringIO()
         self._action = current_action()
+        assert self._action is not None
 
     def processEnded(self, reason):
         with self._action.context():
