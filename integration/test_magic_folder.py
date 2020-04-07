@@ -456,13 +456,13 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
 
 
 @pytest_twisted.inlineCallbacks
-def test_francis_leaves(reactor, request, temp_dir, magic_folder):
+def test_francis_leaves(reactor, request, temp_dir, magic_folder, alice, bob):
     """
     Set up a magic-folder with francis + gloria; after francis leaves
     she shouldn't receive any more updates.
     """
     alice_magic_dir, bob_magic_dir = magic_folder
-    alice_node_dir = join(temp_dir, "alice")
+    alice_node_dir = alice.node_directory
 
     # Take Bob offline.
     yield bob.stop_magic_folder()
