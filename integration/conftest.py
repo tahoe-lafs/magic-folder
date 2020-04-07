@@ -8,8 +8,6 @@ from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
 
-from io import BytesIO
-
 import attr
 
 from foolscap.furl import (
@@ -32,11 +30,6 @@ from twisted.internet.error import (
     ProcessTerminated,
 )
 
-from magic_folder.cli import (
-    MagicFolderCommand,
-    do_magic_folder,
-)
-
 import pytest
 import pytest_twisted
 
@@ -50,6 +43,9 @@ from util import (
     _tahoe_runner,
     await_client_ready,
     TahoeProcess,
+)
+from helpers import (
+    _command,
 )
 
 
@@ -491,26 +487,24 @@ def alice_invite(reactor, alice, temp_dir, request):
 
     with start_action(action_type=u"integration:alice:magic_folder:create"):
         print("Creating magic-folder for {}".format(node_dir))
-        o = MagicFolderCommand()
-        o.parseOptions([
-            "--node-directory", node_dir,
-            "create",
-            "--poll-interval", "2", "magik:", "alice", join(temp_dir, "magic-alice"),
-        ])
-        assert 0 == pytest_twisted.blockon(do_magic_folder(o))
+        pytest_twisted.blockon(
+            _command(
+                "--node-directory", node_dir,
+                "create",
+                "--poll-interval", "2", "magik:", "alice", join(temp_dir, "magic-alice"),
+            )
+        )
 
 
     with start_action(action_type=u"integration:alice:magic_folder:invite") as a:
         print("Inviting bob to magic-folder for {}".format(node_dir))
-        o = MagicFolderCommand()
-        o.stdout = BytesIO()
-        o.parseOptions([
-            "--node-directory", node_dir,
-            "invite",
-            "magik:", "bob",
-        ])
-        assert 0 == pytest_twisted.blockon(do_magic_folder(o))
-        invite = o.stdout.getvalue()
+        invite = pytest_twisted.blockon(
+            _command(
+                "--node-directory", node_dir,
+                "invite",
+                "magik:", "bob",
+            )
+        )
         a.add_success_fields(invite=invite)
 
     with start_action(action_type=u"integration:alice:magic_folder:restart"):
@@ -530,15 +524,15 @@ def magic_folder(reactor, alice_invite, alice, bob, temp_dir, request):
     bob_dir = join(temp_dir, 'bob')
 
     print("Joining bob to magic-folder")
-    o = MagicFolderCommand()
-    o.parseOptions([
-        "--node-directory", bob_dir,
-        "join",
-        "--poll-interval", "1",
-        alice_invite,
-        join(temp_dir, "magic-bob"),
-    ])
-    assert 0 == do_magic_folder(o)
+    pytest_twisted.blockon(
+        _command(
+            "--node-directory", bob_dir,
+            "join",
+            "--poll-interval", "1",
+            alice_invite,
+            join(temp_dir, "magic-bob"),
+        )
+    )
 
     # before magic-folder works, we have to stop and restart (this is
     # crappy for the tests -- can we fix it in magic-folder?)
