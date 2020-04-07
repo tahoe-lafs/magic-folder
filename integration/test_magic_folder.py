@@ -32,6 +32,12 @@ from magic_folder.cli import (
     do_magic_folder,
     poll,
 )
+from .helpers import (
+    MagicFolderEnabledNode,
+    _generate_invite,
+    _pair_magic_folder,
+    _command,
+)
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
@@ -457,69 +463,71 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
 
 
 @pytest_twisted.inlineCallbacks
-def test_francis_leaves(reactor, request, temp_dir, magic_folder, alice, bob):
+def test_francis_leaves(reactor, request, introducer_furl, flog_gatherer, temp_dir, magic_folder, alice, bob):
     """
     Set up a magic-folder with francis + gloria; after francis leaves
     she shouldn't receive any more updates.
     """
-    alice_magic_dir, bob_magic_dir = magic_folder
-    alice_node_dir = alice.node_directory
-
-    # Take Bob offline.
-    yield bob.stop_magic_folder()
-
-    # Create a couple files in Alice's local directory.
-    some_files = list(
-        (name * 3) + ".added-while-offline"
-        for name
-        in "xyz"
-    )
-    for name in some_files:
-        with open(join(alice_magic_dir, name), "w") as f:
-            f.write(name + " some content")
-
-    agent = Agent(reactor)
-
-    upload_dircap = load_magic_folders(alice_node_dir)["default"]["upload_dircap"]
-
-    # Alice's tahoe-lafs web api
-    uri = "http://127.0.0.1:9980/uri/{}?t=json".format(upload_dircap)
-
-    @pytest_twisted.inlineCallbacks
-    def good_remote_state(agent):
-        response = yield agent.request(
-            b"GET",
-            uri,
+    with start_action(action_type=u"integration:francis:magic_folder:create"):
+        francis = yield MagicFolderEnabledNode.create(
+            reactor,
+            request,
+            temp_dir,
+            introducer_furl,
+            flog_gatherer,
+            "francis",
+            tahoe_web_port="tcp:9986:interface=localhost",
+            magic_folder_web_port="tcp:19986:interface=localhost",
+            storage=False,
         )
-        if response.code != 200:
-            returnValue(False)
 
-        files = json.loads((yield readBody(response)))
-        print(files)
-        returnValue(True)
+    with start_action(action_type=u"integration:gloria:magic_folder:create"):
+        gloria = yield MagicFolderEnabledNode.create(
+            reactor,
+            request,
+            temp_dir,
+            introducer_furl,
+            flog_gatherer,
+            "gloria",
+            tahoe_web_port="tcp:9987:interface=localhost",
+            magic_folder_web_port="tcp:19987:interface=localhost",
+            storage=False,
+        )
 
-    yield poll("good-remote-state", partial(good_remote_state, agent), reactor)
+    # create a magic folder and invite gloria
+    invite = yield _generate_invite(reactor, francis, "gloria")
+    yield _pair_magic_folder(reactor, invite, francis, gloria)
 
-    # Start Bob up again
-    yield bob.start_magic_folder()
+    # make an update from francis -> gloria
+    first_fname = join(francis.magic_directory, "francis_to_gloria")
+    with open(first_fname, "w") as f:
+        f.write("francis some content")
 
-    yield util.await_files_exist(
-        list(
-            join(bob_magic_dir, name)
-            for name
-            in some_files
-        ),
-        await_all=True,
+    # wait for gloria to get it
+    yield util.await_file_contents(
+        join(gloria.magic_directory, "francis_to_gloria"),
+        "francis some content",
     )
-    # Let it settle.  It would be nicer to have a readable status output we
-    # could query.  Parsing the current text format is more than I want to
-    # deal with right now.
-    time.sleep(1.0)
-    conflict_files = list(name + ".conflict" for name in some_files)
-    assert all(
-        list(
-            not exists(join(bob_magic_dir, name))
-            for name
-            in conflict_files
-        ),
+
+    print("okay, it worked")
+
+    # gloria leaves the magic-folder
+    yield _command(
+        "--node-directory", gloria.node_directory,
+        "leave",
     )
+
+    # make another update from francis -> gloria
+    second_fname = join(francis.magic_directory, "francis_to_gloria_2")
+    with open(second_fname, "w") as f:
+        f.write("francis some MOAR content")
+
+    # gloria should not get it (we want an error)
+    try:
+        yield util.await_file_contents(
+            join(gloria.magic_directory, "francis_to_gloria_2"),
+            "francis some MOAR content",
+        )
+        assert False, "Gloria got the new file, but shouldn't have"
+    except Exception as e:
+        print("expected: {}".format(e))
