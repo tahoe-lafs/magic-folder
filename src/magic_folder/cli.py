@@ -1076,7 +1076,7 @@ class MagicFolderCommand(BaseOptions):
         """
         Display magic-folder version and exit.
         """
-        from magic_folder import __version__
+        from . import __version__
         print("Magic Folder version {}".format(__version__))
         sys.exit(0)
 
