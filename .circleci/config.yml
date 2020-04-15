@@ -27,8 +27,8 @@ workflows:
 
       - "nixos-19.09"
 
-      # Test against PyPy 2.7/7.1.1
-      - "pypy2.7-7.1"
+      # Test against PyPy 2.7/7.3.0
+      - "pypy2.7-7.3"
 
       # Other assorted tasks and configurations
       - "lint"
@@ -168,7 +168,7 @@ jobs:
         user: "nobody"
 
 
-  pypy2.7-7.1:
+  pypy2.7-7.3:
     <<: *DEBIAN
     docker:
       - image: "pypy:2.7-7.3.0-buster"
