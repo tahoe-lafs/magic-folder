@@ -171,7 +171,7 @@ jobs:
   pypy2.7-7.1:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/pypy:2.7-7.3.0-buster"
+      - image: "pypy:2.7-7.3.0-buster"
         user: "nobody"
 
     environment:
