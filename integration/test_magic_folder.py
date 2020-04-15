@@ -24,7 +24,7 @@ from twisted.web.client import (
     readBody,
 )
 
-from magic_folder.frontends.magic_folder import (
+from magic_folder.magic_folder import (
     load_magic_folders,
 )
 from magic_folder.cli import (

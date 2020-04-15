@@ -30,7 +30,7 @@ from allmydata import uri
 from allmydata.util import fileutil
 from allmydata.util.encodingutil import quote_output
 
-from .frontends.magic_folder import (
+from .magic_folder import (
     load_magic_folders,
     maybe_upgrade_magic_folders,
 )

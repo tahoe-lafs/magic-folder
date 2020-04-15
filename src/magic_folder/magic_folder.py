@@ -55,7 +55,7 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
 
-from .. import (
+from . import (
     magicfolderdb,
     magicpath,
 )
@@ -79,11 +79,11 @@ class ConfigurationError(Exception):
 def _get_inotify_module():
     try:
         if sys.platform == "win32":
-            from ..windows import inotify
+            from .windows import inotify
         elif runtime.platform.supportsINotify():
             from twisted.internet import inotify
         elif not sys.platform.startswith("linux"):
-            from ..watchdog import inotify
+            from .watchdog import inotify
         else:
             raise NotImplementedError("filesystem notification needed for Magic Folder is not supported.\n"
                                       "This currently requires Linux, Windows, or macOS.")

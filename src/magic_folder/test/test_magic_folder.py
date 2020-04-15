@@ -45,7 +45,7 @@ from allmydata.util.eliotutil import (
     log_call_deferred,
 )
 
-from magic_folder.frontends.magic_folder import (
+from magic_folder.magic_folder import (
     MagicFolder,
     WriteFileMixin,
     ConfigurationError,
@@ -2284,7 +2284,7 @@ class MockTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
 
     def setUp(self):
         self.inotify = fake_inotify
-        from magic_folder.frontends import magic_folder
+        from magic_folder import magic_folder
         self.patch(magic_folder, 'get_inotify_module', lambda: self.inotify)
         return super(MockTestAliceBob, self).setUp()
 
@@ -2296,7 +2296,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
 
     def setUp(self):
         self.inotify = fake_inotify
-        from magic_folder.frontends import magic_folder
+        from magic_folder import magic_folder
         self.patch(magic_folder, 'get_inotify_module', lambda: self.inotify)
         return super(MockTest, self).setUp()
 
@@ -2332,7 +2332,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
 
             def _not_implemented():
                 raise NotImplementedError("blah")
-            from magic_folder.frontends import magic_folder
+            from magic_folder import magic_folder
             self.patch(magic_folder, 'get_inotify_module', _not_implemented)
             self.shouldFail(NotImplementedError, 'unsupported', 'blah',
                             MagicFolder, client, upload_dircap, '', errors_dir, magicfolderdb, 0o077, 'default')

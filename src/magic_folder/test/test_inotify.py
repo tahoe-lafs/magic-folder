@@ -12,7 +12,7 @@ notification.
 from twisted.internet import defer, reactor
 from twisted.python import filepath, runtime
 
-from magic_folder.frontends.magic_folder import (
+from magic_folder.magic_folder import (
     get_inotify_module,
 )
 from .common import (

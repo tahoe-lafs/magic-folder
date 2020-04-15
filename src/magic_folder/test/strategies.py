@@ -44,7 +44,7 @@ from allmydata.util.progress import (
 from allmydata.uri import (
     from_string as cap_from_string,
 )
-from ..frontends.magic_folder import (
+from ..magic_folder import (
     QueuedItem,
 )
 
