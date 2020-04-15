@@ -64,7 +64,7 @@ workflows:
       - "build-image-fedora-29"
       - "build-image-centos-7"
       - "build-image-slackware-14.2"
-      - "build-image-pypy-2.7-7.1.1-jessie"
+      - "build-image-pypy-2.7-7.3.0-buster"
 
 
 jobs:
@@ -171,7 +171,7 @@ jobs:
   pypy2.7-7.1:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/pypy:2.7-7.1.1-jessie"
+      - image: "magicfolderci/pypy:2.7-7.3.0-buster"
         user: "nobody"
 
     environment:
@@ -456,9 +456,9 @@ jobs:
       TAG: "14.2"
 
 
-  build-image-pypy-2.7-7.1.1-jessie:
+  build-image-pypy-2.7-7.3.0-buster:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "pypy"
-      TAG: "2.7-7.1.1-jessie"
+      TAG: "2.7-7.3.0-buster"
