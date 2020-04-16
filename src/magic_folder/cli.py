@@ -680,11 +680,12 @@ class MagicFolderService(MultiService):
             serverFromString(self.reactor, self.webport),
             self._write_web_url,
         )
-        magic_folder_web_service(
+        self._web_service = magic_folder_web_service(
             web_endpoint,
             self._get_magic_folder,
             self._get_auth_token,
-        ).setServiceParent(self)
+        )
+        self._web_service.setServiceParent(self)
 
     def _write_web_url(self, host):
         """
@@ -733,6 +734,7 @@ class MagicFolderService(MultiService):
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
+        d.addCallback(lambda ignored: self._web_service.when_listening())
         d.addCallback(lambda ignored: Deferred())
         return d
 
