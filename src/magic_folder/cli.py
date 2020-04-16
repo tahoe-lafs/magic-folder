@@ -612,10 +612,14 @@ def _format_magic_folder_status(now, magic_data):
 
 class RunOptions(BasedirOptions):
     optParameters = [
-        ("web-port", None, "tcp:9889",
-         "String description of an endpoint on which to run the web interface.",
+        ("web-port", None, None,
+         "String description of an endpoint on which to run the web interface (required).",
         ),
     ]
+
+    def postOptions(self):
+        if self['web-port'] is None:
+            raise usage.UsageError("Must specify a listening endpoint with --web-port")
 
 
 def main(options):
