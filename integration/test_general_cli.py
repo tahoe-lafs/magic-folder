@@ -42,8 +42,15 @@ def test_exit_if_listen_fails(request, reactor, temp_dir, introducer_furl, flog_
 
     # try to start; should exit
     try:
-        yield node.start_magic_folder()
+        with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
+            yield util._run_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                node.name,
+                node.magic_folder_web_port,
+            )
     except Exception as e:
-        print("got error", e)
+        assert "Address already in use" in str(e)
         return
     assert False, "should have failed to start"

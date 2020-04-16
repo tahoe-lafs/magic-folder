@@ -254,6 +254,14 @@ class _MagicTextProtocol(ProcessProtocol):
         with self._action.context():
             Message.log(message_type=u"process-ended")
             self.exited.callback(None)
+            if not self.magic_seen.called:
+                self.magic_seen.errback(
+                    Exception(
+                        "Process ended before seeing magic-text. Logs:\n{}".format(
+                            self._output.getvalue()
+                        )
+                    )
+                )
 
     def outReceived(self, data):
         with self._action.context():
