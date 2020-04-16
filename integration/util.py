@@ -270,6 +270,7 @@ class _MagicTextProtocol(ProcessProtocol):
             sys.stdout.write(data)
 
 
+@inlineCallbacks
 def _cleanup_tahoe_process(tahoe_transport, exited):
     """
     Terminate the given process with a kill signal (SIGKILL on POSIX,
@@ -284,7 +285,7 @@ def _cleanup_tahoe_process(tahoe_transport, exited):
         print("signaling {} with TERM".format(tahoe_transport.pid))
         tahoe_transport.signalProcess('TERM')
         print("signaled, blocking on exit")
-        pytest_twisted.blockon(exited)
+        yield exited
         print("exited, goodbye")
     except ProcessExitedAlready:
         pass

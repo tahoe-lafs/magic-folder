@@ -138,7 +138,7 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
     pytest_twisted.blockon(twistd_protocol.magic_seen)
 
     def cleanup():
-        _cleanup_tahoe_process(twistd_process, twistd_protocol.exited)
+        pytest_twisted.blockon(_cleanup_tahoe_process(twistd_process, twistd_protocol.exited))
 
         flog_file = mktemp('.flog_dump')
         flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
