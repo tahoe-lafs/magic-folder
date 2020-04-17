@@ -1,6 +1,9 @@
 import json
 import cgi
 
+from twisted.application.internet import (
+    StreamServerEndpointService,
+)
 from twisted.web.server import (
     Site,
     NOT_DONE_YET,
@@ -11,15 +14,8 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
-)
 from allmydata.util.hashutil import (
     timing_safe_compare,
-)
-from .util.service import (
-    StreamingServerService,
 )
 
 
@@ -31,12 +27,11 @@ def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
 
     :param get_auth_token: a callabl that returns the current authentication token
 
-    :returns: a StreamingServerService instance that is already
-        listening, or an error if it can't listen.
+    :returns: a StreamServerEndpointService instance
     """
     root = Resource()
     root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
-    return StreamingServerService(
+    return StreamServerEndpointService(
         web_endpoint,
         Site(root),
     )

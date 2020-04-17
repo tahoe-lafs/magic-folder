@@ -1,56 +1,41 @@
+from twisted.internet.interfaces import (
+    IStreamServerEndpoint,
+)
 from twisted.internet.defer import (
-    Deferred,
     succeed,
+    Deferred,
 )
 
+import attr
 
-class OneShotObserver(object):
+from zope.interface import implementer
+
+
+@attr.s
+@implementer(IStreamServerEndpoint)
+class ListenObserver(object):
     """
-    Multiple users can observe an event which happens at most once.
-
-    This is a helper for classes to implement the 'when_*()'
-    asynchronous idiom that gives a fresh Deferred to every caller and
-    notifies those Deferreds when an event happens. This looks like:
-
-        def __init__(self):
-            self.door_opened = OneShotObserver()
-
-        def when_opened(self):
-            return self.door_opened.when_fired()
-
-        def the_door_is_open(self):
-            # ...
-            self.door_opened.fire(True)
-
-    So user-code would await on .when_opened() and receive True when
-    the door opens. If there is some error, .fire() may be called with
-    a Failure which will deliver an exception to the awaiters.
+    Calls .listen on the given endpoint and allows observers to be
+    notified when that listen succeeds (or fails).
     """
+    _endpoint = attr.ib()
+    _observers = attr.ib(default=attr.Factory(list))
+    _listened_result = attr.ib(default=None)
 
-    def __init__(self):
-        self._fired = False
-        self._result = None
-        self._watchers = []
+    def observe(self):
+        if self._listened_result is not None:
+            return succeed(self._listened_result)
+        self._observers.append(Deferred())
+        return self._observers[-1]
 
-    def when_fired(self):
-        """
-        :returns: a new Deferred that will fire when this has a result
-            (so it may already be fired if we already have a result).
-        """
-        if self._fired:
-            return succeed(self._result)
-        d = Deferred()
-        self._watchers.append(d)
+    def listen(self, protocolFactory):
+        d = self._endpoint.listen(protocolFactory)
+        d.addBoth(self._deliver_result)
         return d
 
-    def fire(self, result):
-        """
-        Notify all observers and mark this event as fired with the given
-        result (which may be a Failure if this is an error).
-        """
-        assert not self._fired
-        self._fired = True
-        self._result = result
-        for w in self._watchers:
-            w.callback(result)
-        self._watchers = []
+    def _deliver_result(self, result):
+        self._listened_result = result
+        observers = self._observers
+        self._observers = []
+        for o in observers:
+            o.callback(result)
