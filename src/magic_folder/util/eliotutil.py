@@ -5,8 +5,6 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
-from collections import namedtuple
-
 from eliot import (
     Field,
     ValidationError,
