@@ -12,8 +12,13 @@ from eliot import (
     ValidationError,
 )
 
+from .fake_inotify import (
+    humanReadableMask,
+)
 
-PathInfo = namedtuple('PathInfo', 'isdir isfile islink exists size mtime_ns ctime_ns')
+from allmydata.util.fileutil import (
+    PathInfo,
+)
 
 
 def validateInstanceOf(t):
@@ -69,6 +74,13 @@ PATHINFO = Field(
     },
     u"The metadata for this version of this file.",
     validateInstanceOf((type(None), PathInfo)),
+)
+
+INOTIFY_EVENTS = Field(
+    u"inotify_events",
+    humanReadableMask,
+    u"Details about a filesystem event generating a notification event.",
+    validateInstanceOf((int, long)),
 )
 
 
