@@ -227,7 +227,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
 
     @log_call
     def check_config(self, client_num, local_dir):
-        client_config = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "tahoe.cfg"))
         mf_yaml = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "private", "magic_folders.yaml"))
         local_dir_utf8 = local_dir.encode('utf-8')
         self.assertIn(local_dir_utf8, mf_yaml)
