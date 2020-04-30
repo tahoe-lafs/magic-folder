@@ -230,8 +230,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         client_config = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "tahoe.cfg"))
         mf_yaml = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "private", "magic_folders.yaml"))
         local_dir_utf8 = local_dir.encode('utf-8')
-        magic_folder_config = "[magic_folder]\nenabled = True"
-        self.assertIn(magic_folder_config, client_config)
         self.assertIn(local_dir_utf8, mf_yaml)
 
     def create_invite_join_magic_folder(self, nickname, local_dir):
