@@ -95,6 +95,7 @@ from allmydata.util.encodingutil import (
 )
 from allmydata.util import fileutil
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
+from allmydata.util.encodingutil import quote_output
 
 from allmydata.scripts.common import (
     BasedirOptions,
@@ -195,6 +196,7 @@ def create(options):
         nodedir = options["node-directory"]
         localdir = options.local_dir
         rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
+        print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
         returnValue(1)
