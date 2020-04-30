@@ -1075,16 +1075,6 @@ def do_magic_folder(options):
         if options['debug']:
             raise
 
-subCommands = [
-    ["magic-folder", None, MagicFolderCommand,
-     "Magic Folder subcommands: use 'tahoe magic-folder' for a list."],
-]
-
-dispatch = {
-    "magic-folder": do_magic_folder,
-}
-
-
 class _MagicFolderService(Service):
     def __init__(self, options):
         self.options = options
