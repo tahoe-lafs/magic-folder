@@ -16,6 +16,7 @@ from allmydata.scripts import runner
 
 from ..cli import (
     MagicFolderCommand,
+    do_magic_folder,
 )
 
 def skip_if_cannot_represent_filename(u):
@@ -35,7 +36,30 @@ def skip_if_cannot_represent_argv(u):
     except UnicodeEncodeError:
         raise unittest.SkipTest("A non-ASCII argv could not be encoded on this platform.")
 
-def run_cli(verb, *args, **kwargs):
+def run_magic_folder_cli(verb, *args, **kwargs):
+    precondition(not [True for arg in args if not isinstance(arg, str)],
+                 "arguments to do_cli must be strs -- convert using unicode_to_argv", args=args)
+    nodeargs = kwargs.get("nodeargs", [])
+    argv = nodeargs + list(args)
+    stdin = kwargs.get("stdin", "")
+    stdout = StringIO()
+    stderr = StringIO()
+    d = defer.succeed(argv)
+
+    o = parse_cli(*argv)
+    o.stdin = StringIO(stdin)
+    o.stdout = stdout
+    o.stderr = stderr
+    d.addCallback(lambda ign: do_magic_folder(o))
+    def _done(rc):
+        return 0, stdout.getvalue(), stderr.getvalue()
+    def _err(f):
+        f.trap(SystemExit)
+        return f.value.code, stdout.getvalue(), stderr.getvalue()
+    d.addCallbacks(_done, _err)
+    return d
+
+def run_tahoe_cli(verb, *args, **kwargs):
     precondition(not [True for arg in args if not isinstance(arg, str)],
                  "arguments to do_cli must be strs -- convert using unicode_to_argv", args=args)
     nodeargs = kwargs.get("nodeargs", [])

@@ -22,7 +22,11 @@ from eliot import (
     Message,
 )
 
-from ..common_util import ReallyEqualMixin, run_cli
+from ..common_util import (
+    ReallyEqualMixin,
+    run_magic_folder_cli,
+    run_tahoe_cli,
+)
 
 from ...cli import (
     MagicFolderCommand,
@@ -43,7 +47,10 @@ class CLITestMixin(ReallyEqualMixin):
         client_num = kwargs.get("client_num", 0)
         client_dir = unicode_to_argv(self.get_clientdir(i=client_num))
         nodeargs = [ "--node-directory", client_dir ]
-        return run_cli(verb, nodeargs=nodeargs, *args, **kwargs)
+        if verb == "magic-folder":
+            return run_magic_folder_cli(verb, nodeargs=nodeargs, *args, **kwargs)
+        else:
+            return run_tahoe_cli(verb, nodeargs=nodeargs, *args, **kwargs)
 
 
 @attr.s
