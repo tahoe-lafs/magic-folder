@@ -510,7 +510,7 @@ def alice_invite(reactor, alice, temp_dir, request):
             "magik:", "bob",
         ])
         assert 0 == pytest_twisted.blockon(do_magic_folder(o))
-        invite = o.stdout.getvalue()
+        invite = o.stdout.getvalue().strip()
         a.add_success_fields(invite=invite)
 
     with start_action(action_type=u"integration:alice:magic_folder:restart"):
