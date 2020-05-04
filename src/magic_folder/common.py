@@ -19,12 +19,6 @@ from twisted.web.client import (
     readBody,
 )
 
-from twisted.web.http import (
-    OK,
-)
-
-from allmydata.util import fileutil
-
 INVITE_SEPARATOR = "+"
 
 class BadFolderName(Exception):
@@ -89,37 +83,3 @@ def bad_response(url, response):
     """
     body = yield readBody(response)
     raise BadResponseCode(url, response.code, body)
-
-def get_node_url(node_directory):
-    node_url_file = os.path.join(node_directory, u"node.url")
-    node_url = fileutil.read(node_url_file).strip()
-
-    return node_url
-
-@inlineCallbacks
-def tahoe_mkdir(nodeurl, treq):
-    """
-    :param DecodedURL nodeurl: The web endpoint of the Tahoe-LAFS client
-        associated with the magic-wormhole client.
-
-    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
-        make the queries.
-
-    :return Deferred[unicode]: The writecap associated with the newly created unlinked
-        directory.
-    """
-    url = nodeurl.child(
-        u"uri",
-    ).add(
-        u"t",
-        u"mkdir",
-    )
-
-    post_uri = url.to_uri().to_text().encode("ascii")
-    response = yield treq.post(post_uri)
-    if response.code != OK:
-        returnValue((yield bad_response(url, response)))
-
-    result = yield readBody(response)
-    # emit its write-cap
-    returnValue(result)
