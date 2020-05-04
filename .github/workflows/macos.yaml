@@ -27,7 +27,7 @@ jobs:
         pip install wheel tox
     - name: Get Tahoe-LAFS master
       run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
+        pip wheel --wheel-dir ./wheelhouse tahoe-lafs==1.14.0
     - name: Test with tox
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "ci"
@@ -62,7 +62,7 @@ jobs:
         pip install wheel tox
     - name: Get Tahoe-LAFS master
       run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
+        pip wheel --wheel-dir ./wheelhouse tahoe-lafs==1.14.0
     - name: Test with tox
       run: |
         PIP_FIND_LINKS=./wheelhouse tox -e integration

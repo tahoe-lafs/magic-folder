@@ -4,6 +4,6 @@ in
   pkgs.fetchFromGitHub {
     owner = "tahoe-lafs";
     repo = "tahoe-lafs";
-    rev = "5bd84895fdc436feb0753e824044a016430896da";
-    sha256 = "1ygzf00r7230v5ma02cs9n0fxgd2kq9iyrp4r8gxayw3cgbbhnlm";
+    rev = "tahoe-lafs-1.14.0";
+    sha256 = "02gz83avmd4n0f22ss9hg1xazgikik13z4k7v8ri1ag1vzy0h6bh";
   }
