@@ -38,7 +38,7 @@ from allmydata.util import (
     yamlutil,
     eliotutil,
 )
-from util.eliotutil import (
+from .util.eliotutil import (
     RELPATH,
     INOTIFY_EVENTS,
     validateSetMembership,
