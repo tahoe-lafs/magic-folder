@@ -149,7 +149,7 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     return reactor.spawnProcess(
         proto,
         sys.executable,
-        [sys.executable, "-m", "magic_folder.scripts.magic_folder_cli"] + other_args,
+        [sys.executable, "-m", "magic_folder"] + other_args,
     )
 
 
