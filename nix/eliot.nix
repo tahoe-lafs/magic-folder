@@ -16,6 +16,9 @@ buildPythonPackage rec {
     rm eliot/tests/test_prettyprint.py
   '';
 
+  # disable eliot test suite
+  doCheck = false;
+
   checkInputs = [ testtools pytest hypothesis ];
   propagatedBuildInputs = [ zope_interface pyrsistent boltons ];
 
