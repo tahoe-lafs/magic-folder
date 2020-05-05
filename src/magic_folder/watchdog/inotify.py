@@ -41,7 +41,8 @@ from eliot import (
 from allmydata.util.pollmixin import PollMixin
 from allmydata.util.assertutil import _assert, precondition
 from allmydata.util import encodingutil
-from allmydata.util.eliotutil import (
+
+from ..util.eliotutil import (
     MAYBE_NOTIFY,
     CALLBACK,
     validateInstanceOf,
