@@ -45,7 +45,7 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.util.eliotutil import (
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 

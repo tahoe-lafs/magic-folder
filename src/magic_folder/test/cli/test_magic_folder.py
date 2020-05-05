@@ -43,7 +43,8 @@ from allmydata.scripts.common import get_aliases
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata import uri
-from allmydata.util.eliotutil import (
+
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 

@@ -1,5 +1,5 @@
 """
-Tests for ``allmydata.test.eliotutil``.
+Tests for ``magic_folder.test.eliotutil``.
 """
 
 from __future__ import (
