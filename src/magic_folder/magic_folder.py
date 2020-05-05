@@ -38,6 +38,11 @@ from allmydata.util import (
     yamlutil,
     eliotutil,
 )
+from .util.eliotutil import (
+    RELPATH,
+    INOTIFY_EVENTS,
+    validateSetMembership,
+)
 from allmydata.interfaces import IDirectoryNode
 from allmydata.util import log
 from allmydata.util.fileutil import (
@@ -442,7 +447,7 @@ _DIRECTION = Field.for_types(
     u"direction",
     [unicode],
     u"A synchronization direction: uploader or downloader.",
-    eliotutil.validateSetMembership({u"uploader", u"downloader"}),
+    validateSetMembership({u"uploader", u"downloader"}),
 )
 
 PROCESSING_LOOP = ActionType(
@@ -515,13 +520,13 @@ REMOTE_URI = Field.for_types(
 
 REMOTE_DMD_ENTRY = MessageType(
     u"magic-folder:remote-dmd-entry",
-    [eliotutil.RELPATH, magicfolderdb.PATHENTRY, REMOTE_VERSION, REMOTE_URI],
+    [RELPATH, magicfolderdb.PATHENTRY, REMOTE_VERSION, REMOTE_URI],
     u"A single entry found by scanning a peer DMD.",
 )
 
 ADD_TO_DOWNLOAD_QUEUE = MessageType(
     u"magic-folder:add-to-download-queue",
-    [eliotutil.RELPATH],
+    [RELPATH],
     u"An entry was found to be changed and is being queued for download.",
 )
 
@@ -534,7 +539,7 @@ MAGIC_FOLDER_STOP = ActionType(
 
 MAYBE_UPLOAD = MessageType(
     u"magic-folder:maybe-upload",
-    [eliotutil.RELPATH],
+    [RELPATH],
     u"A decision is being made about whether to upload a file.",
 )
 
@@ -547,7 +552,7 @@ PENDING = Field(
 
 REMOVE_FROM_PENDING = ActionType(
     u"magic-folder:remove-from-pending",
-    [eliotutil.RELPATH, PENDING],
+    [RELPATH, PENDING],
     [],
     u"An item being processed is being removed from the pending set.",
 )
@@ -693,7 +698,7 @@ _SIZE = Field.for_types(
 
 ADD_PENDING = ActionType(
     u"magic-folder:add-pending",
-    [eliotutil.RELPATH],
+    [RELPATH],
     [_IGNORED, _ALREADY_PENDING, _SIZE],
     u"Uploader is adding a path to the processing queue.",
 )
@@ -707,7 +712,7 @@ FULL_SCAN = ActionType(
 
 SCAN = ActionType(
     u"magic-folder:scan",
-    [eliotutil.RELPATH],
+    [RELPATH],
     [],
     u"A brute-force scan of a subset of the local directory is being performed.",
 )
@@ -728,7 +733,7 @@ _NON_DIR_CREATED = Field.for_types(
 
 REACT_TO_INOTIFY = ActionType(
     u"magic-folder:react-to-inotify",
-    [eliotutil.INOTIFY_EVENTS],
+    [INOTIFY_EVENTS],
     [_IGNORED, _NON_DIR_CREATED, _ALREADY_PENDING],
     u"Magic-Folder is processing a notification from inotify(7) (or a clone) about a filesystem event.",
 )
@@ -845,7 +850,7 @@ _STATUS = Field.for_types(
 
 QUEUED_ITEM_STATUS_CHANGE = MessageType(
     u"magic-folder:item:status-change",
-    [eliotutil.RELPATH, _STATUS],
+    [RELPATH, _STATUS],
     u"A queued item changed status.",
 )
 
@@ -853,7 +858,7 @@ _CONFLICT_REASON = Field.for_types(
     u"conflict_reason",
     [unicode, type(None)],
     u"A human-readable explanation of why a file was in conflict.",
-    eliotutil.validateSetMembership({
+    validateSetMembership({
         u"dbentry mismatch metadata",
         u"dbentry newer version",
         u"last_downloaded_uri mismatch",

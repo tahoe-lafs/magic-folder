@@ -40,8 +40,12 @@ from allmydata.immutable.upload import Data
 from allmydata.mutable.common import (
         UnrecoverableFileError,
 )
-from allmydata.util.eliotutil import (
+
+from eliot.twisted import (
     inline_callbacks,
+)
+
+from allmydata.util.eliotutil import (
     log_call_deferred,
 )
 
