@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os
 import sys
-import urllib
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -28,7 +27,6 @@ from io import (
     BytesIO,
 )
 from eliot import (
-    Message,
     start_action,
     log_call,
 )
@@ -95,7 +93,6 @@ from allmydata.util.encodingutil import (
     to_str,
     quote_local_unicode_path,
 )
-from allmydata.scripts.common_http import do_http, BadResponse
 from allmydata.util import fileutil
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 
@@ -405,47 +402,6 @@ class StatusOptions(BasedirOptions):
                     e,
                 ))
 
-
-@log_call
-def _get_json_for_fragment(options, fragment, method='GET', post_args=None):
-    nodeurl = options['node-url']
-    if nodeurl.endswith('/'):
-        nodeurl = nodeurl[:-1]
-
-    url = u'%s/%s' % (nodeurl, fragment)
-    if method == 'POST':
-        if post_args is None:
-            raise ValueError("Must pass post_args= for POST method")
-        body = urllib.urlencode(post_args)
-    else:
-        body = ''
-        if post_args is not None:
-            raise ValueError("post_args= only valid for POST method")
-    resp = do_http(method, url, body=body)
-    if isinstance(resp, BadResponse):
-        # specifically NOT using format_http_error() here because the
-        # URL is pretty sensitive (we're doing /uri/<key>).
-        raise RuntimeError(
-            "Failed to get json from '%s': %s" % (nodeurl, resp.error)
-        )
-
-    data = resp.read()
-    Message.log(
-        message_type=u"http",
-        uri=url,
-        response_body=data,
-    )
-    parsed = json.loads(data)
-    if parsed is None:
-        raise RuntimeError("No data from '%s'" % (nodeurl,))
-    return parsed
-
-
-def _get_json_for_cap(options, cap):
-    return _get_json_for_fragment(
-        options,
-        'uri/%s?t=json' % urllib.quote(cap),
-    )
 
 def _item_status(item, now, longest):
     paddedname = (' ' * (longest - len(item['path']))) + item['path']

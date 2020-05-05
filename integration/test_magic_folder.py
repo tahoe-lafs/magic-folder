@@ -19,9 +19,18 @@ from eliot import (
 from twisted.internet.defer import (
     returnValue,
 )
+
 from twisted.web.client import (
     Agent,
     readBody,
+)
+
+from twisted.python.filepath import (
+    FilePath,
+)
+
+from treq.client import (
+    HTTPClient,
 )
 
 from magic_folder.magic_folder import (
@@ -31,6 +40,10 @@ from magic_folder.cli import (
     MagicFolderCommand,
     do_magic_folder,
     poll,
+)
+
+from magic_folder.status import (
+    status,
 )
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
@@ -343,31 +356,17 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
     # let it upload; poll the HTTP magic-folder status API until it is
     # uploaded
-    from magic_folder.cli import _get_json_for_fragment
-
-    with open(join(edmond.node_directory, u'private', u'api_auth_token'), 'rb') as f:
-        token = f.read()
-
     uploaded = False
     for _ in range(10):
-        options = {
-            "node-url": "http://127.0.0.1:19985/",
-        }
         try:
-            magic_data = _get_json_for_fragment(
-                options,
-                'api?t=json',
-                method='POST',
-                post_args=dict(
-                    t='json',
-                    name='default',
-                    token=token,
-                )
-            )
-            for mf in magic_data:
-                if mf['status'] == u'success' and mf['path'] == u'its_a_file':
-                    uploaded = True
-                    break
+            treq = HTTPClient(Agent(reactor))
+            mf = yield status(unicode('default', 'utf-8'),
+                              FilePath(edmond.node_directory),
+                              treq)
+            if mf.folder_status[0]['status'] == u'success' and \
+               mf.local_files.get(u'its_a_file', None) is not None:
+                uploaded = True
+                break
         except Exception:
             write_traceback()
             time.sleep(1)
