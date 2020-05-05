@@ -1,0 +1,1 @@
+magic-folder exits with error if it can't listen
