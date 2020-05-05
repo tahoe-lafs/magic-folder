@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os
 import sys
-import urllib
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -28,7 +27,6 @@ from io import (
     BytesIO,
 )
 from eliot import (
-    Message,
     start_action,
     log_call,
 )
