@@ -39,3 +39,4 @@ class ListenObserver(object):
         self._observers = []
         for o in observers:
             o.callback(result)
+        return result
