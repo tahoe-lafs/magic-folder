@@ -146,10 +146,15 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     """
     Launch a ``magic_folder run`` child process and return it.
     """
+    if request.config.getoption('coverage'):
+        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
+    else:
+        prelude = [sys.executable, "-m", "magic_folder"]
+
     return reactor.spawnProcess(
         proto,
         sys.executable,
-        [sys.executable, "-m", "magic_folder"] + other_args,
+        prelude + other_args,
     )
 
 
