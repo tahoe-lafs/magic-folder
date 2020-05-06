@@ -133,6 +133,9 @@ from ._coverage import (
     coverage_service,
 )
 
+from .util.observer import ListenObserver
+
+
 class CreateOptions(BasedirOptions):
     nickname = None  # NOTE: *not* the "name of this magic-folder"
     local_dir = None
@@ -684,11 +687,13 @@ class MagicFolderService(MultiService):
             serverFromString(self.reactor, self.webport),
             self._write_web_url,
         )
-        magic_folder_web_service(
-            web_endpoint,
+        self._listen_endpoint = ListenObserver(web_endpoint)
+        web_service = magic_folder_web_service(
+            self._listen_endpoint,
             self._get_magic_folder,
             self._get_auth_token,
-        ).setServiceParent(self)
+        )
+        web_service.setServiceParent(self)
 
     def _write_web_url(self, host):
         """
@@ -737,6 +742,7 @@ class MagicFolderService(MultiService):
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
+        d.addCallback(lambda ignored: self._listen_endpoint.observe())
         d.addCallback(lambda ignored: Deferred())
         return d
 
