@@ -43,7 +43,8 @@ from allmydata.scripts.common import get_aliases
 from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata import uri
-from allmydata.util.eliotutil import (
+
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 
@@ -227,11 +228,8 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
 
     @log_call
     def check_config(self, client_num, local_dir):
-        client_config = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "tahoe.cfg"))
         mf_yaml = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "private", "magic_folders.yaml"))
         local_dir_utf8 = local_dir.encode('utf-8')
-        magic_folder_config = "[magic_folder]\nenabled = True"
-        self.assertIn(magic_folder_config, client_config)
         self.assertIn(local_dir_utf8, mf_yaml)
 
     def create_invite_join_magic_folder(self, nickname, local_dir):

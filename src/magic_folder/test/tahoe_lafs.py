@@ -25,7 +25,7 @@ from eliot import (
     Message,
 )
 
-from allmydata.util.eliotutil import (
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 

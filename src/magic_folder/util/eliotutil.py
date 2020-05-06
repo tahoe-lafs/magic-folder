@@ -15,6 +15,7 @@ from eliot import (
     add_destinations,
     remove_destination,
     ILogger,
+    ActionType,
 )
 
 from logging import (
@@ -128,6 +129,20 @@ INOTIFY_EVENTS = Field(
     humanReadableMask,
     u"Details about a filesystem event generating a notification event.",
     validateInstanceOf((int, long)),
+)
+
+MAYBE_NOTIFY = ActionType(
+    u"filesystem:notification:maybe-notify",
+    [],
+    [],
+    u"A filesystem event is being considered for dispatch to an application handler.",
+)
+
+CALLBACK = ActionType(
+    u"filesystem:notification:callback",
+    [INOTIFY_EVENTS],
+    [],
+    u"A filesystem event is being dispatched to an application callback."
 )
 
 

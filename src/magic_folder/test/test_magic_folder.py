@@ -45,7 +45,7 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.util.eliotutil import (
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 
@@ -1823,16 +1823,6 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
             config,
         )
 
-        # There's probably already a default magicfolder on the client in our way...
-        existing = client_node.getServiceNamed("magic-folder-default")
-        # It's in some quasi-comprehensible intermediate state and can't
-        # actually stop without some help from us.
-        from twisted.internet.task import LoopingCall
-        for o in [existing.downloader, existing.uploader]:
-            o._processing = defer.succeed(None)
-            o._processing_loop = LoopingCall(None)
-            o._processing_loop.start(0, now=False)
-        existing.disownServiceParent()
         self.magicfolder.setServiceParent(client_node)
 
         self.fileops = FileOperationsHelper(self.magicfolder.uploader, self.inject_inotify)
@@ -2425,14 +2415,11 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         d.addCallback(lambda res: self.GET("statistics"))
         def _got_stats(res):
             self.assertIn("Operational Statistics", res)
-            self.assertIn("Magic Folder", res)
-            self.assertIn("<li>Local Directories Monitored: 1 directories</li>", res)
-            self.assertIn("<li>Files Uploaded: 1 files</li>", res)
-            self.assertIn("<li>Files Queued for Upload: 0 files</li>", res)
-            self.assertIn("<li>Failed Uploads: 0 files</li>", res)
-            self.assertIn("<li>Files Downloaded: 0 files</li>", res)
-            self.assertIn("<li>Files Queued for Download: 0 files</li>", res)
-            self.assertIn("<li>Failed Downloads: 0 files</li>", res)
+            self.assertIn("General", res)
+            self.assertIn("<li>Load Average: None</li>", res)
+            self.assertIn("<li>Peak Load: None</li>", res)
+            self.assertIn("<li>Files Uploaded (immutable): 1 files / 4 bytes (4B)</li>", res)
+            self.assertIn("<li>Files Downloaded (immutable): 0 files / 0 bytes (0B)</li>", res)
         d.addCallback(_got_stats)
         d.addCallback(lambda res: self.GET("statistics?t=json"))
         def _got_stats_json(res):
