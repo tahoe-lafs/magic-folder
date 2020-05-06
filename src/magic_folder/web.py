@@ -25,7 +25,7 @@ def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
 
     :param get_magic_folder: a callable that returns a MagicFolder given a name
 
-    :param get_auth_token: a callabl that returns the current authentication token
+    :param get_auth_token: a callable that returns the current authentication token
 
     :returns: a StreamServerEndpointService instance
     """
