@@ -10,7 +10,7 @@ let
   nevow = python2Packages.callPackage nevow-drv { };
   eliot-drv = repo + "/eliot.nix";
   eliot = (python2Packages.callPackage eliot-drv { }).overrideAttrs (old: {
-    doCheck = false;
+    doInstallCheck = false;
   });
   tahoe-lafs-drv = repo + "/tahoe-lafs.nix";
   tahoe-lafs = python2Packages.callPackage tahoe-lafs-drv {
