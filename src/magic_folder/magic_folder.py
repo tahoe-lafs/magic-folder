@@ -1483,6 +1483,7 @@ class Uploader(QueueMixin):
                         filecap,
                         last_downloaded_uri,
                         last_downloaded_timestamp,
+                        u'URI:DIR2-RO:0',
                         pathinfo,
                     )
                     self._count('files_uploaded')
@@ -1519,6 +1520,7 @@ class Uploader(QueueMixin):
                         last_uploaded_uri=dirnode.get_uri(),
                         last_downloaded_uri=None,
                         last_downloaded_timestamp=now,
+                        latest_snapshot=u'URI:DIR2-RO:0',
                         pathinfo=pathinfo,
                     )
                 upload_d.addCallback(_dir_succeeded)
@@ -1568,6 +1570,7 @@ class Uploader(QueueMixin):
                         filecap,
                         last_downloaded_uri,
                         last_downloaded_timestamp,
+                        u'URI:DIR2-RO:0',
                         pathinfo
                     )
                     self._count('files_uploaded')
@@ -2008,6 +2011,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                 last_uploaded_uri,
                 last_downloaded_uri,
                 last_downloaded_timestamp,
+                u'URI:DIR2-RO:0',
                 written_pathinfo,
             )
             self._count('objects_downloaded')
