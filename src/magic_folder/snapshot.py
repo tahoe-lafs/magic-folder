@@ -156,9 +156,7 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq
     returnValue(result)
 
 @inlineCallbacks
-def store_file_immutable(nodeurl, filepath):
-    """
-    """
+def _store_file_immutable(nodeurl, filepath):
     try:
         from twisted.internet import reactor
         treq = HTTPClient(Agent(reactor))
@@ -189,11 +187,14 @@ def snapshot_create(node_directory, filepath, parents, author_pk):
 
     # - store the file content and get the immutable cap (content)
     #     PUT /uri?format=CHK
-    content_cap = yield store_file_immutable(nodeurl, filepath)
+    content_cap = yield _store_file_immutable(nodeurl, filepath)
 
     # parents are read-caps of parent snapshots (parents)
     # store author's public key and get the read-cap (author)
-    author_cap = yield store_file_immutable(nodeurl, author_pk)
+
+    #author_pk = nodeurl.child("magic_folder.pubkey")
+    #author_cap = yield _store_file_immutable(nodeurl, author_pk)
+    author_cap = u'URI:CHK:foo'
 
     now = time.time()
     # - concatenate all these together.
