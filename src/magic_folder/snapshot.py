@@ -154,6 +154,8 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq
 
     post_uri = url.to_uri().to_text().encode("ascii")
     response = yield treq.post(post_uri, body_json)
+    print("post uri: {}".format(post_uri))
+    print("response: {}".format(response))
     if response.code != OK:
         returnValue((yield bad_response(post_uri, response)))
 
