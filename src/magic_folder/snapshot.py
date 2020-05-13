@@ -171,7 +171,7 @@ def _store_file_immutable(nodeurl, filepath):
     returnValue(rocap)
 
 @inlineCallbacks
-def snapshot_create(node_directory, filepath, parents, author_pk):
+def snapshot_create(node_directory, filepath, parents):
     """
     Create a snapshot, given a file contents of a named file,
     parent snapshots, author's identity and signature.
