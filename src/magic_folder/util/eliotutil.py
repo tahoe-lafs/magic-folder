@@ -109,6 +109,12 @@ LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
 )
 
+LATEST_SNAPSHOT = Field.for_types(
+    u"latest_snapshot",
+    [unicode, bytes, None],
+    u"The filecap to which this version of this file was uploaded.",
+)
+
 PATHINFO = Field(
     u"pathinfo",
     lambda v: None if v is None else {

@@ -383,7 +383,7 @@ class MagicFolder(service.MultiService):
         service.MultiService.__init__(self)
 
         clock = clock or reactor
-        db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
+        db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v2, 1))
         if db is None:
             raise Exception('ERROR: Unable to load magic folder db.')
 

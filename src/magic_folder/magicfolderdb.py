@@ -10,6 +10,7 @@ from .util.eliotutil import (
     LAST_UPLOADED_URI,
     LAST_DOWNLOADED_URI,
     LAST_DOWNLOADED_TIMESTAMP,
+    LATEST_SNAPSHOT,
     PATHINFO,
     validateSetMembership,
     validateInstanceOf,
@@ -48,7 +49,7 @@ _INSERT_OR_UPDATE = Field.for_types(
 
 UPDATE_ENTRY = ActionType(
     u"magic-folder-db:update-entry",
-    [RELPATH, VERSION, LAST_UPLOADED_URI, LAST_DOWNLOADED_URI, LAST_DOWNLOADED_TIMESTAMP, PATHINFO],
+    [RELPATH, VERSION, LAST_UPLOADED_URI, LAST_DOWNLOADED_URI, LAST_DOWNLOADED_TIMESTAMP, LATEST_SNAPSHOT, PATHINFO],
     [_INSERT_OR_UPDATE],
     u"Record some metadata about a relative path in the magic-folder.",
 )
