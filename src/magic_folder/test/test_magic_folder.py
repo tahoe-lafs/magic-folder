@@ -45,8 +45,16 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
+from .fixtures import (
+    SelfConnectedClient,
+)
+
 from magic_folder.util.eliotutil import (
     log_call_deferred,
+)
+
+from magic_folder.snapshot import (
+    snapshot_create,
 )
 
 from magic_folder.magic_folder import (
