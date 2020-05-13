@@ -76,6 +76,7 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
     result = yield readBody(response)
     returnValue(result)    
 
+@inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq):
     """
     :param unicode content: readcap for the content.
