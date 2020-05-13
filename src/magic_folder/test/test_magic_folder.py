@@ -84,6 +84,11 @@ from .common import (
     AsyncTestCase,
     skipIf,
 )
+
+from .cli.common import (
+    cli,
+)
+
 from .cli.test_magic_folder import MagicFolderCLITestMixin
 
 _debug = False
@@ -2466,3 +2471,61 @@ class RealTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
         d = super(RealTestAliceBob, self).setUp()
         self.inotify = get_inotify_module()
         return d
+
+class SnapshotTest(AsyncTestCase):
+    """
+    Tests for the snapshots
+    """
+    @defer.inlineCallbacks
+    def setUp(self):
+        """
+        Create a Tahoe-LAFS node which contain some magic-folder configuration
+        and run it.
+        """
+        yield super(SnapshotTest, self).setUp()
+        self.client_fixture = SelfConnectedClient(reactor)
+        yield self.client_fixture.use_on(self)
+
+        self.tempdir = self.client_fixture.tempdir
+        self.node_directory = self.client_fixture.node_directory
+
+    @defer.inlineCallbacks
+    def test_create_new_snapshot(self):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+
+        # Get a magic folder.
+        folder_path = self.tempdir.child(u"magic-folder")
+        folder_name = b'default'
+        folder_alias = b"magik:"
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name", folder_name,
+                folder_alias,
+                b"test_snapshot",
+                folder_path.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        os.mkdir(folder_path.asBytesMode().path)
+        file_path = folder_path.child("foo").touch()
+
+        # XXX: author_pubkey should reside in node_directory
+        # for now, just pass a file with some random text in it.
+        snapshot_uri = yield snapshot_create(self.node_directory.asBytesMode().path,
+                                             file_path,
+                                             [])
+
+        # print(snapshot_uri)
+        # self.assertIn(
+        #     snapshot_uri,
+        #     "URI:DIR2-RO:foobarbaz"
+        # )
+
