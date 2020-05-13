@@ -15,6 +15,8 @@ from twisted.internet.defer import (
     returnValue,
 )
 
+from twisted.python.filepath import FilePath
+
 from .common import (
     get_node_url,
 )
@@ -179,8 +181,6 @@ def snapshot_create(node_directory, filepath, parents):
     :param unicode filepath: The file path whose snapshot is being created
 
     :param [unicode] parents: List of parent snapshots of the current snapshot
-
-    :param unicode author: Base64 encoded public key of the author.
 
     :return Deferred[unicode]: Snapshot read-only cap is returned on success.
         Otherwise an appropriate exception is raised.
