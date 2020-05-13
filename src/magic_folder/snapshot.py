@@ -207,6 +207,14 @@ def snapshot_create(node_directory, filepath, parents):
     # XXX: compute signature
 
     # - HTTP POST mkdir-immutable
-    snapshot_cap = yield tahoe_create_snapshot_dir(content_cap, parents, author_cap, now)
+
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
+    snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
+                                                   content_cap,
+                                                   parents,
+                                                   author_cap,
+                                                   now,
+                                                   treq)
 
     returnValue(snapshot_cap)
