@@ -72,9 +72,41 @@ CREATE TABLE local_files
 );
 """
 
+# magic-folder db schema version 2
+SCHEMA_v2 = """
+CREATE TABLE version
+(
+ version INTEGER  -- contains one row, set to 2
+);
+
+CREATE TABLE local_files
+(
+ path                VARCHAR(1024) PRIMARY KEY,   -- UTF-8 filename relative to local magic folder dir
+ size                INTEGER,                     -- ST_SIZE, or NULL if the file has been deleted
+ mtime_ns            INTEGER,                     -- ST_MTIME in nanoseconds
+ ctime_ns            INTEGER,                     -- ST_CTIME in nanoseconds
+ version             INTEGER,
+ last_uploaded_uri   VARCHAR(256),                -- URI:CHK:...
+ last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
+ last_downloaded_timestamp TIMESTAMP,
+ latest_snapshot VARCHAR(256)
+);
+"""
+
+
+ADD_COLUMN = \
+    """
+    ALTER TABLE local_files ADD COLUMN latest_snapshot VARCHAR(256);
+    """
+
+UPDATE_v1_to_v2 = ADD_COLUMN
+
+UPDATERS = {
+    2: UPDATE_v1_to_v2,
+}
 
 def get_magicfolderdb(dbfile, stderr=sys.stderr,
-                      create_version=(SCHEMA_v1, 1), just_create=False):
+                      create_version=(SCHEMA_v2, 1), just_create=False):
     # Open or create the given backupdb file. The parent directory must
     # exist.
     try:
