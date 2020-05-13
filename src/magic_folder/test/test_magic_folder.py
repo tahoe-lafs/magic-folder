@@ -482,7 +482,7 @@ class MagicFolderDbTests(SyncTestCase):
         os.mkdir(self.temp)
         self.addCleanup(lambda: shutil.rmtree(self.temp))
         dbfile = abspath_expanduser_unicode(u"testdb.sqlite", base=self.temp)
-        self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
+        self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v2, 1))
         self.addCleanup(lambda: self.db.close())
         self.failUnless(self.db, "unable to create magicfolderdb from %r" % (dbfile,))
         self.failUnlessEqual(self.db.VERSION, 1)
@@ -1797,7 +1797,7 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
 
     def _createdb(self):
         dbfile = abspath_expanduser_unicode(u"magicfolder_default.sqlite", base=self.basedir)
-        mdb = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
+        mdb = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v2, 1))
         self.failUnless(mdb, "unable to create magicfolderdb from %r" % (dbfile,))
         self.failUnlessEqual(mdb.VERSION, 1)
         return mdb

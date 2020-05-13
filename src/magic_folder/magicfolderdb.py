@@ -20,7 +20,8 @@ from eliot import (
 )
 
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
-                                    'last_downloaded_uri last_downloaded_timestamp')
+                                    'last_downloaded_uri last_downloaded_timestamp '
+                                    'latest_snapshot')
 
 PATHENTRY = Field(
     u"pathentry",
@@ -32,6 +33,7 @@ PATHENTRY = Field(
         "last_uploaded_uri": v.last_uploaded_uri,
         "last_downloaded_uri": v.last_downloaded_uri,
         "last_downloaded_timestamp": v.last_downloaded_timestamp,
+        "latest_snapshot": v.latest_snapshot,
     },
     u"The local database state of a file.",
     validateInstanceOf((type(None), PathEntry)),
@@ -148,7 +150,7 @@ class MagicFolderDB(object):
         """
         c = self.cursor
         c.execute("SELECT size, mtime_ns, ctime_ns, version, last_uploaded_uri,"
-                  "       last_downloaded_uri, last_downloaded_timestamp"
+                  "       last_downloaded_uri, last_downloaded_timestamp, latest_snapshot"
                   " FROM local_files"
                   " WHERE path=?",
                   (relpath_u,))
@@ -157,11 +159,12 @@ class MagicFolderDB(object):
             return None
         else:
             (size, mtime_ns, ctime_ns, version, last_uploaded_uri,
-             last_downloaded_uri, last_downloaded_timestamp) = row
+             last_downloaded_uri, last_downloaded_timestamp, latest_snapshot) = row
             return PathEntry(size=size, mtime_ns=mtime_ns, ctime_ns=ctime_ns, version=version,
                              last_uploaded_uri=last_uploaded_uri,
                              last_downloaded_uri=last_downloaded_uri,
-                             last_downloaded_timestamp=last_downloaded_timestamp)
+                             last_downloaded_timestamp=last_downloaded_timestamp,
+                             latest_snapshot=latest_snapshot)
 
     def get_direct_children(self, relpath_u):
         """
@@ -176,7 +179,7 @@ class MagicFolderDB(object):
             """
             SELECT
                 path, size, mtime_ns, ctime_ns, version, last_uploaded_uri,
-                last_downloaded_uri, last_downloaded_timestamp
+                last_downloaded_uri, last_downloaded_timestamp, latest_snapshot
             FROM
                 local_files
             WHERE
@@ -208,29 +211,31 @@ class MagicFolderDB(object):
         rows = self.cursor.fetchall()
         return set([r[0] for r in rows])
 
-    def did_upload_version(self, relpath_u, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, pathinfo):
+    def did_upload_version(self, relpath_u, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, latest_snapshot, pathinfo):
         action = UPDATE_ENTRY(
             relpath=relpath_u,
             version=version,
             last_uploaded_uri=last_uploaded_uri,
             last_downloaded_uri=last_downloaded_uri,
             last_downloaded_timestamp=last_downloaded_timestamp,
+            latest_snapshot=latest_snapshot,
             pathinfo=pathinfo,
         )
         with action:
             try:
-                self.cursor.execute("INSERT INTO local_files VALUES (?,?,?,?,?,?,?,?)",
+                self.cursor.execute("INSERT INTO local_files VALUES (?,?,?,?,?,?,?,?,?)",
                                     (relpath_u, pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns,
                                      version, last_uploaded_uri, last_downloaded_uri,
-                                     last_downloaded_timestamp))
+                                     last_downloaded_timestamp, latest_snapshot))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
                 self.cursor.execute("UPDATE local_files"
                                     " SET size=?, mtime_ns=?, ctime_ns=?, version=?, last_uploaded_uri=?,"
-                                    "     last_downloaded_uri=?, last_downloaded_timestamp=?"
+                                    "     last_downloaded_uri=?, last_downloaded_timestamp=?, latest_snapshot=?"
                                     " WHERE path=?",
                                     (pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns, version,
                                      last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp,
+                                     latest_snapshot,
                                      relpath_u))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
