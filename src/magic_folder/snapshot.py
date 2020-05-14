@@ -6,7 +6,6 @@ Functions and types that implement snapshots
 """
 from __future__ import print_function
 
-import sys
 import time
 import json
 
@@ -14,8 +13,6 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
-
-from twisted.python.filepath import FilePath
 
 from .common import (
     get_node_url,
@@ -89,7 +86,6 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     :return Deferred[unicode]: The readcap associated with the newly created
         snapshot.
     """
-    now = time.time()
 
     # dict that would be serialized to JSON
     body = \
