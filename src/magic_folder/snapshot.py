@@ -80,7 +80,7 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
         raise Exception("Error response PUT {} - {}".format(put_uri, response))
 
 @inlineCallbacks
-def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq):
+def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     """
     :param unicode content: readcap for the content.
     :param [unicode] parents: List of parent snapshot caps
@@ -96,8 +96,6 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq
     {
         u"content": [ "filenode", { u"ro_uri": content,
                                     u"metadata": { } } ],
-        u"author": [ "filenode", { u"ro_uri": author,
-                                   u"metadata": { } } ],
         u"version": [ "filenode", { u"ro_uri": str(SNAPSHOT_VERSION),
                                     u"metadata": { } } ],
         u"timestamp": [ "filenode", { u"ro_uri": str(timestamp),
@@ -145,6 +143,7 @@ def snapshot_create(node_directory, filepath, parents):
     :param unicode filepath: The file path whose snapshot is being created
 
     :param [unicode] parents: List of parent snapshots of the current snapshot
+        (read-caps of parent snapshots)
 
     :return Deferred[unicode]: Snapshot read-only cap is returned on success.
         Otherwise an appropriate exception is raised.
@@ -156,28 +155,14 @@ def snapshot_create(node_directory, filepath, parents):
     #     PUT /uri?format=CHK
     content_cap = yield _store_file_immutable(nodeurl, filepath)
 
-    # parents are read-caps of parent snapshots (parents)
-    # store author's public key and get the read-cap (author)
-
-    #author_pk = nodeurl.child("magic_folder.pubkey")
-    #author_cap = yield _store_file_immutable(nodeurl, author_pk)
-    author_cap = u'URI:CHK:ihrbeov7lbvoduupd4qblysj7a:bg5agsdt62jb34hxvxmdsbza6do64f4fg5anxxod2buttbo6udzq:3:10:28733'
-
     now = time.time()
-    # - concatenate all these together.
-    #    x = content || parent0 || parent1 || ...
-    #        || author || version || timestamp
-    #   .. and compute signature = sign(x, sk)
-    # XXX: compute signature
 
     # - HTTP POST mkdir-immutable
-
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
     snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
                                                    content_cap,
                                                    parents,
-                                                   author_cap,
                                                    now,
                                                    treq)
 
