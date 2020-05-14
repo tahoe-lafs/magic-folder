@@ -2497,7 +2497,7 @@ class SnapshotTest(AsyncTestCase):
 
         # Get a magic folder.
         folder_path = self.tempdir.child(u"magic-folder")
-        folder_name = b'default'
+        folder_name = b"default"
         folder_alias = b"magik:"
         outcome = yield cli(
             self.node_directory, [
@@ -2515,15 +2515,15 @@ class SnapshotTest(AsyncTestCase):
         )
 
         os.mkdir(folder_path.asBytesMode().path)
-        file_path = folder_path.child("foo").touch()
+        file_path = folder_path.child("foo")
+        file_path.touch()
 
         # XXX: author_pubkey should reside in node_directory
         # for now, just pass a file with some random text in it.
         snapshot_uri = yield snapshot_create(self.node_directory.asBytesMode().path,
-                                             file_path,
+                                             file_path.asBytesMode().path,
                                              [])
 
-        # print(snapshot_uri)
         # self.assertIn(
         #     snapshot_uri,
         #     "URI:DIR2-RO:foobarbaz"
