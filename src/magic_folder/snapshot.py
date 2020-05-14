@@ -66,17 +66,18 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
         u"format",
         u"CHK",
     )
+
     # XXX: check whether we need to set any headers.
     put_uri = url.to_uri().to_text().encode("ascii")
-    with open(filepath, "rb") as file:
+    with open(str(filepath), "rb") as file:
         data = file.read()
 
     response = yield treq.put(put_uri, data)
-    if response.code != OK or response.code != CREATED:
-        returnValue((yield bad_response(put_uri, response)))
-
-    result = yield readBody(response)
-    returnValue(result)    
+    if response.code == OK or response.code == CREATED:
+        result = yield readBody(response)
+        returnValue(result)
+    else:
+        raise Exception("Error response PUT {} - {}".format(put_uri, response))
 
 @inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq):
@@ -93,52 +94,18 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq
     # dict that would be serialized to JSON
     body = \
     {
-        u"content": [ "filenode", {
-            u"ro_uri": content,
-            u"metadata": {
-                u"ctime": now,
-                u"mtime": now,
-                u"tahoe": {
-                    u"linkcrtime": now,
-                    u"linkmotime": now,
-                }
-            }
-        } ],
-        u"parents": parents,
-        u"author": [ "filenode", {
-            u"ro_uri": author,
-            u"metadata": {
-                u"ctime": now,
-                u"mtime": now,
-                u"tahoe": {
-                    u"linkcrtime": now,
-                    u"linkmotime": now,
-                }
-            }
-        } ],
-        u"version": [ "filenode", {
-            u"ro_uri": SNAPSHOT_VERSION,
-            u"metadata": {
-                u"ctime": now,
-                u"mtime": now,
-                u"tahoe": {
-                    u"linkcrtime": now,
-                    u"linkmotime": now,
-                }
-            }
-        } ],
-        u"timestamp": [ "filenode", {
-            u"ro_uri": timestamp,
-            u"metadata": {
-                u"ctime": now,
-                u"mtime": now,
-                u"tahoe": {
-                    u"linkcrtime": now,
-                    u"linkmotime": now,
-                }
-            }
-        } ],
+        u"content": [ "filenode", { u"ro_uri": content,
+                                    u"metadata": { } } ],
+        u"author": [ "filenode", { u"ro_uri": author,
+                                   u"metadata": { } } ],
+        u"version": [ "filenode", { u"ro_uri": str(SNAPSHOT_VERSION),
+                                    u"metadata": { } } ],
+        u"timestamp": [ "filenode", { u"ro_uri": str(timestamp),
+                                      u"metadata": { } } ],
     }
+
+    if parents != []:
+        body[u"parents"] = parents
 
     body_json = json.dumps(body)
 
@@ -154,23 +121,18 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, author, timestamp, treq
 
     post_uri = url.to_uri().to_text().encode("ascii")
     response = yield treq.post(post_uri, body_json)
-    print("post uri: {}".format(post_uri))
-    print("response: {}".format(response))
     if response.code != OK:
-        returnValue((yield bad_response(post_uri, response)))
+        returnValue((yield bad_response(url, response)))
 
     result = yield readBody(response)
     returnValue(result)
 
 @inlineCallbacks
 def _store_file_immutable(nodeurl, filepath):
-    try:
-        from twisted.internet import reactor
-        treq = HTTPClient(Agent(reactor))
-        rocap = yield tahoe_put_immutable(nodeurl, filepath, treq)
-    except Exception as e:
-        print("%s" % str(e), file=sys.stderr)
-        returnValue(1)
+
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
+    rocap = yield tahoe_put_immutable(nodeurl, filepath, treq)
 
     returnValue(rocap)
 
@@ -199,7 +161,7 @@ def snapshot_create(node_directory, filepath, parents):
 
     #author_pk = nodeurl.child("magic_folder.pubkey")
     #author_cap = yield _store_file_immutable(nodeurl, author_pk)
-    author_cap = u'URI:CHK:foo'
+    author_cap = u'URI:CHK:ihrbeov7lbvoduupd4qblysj7a:bg5agsdt62jb34hxvxmdsbza6do64f4fg5anxxod2buttbo6udzq:3:10:28733'
 
     now = time.time()
     # - concatenate all these together.
