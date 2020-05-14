@@ -2524,8 +2524,5 @@ class SnapshotTest(AsyncTestCase):
                                              file_path.asBytesMode().path,
                                              [])
 
-        # self.assertIn(
-        #     snapshot_uri,
-        #     "URI:DIR2-RO:foobarbaz"
-        # )
+        self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"), snapshot_uri)
 
