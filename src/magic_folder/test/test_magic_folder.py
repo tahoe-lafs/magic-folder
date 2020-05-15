@@ -2518,11 +2518,61 @@ class SnapshotTest(AsyncTestCase):
         file_path = folder_path.child("foo")
         file_path.touch()
 
-        # XXX: author_pubkey should reside in node_directory
-        # for now, just pass a file with some random text in it.
         snapshot_uri = yield snapshot_create(self.node_directory.asBytesMode().path,
                                              file_path.asBytesMode().path,
                                              [])
 
         self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"), snapshot_uri)
+
+    @defer.inlineCallbacks
+    def test_snapshot_extend(self):
+        """
+        create a new snapshot and extend it with a new snapshot.
+        """
+
+        # Get a magic folder.
+        folder_path = self.tempdir.child(u"magic-folder")
+        folder_name = b"default"
+        folder_alias = b"magik:"
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"--name", folder_name,
+                folder_alias,
+                b"test_snapshot",
+                folder_path.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        os.mkdir(folder_path.asBytesMode().path)
+        file_path = folder_path.child("foo")
+        file_path.touch()
+
+        initial_snapshot_uri = yield snapshot_create(
+            self.node_directory.asBytesMode().path,
+            file_path.asBytesMode().path,
+            [])
+
+        self.failUnless(initial_snapshot_uri.startswith("URI:DIR2-CHK:"),
+                        initial_snapshot_uri)
+
+        # write something to the file
+        with open(file_path.asBytesMode().path, "w") as f:
+            f.write("foobar")
+
+        snapshot_uri = yield snapshot_create(
+            self.node_directory.asBytesMode().path,
+            file_path.asBytesMode().path,
+            [initial_snapshot_uri])
+
+        self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"),
+                        snapshot_uri)
+
+        # the returned URI should be different from the first snapshot URI
+        self.assertNotEqual(snapshot_uri, initial_snapshot_uri)
 
