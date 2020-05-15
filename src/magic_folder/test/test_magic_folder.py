@@ -508,7 +508,7 @@ class MagicFolderDbTests(SyncTestCase):
             last_uploaded_uri=None,
             last_downloaded_uri='URI:foo',
             last_downloaded_timestamp=1234.5,
-            latest_snapshot='URI:DIR2-RO:foo',
+            latest_snapshot='URI:DIR2-CHK:foo',
             pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
         )
 
@@ -523,7 +523,7 @@ class MagicFolderDbTests(SyncTestCase):
             last_uploaded_uri=None,
             last_downloaded_uri='URI:foo',
             last_downloaded_timestamp=1234.5,
-            latest_snapshot='URI:DIR2-RO:foo',
+            latest_snapshot='URI:DIR2-CHK:foo',
             pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
         )
         self.db.did_upload_version(
@@ -532,7 +532,7 @@ class MagicFolderDbTests(SyncTestCase):
             last_uploaded_uri=None,
             last_downloaded_uri='URI:bar',
             last_downloaded_timestamp=1234.5,
-            latest_snapshot='URI:DIR2-RO:foo',
+            latest_snapshot='URI:DIR2-CHK:foo',
             pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
         )
 
@@ -549,7 +549,7 @@ class MagicFolderDbTests(SyncTestCase):
             last_uploaded_uri=None,
             last_downloaded_uri=content_uri,
             last_downloaded_timestamp=1234.5,
-            latest_snapshot='URI:DIR2-RO:foo',
+            latest_snapshot='URI:DIR2-CHK:foo',
             pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
         )
         self.db.did_upload_version(
@@ -558,7 +558,7 @@ class MagicFolderDbTests(SyncTestCase):
             last_uploaded_uri=None,
             last_downloaded_uri=content_uri,
             last_downloaded_timestamp=1234.5,
-            latest_snapshot='URI:DIR2-RO:foo',
+            latest_snapshot='URI:DIR2-CHK:foo',
             pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
         )
 
@@ -582,7 +582,7 @@ class MagicFolderDbTests(SyncTestCase):
                 last_uploaded_uri=None,
                 last_downloaded_uri=None,
                 last_downloaded_timestamp=1234,
-                latest_snapshot='URI:DIR2-RO:foo',
+                latest_snapshot='URI:DIR2-CHK:foo',
                 pathinfo=get_pathinfo(self.temp),
             )
         paths = [
@@ -1883,7 +1883,7 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         relpath1 = u"myFile1"
         pathinfo = fileutil.PathInfo(isdir=False, isfile=True, islink=False,
                                      exists=True, size=1, mtime_ns=123, ctime_ns=456)
-        db.did_upload_version(relpath1, 0, 'URI:LIT:1', 'URI:LIT:0', 0, 'URI:DIR2-RO:0', pathinfo)
+        db.did_upload_version(relpath1, 0, 'URI:LIT:1', 'URI:LIT:0', 0, 'URI:DIR2-CHK:0', pathinfo)
 
         c = db.cursor
         c.execute("SELECT size, mtime_ns, ctime_ns"
@@ -1899,7 +1899,7 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         path2 = os.path.join(self.basedir, relpath2)
         fileutil.write(path2, "meow\n")
         pathinfo = fileutil.get_pathinfo(path2)
-        db.did_upload_version(relpath2, 0, 'URI:LIT:2', 'URI:LIT:1', 0, 'URI:DIR2-RO:0', pathinfo)
+        db.did_upload_version(relpath2, 0, 'URI:LIT:2', 'URI:LIT:1', 0, 'URI:DIR2-CHK:0', pathinfo)
         db_entry = db.get_db_entry(relpath2)
         self.assertFalse(is_new_file(pathinfo, db_entry))
 
