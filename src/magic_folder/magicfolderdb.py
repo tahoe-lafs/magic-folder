@@ -10,7 +10,6 @@ from .util.eliotutil import (
     LAST_UPLOADED_URI,
     LAST_DOWNLOADED_URI,
     LAST_DOWNLOADED_TIMESTAMP,
-    LATEST_SNAPSHOT,
     PATHINFO,
     validateSetMembership,
     validateInstanceOf,
@@ -21,8 +20,7 @@ from eliot import (
 )
 
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
-                                    'last_downloaded_uri last_downloaded_timestamp '
-                                    'latest_snapshot')
+                                    'last_downloaded_uri last_downloaded_timestamp')
 
 PATHENTRY = Field(
     u"pathentry",
@@ -34,7 +32,6 @@ PATHENTRY = Field(
         "last_uploaded_uri": v.last_uploaded_uri,
         "last_downloaded_uri": v.last_downloaded_uri,
         "last_downloaded_timestamp": v.last_downloaded_timestamp,
-        "latest_snapshot": v.latest_snapshot,
     },
     u"The local database state of a file.",
     validateInstanceOf((type(None), PathEntry)),
@@ -49,7 +46,7 @@ _INSERT_OR_UPDATE = Field.for_types(
 
 UPDATE_ENTRY = ActionType(
     u"magic-folder-db:update-entry",
-    [RELPATH, VERSION, LAST_UPLOADED_URI, LAST_DOWNLOADED_URI, LAST_DOWNLOADED_TIMESTAMP, LATEST_SNAPSHOT, PATHINFO],
+    [RELPATH, VERSION, LAST_UPLOADED_URI, LAST_DOWNLOADED_URI, LAST_DOWNLOADED_TIMESTAMP, PATHINFO],
     [_INSERT_OR_UPDATE],
     u"Record some metadata about a relative path in the magic-folder.",
 )
@@ -75,41 +72,9 @@ CREATE TABLE local_files
 );
 """
 
-# magic-folder db schema version 2
-SCHEMA_v2 = """
-CREATE TABLE version
-(
- version INTEGER  -- contains one row, set to 2
-);
-
-CREATE TABLE local_files
-(
- path                VARCHAR(1024) PRIMARY KEY,   -- UTF-8 filename relative to local magic folder dir
- size                INTEGER,                     -- ST_SIZE, or NULL if the file has been deleted
- mtime_ns            INTEGER,                     -- ST_MTIME in nanoseconds
- ctime_ns            INTEGER,                     -- ST_CTIME in nanoseconds
- version             INTEGER,
- last_uploaded_uri   VARCHAR(256),                -- URI:CHK:...
- last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
- last_downloaded_timestamp TIMESTAMP,
- latest_snapshot VARCHAR(256)
-);
-"""
-
-
-ADD_COLUMN = \
-    """
-    ALTER TABLE local_files ADD COLUMN latest_snapshot VARCHAR(256);
-    """
-
-UPDATE_v1_to_v2 = ADD_COLUMN
-
-UPDATERS = {
-    2: UPDATE_v1_to_v2,
-}
 
 def get_magicfolderdb(dbfile, stderr=sys.stderr,
-                      create_version=(SCHEMA_v2, 1), just_create=False):
+                      create_version=(SCHEMA_v1, 1), just_create=False):
     # Open or create the given backupdb file. The parent directory must
     # exist.
     try:
@@ -151,7 +116,7 @@ class MagicFolderDB(object):
         """
         c = self.cursor
         c.execute("SELECT size, mtime_ns, ctime_ns, version, last_uploaded_uri,"
-                  "       last_downloaded_uri, last_downloaded_timestamp, latest_snapshot"
+                  "       last_downloaded_uri, last_downloaded_timestamp"
                   " FROM local_files"
                   " WHERE path=?",
                   (relpath_u,))
@@ -160,12 +125,11 @@ class MagicFolderDB(object):
             return None
         else:
             (size, mtime_ns, ctime_ns, version, last_uploaded_uri,
-             last_downloaded_uri, last_downloaded_timestamp, latest_snapshot) = row
+             last_downloaded_uri, last_downloaded_timestamp) = row
             return PathEntry(size=size, mtime_ns=mtime_ns, ctime_ns=ctime_ns, version=version,
                              last_uploaded_uri=last_uploaded_uri,
                              last_downloaded_uri=last_downloaded_uri,
-                             last_downloaded_timestamp=last_downloaded_timestamp,
-                             latest_snapshot=latest_snapshot)
+                             last_downloaded_timestamp=last_downloaded_timestamp)
 
     def get_direct_children(self, relpath_u):
         """
@@ -180,7 +144,7 @@ class MagicFolderDB(object):
             """
             SELECT
                 path, size, mtime_ns, ctime_ns, version, last_uploaded_uri,
-                last_downloaded_uri, last_downloaded_timestamp, latest_snapshot
+                last_downloaded_uri, last_downloaded_timestamp
             FROM
                 local_files
             WHERE
@@ -212,31 +176,29 @@ class MagicFolderDB(object):
         rows = self.cursor.fetchall()
         return set([r[0] for r in rows])
 
-    def did_upload_version(self, relpath_u, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, latest_snapshot, pathinfo):
+    def did_upload_version(self, relpath_u, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, pathinfo):
         action = UPDATE_ENTRY(
             relpath=relpath_u,
             version=version,
             last_uploaded_uri=last_uploaded_uri,
             last_downloaded_uri=last_downloaded_uri,
             last_downloaded_timestamp=last_downloaded_timestamp,
-            latest_snapshot=latest_snapshot,
             pathinfo=pathinfo,
         )
         with action:
             try:
-                self.cursor.execute("INSERT INTO local_files VALUES (?,?,?,?,?,?,?,?,?)",
+                self.cursor.execute("INSERT INTO local_files VALUES (?,?,?,?,?,?,?,?)",
                                     (relpath_u, pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns,
                                      version, last_uploaded_uri, last_downloaded_uri,
-                                     last_downloaded_timestamp, latest_snapshot))
+                                     last_downloaded_timestamp))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
                 self.cursor.execute("UPDATE local_files"
                                     " SET size=?, mtime_ns=?, ctime_ns=?, version=?, last_uploaded_uri=?,"
-                                    "     last_downloaded_uri=?, last_downloaded_timestamp=?, latest_snapshot=?"
+                                    "     last_downloaded_uri=?, last_downloaded_timestamp=?"
                                     " WHERE path=?",
                                     (pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns, version,
                                      last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp,
-                                     latest_snapshot,
                                      relpath_u))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
