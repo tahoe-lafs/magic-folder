@@ -49,26 +49,26 @@ SNAPSHOT_VERSION = 1
 @inlineCallbacks
 def tahoe_put_immutable(nodeurl, filepath, treq):
     """
-    :param unicode nodeurl: The web endpoint of the Tahoe-LAFS client
+    :param DecodedURL nodeurl: The web endpoint of the Tahoe-LAFS client
         associated with the magic-folder client.
-    :param unicode filepath: The file path that needs to be stored into
+    :param FilePath filepath: The file path that needs to be stored into
         the grid.
-    :param HTTPClient treq: An ``HTTPCLient`` or similar object to use to
+    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
         make the queries.
     :return Deferred[unicode]: The readcap associated with the newly created
         unlinked file.
     """
-    node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
-    url = node_url.child(
+    url = nodeurl.child(
         u"uri",
     ).add(
         u"format",
         u"CHK",
     )
 
-    # XXX: check whether we need to set any headers.
     put_uri = url.to_uri().to_text().encode("ascii")
-    with open(str(filepath), "rb") as file:
+    # XXX: Should not read entire file into memory. See:
+    # https://github.com/LeastAuthority/magic-folder/issues/129
+    with filepath.open("r") as file:
         data = file.read()
 
     response = yield treq.put(put_uri, data)
@@ -81,9 +81,10 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
 @inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     """
+    :param DecodedURL nodeurl: The web endpoint of the Tahoe-LAFS client
+        associated with the magic-folder client.
     :param unicode content: readcap for the content.
     :param [unicode] parents: List of parent snapshot caps
-    :param unicode author: readcap that represents the author pubkey
     :param integer timestamp: POSIX timestamp that represents the creation time
     :return Deferred[unicode]: The readcap associated with the newly created
         snapshot.
@@ -110,10 +111,8 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
 
     body_json = json.dumps(body)
 
-    node_url = DecodedURL.from_text(unicode(nodeurl, 'utf-8'))
-
     # POST /uri?t=mkdir-immutable
-    url = node_url.child(
+    url = nodeurl.child(
         u"uri",
     ).add(
         u"t",
@@ -128,45 +127,42 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     result = yield readBody(response)
     returnValue(result)
 
-@inlineCallbacks
-def _store_file_immutable(nodeurl, filepath):
-
-    from twisted.internet import reactor
-    treq = HTTPClient(Agent(reactor))
-    rocap = yield tahoe_put_immutable(nodeurl, filepath, treq)
-
-    returnValue(rocap)
-
-@inlineCallbacks
-def snapshot_create(node_directory, filepath, parents):
+class Snapshot(object):
     """
-    Create a snapshot, given a file contents of a named file,
-    parent snapshots, author's identity and signature.
-
-    :param unicode filepath: The file path whose snapshot is being created
-
-    :param [unicode] parents: List of parent snapshots of the current snapshot
-        (read-caps of parent snapshots)
-
-    :return Deferred[unicode]: Snapshot read-only cap is returned on success.
-        Otherwise an appropriate exception is raised.
+    Represents a snapshot corresponding to a file.
     """
 
-    nodeurl = get_node_url(node_directory)
+    def __init__(self, node_directory, filepath):
+        self.filepath = filepath
+        self.node_directory = node_directory.asBytesMode().path
 
-    # - store the file content and get the immutable cap (content)
-    #     PUT /uri?format=CHK
-    content_cap = yield _store_file_immutable(nodeurl, filepath)
+    @inlineCallbacks
+    def create_snapshot(self, parents, treq):
+        """
+        Create a snapshot.
 
-    now = time.time()
+        :param [unicode] parents: List of parent snapshots of the current snapshot
+            (read-caps of parent snapshots)
 
-    # - HTTP POST mkdir-immutable
-    from twisted.internet import reactor
-    treq = HTTPClient(Agent(reactor))
-    snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
-                                                   content_cap,
-                                                   parents,
-                                                   now,
-                                                   treq)
+        :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
+            make the queries.
 
-    returnValue(snapshot_cap)
+        :return Deferred[unicode]: Snapshot read-only cap is returned on success.
+            Otherwise an appropriate exception is raised.
+        """
+
+        nodeurl_u = unicode(get_node_url(self.node_directory), 'utf-8')
+        nodeurl = DecodedURL.from_text(nodeurl_u)
+
+        content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
+
+        now = time.time()
+
+        # HTTP POST mkdir-immutable
+        snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
+                                                       content_cap,
+                                                       parents,
+                                                       now,
+                                                       treq)
+
+        returnValue(snapshot_cap)

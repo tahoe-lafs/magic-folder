@@ -9,6 +9,7 @@ from errno import ENOENT
 from twisted.internet import defer, task, reactor
 from twisted.python.runtime import platform
 from twisted.python.filepath import FilePath
+from twisted.web.client import Agent
 
 from testtools.matchers import (
     Not,
@@ -45,6 +46,10 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
+from treq.client import (
+    HTTPClient,
+)
+
 from .fixtures import (
     SelfConnectedClient,
 )
@@ -54,7 +59,7 @@ from magic_folder.util.eliotutil import (
 )
 
 from magic_folder.snapshot import (
-    snapshot_create,
+    Snapshot,
 )
 
 from magic_folder.magic_folder import (
@@ -2483,6 +2488,7 @@ class SnapshotTest(AsyncTestCase):
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
 
+
     @defer.inlineCallbacks
     def test_create_new_snapshot(self):
         """
@@ -2512,9 +2518,12 @@ class SnapshotTest(AsyncTestCase):
         file_path = folder_path.child("foo")
         file_path.touch()
 
-        snapshot_uri = yield snapshot_create(self.node_directory.asBytesMode().path,
-                                             file_path.asBytesMode().path,
-                                             [])
+        from twisted.internet import reactor
+        treq = HTTPClient(Agent(reactor))
+
+        snapshot = Snapshot(self.node_directory, file_path)
+
+        snapshot_uri = yield snapshot.create_snapshot([], treq)
 
         self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"), snapshot_uri)
 
@@ -2547,10 +2556,12 @@ class SnapshotTest(AsyncTestCase):
         file_path = folder_path.child("foo")
         file_path.touch()
 
-        initial_snapshot_uri = yield snapshot_create(
-            self.node_directory.asBytesMode().path,
-            file_path.asBytesMode().path,
-            [])
+        from twisted.internet import reactor
+        treq = HTTPClient(Agent(reactor))
+
+        snapshot = Snapshot(self.node_directory, file_path)
+
+        initial_snapshot_uri = yield snapshot.create_snapshot([], treq)
 
         self.failUnless(initial_snapshot_uri.startswith("URI:DIR2-CHK:"),
                         initial_snapshot_uri)
@@ -2559,10 +2570,7 @@ class SnapshotTest(AsyncTestCase):
         with open(file_path.asBytesMode().path, "w") as f:
             f.write("foobar")
 
-        snapshot_uri = yield snapshot_create(
-            self.node_directory.asBytesMode().path,
-            file_path.asBytesMode().path,
-            [initial_snapshot_uri])
+        snapshot_uri = yield snapshot.create_snapshot([initial_snapshot_uri], treq)
 
         self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"),
                         snapshot_uri)
