@@ -105,9 +105,8 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     # The goal is to populate the dictionary with keys u"parent0", u"parent1" ...
     # with corresponding dirnode values that point to the parent URIs.
     if parents != []:
-        parent_nodes =  [ [ "dirnode", { u"ro_uri": p } ] for p in parents ]
-        for (k, v) in zip(count(0), parent_nodes):
-            body[unicode("parent" + str(k), 'utf-8')] = v
+        for (i, p) in enumerate(parents):
+            body[unicode("parent" + str(i), 'utf-8')] = [ "dirnode", { u"ro_uri": p } ]
 
     body_json = json.dumps(body)
 
