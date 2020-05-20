@@ -146,8 +146,7 @@ class TahoeSnapshot(object):
     Represents a snapshot corresponding to a file.
     """
 
-    filepath = attr.ib()
-    node_directory = attr.ib(converter=lambda p: p.asBytesMode())
+    capability = attr.ib()
 
 
 @inlineCallbacks
@@ -169,7 +168,8 @@ def create_snapshot(node_directory, filepath, parents, treq):
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
     )
     with action:
-        nodeurl_u = unicode(get_node_url(node_directory.path), 'utf-8')
+        # XXX really?
+        nodeurl_u = unicode(get_node_url(node_directory.asBytesMode().path), 'utf-8')
         nodeurl = DecodedURL.from_text(nodeurl_u)
 
         content_cap = yield tahoe_put_immutable(nodeurl, filepath, treq)
@@ -186,4 +186,8 @@ def create_snapshot(node_directory, filepath, parents, treq):
             treq,
         )
 
-        returnValue(snapshot_cap)
+        returnValue(
+            TahoeSnapshot(
+                snapshot_cap,
+            )
+        )
