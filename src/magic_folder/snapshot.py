@@ -151,7 +151,7 @@ class TahoeSnapshot(object):
 
 
 @inlineCallbacks
-def create_snapshot(self, parents, treq):
+def create_snapshot(node_directory, filepath, parents, treq):
     """
     Create a snapshot.
 
@@ -165,20 +165,25 @@ def create_snapshot(self, parents, treq):
         Otherwise an appropriate exception is raised.
     """
 
-    with start_action(
-            action_type=u"magic_folder:tahoe_snapshot:create_snapshot"):
-        nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
+    action = start_action(
+        action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
+    )
+    with action:
+        nodeurl_u = unicode(get_node_url(node_directory.path), 'utf-8')
         nodeurl = DecodedURL.from_text(nodeurl_u)
 
-        content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
+        content_cap = yield tahoe_put_immutable(nodeurl, filepath, treq)
 
+        # XXX probably want a reactor/clock passed in?
         now = time.time()
 
         # HTTP POST mkdir-immutable
-        snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
-                                                       content_cap,
-                                                       parents,
-                                                       now,
-                                                       treq)
+        snapshot_cap = yield tahoe_create_snapshot_dir(
+            nodeurl,
+            content_cap,
+            parents,
+            now,
+            treq,
+        )
 
         returnValue(snapshot_cap)
