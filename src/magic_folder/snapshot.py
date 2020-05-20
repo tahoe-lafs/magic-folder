@@ -8,6 +8,7 @@ from __future__ import print_function
 
 import time
 import json
+import attr
 
 from itertools import count
 
@@ -126,14 +127,14 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     result = yield readBody(response)
     returnValue(result)
 
-class Snapshot(object):
+@attr.s
+class TahoeSnapshot(object):
     """
     Represents a snapshot corresponding to a file.
     """
 
-    def __init__(self, node_directory, filepath):
-        self.filepath = filepath
-        self.node_directory = node_directory.asBytesMode().path
+    filepath = attr.ib()
+    node_directory = attr.ib(converter=lambda p: p.asBytesMode())
 
     @inlineCallbacks
     def create_snapshot(self, parents, treq):
@@ -150,7 +151,7 @@ class Snapshot(object):
             Otherwise an appropriate exception is raised.
         """
 
-        nodeurl_u = unicode(get_node_url(self.node_directory), 'utf-8')
+        nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
         nodeurl = DecodedURL.from_text(nodeurl_u)
 
         content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)

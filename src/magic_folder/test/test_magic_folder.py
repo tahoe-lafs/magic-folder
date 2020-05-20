@@ -59,7 +59,7 @@ from magic_folder.util.eliotutil import (
 )
 
 from magic_folder.snapshot import (
-    Snapshot,
+    TahoeSnapshot,
 )
 
 from magic_folder.magic_folder import (
@@ -2471,7 +2471,7 @@ class RealTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
         self.inotify = get_inotify_module()
         return d
 
-class SnapshotTest(AsyncTestCase):
+class TahoeSnapshotTest(AsyncTestCase):
     """
     Tests for the snapshots
     """
@@ -2481,7 +2481,7 @@ class SnapshotTest(AsyncTestCase):
         Create a Tahoe-LAFS node which contain some magic-folder configuration
         and run it.
         """
-        yield super(SnapshotTest, self).setUp()
+        yield super(TahoeSnapshotTest, self).setUp()
         self.client_fixture = SelfConnectedClient(reactor)
         yield self.client_fixture.use_on(self)
 
@@ -2490,7 +2490,7 @@ class SnapshotTest(AsyncTestCase):
 
 
     @defer.inlineCallbacks
-    def test_create_new_snapshot(self):
+    def test_create_new_tahoe_snapshot(self):
         """
         create a new snapshot (this will have no parent snapshots).
         """
@@ -2521,7 +2521,7 @@ class SnapshotTest(AsyncTestCase):
         from twisted.internet import reactor
         treq = HTTPClient(Agent(reactor))
 
-        snapshot = Snapshot(self.node_directory, file_path)
+        snapshot = TahoeSnapshot(node_directory=self.node_directory, filepath=file_path)
 
         snapshot_uri = yield snapshot.create_snapshot([], treq)
 
@@ -2559,7 +2559,7 @@ class SnapshotTest(AsyncTestCase):
         from twisted.internet import reactor
         treq = HTTPClient(Agent(reactor))
 
-        snapshot = Snapshot(self.node_directory, file_path)
+        snapshot = TahoeSnapshot(node_directory=self.node_directory, filepath=file_path)
 
         initial_snapshot_uri = yield snapshot.create_snapshot([], treq)
 
