@@ -43,9 +43,25 @@ from .common import (
     bad_response,
 )
 
+from eliot import (
+    start_action,
+    register_exception_extractor,
+)
 
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
+
+class TahoeWriteException(Exception):
+    """
+    Something went wrong while doing a `tahoe put`.
+    """
+    def __init__(self, code, body):
+        self.code = code
+        self.body = body
+
+
+# log exception caused while doing a tahoe put API
+register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body })
 
 @inlineCallbacks
 def tahoe_put_immutable(nodeurl, filepath, treq):
@@ -66,18 +82,20 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
         u"CHK",
     )
 
-    put_uri = url.to_uri().to_text().encode("ascii")
-    # XXX: Should not read entire file into memory. See:
-    # https://github.com/LeastAuthority/magic-folder/issues/129
-    with filepath.open("r") as file:
-        data = file.read()
+    with start_action(
+            action_type=u"magic_folder:tahoe_snapshot:tahoe_put_immutable"):
+        put_uri = url.to_uri().to_text().encode("ascii")
+        # XXX: Should not read entire file into memory. See:
+        # https://github.com/LeastAuthority/magic-folder/issues/129
+        with filepath.open("r") as file:
+            data = file.read()
 
-    response = yield treq.put(put_uri, data)
-    if response.code == OK or response.code == CREATED:
-        result = yield readBody(response)
-        returnValue(result)
-    else:
-        raise Exception("Error response PUT {} - {}".format(put_uri, response))
+        response = yield treq.put(put_uri, data)
+        if response.code == OK or response.code == CREATED:
+            result = yield readBody(response)
+            returnValue(result)
+        else:
+            raise TahoeWriteException(response.code, response.body)
 
 @inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
@@ -102,30 +120,32 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
                                       u"metadata": { } } ],
     }
 
-    # populate parents
-    # The goal is to populate the dictionary with keys u"parent0", u"parent1" ...
-    # with corresponding dirnode values that point to the parent URIs.
-    if parents != []:
-        for (i, p) in enumerate(parents):
-            body[unicode("parent" + str(i), 'utf-8')] = [ "dirnode", { u"ro_uri": p } ]
+    with start_action(
+            action_type=u"magic_folder:tahoe_snapshot:tahoe_create_snapshot_dir"):
+        # populate parents
+        # The goal is to populate the dictionary with keys u"parent0", u"parent1" ...
+        # with corresponding dirnode values that point to the parent URIs.
+        if parents != []:
+            for (i, p) in enumerate(parents):
+                body[unicode("parent" + str(i), 'utf-8')] = [ "dirnode", { u"ro_uri": p } ]
 
-    body_json = json.dumps(body)
+        body_json = json.dumps(body)
 
-    # POST /uri?t=mkdir-immutable
-    url = nodeurl.child(
-        u"uri",
-    ).add(
-        u"t",
-        u"mkdir-immutable"
-    )
+        # POST /uri?t=mkdir-immutable
+        url = nodeurl.child(
+            u"uri",
+        ).add(
+            u"t",
+            u"mkdir-immutable"
+        )
 
-    post_uri = url.to_uri().to_text().encode("ascii")
-    response = yield treq.post(post_uri, body_json)
-    if response.code != OK:
-        returnValue((yield bad_response(url, response)))
+        post_uri = url.to_uri().to_text().encode("ascii")
+        response = yield treq.post(post_uri, body_json)
+        if response.code != OK:
+            returnValue((yield bad_response(url, response)))
 
-    result = yield readBody(response)
-    returnValue(result)
+        result = yield readBody(response)
+        returnValue(result)
 
 @attr.s
 class TahoeSnapshot(object):
@@ -151,18 +171,20 @@ class TahoeSnapshot(object):
             Otherwise an appropriate exception is raised.
         """
 
-        nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
-        nodeurl = DecodedURL.from_text(nodeurl_u)
+        with start_action(
+                action_type=u"magic_folder:tahoe_snapshot:create_snapshot"):
+            nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
+            nodeurl = DecodedURL.from_text(nodeurl_u)
 
-        content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
+            content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
 
-        now = time.time()
+            now = time.time()
 
-        # HTTP POST mkdir-immutable
-        snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
-                                                       content_cap,
-                                                       parents,
-                                                       now,
-                                                       treq)
+            # HTTP POST mkdir-immutable
+            snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
+                                                           content_cap,
+                                                           parents,
+                                                           now,
+                                                           treq)
 
-        returnValue(snapshot_cap)
+            returnValue(snapshot_cap)
