@@ -149,35 +149,36 @@ class TahoeSnapshot(object):
     filepath = attr.ib()
     node_directory = attr.ib(converter=lambda p: p.asBytesMode())
 
-    @inlineCallbacks
-    def create_snapshot(self, parents, treq):
-        """
-        Create a snapshot.
 
-        :param [unicode] parents: List of parent snapshots of the current snapshot
-            (read-caps of parent snapshots)
+@inlineCallbacks
+def create_snapshot(self, parents, treq):
+    """
+    Create a snapshot.
 
-        :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
-            make the queries.
+    :param [unicode] parents: List of parent snapshots of the current snapshot
+        (read-caps of parent snapshots)
 
-        :return Deferred[unicode]: Snapshot read-only cap is returned on success.
-            Otherwise an appropriate exception is raised.
-        """
+    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
+        make the queries.
 
-        with start_action(
-                action_type=u"magic_folder:tahoe_snapshot:create_snapshot"):
-            nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
-            nodeurl = DecodedURL.from_text(nodeurl_u)
+    :return Deferred[unicode]: Snapshot read-only cap is returned on success.
+        Otherwise an appropriate exception is raised.
+    """
 
-            content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
+    with start_action(
+            action_type=u"magic_folder:tahoe_snapshot:create_snapshot"):
+        nodeurl_u = unicode(get_node_url(self.node_directory.path), 'utf-8')
+        nodeurl = DecodedURL.from_text(nodeurl_u)
 
-            now = time.time()
+        content_cap = yield tahoe_put_immutable(nodeurl, self.filepath, treq)
 
-            # HTTP POST mkdir-immutable
-            snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
-                                                           content_cap,
-                                                           parents,
-                                                           now,
-                                                           treq)
+        now = time.time()
 
-            returnValue(snapshot_cap)
+        # HTTP POST mkdir-immutable
+        snapshot_cap = yield tahoe_create_snapshot_dir(nodeurl,
+                                                       content_cap,
+                                                       parents,
+                                                       now,
+                                                       treq)
+
+        returnValue(snapshot_cap)
