@@ -10,8 +10,6 @@ import time
 import json
 import attr
 
-from itertools import count
-
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -22,17 +20,12 @@ from .common import (
 )
 
 from twisted.web.client import (
-    Agent,
     readBody,
 )
 
 from twisted.web.http import (
     OK,
     CREATED,
-)
-
-from treq.client import (
-    HTTPClient,
 )
 
 from hyperlink import (
