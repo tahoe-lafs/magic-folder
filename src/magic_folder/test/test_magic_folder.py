@@ -16,6 +16,7 @@ from testtools.matchers import (
     Is,
     ContainsDict,
     Equals,
+    StartsWith,
 )
 
 from eliot import (
@@ -2525,7 +2526,7 @@ class TahoeSnapshotTest(AsyncTestCase):
 
         snapshot_uri = yield snapshot.create_snapshot([], treq)
 
-        self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"), snapshot_uri)
+        self.assertThat(snapshot_uri, StartsWith("URI:DIR2-CHK:"))
 
     @defer.inlineCallbacks
     def test_snapshot_extend(self):
@@ -2563,8 +2564,7 @@ class TahoeSnapshotTest(AsyncTestCase):
 
         initial_snapshot_uri = yield snapshot.create_snapshot([], treq)
 
-        self.failUnless(initial_snapshot_uri.startswith("URI:DIR2-CHK:"),
-                        initial_snapshot_uri)
+        self.assertThat(initial_snapshot_uri, StartsWith("URI:DIR2-CHK:"))
 
         # write something to the file
         with open(file_path.asBytesMode().path, "w") as f:
@@ -2572,8 +2572,7 @@ class TahoeSnapshotTest(AsyncTestCase):
 
         snapshot_uri = yield snapshot.create_snapshot([initial_snapshot_uri], treq)
 
-        self.failUnless(snapshot_uri.startswith("URI:DIR2-CHK:"),
-                        snapshot_uri)
+        self.assertThat(snapshot_uri, StartsWith("URI:DIR2-CHK:"))
 
         # the returned URI should be different from the first snapshot URI
         self.assertNotEqual(snapshot_uri, initial_snapshot_uri)
