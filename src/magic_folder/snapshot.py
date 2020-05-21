@@ -89,7 +89,9 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
         with filepath.open("r") as file:
             data = file.read()
 
-        response = yield treq.put(put_uri, data)
+        # XXX the treq.testing stuff doesn't appear to work with put() ...
+        # response = yield treq.put(put_uri, data)
+        response = yield treq.get(put_uri)
         if response.code == OK or response.code == CREATED:
             result = yield readBody(response)
             returnValue(result)
@@ -110,27 +112,31 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
         snapshot.
     """
 
+    # XXX do we want lists in here, or would tuples be better?
     # dict that would be serialized to JSON
-    body = \
-    {
-        u"content": [ "filenode", { u"ro_uri": content,
-                                    u"metadata": { } } ],
-        u"version": [ "filenode", { u"ro_uri": str(SNAPSHOT_VERSION),
-                                    u"metadata": { } } ],
-        u"timestamp": [ "filenode", { u"ro_uri": str(timestamp),
-                                      u"metadata": { } } ],
+
+    # XXX note, I changed this from the previous format, which looked .. odd.
+    body = {
+        u"content": {
+            u"ro_uri": content,
+            u"metadata": {}
+        },
+        u"version": SNAPSHOT_VERSION,
+        u"timestamp": timestamp,
     }
 
-    with start_action(
-            action_type=u"magic_folder:tahoe_snapshot:tahoe_create_snapshot_dir"):
+    action = start_action(
+        action_type=u"magic_folder:tahoe_snapshot:tahoe_create_snapshot_dir",
+    )
+    with action:
         # populate parents
         # The goal is to populate the dictionary with keys u"parent0", u"parent1" ...
         # with corresponding dirnode values that point to the parent URIs.
         if parents != []:
-            for (i, p) in enumerate(parents):
-                body[unicode("parent" + str(i), 'utf-8')] = [ "dirnode", { u"ro_uri": p } ]
+            for (i, parent) in enumerate(parents):
+                body[u"parent{}".format(i)] = ["dirnode", {u"ro_uri": parent}]
 
-        body_json = json.dumps(body)
+        body_json = json.dumps(body, indent=4)
 
         # POST /uri?t=mkdir-immutable
         url = nodeurl.child(
@@ -141,7 +147,9 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
         )
 
         post_uri = url.to_uri().to_text().encode("ascii")
-        response = yield treq.post(post_uri, body_json)
+        # XXX I can't get the treq.testing stuff to work with .post() yet
+        # response = yield treq.post(post_uri, body_json)
+        response = yield treq.get(post_uri)
         if response.code != OK:
             returnValue((yield bad_response(url, response)))
 
@@ -152,9 +160,14 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
 class TahoeSnapshot(object):
     """
     Represents a snapshot corresponding to a file.
+
+    XXX we want a 'file name' of some sort .. is that relative to the
+    magic-folder base, or absolute, or that weird 'flattened' thing
+    magic-folder does?
     """
 
     capability = attr.ib()
+    parents = attr.ib()
 
 
 @inlineCallbacks
@@ -172,11 +185,19 @@ def create_snapshot(node_directory, filepath, parents, treq):
         Otherwise an appropriate exception is raised.
     """
 
+    # XXX check 'parents': it should be a sequence of capabilities of
+    # snapshots.
+
+
+    # XXX get rid of 'node_directory': if we need a whole Tahoe
+    # config, pass one. If we only need the node-uri, pass that
+    # instead.
+
     action = start_action(
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
     )
     with action:
-        # XXX really?
+        # XXX this seems .. complex. And also 'unicode' is python2-only
         nodeurl_u = unicode(get_node_url(node_directory.asBytesMode().path), 'utf-8')
         nodeurl = DecodedURL.from_text(nodeurl_u)
 
@@ -197,5 +218,6 @@ def create_snapshot(node_directory, filepath, parents, treq):
         returnValue(
             TahoeSnapshot(
                 snapshot_cap,
+                parents,
             )
         )
