@@ -89,9 +89,7 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
         with filepath.open("r") as file:
             data = file.read()
 
-        # XXX the treq.testing stuff doesn't appear to work with put() ...
-        # response = yield treq.put(put_uri, data)
-        response = yield treq.get(put_uri)
+        response = yield treq.put(put_uri, data)
         if response.code == OK or response.code == CREATED:
             result = yield readBody(response)
             returnValue(result)
@@ -145,9 +143,7 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
         )
 
         post_uri = url.to_uri().to_text().encode("ascii")
-        # XXX I can't get the treq.testing stuff to work with .post() yet
-        # response = yield treq.post(post_uri, body_json)
-        response = yield treq.get(post_uri)
+        response = yield treq.post(post_uri, body_json)
         if response.code != OK:
             returnValue((yield bad_response(url, response)))
 

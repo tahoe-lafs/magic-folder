@@ -89,7 +89,10 @@ class TahoeSnapshotTest(AsyncTestCase):
         )
         self._root = create_fake_tahoe_root()
         self._agent = RequestTraversalAgent(self._root)
-        self._client = HTTPClient(self._agent)
+        self._client = HTTPClient(
+            self._agent,
+            data_to_body_producer=_SynchronousProducer,
+        )
 
     @defer.inlineCallbacks
     def test_create_new_tahoe_snapshot(self):
