@@ -112,17 +112,15 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
         snapshot.
     """
 
-    # XXX do we want lists in here, or would tuples be better?
     # dict that would be serialized to JSON
-
-    # XXX note, I changed this from the previous format, which looked .. odd.
-    body = {
-        u"content": {
-            u"ro_uri": content,
-            u"metadata": {}
-        },
-        u"version": SNAPSHOT_VERSION,
-        u"timestamp": timestamp,
+    body = \
+    {
+        u"content": [ "filenode", { u"ro_uri": content,
+                                    u"metadata": { } } ],
+        u"version": [ "filenode", { u"ro_uri": str(SNAPSHOT_VERSION),
+                                    u"metadata": { } } ],
+        u"timestamp": [ "filenode", { u"ro_uri": str(timestamp),
+                                      u"metadata": { } } ],
     }
 
     action = start_action(
