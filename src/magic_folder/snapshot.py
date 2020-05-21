@@ -97,6 +97,7 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
             body = yield readBody(response)
             raise TahoeWriteException(response.code, body)
 
+
 @inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
     """
