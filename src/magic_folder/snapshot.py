@@ -52,6 +52,12 @@ class TahoeWriteException(Exception):
         self.code = code
         self.body = body
 
+    def __str__(self):
+        return '<TahoeWriteException code={} body="{}">'.format(
+            self.code,
+            self.body,
+        )
+
 
 # log exception caused while doing a tahoe put API
 register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body })
@@ -88,7 +94,8 @@ def tahoe_put_immutable(nodeurl, filepath, treq):
             result = yield readBody(response)
             returnValue(result)
         else:
-            raise TahoeWriteException(response.code, response.body)
+            body = yield readBody(response)
+            raise TahoeWriteException(response.code, body)
 
 @inlineCallbacks
 def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
