@@ -72,20 +72,33 @@ class SnapshotAuthor(object):
     """
 
     name = attr.ib()
-    verify_key = attr.ib()
+    verify_key = attr.ib(validator=[attr.validators.instance_of(VerifyKey)])
     signing_key = attr.ib(default=None)
 
-    def __post_attr_init(self):
-        ...
-        # XXX if we have signing_key, it should match verify_key
+    @signing_key.validator
+    def corresponding_key(self, attribute, value):
+        if value is not None:
+            if not isinstance(value, SigningKey):
+                raise ValueError(
+                    "'signing_key' must be a nacl.signing.SigningKey"
+                )
+            if value.verify_key != self.verify_key:
+                raise ValueError(
+                    "'signing_key' must correspond to the 'verify_key'"
+                )
 
     def to_json(self):
+        """
+        :return: a representation of this author in a dict suitable for
+            JSON encoding (see also create_author_from_json)
+        """
         serialized = {
             "name": self.name,
             "verify_key": self.verify_key.encode(encoder=HexEncoder),
         }
         if self.signing_key is not None:
             serialized["signing_key"] = self.signing_key.encode(encoder=HexEncoder)
+        return serialized
 
     def has_signing_key(self):
         """
@@ -105,6 +118,37 @@ class SnapshotAuthor(object):
         raise NotImplemented
 
 
+def create_author(name, verify_key=None, signing_key=None):
+    """
+    :returns: a SnapshotAuthor instance. If no keys are provided, a
+        VerifyKey is created.
+    """
+    if verify_key is not None and not isinstance(verify_key, VerifyKey):
+        raise ValueError("verify_key must be a nacl.signing.VerifyKey")
+    if signing_key is not None and not isinstance(signing_key, SigningKey):
+        raise ValueError("signing_key must be a nacl.signing.SigningKey")
+
+    if signing_key is not None:
+        if verify_key is None:
+            verify_key = signing_key.verify_key
+        if signing_key.verify_key != verify_key:
+            raise ValueError(
+                "SnapshotAuthor 'verify_key' does not correspond to 'signing_key'"
+            )
+
+    if verify_key is None:
+        assert signing_key is None, "logic error"
+        signing_key = SigningKey.generate()
+        verify_key = signing_key.verify_key
+
+    return SnapshotAuthor(
+        name=name,
+        verify_key=verify_key,
+        signing_key=signing_key,
+    )
+
+
+
 def create_author_from_json(data):
     """
     :returns: a SnapshotAuthor instance from the given data (which
@@ -122,22 +166,12 @@ def create_author_from_json(data):
             raise ValueError(
                 u"SnapshotAuthor requires '{}' key".format(k)
             )
-
     verify_key = VerifyKey(data["verify_key"], encoder=HexEncoder)
     try:
         signing_key = SigningKey(data["signing_key"], encoder=HexEncoder)
     except KeyError:
         signing_key = None
-    if signing_key is not None:
-        if signing_key.verify_key != verify_key:
-            raise ValueError(
-                "SnapshotAuthor 'verify_key' does not correspond to 'signing_key'"
-            )
-    return SnapshotAuthor(
-        name=data["name"],
-        verify_key=verify_key,
-        signing_key=signing_key,
-    )
+    return create_author(data["name"], verify_key, signing_key)
 
 
 # XXX see also comments about maybe a ClientSnapshot and a Snapshot or
@@ -163,10 +197,9 @@ class LocalSnapshot(object):
     name = attr.ib()
     author = attr.ib()  # XXX must be "us" / have a signing-key
     metadata = attr.ib()
-    capability = attr.ib()
     content_path = attr.ib()  # full filesystem path to our stashed contents
-    _parents_raw = attr.ib()  # XXX only capability-strings (of RemoteSnapshot parents)
-    _parents_local = attr.ib()  # XXX "or something";
+    _parents_remote = attr.ib()  # DECIDE: are these RemoteSnapshots or just capability-strings?
+    _parents_local = attr.ib()  # LocalSnapshot instances
 
     def count_parents(self):
         """
@@ -305,7 +338,7 @@ def create_snapshot_from_capability(tahoe_client, capability_string):
 
 
 @inlineCallbacks
-def create_snapshot(author, data_producer):
+def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
     """
     Creates a new LocalSnapshot instance that is in-memory only (call
     write_snapshot_to_tahoe() to commit it to a grid). Actually not
@@ -328,17 +361,51 @@ def create_snapshot(author, data_producer):
     LocalSnapshot and it can produce new readers on-demand.
     """
 
+    parents_remote = []
+    parents_local = []
+    for idx, parent in enumerate(parents):
+        if isinstance(parent, LocalSnapshot):
+            parents_local.append(parent)
+        elif isinstance(parent, RemoteSnapshot):
+            parents_remote.append(parent)
+        else:
+            raise ValueError(
+                "Parent {} is type {} not LocalSnapshot or RemoteSnapshot".format(
+                    idx,
+                    type(parent),
+                )
+            )
+
+    chunk_size = 1024*1024  # 1 MiB
     # 1. create a temp-file in our stash area
-    temp_file_name = ...
-    with open(temp_file_name, "w") as temp_file:
-
+    temp_file_fd, temp_file_name = mkstemp(
+        prefix="snap",
+        dir=snapshot_stash_dir,
+    )
+    try:
         # 2. stream data_producer into our temp-file
-        while not data_producer.empty():
-            temp_file.write(data_producer.read(1024))
+        data = data_producer.read(chunk_size)
+        if data and len(data) > 0:
+            os.write(temp_file_fd, data)
+    finally:
+        os.close(temp_file_fd)
 
-    # for true "offline-first" we'd write this information to database or similar
+    # XXX write snapshot meta-information (including path the
+    # temp_file_name) into the snapshot database. TDB
+
     return LocalSnapshot(
-        content_path=temp_file_name,  # basic idea: our content is "fixed" now
+        name=name,
+        author=author,
+        metadata={
+            "ctime": 0,
+            "mtime": 0,
+            "magic_folder": {
+                "author_signature": encoded_signature,
+            }
+        },
+        content_path=temp_file_name,
+        _parents_remote=parents_remote,
+        _parents_local=parents_local,
     )
 
 
@@ -346,6 +413,7 @@ def create_snapshot(author, data_producer):
 # how to do parents?
 #
 # - LocalSnapshot can only have RemoteSnapshots as parents?
+#   -> we could allow both, and the "upload" function has to recursively upload parents
 # - RemoteSnapshots only have RemoteSnapshots as parents
 #
 # offline-first?
@@ -468,7 +536,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # XXX 'parents_raw' are just Tahoe URIs
     for idx, parent_cap in enumerate(snapshot.parents_raw):
         data[u"parent{}".format(idx)] = [
-            "content": [
+            "content", [
                 "filenode", {
                     "ro_uri": parent_cap,
                     # is not having "metadata" permitted?
