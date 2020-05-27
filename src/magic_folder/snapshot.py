@@ -52,7 +52,7 @@ from nacl.signing import (
     VerifyKey,
 )
 from nacl.encoding import (
-    HexEncoder,
+    Base64Encoder,
 )
 
 # version of the snapshot scheme
@@ -87,18 +87,33 @@ class SnapshotAuthor(object):
                     "'signing_key' must correspond to the 'verify_key'"
                 )
 
-    def to_json(self):
+    def to_json_private(self):
         """
+        WARNING this represntation will include private information if our
+        signing_key is valid.
+
         :return: a representation of this author in a dict suitable for
             JSON encoding (see also create_author_from_json)
         """
         serialized = {
             "name": self.name,
-            "verify_key": self.verify_key.encode(encoder=HexEncoder),
+            "verify_key": self.verify_key.encode(encoder=Base64Encoder),
         }
         if self.signing_key is not None:
-            serialized["signing_key"] = self.signing_key.encode(encoder=HexEncoder)
+            serialized["signing_key"] = self.signing_key.encode(encoder=Base64Encoder)
         return serialized
+
+    def to_json(self):
+        """
+        :return: a representation of this author in a dict suitable for
+            JSON encoding (see also create_author_from_json)
+        """
+        serialized = self.to_json_private()
+        return {
+            k: v
+            for k, v in serialized.items()
+            if k not in ["signing_key"]
+        }
 
     def has_signing_key(self):
         """
@@ -112,12 +127,17 @@ class SnapshotAuthor(object):
 
         :returns: bytes representing the signature
         """
-        # XXX what do we sign? the capability probably makes the most
-        # sense -- but then we need to wait until upload time to do the
-        # signing...is it okay to have the author private-key in memory
-        # always? ("Because Python" I don't think we can do anything
-        # anyway and it's on disk so if you can examine memory, you
-        # should be able to read a file the user can)
+        # XXX what do we sign? the capability makes some sense -- but
+        # then we need to wait until upload time to do the
+        # signing...is it okay to have the author private-key in
+        # memory always? ("Because Python" I don't think we can do
+        # anything anyway and it's on disk so if you can examine
+        # memory, you should be able to read a file the user can)
+
+        # XXX also, signing the content capability-string means that
+        # all the metadata is NOT under signature .. not clear that's
+        # an issue. I guess we could sign some kind of hash of
+        # "content_capability + ...."
         if self.signing_key is None:
             raise Exception(
                 "Can't sign snapshot, author '{}' has no signing_key".format(
@@ -185,9 +205,9 @@ def create_author_from_json(data):
             raise ValueError(
                 u"SnapshotAuthor requires '{}' key".format(k)
             )
-    verify_key = VerifyKey(data["verify_key"], encoder=HexEncoder)
+    verify_key = VerifyKey(data["verify_key"], encoder=Base64Encoder)
     try:
-        signing_key = SigningKey(data["signing_key"], encoder=HexEncoder)
+        signing_key = SigningKey(data["signing_key"], encoder=Base64Encoder)
     except KeyError:
         signing_key = None
     return create_author(data["name"], verify_key, signing_key)
@@ -264,9 +284,7 @@ class RemoteSnapshot(object):
 
     :ivar author: SnapshotAuthor instance
 
-    :ivar capability: None if this snapshot isn't from (or uploaded
-        to) a Tahoe grid yet, otherwise a valid immutable CHK:DIR2
-        capability-string.
+    :ivar capability: an immutable CHK:DIR2 capability-string.
     """
 
     name = attr.ib()
@@ -414,7 +432,7 @@ def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
     finally:
         os.close(temp_file_fd)
 
-    # XXX write snapshot meta-information (including path the
+    # XXX FIXME write snapshot meta-information (including the path
     # temp_file_name) into the snapshot database. TDB
 
     return LocalSnapshot(
@@ -510,10 +528,10 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     content_cap = yield res.content()
     print("content_cap: {}".format(content_cap))
 
-    author_data = {
-        "name": snapshot.author.name,
-        "public_key": snapshot.author.verify_key,
-    }
+    author_signature = snapshot.author._sign_capability_string(content_cap.decode('ascii'))
+    author_signature_base64 = base64.b64encode(author_signature)
+    author_data = snapshot.author.to_json()
+
     res = yield treq.put(
         put_uri.to_text(),
         json.dumps(author_data),
@@ -542,7 +560,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                     "ctime": 1202777696.7564139,
                     "mtime": 1202777696.7564139,
                     "magic_folder": {
-                        "author_signature": signature,
+                        "author_signature": author_signature_base64,
                     },
                     "tahoe": {
                         "linkcrtime": 1202777696.7564139,
@@ -590,7 +608,10 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     returnValue(
         RemoteSnapshot(
             name=snapshot.name,
-            author=snapshot.author,
+            author=create_author(  # remove signing_key, doesn't make sense on remote snapshots
+                name=snapshot.author.name,
+                verify_key=snapshot.author.verify_key,
+            ),
             metadata=snapshot.metadata,
             parents_raw=[],  # XXX FIXME (but now we have all parents' immutable caps
             capability=res.content_cap,
