@@ -95,11 +95,20 @@ class TestSnapshotAuthor(AsyncTestCase):
         return d
 
     def test_author_serialize(self):
-        js = self.alice.to_json()
+        js = self.alice.to_json_private()
         for k in ['name', 'signing_key', 'verify_key']:
             self.assertIn(k, js)
         alice2 = create_author_from_json(js)
         self.assertEqual(self.alice, alice2)
+
+    def test_author_serialize_public(self):
+        js = self.alice.to_json()
+        for k in ['name', 'verify_key']:
+            self.assertIn(k, js)
+        self.assertNotIn("signing_key", js)
+        alice2 = create_author_from_json(js)
+        self.assertEqual(self.alice.name, alice2.name)
+        self.assertEqual(self.alice.verify_key, alice2.verify_key)
 
 
 class TahoeSnapshotTest(AsyncTestCase):
