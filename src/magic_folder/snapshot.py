@@ -14,6 +14,9 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
+from twisted.web.client import (
+    BrowserLikeRedirectAgent,
+)
 
 from .common import (
     get_node_url,
@@ -43,6 +46,187 @@ from eliot import (
 
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
+
+
+@attr.s
+class TahoeClient(object):
+    """
+    An object that knows how to call a particular tahoe client's
+    WebAPI. Usually this means a node-directory (to get the base URL)
+    and a treq client (to make HTTP requests).
+
+    XXX probably in a different package than this? Re-factor a couple
+    things so that tahoe_mkdir() etc take a 'tahoe_client' (instead of
+    a treq + node_dir)?
+    """
+
+    # node_directory = attr.ib()
+    url = attr.ib()
+    http_client = attr.ib()
+
+
+@inlineCallbacks
+def create_tahoe_client(node_directory, treq_client=None):
+    """
+    Create a new TahoeClient instance that is speaking to a particular
+    Tahoe node.
+
+    XXX is treq_client= enough of a hook to get a 'testing' treq
+    client?.
+    """
+    # from allmydata.node import read_config  ??
+    with open(join(node_director, "node.url"), "r") as f:
+        base_url = f.read().strip()
+
+    if treq_client is None:
+        treq_client = HTTPClient(
+            agent=BrowserLikeRedirectAgent(),
+        )
+    client = TahoeClient(
+        url=base_url,
+        http_client=treq_client,
+    )
+    yield  # maybe we want to at least try getting / to see if it's alive?
+    returnValue(client)
+
+
+@attr.s
+class SnapshotAuthor(object):
+    """
+    Represents the author of a Snapshot.
+
+    :ivar name: author's name
+
+    :ivar verify_key: author's public key (always available)
+
+    :ivar signing_key: author's private key (if available)
+    """
+
+    name = attr.ib()
+    verify_key = attr.ib()
+    signing_key = attr.ib(default=None)
+
+    def sign_snapshot(self, snapshot):
+        """
+        Signs the given snapshot.
+
+        :param Snapshot snapshot: the Snapshot to sign
+
+        :returns: bytes representing the signature
+        """
+        assert self.signing_key is not None
+        raise NotImplemented
+
+
+@attr.s
+class Snapshot(object):
+    """
+    Represents a snapshot corresponding to a file.
+
+    :ivar name: the name of this Snapshot. This is a mangled path
+        relative to our local magic-folder path.
+
+    :ivar metadata: a dict containing metadata about this Snapshot.
+
+    :ivar parents_raw: list of capablitiy-strings instances of our
+        parents
+
+    :ivar author: SnapshotAuthor instance
+
+    :ivar capability: None if this snapshot isn't from (or uploaded
+        to) a Tahoe grid yet, otherwise a valid immutable CHK:DIR2
+        capability-string.
+    """
+
+    name = attr.ib()
+    metadata = attr.ib()
+    parents_raw = attr.ib()
+    capability = attr.ib()
+    contents = attr.ib()  # a file-like object that can stream the content?
+
+    @inlineCallbacks
+    def fetch_parent(self, parent_index, tahoe_client):
+        """
+        Fetches the given parent.
+
+        :param int parent_index: which parent to fetch
+
+        :param tahoe_client: the Tahoe client to use to retrieve
+            capabilities
+
+        :returns: a Snapshot instance or raises an exception
+        """
+        assert parent_index >= 0 and parent_index < len(self.parents_raw)
+        raise NotImplemented
+
+
+@inlineCallbacks
+def create_snapshot_from_capability(tahoe_client, capability_string):
+    """
+    Create a snapshot by downloading existing data.
+
+    :param tahoe_client: the Tahoe client to use
+
+    :param str capability_string: unicode data representing the
+        immutable CHK:DIR2 directory containing this snapshot.
+
+    :return Deferred[Snapshot]: Snapshot instance on success.
+        Otherwise an appropriate exception is raised.
+    """
+
+    action = start_action(
+        action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
+    )
+    with action:
+        # XXX this seems .. complex. And also 'unicode' is python2-only
+        nodeurl_u = unicode(get_node_url(node_directory.asBytesMode().path), 'utf-8')
+        nodeurl = DecodedURL.from_text(nodeurl_u)
+
+        content_cap = yield tahoe_put_immutable(nodeurl, filepath, treq)
+
+        # XXX probably want a reactor/clock passed in?
+        now = time.time()
+
+        # HTTP POST mkdir-immutable
+        snapshot_cap = yield tahoe_create_snapshot_dir(
+            nodeurl,
+            content_cap,
+            parents,
+            now,
+            treq,
+        )
+
+        returnValue(
+            Snapshot(
+                snapshot_cap,
+                parents,
+            )
+        )
+
+
+@inlineCallbacks
+def create_snapshot(author, data_producer):
+    """
+    Creates a new Snapshot instance that is in-memory only (call
+    write_snapshot() to commit it to a grid).
+
+    :param author: SnapshotAuthor
+
+    :param data_producer: file-like object that can read
+
+    XXX file-like, okay, does it need to suppot random-access? just
+    skip-ahead? none of that? Should we pass a 'way to create a
+    file-like producer' instead (so e.g. we don't even open the file
+    if we never look at the content)?
+    """
+
+
+@inlineCallbacks
+def write_snapshot_to_tahoe(snapshot, tahoe_client):
+    """
+    Writes a Snapshot object to the given tahoe grid.
+    """
+
 
 class TahoeWriteException(Exception):
     """
@@ -149,69 +333,3 @@ def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
 
         result = yield readBody(response)
         returnValue(result)
-
-@attr.s
-class TahoeSnapshot(object):
-    """
-    Represents a snapshot corresponding to a file.
-
-    XXX we want a 'file name' of some sort .. is that relative to the
-    magic-folder base, or absolute, or that weird 'flattened' thing
-    magic-folder does?
-    """
-
-    capability = attr.ib()
-    parents = attr.ib()
-
-
-@inlineCallbacks
-def create_snapshot(node_directory, filepath, parents, treq):
-    """
-    Create a snapshot.
-
-    :param [unicode] parents: List of parent snapshots of the current snapshot
-        (read-caps of parent snapshots)
-
-    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
-        make the queries.
-
-    :return Deferred[unicode]: Snapshot read-only cap is returned on success.
-        Otherwise an appropriate exception is raised.
-    """
-
-    # XXX check 'parents': it should be a sequence of capabilities of
-    # snapshots.
-
-
-    # XXX get rid of 'node_directory': if we need a whole Tahoe
-    # config, pass one. If we only need the node-uri, pass that
-    # instead.
-
-    action = start_action(
-        action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
-    )
-    with action:
-        # XXX this seems .. complex. And also 'unicode' is python2-only
-        nodeurl_u = unicode(get_node_url(node_directory.asBytesMode().path), 'utf-8')
-        nodeurl = DecodedURL.from_text(nodeurl_u)
-
-        content_cap = yield tahoe_put_immutable(nodeurl, filepath, treq)
-
-        # XXX probably want a reactor/clock passed in?
-        now = time.time()
-
-        # HTTP POST mkdir-immutable
-        snapshot_cap = yield tahoe_create_snapshot_dir(
-            nodeurl,
-            content_cap,
-            parents,
-            now,
-            treq,
-        )
-
-        returnValue(
-            TahoeSnapshot(
-                snapshot_cap,
-                parents,
-            )
-        )
