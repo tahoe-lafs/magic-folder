@@ -6,8 +6,10 @@ Functions and types that implement snapshots
 """
 from __future__ import print_function
 
+import os
 import time
 import json
+from tempfile import mkstemp
 
 import attr
 import nacl
@@ -237,8 +239,8 @@ class LocalSnapshot(object):
     author = attr.ib()  # XXX must be "us" / have a signing-key
     metadata = attr.ib()
     content_path = attr.ib()  # full filesystem path to our stashed contents
-    _parents_remote = attr.ib()  # DECIDE: are these RemoteSnapshots or just capability-strings?
-    _parents_local = attr.ib()  # LocalSnapshot instances
+    parents_remote = attr.ib()  # DECIDE: are these RemoteSnapshots or just capability-strings?
+    parents_local = attr.ib()  # LocalSnapshot instances
 
     def count_parents(self):
         """
@@ -375,7 +377,7 @@ def create_snapshot_from_capability(tahoe_client, capability_string):
 
 
 @inlineCallbacks
-def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
+def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
     """
     Creates a new LocalSnapshot instance that is in-memory only (call
     write_snapshot_to_tahoe() to commit it to a grid). Actually not
@@ -397,6 +399,7 @@ def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
     .. then we have a canonical full path we can "burn in" to the
     LocalSnapshot and it can produce new readers on-demand.
     """
+    yield
 
     if not author.has_signing_key():
         raise ValueError(
@@ -435,21 +438,25 @@ def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
     # XXX FIXME write snapshot meta-information (including the path
     # temp_file_name) into the snapshot database. TDB
 
-    return LocalSnapshot(
-        name=name,
-        author=author,
-        metadata={
-            "ctime": 0,
-            "mtime": 0,
-            "magic_folder": {
-                "author_signature": encoded_signature,
-            }
-        },
-        content_path=temp_file_name,
-        _parents_remote=parents_remote,
-        _parents_local=parents_local,
+    returnValue(
+        LocalSnapshot(
+            name=name,
+            author=author,
+            # XXX look at how this becomes metadata in RemoteSnapshot, etc
+            # .. we want to overwrite the signature (or .. only add it if
+            # missing?)
+            metadata={
+                "ctime": 0,
+                "mtime": 0,
+                "magic_folder": {
+                    "author_signature": "pending",
+                }
+            },
+            content_path=temp_file_name,
+            parents_remote=parents_remote,
+            parents_local=parents_local,
+        )
     )
-
 
 # XXX THINK
 # how to do parents?
@@ -519,7 +526,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # upload the content itself
     put_uri = tahoe_client.url.replace(
         path=(u"uri",),
-        query=[("mutable", "false")],
+        query=[(u"mutable", u"false")],
     )
     res = yield tahoe_client.put(
         put_uri.to_text(),
