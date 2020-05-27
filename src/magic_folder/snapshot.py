@@ -65,6 +65,21 @@ class TahoeClient(object):
     url = attr.ib()
     http_client = attr.ib()
 
+    # XXX this is "kind-of" the start of prototyping "a Python API to Tahoe"
+    # XXX for our immediate use, we need something like:
+
+    @inlineCallbacks
+    def create_immutable_directory(self, directory_data_somehow):
+        pass
+
+    @inlineCallbacks
+    def create_immutable(self, file_like_reader):
+        pass
+
+    @inlineCallbacks
+    def download_capability(self, cap):
+        pass
+
 
 @inlineCallbacks
 def create_tahoe_client(node_directory, treq_client=None):
@@ -75,6 +90,14 @@ def create_tahoe_client(node_directory, treq_client=None):
     XXX is treq_client= enough of a hook to get a 'testing' treq
     client?.
     """
+
+    # real:
+    # client = create_tahoe_client(tmpdir)
+
+    # testing:
+    # root = create_fake_tahoe_root()
+    # client = create_tahoe_client(tmpdir, treq_client=create_tahoe_treq_client(root))
+
     # from allmydata.node import read_config  ??
     base_url = get_node_url(node_directory)
     url = DecodedURL.from_text(base_url)
@@ -91,6 +114,7 @@ def create_tahoe_client(node_directory, treq_client=None):
     returnValue(client)
 
 
+# XXX what are the keys here? Probably NaCl asymmetric keys.
 @attr.s
 class SnapshotAuthor(object):
     """
@@ -107,6 +131,12 @@ class SnapshotAuthor(object):
     verify_key = attr.ib()
     signing_key = attr.ib(default=None)
 
+    def has_signing_key(self):
+        """
+        :returns: True if we have a valid signing key, False otherwise
+        """
+        return self.signing_key is not None
+
     def sign_snapshot(self, snapshot):
         """
         Signs the given snapshot.
@@ -121,8 +151,62 @@ class SnapshotAuthor(object):
 
 # XXX see also comments about maybe a ClientSnapshot and a Snapshot or
 # so; "uploading" a ClientSnapshot turns it into a Snapshot.
+
+# XXX LocalSnapshot and RemoteSnapshot are both immutable python objects
+
+# XXX need to think about how to represent parents:
+# - "parents_raw" was meant to capture "we sometimes only have capability-strings"
+# - "lazy" loading ...
+# - what about LocalSnapshots? (we want them in parent lists but they have no capability yet)
+# - want to avoid recursively loading ALL the versions (until we need to)
+
+
+# XXX might want to think about an ISnapshot interface?
+# - stuff common between LocalSnapshot and RemoteSnapshot
+#   - count_parents()
+#   - fetch_parent()
+#   - name, author, metadata, ...
+
 @attr.s
-class Snapshot(object):
+class LocalSnapshot(object):
+    name = attr.ib()
+    author = attr.ib()  # XXX must be "us" / have a signing-key
+    metadata = attr.ib()
+    capability = attr.ib()
+    content_path = attr.ib()  # full filesystem path to our stashed contents
+    _parents_raw = attr.ib()  # XXX only capability-strings (of RemoteSnapshot parents)
+    _parents_local = attr.ib()  # XXX "or something";
+
+    def count_parents(self):
+        """
+        XXX or something
+        """
+        return len(self._parents_raw) + len(self._parents_local)
+
+    @inlineCallbacks
+    def fetch_parent(self, index, tahoe_client):
+        """
+        Returns all parents as LocalSnapshot or RemoteSnapshot (or a mix)
+        instances -- possibly instantiating RemoteSnapshot instances
+        from capability-strings.
+        """
+
+    def get_content_producer(self):
+        """
+        :returns: an IBodyProducer that gives you all the bytes of the
+        on-disc content. Raises an error if we already have a
+        capability.
+        """
+        # XXX or, maybe instead of .contents we want "a thing that
+        # produces file-like objects" so that e.g. if you call
+        # get_content_producer() twice it works..
+        return FileBodyProducer(
+            open(self.content_path, "rb")
+        )
+
+
+@attr.s
+class RemoteSnapshot(object):
     """
     Represents a snapshot corresponding to a particular version of a
     file authored by a particular human.
@@ -140,39 +224,20 @@ class Snapshot(object):
     :ivar capability: None if this snapshot isn't from (or uploaded
         to) a Tahoe grid yet, otherwise a valid immutable CHK:DIR2
         capability-string.
-
-    XXX "how to get the content" probably needs more thinking .. two
-    cases: we're a "from the grid" snapshot, and so need an async
-    "download_content()" or something like that
-
-    XXX the other possibility is that we're an "in-memory" Snapshot
-    that isn't in any grid yet, so we need some way to stream incoming
-    data.
-
-    XXX maybe it's just better to have two kinds of TahoeSnapshots?
-    But, it's tempting to say "if from grid", "contents.read()"
-    downloads data; "if from local" then "contents.read()" reads data
-    from a file-like.
-
-    :ivar contents: a file-like to read the content
     """
 
     name = attr.ib()
+    author = attr.ib()  # any SnapshotAuthor instance
     metadata = attr.ib()
-    parents_raw = attr.ib()
     capability = attr.ib()
-    contents = attr.ib()  # a file-like object that can stream the content?
+    _parents_raw = attr.ib()
 
-    def get_content_producer(self):
+
+    def count_parents(self):
         """
-        :returns: an IBodyProducer that gives you all the bytes of the
-        on-disc content. Raises an error if we already have a
-        capability.
+        XXX or something
         """
-        # XXX or, maybe instead of .contents we want "a thing that
-        # produces file-like objects" so that e.g. if you call
-        # get_content_producer() twice it works..
-        return FileBodyProducer(self.contents)
+        return len(self._parents_raw)
 
     @inlineCallbacks
     def fetch_parent(self, parent_index, tahoe_client):
@@ -189,6 +254,20 @@ class Snapshot(object):
         assert parent_index >= 0 and parent_index < len(self.parents_raw)
         raise NotImplemented
 
+    @inlineCallbacks
+    def fetch_content(self, tahoe_client, writable_file):
+        """
+        Fetches our content from the grid, returning an IBodyProducer?
+        """
+        # XXX should verify the signature using self.author + signature
+
+        # XXX returns some kind of streaming API to download the content
+
+        # XXX OR it just downloads all the content into memory and returns it?
+
+        # XXX OR you give this a file-like to WRITE into
+
+
 
 @inlineCallbacks
 def create_snapshot_from_capability(tahoe_client, capability_string):
@@ -200,7 +279,7 @@ def create_snapshot_from_capability(tahoe_client, capability_string):
     :param str capability_string: unicode data representing the
         immutable CHK:DIR2 directory containing this snapshot.
 
-    :return Deferred[Snapshot]: Snapshot instance on success.
+    :return Deferred[Snapshot]: RemoteSnapshot instance on success.
         Otherwise an appropriate exception is raised.
     """
 
@@ -237,31 +316,96 @@ def create_snapshot_from_capability(tahoe_client, capability_string):
 @inlineCallbacks
 def create_snapshot(author, data_producer):
     """
-    Creates a new Snapshot instance that is in-memory only (call
-    write_snapshot() to commit it to a grid).
+    Creates a new LocalSnapshot instance that is in-memory only (call
+    write_snapshot_to_tahoe() to commit it to a grid). Actually not
+    in-memory, we should commit it to local disk / database before
+    ever returning LocalSnapshot instance
 
-    :param author: SnapshotAuthor
+    :param author: SnapshotAuthor which must have a valid signing-key
 
     :param data_producer: file-like object that can read
 
-    XXX file-like, okay, does it need to suppot random-access? just
+    XXX file-like, okay, does it need to support random-access? just
     skip-ahead? none of that? Should we pass a 'way to create a
     file-like producer' instead (so e.g. we don't even open the file
     if we never look at the content)?
+
+    XXX thinking of local-first, the data_producer here is used just
+    once (immediately) to copy all the data into some "staging" area
+    local to our node-dir (or at least specified in our confing)
+    .. then we have a canonical full path we can "burn in" to the
+    LocalSnapshot and it can produce new readers on-demand.
     """
+
+    # 1. create a temp-file in our stash area
+    temp_file_name = ...
+    with open(temp_file_name, "w") as temp_file:
+
+        # 2. stream data_producer into our temp-file
+        while not data_producer.empty():
+            temp_file.write(data_producer.read(1024))
+
+    # for true "offline-first" we'd write this information to database or similar
+    return LocalSnapshot(
+        content_path=temp_file_name,  # basic idea: our content is "fixed" now
+    )
+
+
+# XXX THINK
+# how to do parents?
+#
+# - LocalSnapshot can only have RemoteSnapshots as parents?
+# - RemoteSnapshots only have RemoteSnapshots as parents
+#
+# offline-first?
+# - can we build up multiple LocalSnapshots and upload them later?
+# - can we do ^ but maintain them across client re-starts?
+# - ideal use-case is:
+#   - build a bunch of LocalSnapshots
+#   - shut down daemon
+#   - restart daemon (series of LocalSnapshots still there)
+#   - upload LocalSnapshots, making them RemoteSnapshots
+# - have to 'stash' actual contents somewhere (maybe <our dir>/.stash/*)
+# - huge PRO of doing ^ first is that our client can crash and not lose snapshots
+# - then LocalSnapshot can have LocalSnapshot instances in parents list
+#
+# tahoe as a library?
+# - can we start with TahoeClient and build out?
+# - can TahoeClient remain in this repo, get promoted later?
+# - ...
 
 
 @inlineCallbacks
 def write_snapshot_to_tahoe(snapshot, tahoe_client):
     """
-    Writes a Snapshot object to the given tahoe grid.
+    Writes a LocalSnapshot object to the given tahoe grid.
+
+    :param snapshot: LocalSnapshot
+
+    :returns: a RemoteSnapshop instance
     """
+    # XXX in offline-first case, this must recurse and write any
+    # LocalSnapshot parents to the grid FIRST so that it can burn in
+    # their capabilities in the parent list when uploading the child.
+
     # XXX if we're writing the content, then author things as separate
     # capabilities, how do we behave if something goes wrong between
     # making either of those and putting the whole snapshot in?
     # (meejah: I think "ignore it" is fine, because if we just try
     # again then we should get the same capabilities back anyway;
     # worst case is extra writing).
+
+    # XXX need to recursively look at our parents for LocalSnapshots
+    # and upload those FIRST.
+
+    # XXX probably want to give this a progress= instance (kind-of
+    # like teh one in Tahoe) so we can track upload progress for
+    # status-API for GUI etc.
+
+    # XXX might want to put all this stuff into a queue so we only
+    # upload X at a time etc. -- that is, this API is probably a
+    # high-level one that just queues up the upload .. a low level one
+    # "actually does it", including re-tries etc.
 
     # upload the content itself
     put_uri = tahoe_client.url.replace(
@@ -276,8 +420,8 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     print("content_cap: {}".format(content_cap))
 
     author_data = {
-        "pubkey": snapshot.author.verify_key,
         "name": snapshot.author.name,
+        "public_key": snapshot.author.verify_key,
     }
     res = yield treq.put(
         put_uri.to_text(),
@@ -297,6 +441,8 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # maybe? that might just be extra complexity for no gain, but
     # "parents/0", "parents/1" aesthetically seems a bit nicer.
 
+    # XXX FIXME timestamps are bogus
+
     data = {
         "content": [
             "filenode", {
@@ -304,9 +450,8 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                 "metadata": {
                     "ctime": 1202777696.7564139,
                     "mtime": 1202777696.7564139,
-                    "magic": {
-                        "arbitrary": "foo",
-                        "magic-folder": "stuff",
+                    "magic_folder": {
+                        "author_signature": signature,
                     },
                     "tahoe": {
                         "linkcrtime": 1202777696.7564139,
@@ -346,14 +491,20 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
         query=[("t", "mkdir-immutable")],
     )
     res = yield treq.post(post_uri.to_text(), json.dumps(data))
-    content = yield res.content()
-    snapshot.capability = content
-    returnValue(snapshot)
-    # XXX acutally, I kind of like the idea of a "client-side
-    # Snapshot" versus a "server-side Snapshot" -- this method could
-    # take a ClientSnapshot (which has get_content_producer, no
-    # .capability) and return a ServerSnapshot (which has .capability
-    # and e.g. a download_content() or similar)
+    content_cap = yield res.content()
+
+    # XXX *now* is the moment we can remove the LocalSnapshot from our
+    # local database -- so if at any moment before now there's a
+    # failure, we can try again.
+    returnValue(
+        RemoteSnapshot(
+            name=snapshot.name,
+            author=snapshot.author,
+            metadata=snapshot.metadata,
+            parents_raw=[],  # XXX FIXME (but now we have all parents' immutable caps
+            capability=res.content_cap,
+        )
+    )
 
 
 class TahoeWriteException(Exception):
@@ -374,90 +525,8 @@ class TahoeWriteException(Exception):
 # log exception caused while doing a tahoe put API
 register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body })
 
-@inlineCallbacks
-def tahoe_put_immutable(nodeurl, filepath, treq):
-    """
-    :param DecodedURL nodeurl: The web endpoint of the Tahoe-LAFS client
-        associated with the magic-folder client.
-    :param FilePath filepath: The file path that needs to be stored into
-        the grid.
-    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to
-        make the queries.
-    :return Deferred[unicode]: The readcap associated with the newly created
-        unlinked file.
-    """
-    url = nodeurl.child(
-        u"uri",
-    ).add(
-        u"format",
-        u"CHK",
-    )
 
-    with start_action(
-            action_type=u"magic_folder:tahoe_snapshot:tahoe_put_immutable"):
-        put_uri = url.to_uri().to_text().encode("ascii")
-        # XXX: Should not read entire file into memory. See:
-        # https://github.com/LeastAuthority/magic-folder/issues/129
-        with filepath.open("r") as file:
-            data = file.read()
-
-        response = yield treq.put(put_uri, data)
-        if response.code == OK or response.code == CREATED:
-            result = yield readBody(response)
-            returnValue(result)
-        else:
-            body = yield readBody(response)
-            raise TahoeWriteException(response.code, body)
-
-
-@inlineCallbacks
-def tahoe_create_snapshot_dir(nodeurl, content, parents, timestamp, treq):
-    """
-    :param DecodedURL nodeurl: The web endpoint of the Tahoe-LAFS client
-        associated with the magic-folder client.
-    :param unicode content: readcap for the content.
-    :param [unicode] parents: List of parent snapshot caps
-    :param integer timestamp: POSIX timestamp that represents the creation time
-    :return Deferred[unicode]: The readcap associated with the newly created
-        snapshot.
-    """
-
-    # dict that would be serialized to JSON
-    body = \
-    {
-        u"content": [ "filenode", { u"ro_uri": content,
-                                    u"metadata": { } } ],
-        u"version": [ "filenode", { u"ro_uri": str(SNAPSHOT_VERSION),
-                                    u"metadata": { } } ],
-        u"timestamp": [ "filenode", { u"ro_uri": str(timestamp),
-                                      u"metadata": { } } ],
-    }
-
-    action = start_action(
-        action_type=u"magic_folder:tahoe_snapshot:tahoe_create_snapshot_dir",
-    )
-    with action:
-        # populate parents
-        # The goal is to populate the dictionary with keys u"parent0", u"parent1" ...
-        # with corresponding dirnode values that point to the parent URIs.
-        if parents != []:
-            for (i, parent) in enumerate(parents):
-                body[u"parent{}".format(i)] = ["dirnode", {u"ro_uri": parent}]
-
-        body_json = json.dumps(body, indent=4)
-
-        # POST /uri?t=mkdir-immutable
-        url = nodeurl.child(
-            u"uri",
-        ).add(
-            u"t",
-            u"mkdir-immutable"
-        )
-
-        post_uri = url.to_uri().to_text().encode("ascii")
-        response = yield treq.post(post_uri, body_json)
-        if response.code != OK:
-            returnValue((yield bad_response(url, response)))
-
-        result = yield readBody(response)
-        returnValue(result)
+# XXX FIXME
+# use TahoeWriteException in write_snapshot_to_tahoe
+# body = yield readBody(response)
+# raise TahoeWriteException(response.code, body)
