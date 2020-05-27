@@ -16,6 +16,7 @@ from twisted.internet.defer import (
 )
 from twisted.web.client import (
     BrowserLikeRedirectAgent,
+    FileBodyProducer,
 )
 
 from .common import (
@@ -75,15 +76,15 @@ def create_tahoe_client(node_directory, treq_client=None):
     client?.
     """
     # from allmydata.node import read_config  ??
-    with open(join(node_director, "node.url"), "r") as f:
-        base_url = f.read().strip()
+    base_url = get_node_url(node_directory)
+    url = DecodedURL.from_text(base_url)
 
     if treq_client is None:
         treq_client = HTTPClient(
             agent=BrowserLikeRedirectAgent(),
         )
     client = TahoeClient(
-        url=base_url,
+        url=url,
         http_client=treq_client,
     )
     yield  # maybe we want to at least try getting / to see if it's alive?
@@ -136,6 +137,21 @@ class Snapshot(object):
     :ivar capability: None if this snapshot isn't from (or uploaded
         to) a Tahoe grid yet, otherwise a valid immutable CHK:DIR2
         capability-string.
+
+    XXX "how to get the content" probably needs more thinking .. two
+    cases: we're a "from the grid" snapshot, and so need an async
+    "download_content()" or something like that
+
+    XXX the other possibility is that we're an "in-memory" Snapshot
+    that isn't in any grid yet, so we need some way to stream incoming
+    data.
+
+    XXX maybe it's just better to have two kinds of TahoeSnapshots?
+    But, it's tempting to say "if from grid", "contents.read()"
+    downloads data; "if from local" then "contents.read()" reads data
+    from a file-like.
+
+    :ivar contents: a file-like to read the content
     """
 
     name = attr.ib()
@@ -143,6 +159,17 @@ class Snapshot(object):
     parents_raw = attr.ib()
     capability = attr.ib()
     contents = attr.ib()  # a file-like object that can stream the content?
+
+    def get_content_producer(self):
+        """
+        :returns: an IBodyProducer that gives you all the bytes of the
+        on-disc content. Raises an error if we already have a
+        capability.
+        """
+        # XXX or, maybe instead of .contents we want "a thing that
+        # produces file-like objects" so that e.g. if you call
+        # get_content_producer() twice it works..
+        return FileBodyProducer(self.contents)
 
     @inlineCallbacks
     def fetch_parent(self, parent_index, tahoe_client):
@@ -226,6 +253,104 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     """
     Writes a Snapshot object to the given tahoe grid.
     """
+    # XXX if we're writing the content, then author things as separate
+    # capabilities, how do we behave if something goes wrong between
+    # making either of those and putting the whole snapshot in?
+    # (meejah: I think "ignore it" is fine, because if we just try
+    # again then we should get the same capabilities back anyway;
+    # worst case is extra writing).
+
+    # upload the content itself
+    put_uri = tahoe_client.url.replace(
+        path=(u"uri",),
+        query=[("mutable", "false")],
+    )
+    res = yield tahoe_client.put(
+        put_uri.to_text(),
+        data=snapshot.get_content_producer(),
+    )
+    content_cap = yield res.content()
+    print("content_cap: {}".format(content_cap))
+
+    author_data = {
+        "pubkey": snapshot.author.verify_key,
+        "name": snapshot.author.name,
+    }
+    res = yield treq.put(
+        put_uri.to_text(),
+        json.dumps(author_data),
+    )
+    author_cap = yield res.content()
+    print("author_cap: {}".format(author_cap))
+
+    # create the actual snapshot: an immutable directory with
+    # some children:
+    # - "content" -> RO cap (arbitrary data)
+    # - "author" -> RO cap (json)
+    # - "parent0" -> RO cap to a Snapshot
+    # - "parentN" -> RO cap to a Snapshot
+
+    # XXX actually, should we make the parent pointers a sub-dir,
+    # maybe? that might just be extra complexity for no gain, but
+    # "parents/0", "parents/1" aesthetically seems a bit nicer.
+
+    data = {
+        "content": [
+            "filenode", {
+                "ro_uri": content_cap,
+                "metadata": {
+                    "ctime": 1202777696.7564139,
+                    "mtime": 1202777696.7564139,
+                    "magic": {
+                        "arbitrary": "foo",
+                        "magic-folder": "stuff",
+                    },
+                    "tahoe": {
+                        "linkcrtime": 1202777696.7564139,
+                        "linkmotime": 1202777696.7564139
+                    }
+                }
+            },
+        ],
+        "author": [
+            "filenode", {
+                "ro_uri": author_cap,
+                "metadata": {
+                    "ctime": 1202777696.7564139,
+                    "mtime": 1202777696.7564139,
+                    "tahoe": {
+                        "linkcrtime": 1202777696.7564139,
+                        "linkmotime": 1202777696.7564139
+                    }
+                }
+            }
+        ],
+    }
+    # XXX 'parents_raw' are just Tahoe URIs
+    for idx, parent_cap in enumerate(snapshot.parents_raw):
+        data[u"parent{}".format(idx)] = [
+            "content": [
+                "filenode", {
+                    "ro_uri": parent_cap,
+                    # is not having "metadata" permitted?
+                }
+            ]
+        ]
+
+
+    post_uri = tahoe_client.url.replace(
+        path=(u"uri",),
+        query=[("t", "mkdir-immutable")],
+    )
+    res = yield treq.post(post_uri.to_text(), json.dumps(data))
+    content = yield res.content()
+    snapshot.capability = content
+    returnValue(snapshot)
+    # XXX acutally, I kind of like the idea of a "client-side
+    # Snapshot" versus a "server-side Snapshot" -- this method could
+    # take a ClientSnapshot (which has get_content_producer, no
+    # .capability) and return a ServerSnapshot (which has .capability
+    # and e.g. a download_content() or similar)
 
 
 class TahoeWriteException(Exception):
