@@ -119,10 +119,13 @@ class SnapshotAuthor(object):
         raise NotImplemented
 
 
+# XXX see also comments about maybe a ClientSnapshot and a Snapshot or
+# so; "uploading" a ClientSnapshot turns it into a Snapshot.
 @attr.s
 class Snapshot(object):
     """
-    Represents a snapshot corresponding to a file.
+    Represents a snapshot corresponding to a particular version of a
+    file authored by a particular human.
 
     :ivar name: the name of this Snapshot. This is a mangled path
         relative to our local magic-folder path.
