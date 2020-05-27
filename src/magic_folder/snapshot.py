@@ -8,7 +8,9 @@ from __future__ import print_function
 
 import time
 import json
+
 import attr
+import nacl
 
 from twisted.internet.defer import (
     inlineCallbacks,
@@ -45,11 +47,18 @@ from eliot import (
     register_exception_extractor,
 )
 
+from nacl.signing import (
+    SigningKey,
+    VerifyKey,
+)
+from nacl.encoding import (
+    HexEncoder,
+)
+
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
 
 
-# XXX what are the keys here? Probably NaCl asymmetric keys.
 @attr.s
 class SnapshotAuthor(object):
     """
@@ -57,14 +66,26 @@ class SnapshotAuthor(object):
 
     :ivar name: author's name
 
-    :ivar verify_key: author's public key (always available)
+    :ivar nacl.signing.VerifyKey verify_key: author's public key (always available)
 
-    :ivar signing_key: author's private key (if available)
+    :ivar nacl.signing.SigningKey signing_key: author's private key (if available)
     """
 
     name = attr.ib()
     verify_key = attr.ib()
     signing_key = attr.ib(default=None)
+
+    def __post_attr_init(self):
+        ...
+        # XXX if we have signing_key, it should match verify_key
+
+    def to_json(self):
+        serialized = {
+            "name": self.name,
+            "verify_key": self.verify_key.encode(encoder=HexEncoder),
+        }
+        if self.signing_key is not None:
+            serialized["signing_key"] = self.signing_key.encode(encoder=HexEncoder)
 
     def has_signing_key(self):
         """
@@ -82,6 +103,41 @@ class SnapshotAuthor(object):
         """
         assert self.signing_key is not None
         raise NotImplemented
+
+
+def create_author_from_json(data):
+    """
+    :returns: a SnapshotAuthor instance from the given data (which
+       would usually come from SnapshotAuthor.to_json())
+    """
+    permitted_keys = ["name", "signing_key", "verify_key"]
+    required_keys = ["name", "verify_key"]
+    for k in data.keys():
+        if k not in permitted_keys:
+            raise ValueError(
+                u"Unknown SnapshotAuthor key '{}'".format(k)
+            )
+    for k in required_keys:
+        if k not in data:
+            raise ValueError(
+                u"SnapshotAuthor requires '{}' key".format(k)
+            )
+
+    verify_key = VerifyKey(data["verify_key"], encoder=HexEncoder)
+    try:
+        signing_key = SigningKey(data["signing_key"], encoder=HexEncoder)
+    except KeyError:
+        signing_key = None
+    if signing_key is not None:
+        if signing_key.verify_key != verify_key:
+            raise ValueError(
+                "SnapshotAuthor 'verify_key' does not correspond to 'signing_key'"
+            )
+    return SnapshotAuthor(
+        name=data["name"],
+        verify_key=verify_key,
+        signing_key=signing_key,
+    )
 
 
 # XXX see also comments about maybe a ClientSnapshot and a Snapshot or
