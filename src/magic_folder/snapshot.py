@@ -106,16 +106,35 @@ class SnapshotAuthor(object):
         """
         return self.signing_key is not None
 
-    def sign_snapshot(self, snapshot):
+    def _sign_capability_string(self, capability):
         """
         Signs the given snapshot.
 
-        :param Snapshot snapshot: the Snapshot to sign
-
         :returns: bytes representing the signature
         """
-        assert self.signing_key is not None
-        raise NotImplemented
+        # XXX what do we sign? the capability probably makes the most
+        # sense -- but then we need to wait until upload time to do the
+        # signing...is it okay to have the author private-key in memory
+        # always? ("Because Python" I don't think we can do anything
+        # anyway and it's on disk so if you can examine memory, you
+        # should be able to read a file the user can)
+        if self.signing_key is None:
+            raise Exception(
+                "Can't sign snapshot, author '{}' has no signing_key".format(
+                    self.name,
+                )
+            )
+
+        # XXX more notes: it doesn't make sense to sign a
+        # RemoteSnapshot (it already has to be signed) -- and we can't
+        # sign capability-strings unless we do it exactly at
+        # upload-time .. so this method is "private" to be used only
+        # by the upload machinery to sign the capability *after* we've
+        # uploaded the contents (but before creating the
+        # immutable-dir)
+
+        sig = self.signing_key.sign(capability)
+        return sig
 
 
 def create_author(name, verify_key=None, signing_key=None):
@@ -361,6 +380,11 @@ def create_snapshot(author, data_producer, snapshot_stash_dir, parents):
     LocalSnapshot and it can produce new readers on-demand.
     """
 
+    if not author.has_signing_key():
+        raise ValueError(
+            "Author of LocalSnapshot must have signing key"
+        )
+
     parents_remote = []
     parents_local = []
     for idx, parent in enumerate(parents):
@@ -465,6 +489,14 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # upload X at a time etc. -- that is, this API is probably a
     # high-level one that just queues up the upload .. a low level one
     # "actually does it", including re-tries etc.
+
+    # sanity-checks before we do anything; we must have a
+    # SnapshotAuthor here that is capable of signing (because a
+    # snapshot must be signed).
+    if not snapshot.author.has_signing_key():
+        raise ValueError(
+            "Can't upload LocalSnapshot: no author signing key"
+        )
 
     # upload the content itself
     put_uri = tahoe_client.url.replace(
