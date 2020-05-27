@@ -25,13 +25,16 @@ from treq.testing import (
     RequestTraversalAgent,
     RequestSequence,
     StubTreq,
+    _SynchronousProducer,  # FIXME copy code somewhere, "because private"
+)
+
+from hyperlink import (
+    DecodedURL,
 )
 
 from testtools.matchers import (
     StartsWith,
 )
-
-from magic_folder.snapshot import create_snapshot
 
 from .fixtures import (
     NodeDirectory,
@@ -47,6 +50,10 @@ from magic_folder.snapshot import (
     create_author_from_json,
     create_snapshot,
     create_snapshot_from_capability,
+    write_snapshot_to_tahoe,
+)
+from magic_folder.tahoe_client import (
+    TahoeClient,
 )
 
 
@@ -123,37 +130,40 @@ class TahoeSnapshotTest(AsyncTestCase):
         and run it.
         """
         yield super(TahoeSnapshotTest, self).setUp()
-        self._nodedir = self.useFixture(
-            NodeDirectory(
-                path=FilePath(self.mktemp()),
-            )
+        self.root = create_fake_tahoe_root()
+        self.agent = RequestTraversalAgent(self.root)
+        self.http_client = HTTPClient(
+            self.agent,
+            data_to_body_producer=_SynchronousProducer,
         )
-        self._root = create_fake_tahoe_root()
-        self._agent = RequestTraversalAgent(self._root)
-        self._client = HTTPClient(
-            self._agent,
-#            data_to_body_producer=_SynchronousProducer,
+        self.tahoe_client = TahoeClient(
+            url=DecodedURL.from_text(u"http://example.com"),
+            http_client=self.http_client,
         )
+        self.alice = create_author("alice")
+        self.stash_dir = self.mktemp()
+        os.mkdir(self.stash_dir)
 
     @defer.inlineCallbacks
-    def _test_create_new_tahoe_snapshot(self):
+    def test_create_new_tahoe_snapshot(self):
         """
         create a new snapshot (this will have no parent snapshots).
         """
 
-        # Get a magic folder.
-        folder_path = self._nodedir.path.child(u"magic-folder")
-
-        os.mkdir(folder_path.asBytesMode().path)
-        file_path = folder_path.child("foo")
-        file_path.touch()
-
-        # XXX THINK: do we really need a full node-dir ?
+        data = io.BytesIO(b"test data\n" * 200)
         snapshot = yield create_snapshot(
-            node_directory=self._nodedir.path,
-            filepath=file_path,
+            name="fixme_mangled_filename_or_real_path",
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
             parents=[],
-            treq=self._client,
         )
 
-        self.assertThat(snapshot.capability, StartsWith("URI:DIR2-CHK:"))
+        remote_snapshot = yield write_snapshot_to_tahoe(snapshot, self.tahoe_client)
+
+        print("REMOTE: {}".format(remote_snapshot.capability))
+        # XXX check signature, ...
+        self.assertThat(
+            remote_snapshot.name,
+            Equals(snapshot.name),
+        )
