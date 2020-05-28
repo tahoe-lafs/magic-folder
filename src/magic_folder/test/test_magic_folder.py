@@ -59,10 +59,6 @@ from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 
-from magic_folder.snapshot import (
-    TahoeSnapshot,
-)
-
 from magic_folder.magic_folder import (
     MagicFolder,
     WriteFileMixin,
