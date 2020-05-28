@@ -1,9 +1,14 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+import json
+
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
+)
+from twisted.web.client import (
+    FileBodyProducer,
 )
 from hyperlink import (
     DecodedURL,
@@ -36,12 +41,43 @@ class TahoeClient(object):
     # XXX for our immediate use, we need something like:
 
     @inlineCallbacks
-    def create_immutable_directory(self, directory_data_somehow):
-        pass
+    def create_immutable_directory(self, directory_data):
+        post_uri = self.url.replace(
+            path=(u"uri",),
+            query=[(u"t", u"mkdir-immutable")],
+        )
+        res = yield self.http_client.post(
+            post_uri.to_text(),
+            json.dumps(directory_data),
+        )
+        capability_string = yield res.content()
+        returnValue(
+            capability_string.strip()
+        )
 
     @inlineCallbacks
-    def create_immutable(self, file_like_reader):
-        pass
+    def create_immutable(self, producer):
+        # XXX should handle "any" producer, taking a shortcut for now
+        raw_data = None
+        if isinstance(producer, FileBodyProducer):
+            raw_data = producer._inputFile.read()
+        elif hasattr(producer, "read"):
+            raw_data = producer.read()
+        else:
+            raise NotImplementedError()
+
+        put_uri = self.url.replace(
+            path=(u"uri",),
+            query=[(u"mutable", u"false")],
+        )
+        res = yield self.http_client.put(
+            put_uri.to_text(),
+            data=raw_data,
+        )
+        capability_string = yield res.content()
+        returnValue(
+            capability_string.strip()
+        )
 
     @inlineCallbacks
     def download_capability(self, cap):
