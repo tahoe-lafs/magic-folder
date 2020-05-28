@@ -6,6 +6,10 @@ from nacl.signing import (
     VerifyKey,
 )
 
+from testtools.matchers import (
+    Equals,
+)
+
 from twisted.internet import defer
 from twisted.python.filepath import (
     FilePath,

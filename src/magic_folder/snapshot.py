@@ -9,6 +9,7 @@ from __future__ import print_function
 import os
 import time
 import json
+import base64
 from tempfile import mkstemp
 
 import attr
@@ -524,26 +525,17 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
         )
 
     # upload the content itself
-    put_uri = tahoe_client.url.replace(
-        path=(u"uri",),
-        query=[(u"mutable", u"false")],
-    )
-    res = yield tahoe_client.put(
-        put_uri.to_text(),
-        data=snapshot.get_content_producer(),
-    )
-    content_cap = yield res.content()
+    content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
     print("content_cap: {}".format(content_cap))
 
-    author_signature = snapshot.author._sign_capability_string(content_cap.decode('ascii'))
+    author_signature = snapshot.author._sign_capability_string(content_cap)
     author_signature_base64 = base64.b64encode(author_signature)
     author_data = snapshot.author.to_json()
 
-    res = yield treq.put(
-        put_uri.to_text(),
-        json.dumps(author_data),
+    import io
+    author_cap = yield tahoe_client.create_immutable(
+        io.BytesIO(json.dumps(author_data))
     )
-    author_cap = yield res.content()
     print("author_cap: {}".format(author_cap))
 
     # create the actual snapshot: an immutable directory with
@@ -590,8 +582,13 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
             }
         ],
     }
-    # XXX 'parents_raw' are just Tahoe URIs
-    for idx, parent_cap in enumerate(snapshot.parents_raw):
+    if len(snapshot.parents_local):
+        # XXX need to recursivly upload any local parents first, then
+        # we can do this one...
+        raise NotImplementedError()
+
+    # XXX 'parents_remote1 are just Tahoe capability-strings for now
+    for idx, parent_cap in enumerate(snapshot.parents_remote):
         data[u"parent{}".format(idx)] = [
             "content", [
                 "filenode", {
@@ -601,17 +598,11 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
             ]
         ]
 
-
-    post_uri = tahoe_client.url.replace(
-        path=(u"uri",),
-        query=[("t", "mkdir-immutable")],
-    )
-    res = yield treq.post(post_uri.to_text(), json.dumps(data))
-    content_cap = yield res.content()
+    snapshot_cap = yield tahoe_client.create_immutable_directory(data)
 
     # XXX *now* is the moment we can remove the LocalSnapshot from our
     # local database -- so if at any moment before now there's a
-    # failure, we can try again.
+    # failure, we'll try again.
     returnValue(
         RemoteSnapshot(
             name=snapshot.name,
@@ -619,9 +610,9 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                 name=snapshot.author.name,
                 verify_key=snapshot.author.verify_key,
             ),
-            metadata=snapshot.metadata,
-            parents_raw=[],  # XXX FIXME (but now we have all parents' immutable caps
-            capability=res.content_cap,
+            metadata=snapshot.metadata,  # XXX not authenticated by signature...
+            parents_raw=[],  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
+            capability=snapshot_cap,
         )
     )
 
