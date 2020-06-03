@@ -304,6 +304,10 @@ class RemoteSnapshot(object):
         """
         return len(self._parents_raw)
 
+    @property
+    def signature(self):
+        return self.metadata["author_signature"]
+
     @inlineCallbacks
     def fetch_parent(self, parent_index, tahoe_client):
         """
@@ -450,9 +454,9 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
             metadata={
                 "ctime": 0,
                 "mtime": 0,
-                "magic_folder": {
-                    "author_signature": "pending",
-                }
+#                "magic_folder": {
+#                    "author_signature": "pending",
+#                }
             },
             content_path=temp_file_name,
             parents_remote=parents_remote,
@@ -550,6 +554,9 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
 
     # XXX FIXME timestamps are bogus
 
+    content_metadata = {
+        "author_signature": author_signature_base64,
+    }
     data = {
         "content": [
             "filenode", {
@@ -557,9 +564,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                 "metadata": {
                     "ctime": 1202777696.7564139,
                     "mtime": 1202777696.7564139,
-                    "magic_folder": {
-                        "author_signature": author_signature_base64,
-                    },
+                    "magic_folder": content_metadata,
                     "tahoe": {
                         "linkcrtime": 1202777696.7564139,
                         "linkmotime": 1202777696.7564139
@@ -609,7 +614,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                 name=snapshot.author.name,
                 verify_key=snapshot.author.verify_key,
             ),
-            metadata=snapshot.metadata,  # XXX not authenticated by signature...
+            metadata=content_metadata,  # XXX not authenticated by signature...
             parents_raw=[],  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
             capability=snapshot_cap.decode("ascii"),
         )

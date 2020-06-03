@@ -18,6 +18,7 @@ from testtools.matchers import (
     MatchesStructure,
     Always,
     AfterPreprocessing,
+    StartsWith,
 )
 
 from testtools.twistedsupport import (
@@ -62,10 +63,9 @@ from hyperlink import (
     DecodedURL,
 )
 
-from testtools.matchers import (
-    StartsWith,
+from .matchers import (
+    MatchesAuthorSignature,
 )
-
 from .fixtures import (
     NodeDirectory,
 )
@@ -175,6 +175,8 @@ class TahoeSnapshotTest(TestCase):
             d = self.tahoe_client.download_capability(snapshot_cap)
             data = json.loads(d.result)
             content_cap = data["content"][1]["ro_uri"]
+            sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
+            # XXX is it "testtools-like" to check the signature here too?
             return self.tahoe_client.download_capability(content_cap)
 
         d = write_snapshot_to_tahoe(snapshots[0], self.tahoe_client)
@@ -187,7 +189,8 @@ class TahoeSnapshotTest(TestCase):
                     capability=AfterPreprocessing(
                         download_content,
                         succeeded(Equals(data.getvalue())),
-                    )
+                    ),
+                    signature=MatchesAuthorSignature(snapshots[0], d.result),
                 ),
             ),
         )
