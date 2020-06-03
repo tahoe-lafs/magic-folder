@@ -6,8 +6,26 @@ from nacl.signing import (
     VerifyKey,
 )
 
+
+from testtools import (
+    TestCase,
+)
 from testtools.matchers import (
     Equals,
+    MatchesStructures,
+    Always,
+)
+
+from testtools.twistedsupport import (
+    succeeded,
+)
+
+from hypothesis import (
+    given,
+)
+from hypothesis.strategies import (
+    binary,
+    text,
 )
 
 from twisted.internet import defer
@@ -122,18 +140,20 @@ class TestSnapshotAuthor(AsyncTestCase):
         self.assertEqual(self.alice.verify_key, alice2.verify_key)
 
 
-class TahoeSnapshotTest(AsyncTestCase):
+# xxx is it 40?  who knows
+MAX_LITERAL_SIZE = 40
+
+class TahoeSnapshotTest(TestCase):
     """
     Tests for the snapshots
     """
 
-    @defer.inlineCallbacks
     def setUp(self):
         """
         Create a Tahoe-LAFS node which contain some magic-folder configuration
         and run it.
         """
-        yield super(TahoeSnapshotTest, self).setUp()
+        super(TahoeSnapshotTest, self).setUp()
         self.root = create_fake_tahoe_root()
         self.agent = RequestTraversalAgent(self.root)
         self.http_client = HTTPClient(
@@ -148,26 +168,43 @@ class TahoeSnapshotTest(AsyncTestCase):
         self.stash_dir = self.mktemp()
         os.mkdir(self.stash_dir)
 
-    @defer.inlineCallbacks
-    def test_create_new_tahoe_snapshot(self):
+
+    @given(
+        content=binary(),
+        filename=magic_folder_filenames(),
+    )
+    def test_create_new_tahoe_snapshot(self, content, filename):
         """
         create a new snapshot (this will have no parent snapshots).
         """
+        data = io.BytesIO(content)
 
-        data = io.BytesIO(b"test data\n" * 200)
-        snapshot = yield create_snapshot(
-            name="fixme_mangled_filename_or_real_path",
+        snapshots = []
+        d = create_snapshot(
+            name=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
             parents=[],
         )
-
-        remote_snapshot = yield write_snapshot_to_tahoe(snapshot, self.tahoe_client)
-
-        print("REMOTE: {}".format(remote_snapshot.capability))
-        # XXX check signature, ...
+        d.addCallback(snapshots.append)
         self.assertThat(
-            remote_snapshot.name,
-            Equals(snapshot.name),
+            d,
+            succeeded(Always()),
         )
+
+        self.assertThat(
+            write_snapshot_to_tahoe(snapshot, self.tahoe_client),
+            succeeded(
+                MatchesStructures(
+                    # XXX check signature, ...
+                    name=Equals(snapshot.name),
+                    capability=AfterPreprocessing(
+                        partial(get_tahoe_object, client=self.tahoe_client),
+                        succeeded(Equals(data)),
+                    )
+                ),
+            ),
+        )
+
+        # print("REMOTE: {}".format(remote_snapshot.capability))
