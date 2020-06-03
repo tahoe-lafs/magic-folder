@@ -81,7 +81,13 @@ class TahoeClient(object):
 
     @inlineCallbacks
     def download_capability(self, cap):
-        pass
+        get_uri = self.url.replace(
+            path=(u"uri",),
+            query=[(u"uri", cap.decode("ascii"))],
+        )
+        res = yield self.http_client.get(get_uri.to_text())
+        data = yield res.content()
+        returnValue(data)
 
 
 @inlineCallbacks
