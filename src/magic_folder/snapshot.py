@@ -6,6 +6,7 @@ Functions and types that implement snapshots
 """
 from __future__ import print_function
 
+import io
 import os
 import time
 import json
@@ -491,7 +492,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
 
     :param snapshot: LocalSnapshot
 
-    :returns: a RemoteSnapshop instance
+    :returns: a RemoteSnapshot instance
     """
     # XXX in offline-first case, this must recurse and write any
     # LocalSnapshot parents to the grid FIRST so that it can burn in
@@ -526,17 +527,15 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
 
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
-    print("content_cap: {}".format(content_cap))
 
     author_signature = snapshot.author._sign_capability_string(content_cap)
     author_signature_base64 = base64.b64encode(author_signature)
     author_data = snapshot.author.to_json()
 
-    import io
     author_cap = yield tahoe_client.create_immutable(
         io.BytesIO(json.dumps(author_data))
     )
-    print("author_cap: {}".format(author_cap))
+    # print("author_cap: {}".format(author_cap))
 
     # create the actual snapshot: an immutable directory with
     # some children:
@@ -612,7 +611,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
             ),
             metadata=snapshot.metadata,  # XXX not authenticated by signature...
             parents_raw=[],  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
-            capability=snapshot_cap,
+            capability=snapshot_cap.decode("ascii"),
         )
     )
 

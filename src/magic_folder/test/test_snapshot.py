@@ -1,19 +1,23 @@
 import io
 import os
+import json
+from tempfile import mktemp
+from shutil import rmtree
+from functools import partial
 
 from nacl.signing import (
     SigningKey,
     VerifyKey,
 )
 
-
 from testtools import (
     TestCase,
 )
 from testtools.matchers import (
     Equals,
-    MatchesStructures,
+    MatchesStructure,
     Always,
+    AfterPreprocessing,
 )
 
 from testtools.twistedsupport import (
@@ -49,6 +53,10 @@ from treq.testing import (
     StubTreq,
     _SynchronousProducer,  # FIXME copy code somewhere, "because private"
 )
+from allmydata.testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 
 from hyperlink import (
     DecodedURL,
@@ -67,6 +75,9 @@ from .common import (
     AsyncTestCase,
     skipIf,
 )
+from .strategies import (
+    magic_folder_filenames,
+)
 from magic_folder.snapshot import (
     create_author,
     create_author_from_json,
@@ -77,38 +88,6 @@ from magic_folder.snapshot import (
 from magic_folder.tahoe_client import (
     TahoeClient,
 )
-
-
-class _FakeTahoeRoot(Resource):
-    """
-    This is a sketch of how an in-memory 'fake' of a Tahoe
-    WebUI. Ultimately, this will live in Tahoe
-    """
-
-
-class _FakeTahoeUriHandler(Resource):
-    """
-    """
-
-    isLeaf = True
-
-    def render(self, request):
-        return b"URI:DIR2-CHK:some capability"
-
-
-def create_fake_tahoe_root():
-    """
-    Probably should take some params to control what this fake does:
-    return errors, pre-populate capabilities, ...
-    """
-    root = _FakeTahoeRoot()
-    root.putChild(
-        b"uri",
-        _FakeTahoeUriHandler(),
-    )
-    return root
-
-
 
 
 class TestSnapshotAuthor(AsyncTestCase):
@@ -148,29 +127,28 @@ class TahoeSnapshotTest(TestCase):
     Tests for the snapshots
     """
 
+    @defer.inlineCallbacks
     def setUp(self):
         """
         Create a Tahoe-LAFS node which contain some magic-folder configuration
         and run it.
         """
         super(TahoeSnapshotTest, self).setUp()
-        self.root = create_fake_tahoe_root()
-        self.agent = RequestTraversalAgent(self.root)
-        self.http_client = HTTPClient(
-            self.agent,
-            data_to_body_producer=_SynchronousProducer,
-        )
+        self.http_client = yield create_tahoe_treq_client()
         self.tahoe_client = TahoeClient(
             url=DecodedURL.from_text(u"http://example.com"),
             http_client=self.http_client,
         )
         self.alice = create_author("alice")
-        self.stash_dir = self.mktemp()
+        self.stash_dir = mktemp()
         os.mkdir(self.stash_dir)
 
+    def tearDown(self):
+        super(TahoeSnapshotTest, self).tearDown()
+        rmtree(self.stash_dir)
 
     @given(
-        content=binary(),
+        content=binary(min_size=1),
         filename=magic_folder_filenames(),
     )
     def test_create_new_tahoe_snapshot(self, content, filename):
@@ -193,15 +171,22 @@ class TahoeSnapshotTest(TestCase):
             succeeded(Always()),
         )
 
+        def download_content(snapshot_cap):
+            d = self.tahoe_client.download_capability(snapshot_cap)
+            data = json.loads(d.result)
+            content_cap = data["content"][1]["ro_uri"]
+            return self.tahoe_client.download_capability(content_cap)
+
+        d = write_snapshot_to_tahoe(snapshots[0], self.tahoe_client)
         self.assertThat(
-            write_snapshot_to_tahoe(snapshot, self.tahoe_client),
+            d,
             succeeded(
-                MatchesStructures(
+                MatchesStructure(
                     # XXX check signature, ...
-                    name=Equals(snapshot.name),
+#                    name=Equals(snapshots[0].name),
                     capability=AfterPreprocessing(
-                        partial(get_tahoe_object, client=self.tahoe_client),
-                        succeeded(Equals(data)),
+                        download_content,
+                        succeeded(Equals(data.getvalue())),
                     )
                 ),
             ),
