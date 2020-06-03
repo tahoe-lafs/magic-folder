@@ -183,7 +183,7 @@ class TahoeSnapshotTest(TestCase):
             succeeded(
                 MatchesStructure(
                     # XXX check signature, ...
-#                    name=Equals(snapshots[0].name),
+                    name=Equals(snapshots[0].name),
                     capability=AfterPreprocessing(
                         download_content,
                         succeeded(Equals(data.getvalue())),
