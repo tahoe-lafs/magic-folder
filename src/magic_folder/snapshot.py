@@ -588,9 +588,12 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
         ],
     }
     if len(snapshot.parents_local):
-        # XXX need to recursivly upload any local parents first, then
-        # we can do this one...
-        raise NotImplementedError()
+        # if parent is a RemoteSnapshot, we are sure that its parents
+        # are themselves RemoteSnapshot. Recursively upload local parents
+        # first.
+        for parent in snapshot.parents_local:
+            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, tahoe_client)
+            snapshot.parents_remote.append(parent_remote_snapshot.capability)
 
     # XXX 'parents_remote1 are just Tahoe capability-strings for now
     for idx, parent_cap in enumerate(snapshot.parents_remote):
