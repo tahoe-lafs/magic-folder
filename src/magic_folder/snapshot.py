@@ -444,6 +444,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
     # XXX FIXME write snapshot meta-information (including the path
     # temp_file_name) into the snapshot database. TDB
 
+    now = time.time()
     returnValue(
         LocalSnapshot(
             name=name,
@@ -452,8 +453,8 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
             # .. we want to overwrite the signature (or .. only add it if
             # missing?)
             metadata={
-                "ctime": 0,
-                "mtime": 0,
+                "ctime": now,
+                "mtime": now,
 #                "magic_folder": {
 #                    "author_signature": "pending",
 #                }
