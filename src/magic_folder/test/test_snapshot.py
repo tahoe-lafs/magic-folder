@@ -147,6 +147,14 @@ class TahoeSnapshotTest(TestCase):
         super(TahoeSnapshotTest, self).tearDown()
         rmtree(self.stash_dir)
 
+    def _download_content(self, snapshot_cap):
+        d = self.tahoe_client.download_capability(snapshot_cap)
+        data = json.loads(d.result)
+        content_cap = data["content"][1]["ro_uri"]
+        sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
+        # XXX is it "testtools-like" to check the signature here too?
+        return self.tahoe_client.download_capability(content_cap)
+
     @given(
         content=binary(min_size=1),
         filename=magic_folder_filenames(),
@@ -187,7 +195,7 @@ class TahoeSnapshotTest(TestCase):
                     # XXX check signature, ...
                     name=Equals(snapshots[0].name),
                     capability=AfterPreprocessing(
-                        download_content,
+                        self._download_content,
                         succeeded(Equals(data.getvalue())),
                     ),
                     signature=MatchesAuthorSignature(snapshots[0], d.result),
@@ -196,3 +204,58 @@ class TahoeSnapshotTest(TestCase):
         )
 
         # print("REMOTE: {}".format(remote_snapshot.capability))
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_create_local_snapshots(self, content1, content2, filename):
+        """
+        Create a local snapshot and then change the content of the file
+        to make another snapshot.
+        """
+        data1 = io.BytesIO(content1)
+        parents = []
+
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(parents.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        data2 = io.BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash_dir,
+            parents=parents,
+        )
+        d.addCallback(parents.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        d = write_snapshot_to_tahoe(parents[1], self.tahoe_client)
+        self.assertThat(
+            d,
+            succeeded(
+                MatchesStructure(
+                    # XXX check signature, ...
+#                    name=Equals(snapshots[0].name),
+                    capability=AfterPreprocessing(
+                        self._download_content,
+                        succeeded(Equals(data2.getvalue())),
+                    )
+                ),
+            ),
+        )
