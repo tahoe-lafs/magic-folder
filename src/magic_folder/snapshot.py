@@ -567,6 +567,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # XXX FIXME timestamps are bogus
 
     content_metadata = {
+        "name": snapshot.name,
         "author_signature": author_signature_base64,
     }
     data = {
