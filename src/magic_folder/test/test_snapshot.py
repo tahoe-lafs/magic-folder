@@ -293,7 +293,7 @@ class TahoeSnapshotTest(TestCase):
         d.addCallback(snapshots.append)
 
         # snapshots[1] is a RemoteSnapshot
-        print("remote snapshot: {}".format(snapshots[1]))
+        # print("remote snapshot: {}".format(snapshots[1]))
 
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
