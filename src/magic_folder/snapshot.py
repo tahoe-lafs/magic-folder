@@ -255,7 +255,7 @@ class LocalSnapshot(object):
         """
         XXX or something
         """
-        return len(self._parents_raw) + len(self._parents_local)
+        return len(self.parents_local) + len(self.parents_remote)
 
     @inlineCallbacks
     def fetch_parent(self, index, tahoe_client):
@@ -346,9 +346,9 @@ class RemoteSnapshot(object):
 
 
 @inlineCallbacks
-def create_snapshot_from_capability(tahoe_client, capability_string):
+def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     """
-    Create a snapshot by downloading existing data.
+    Create a RemoteSnapshot from a snapshot capability string
 
     :param tahoe_client: the Tahoe client to use
 
@@ -360,31 +360,35 @@ def create_snapshot_from_capability(tahoe_client, capability_string):
     """
 
     action = start_action(
-        action_type=u"magic_folder:tahoe_snapshot:create_snapshot",
+        action_type=u"magic_folder:tahoe_snapshot:create_snapshot_from_capability",
     )
     with action:
-        # XXX this seems .. complex. And also 'unicode' is python2-only
-        nodeurl_u = unicode(get_node_url(node_directory.asBytesMode().path), 'utf-8')
-        nodeurl = DecodedURL.from_text(nodeurl_u)
+        snapshot_json = yield tahoe_client.download_capability(snapshot_cap)
+        snapshot = json.loads(snapshot_json)
+        debug = json.dumps(snapshot, indent=4)
 
-        content_cap = yield tahoe_put_immutable(nodeurl, filepath, treq)
+        # create SnapshotAuthor
+        author_cap = snapshot["author"][1]["ro_uri"]
+        author_json = yield tahoe_client.download_capability(author_cap)
+        snapshot_author = json.loads(author_json)
 
-        # XXX probably want a reactor/clock passed in?
-        now = time.time()
+        author = create_author_from_json(snapshot_author)
 
-        # HTTP POST mkdir-immutable
-        snapshot_cap = yield tahoe_create_snapshot_dir(
-            nodeurl,
-            content_cap,
-            parents,
-            now,
-            treq,
-        )
+        verify_key = VerifyKey(snapshot_author["verify_key"], Base64Encoder)
+        metadata = snapshot["content"][1]["metadata"]
+
+        name = metadata["magic_folder"]["name"]
 
         returnValue(
-            Snapshot(
-                snapshot_cap,
-                parents,
+            RemoteSnapshot(
+                name=name,
+                author=create_author(
+                    name=snapshot_author["name"],
+                    verify_key=verify_key,
+                ),
+                metadata=metadata,
+                parents_raw=[],
+                capability=snapshot_cap.decode("ascii"),
             )
         )
 
@@ -620,6 +624,9 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # failure, we'll try again.
     returnValue(
         RemoteSnapshot(
+            # XXX: we are copying over the name from LocalSnapshot, it is not
+            # stored on tahoe at the moment. This means, when we read back a snapshot
+            # we cannot create a RemoteSnapshot object from a cap string.
             name=snapshot.name,
             author=create_author(  # remove signing_key, doesn't make sense on remote snapshots
                 name=snapshot.author.name,
