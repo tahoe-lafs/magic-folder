@@ -235,6 +235,13 @@ def create_author_from_json(data):
 #   - fetch_parent()
 #   - name, author, metadata, ...
 
+# XXX: (ram) do we need author info in LocalSnapshot? Isn't it relevant only in RemoteSnapshot?
+# XXX: THINK (ram) when will we get capability strings for parents instead of RemoteSnapshots? Never
+#      in the case of LocalSnapshots, because we will either be changing (extending) an existing
+#      LocalSnapshot in the offline usecase. In that case, our parent is another LocalSnapshot.
+#      In the case when our copy is older than one of the other client and we do a fast forward,
+#      then we will be fetching RemoteSnapshots recursively until one of the parents is our current
+#      snapshot.
 @attr.s
 class LocalSnapshot(object):
     name = attr.ib()
