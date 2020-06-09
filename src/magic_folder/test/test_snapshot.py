@@ -179,14 +179,6 @@ class TahoeSnapshotTest(TestCase):
             succeeded(Always()),
         )
 
-        def download_content(snapshot_cap):
-            d = self.tahoe_client.download_capability(snapshot_cap)
-            data = json.loads(d.result)
-            content_cap = data["content"][1]["ro_uri"]
-            sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
-            # XXX is it "testtools-like" to check the signature here too?
-            return self.tahoe_client.download_capability(content_cap)
-
         d = write_snapshot_to_tahoe(snapshots[0], self.tahoe_client)
         self.assertThat(
             d,
