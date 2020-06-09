@@ -83,8 +83,16 @@ class MatchesAuthorSignature(object):
         # XXX need the capability-string of the RemoteSnapshot
         public_key = self.snapshot.author.verify_key
         alleged_sig = base64.b64decode(self.remote_snapshot.signature)
+        signed_data = (
+            u"{content_capability}\n"
+            u"{name}\n"
+        ).format(
+            content_capability=self.remote_snapshot.content_cap,
+            name=self.remote_snapshot.name,
+        ).encode("utf8")
+
         try:
-            public_key.verify(self.remote_snapshot.content_cap.encode("ascii"), alleged_sig)
+            public_key.verify(signed_data, alleged_sig)
         except BadSignatureError:
             return Mismatch("The signature did not verify.")
 

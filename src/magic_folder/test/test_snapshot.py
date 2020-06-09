@@ -80,6 +80,7 @@ from .strategies import (
 )
 from magic_folder.snapshot import (
     create_author,
+    create_local_author,
     create_author_from_json,
     create_snapshot,
     create_snapshot_from_capability,
@@ -99,7 +100,7 @@ class TestSnapshotAuthor(AsyncTestCase):
         (in the SnapshotAuthor instance)
         """
         d = super(TestSnapshotAuthor, self).setUp()
-        self.alice = create_author("alice")
+        self.alice = create_local_author("alice")
         return d
 
     def test_author_serialize(self):
@@ -139,7 +140,7 @@ class TahoeSnapshotTest(TestCase):
             url=DecodedURL.from_text(u"http://example.com"),
             http_client=self.http_client,
         )
-        self.alice = create_author("alice")
+        self.alice = create_local_author("alice")
         self.stash_dir = mktemp()
         os.mkdir(self.stash_dir)
 
@@ -179,7 +180,7 @@ class TahoeSnapshotTest(TestCase):
             succeeded(Always()),
         )
 
-        d = write_snapshot_to_tahoe(snapshots[0], self.tahoe_client)
+        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
         self.assertThat(
             d,
             succeeded(
@@ -237,7 +238,7 @@ class TahoeSnapshotTest(TestCase):
             succeeded(Always()),
         )
 
-        d = write_snapshot_to_tahoe(parents[1], self.tahoe_client)
+        d = write_snapshot_to_tahoe(parents[1], self.alice, self.tahoe_client)
         self.assertThat(
             d,
             succeeded(
@@ -281,7 +282,7 @@ class TahoeSnapshotTest(TestCase):
         )
 
         # create remote snapshot
-        d = write_snapshot_to_tahoe(snapshots[0], self.tahoe_client)
+        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
         d.addCallback(snapshots.append)
 
         # snapshots[1] is a RemoteSnapshot
@@ -290,7 +291,7 @@ class TahoeSnapshotTest(TestCase):
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
 
-        name_matcher = MatchesStructure(name=Equals(snapshots[1].name))
+        name_matcher = MatchesStructure(name=Equals(filename))
         self.assertThat(
             create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client),
             succeeded(
