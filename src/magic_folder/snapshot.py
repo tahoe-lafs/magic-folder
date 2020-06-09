@@ -367,7 +367,6 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         snapshot = json.loads(snapshot_json)
         debug = json.dumps(snapshot, indent=4)
 
-        print("debug: {}".format(debug))
         # create SnapshotAuthor
         author_cap = snapshot["author"][1]["ro_uri"]
         author_json = yield tahoe_client.download_capability(author_cap)
@@ -613,12 +612,10 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     # XXX 'parents_remote1 are just Tahoe capability-strings for now
     for idx, parent_cap in enumerate(snapshot.parents_remote):
         data[u"parent{}".format(idx)] = [
-            "content", [
-                "filenode", {
-                    "ro_uri": parent_cap,
-                    # is not having "metadata" permitted?
-                }
-            ]
+            "dirnode", {
+                "ro_uri": parent_cap,
+                # is not having "metadata" permitted?
+            }
         ]
 
     snapshot_cap = yield tahoe_client.create_immutable_directory(data)
