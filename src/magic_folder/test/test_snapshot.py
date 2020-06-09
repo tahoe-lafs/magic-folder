@@ -290,10 +290,10 @@ class TahoeSnapshotTest(TestCase):
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
 
-        nameMatcher = MatchesStructure(name=Equals(snapshots[1].name))
+        name_matcher = MatchesStructure(name=Equals(snapshots[1].name))
         self.assertThat(
             create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client),
             succeeded(
-                nameMatcher
+                name_matcher
             )
         )
