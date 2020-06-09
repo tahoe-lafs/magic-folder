@@ -538,6 +538,19 @@ def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
             "Can't upload LocalSnapshot: no author signing key"
         )
 
+    # we can't reference any LocalSnapshot objects we have, so they
+    # must be uploaded first .. we do this up front so we're also
+    # uploading the actual content of the parents first.
+    if len(snapshot.parents_local):
+        # if parent is a RemoteSnapshot, we are sure that its parents
+        # are themselves RemoteSnapshot. Recursively upload local parents
+        # first.
+        to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
+        for parent in to_upload:
+            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author, tahoe_client)
+            snapshot.parents_remote.append(parent_remote_snapshot.capability)
+            snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
+
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
 
@@ -596,13 +609,6 @@ def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
             }
         ],
     }
-    if len(snapshot.parents_local):
-        # if parent is a RemoteSnapshot, we are sure that its parents
-        # are themselves RemoteSnapshot. Recursively upload local parents
-        # first.
-        for parent in snapshot.parents_local:
-            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, tahoe_client)
-            snapshot.parents_remote.append(parent_remote_snapshot.capability)
 
     # XXX 'parents_remote1 are just Tahoe capability-strings for now
     for idx, parent_cap in enumerate(snapshot.parents_remote):
