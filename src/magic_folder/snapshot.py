@@ -28,6 +28,10 @@ from twisted.web.client import (
 from .common import (
     get_node_url,
 )
+from .magic_folder import (
+    load_magic_folders,
+    save_magic_folders,
+)
 
 from twisted.web.client import (
     readBody,
@@ -64,130 +68,110 @@ SNAPSHOT_VERSION = 1
 
 
 @attr.s
-class SnapshotAuthor(object):
+class RemoteAuthor(object):
     """
-    Represents the author of a Snapshot.
+    Represents the author of a RemoteSnapshot.
 
     :ivar name: author's name
 
-    :ivar nacl.signing.VerifyKey verify_key: author's public key (always available)
-
-    :ivar nacl.signing.SigningKey signing_key: author's private key (if available)
+    :ivar nacl.signing.VerifyKey verify_key: author's public key
     """
 
     name = attr.ib()
     verify_key = attr.ib(validator=[attr.validators.instance_of(VerifyKey)])
-    signing_key = attr.ib(default=None)
-
-    @signing_key.validator
-    def corresponding_key(self, attribute, value):
-        if value is not None:
-            if not isinstance(value, SigningKey):
-                raise ValueError(
-                    "'signing_key' must be a nacl.signing.SigningKey"
-                )
-            if value.verify_key != self.verify_key:
-                raise ValueError(
-                    "'signing_key' must correspond to the 'verify_key'"
-                )
-
-    def to_json_private(self):
-        """
-        WARNING this represntation will include private information if our
-        signing_key is valid.
-
-        :return: a representation of this author in a dict suitable for
-            JSON encoding (see also create_author_from_json)
-        """
-        serialized = {
-            "name": self.name,
-            "verify_key": self.verify_key.encode(encoder=Base64Encoder),
-        }
-        if self.signing_key is not None:
-            serialized["signing_key"] = self.signing_key.encode(encoder=Base64Encoder)
-        return serialized
 
     def to_json(self):
         """
         :return: a representation of this author in a dict suitable for
             JSON encoding (see also create_author_from_json)
         """
-        serialized = self.to_json_private()
         return {
-            k: v
-            for k, v in serialized.items()
-            if k not in ["signing_key"]
+            "name": self.name,
+            "verify_key": self.verify_key.encode(encoder=Base64Encoder),
         }
 
-    def has_signing_key(self):
-        """
-        :returns: True if we have a valid signing key, False otherwise
-        """
-        return self.signing_key is not None
 
-    def _sign_capability_string(self, capability):
-        """
-        Signs the given snapshot.
-
-        :returns: bytes representing the signature
-        """
-        # XXX what do we sign? the capability makes some sense -- but
-        # then we need to wait until upload time to do the
-        # signing...is it okay to have the author private-key in
-        # memory always? ("Because Python" I don't think we can do
-        # anything anyway and it's on disk so if you can examine
-        # memory, you should be able to read a file the user can)
-
-        # XXX also, signing the content capability-string means that
-        # all the metadata is NOT under signature .. not clear that's
-        # an issue. I guess we could sign some kind of hash of
-        # "content_capability + ...."
-        if self.signing_key is None:
-            raise Exception(
-                "Can't sign snapshot, author '{}' has no signing_key".format(
-                    self.name,
-                )
-            )
-
-        # XXX more notes: it doesn't make sense to sign a
-        # RemoteSnapshot (it already has to be signed) -- and we can't
-        # sign capability-strings unless we do it exactly at
-        # upload-time .. so this method is "private" to be used only
-        # by the upload machinery to sign the capability *after* we've
-        # uploaded the contents (but before creating the
-        # immutable-dir)
-
-        sig = self.signing_key.sign(capability)
-        return sig
-
-
-def create_author(name, verify_key=None, signing_key=None):
+@attr.s
+class LocalAuthor(object):
     """
-    :returns: a SnapshotAuthor instance. If no keys are provided, a
-        VerifyKey is created.
+    Represents the author of a LocalSnapshot.
+
+    :ivar name: author's name
+
+    :ivar nacl.signing.SigningKey signing_key: author's private key
     """
-    if verify_key is not None and not isinstance(verify_key, VerifyKey):
+
+    name = attr.ib()
+    signing_key = attr.ib(validator=[attr.validators.instance_of(SigningKey)])
+
+    # NOTE: this should not be converted to JSON or serialized
+    # (because it contains a private key), it is only for signing
+    # LocalSnapshot instances as they're uploaded. Convert to a
+    # RemoteAuthor for serialization
+
+    @property
+    def verify_key(self):
+        """
+        :returns: the VerifyKey corresponding to our signing key
+        """
+        return self.signing_key.verify_key
+
+    def to_remote_author(self):
+        """
+        :returns: a RemoteAuthor instance. This will be the same, but have
+            only a verify_key corresponding to our signing_key
+        """
+        return create_author(self.name, self.signing_key.verify_key)
+
+
+def create_local_author(name):
+    """
+    Create a new local author with a freshly generated private
+    (signing) key. This author will not be saved on disk anywhere; see
+    XXX to do that.
+
+    :param name: the name of this author
+    """
+    signing_key = SigningKey.generate()
+    return LocalAuthor(
+        name,
+        signing_key,
+    )
+
+
+# XXX how do we serialize the author's information? Should there be
+# one author per magic-folder? (probably, for privacy). How will the
+# author's name get created?
+def create_local_author_from_config(config):
+    """
+    :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
+
+    :returns: a LocalAuthor instance from our configuration
+    """
+    nodedir = config.get_config_path()
+    magic_folders = load_magic_folders(nodedir)
+    print("MAAAGIC", magic_folders)
+    signing_key_data = config.get_private_config("magic_folder_author")
+    # If we don't *have* an author yet, create one
+    print("DING DING", signing_key_data)
+    return LocalAuthor()
+#        name=config.get_
+
+
+def create_author(name, verify_key):
+    """
+    :param name: arbitrary name for this author
+
+    :param verify_key: a NaCl VerifyKey instance
+
+    :returns: a RemoteAuthor instance.
+    """
+    if not isinstance(verify_key, VerifyKey):
         raise ValueError("verify_key must be a nacl.signing.VerifyKey")
-    if signing_key is not None and not isinstance(signing_key, SigningKey):
-        raise ValueError("signing_key must be a nacl.signing.SigningKey")
 
-    if signing_key is not None:
-        if verify_key is None:
-            verify_key = signing_key.verify_key
-        if signing_key.verify_key != verify_key:
-            raise ValueError(
-                "SnapshotAuthor 'verify_key' does not correspond to 'signing_key'"
-            )
-
-    if verify_key is None:
-        assert signing_key is None, "logic error"
-        signing_key = SigningKey.generate()
-        verify_key = signing_key.verify_key
-
-    return SnapshotAuthor(
+    return RemoteAuthor(
         name=name,
         verify_key=verify_key,
-        signing_key=signing_key,
     )
 
 
@@ -197,24 +181,44 @@ def create_author_from_json(data):
     :returns: a SnapshotAuthor instance from the given data (which
        would usually come from SnapshotAuthor.to_json())
     """
-    permitted_keys = ["name", "signing_key", "verify_key"]
-    required_keys = ["name", "verify_key"]
+    permitted_keys = required_keys = ["name", "verify_key"]
     for k in data.keys():
         if k not in permitted_keys:
             raise ValueError(
-                u"Unknown SnapshotAuthor key '{}'".format(k)
+                u"Unknown RemoteAuthor key '{}'".format(k)
             )
     for k in required_keys:
         if k not in data:
             raise ValueError(
-                u"SnapshotAuthor requires '{}' key".format(k)
+                u"RemoteAuthor requires '{}' key".format(k)
             )
     verify_key = VerifyKey(data["verify_key"], encoder=Base64Encoder)
-    try:
-        signing_key = SigningKey(data["signing_key"], encoder=Base64Encoder)
-    except KeyError:
-        signing_key = None
-    return create_author(data["name"], verify_key, signing_key)
+    return create_author(data["name"], verify_key)
+
+
+def sign_snapshot(local_author, snapshot, content_capability):
+    """
+    Signs the given snapshot with the given key
+
+    :param SigningKey signing_key: the key to sign the data with
+
+    :param LocalSnapshot snapshot: snapshot to sign
+
+    :param str content_capability: the Tahoe immutable capability of
+        the actual snapshot data.
+
+    :returns: bytes representing the signature or exception on
+        error.
+    """
+    # XXX what do we sign? Should we hash it first? Ask our cryptographers
+    data_to_sign = (
+        u"{content_capability}\n"
+        u"{name}\n"
+    ).format(
+        content_capability=content_capability,
+        name=snapshot.name,
+    )
+    return local_author.signing_key.sign(data_to_sign.encode("utf8"))
 
 
 # XXX see also comments about maybe a ClientSnapshot and a Snapshot or
@@ -420,9 +424,9 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
     """
     yield
 
-    if not author.has_signing_key():
+    if not isinstance(author, LocalAuthor):
         raise ValueError(
-            "Author of LocalSnapshot must have signing key"
+            "LocalSnapshot author must be LocalAuthor instance"
         )
 
     parents_remote = []
@@ -504,19 +508,16 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
 
 
 @inlineCallbacks
-def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
+def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
     Writes a LocalSnapshot object to the given tahoe grid. Will also
     (recursively) upload any LocalSnapshot parents.
 
     :param LocalSnapshot snapshot: the snapshot to upload.
 
-    :param SnapshotAuthor author: must contain a valid `.signing_key`
-        which will be used to sign every snapshot we end up uploading.
-
-    :param author: the Author who will sign the LocalSnapshot as it is
-        uploaded (this will also sign any LocalSnapshots that are parents
-        of this one). Must have a valid .signing_key
+    :param SigningKey author_key: a NaCl SigningKey corresponding to
+        the author who will sign this snapshot (and also any
+        LocalSnapshots that are parents of this one).
 
     :returns: a RemoteSnapshot instance
     """
@@ -530,14 +531,6 @@ def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
     # "actually does it", including re-tries etc. Currently, this
     # function is both of those.
 
-    # sanity-checks before we do anything; we must have a
-    # SnapshotAuthor here that is capable of signing (because all
-    # snapshots must be signed).
-    if not snapshot.author.has_signing_key():
-        raise ValueError(
-            "Can't upload LocalSnapshot: no author signing key"
-        )
-
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
     # uploading the actual content of the parents first.
@@ -547,16 +540,17 @@ def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
         # first.
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
-            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author, tahoe_client)
+            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
             snapshot.parents_remote.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
 
-    author_signature = snapshot.author._sign_capability_string(content_cap)
+    # sign the snapshot (which can only happen after we have the content-capability)
+    author_signature = sign_snapshot(author_key, snapshot, content_cap)
     author_signature_base64 = base64.b64encode(author_signature.signature)
-    author_data = snapshot.author.to_json()
+    author_data = snapshot.author.to_remote_author().to_json()
 
     author_cap = yield tahoe_client.create_immutable(
         io.BytesIO(json.dumps(author_data))
