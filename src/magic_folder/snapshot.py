@@ -504,40 +504,35 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents):
 
 
 @inlineCallbacks
-def write_snapshot_to_tahoe(snapshot, tahoe_client):
+def write_snapshot_to_tahoe(snapshot, author, tahoe_client):
     """
-    Writes a LocalSnapshot object to the given tahoe grid.
+    Writes a LocalSnapshot object to the given tahoe grid. Will also
+    (recursively) upload any LocalSnapshot parents.
 
-    :param snapshot: LocalSnapshot
+    :param LocalSnapshot snapshot: the snapshot to upload.
+
+    :param SnapshotAuthor author: must contain a valid `.signing_key`
+        which will be used to sign every snapshot we end up uploading.
+
+    :param author: the Author who will sign the LocalSnapshot as it is
+        uploaded (this will also sign any LocalSnapshots that are parents
+        of this one). Must have a valid .signing_key
 
     :returns: a RemoteSnapshot instance
     """
-    # XXX in offline-first case, this must recurse and write any
-    # LocalSnapshot parents to the grid FIRST so that it can burn in
-    # their capabilities in the parent list when uploading the child.
-
-    # XXX if we're writing the content, then author things as separate
-    # capabilities, how do we behave if something goes wrong between
-    # making either of those and putting the whole snapshot in?
-    # (meejah: I think "ignore it" is fine, because if we just try
-    # again then we should get the same capabilities back anyway;
-    # worst case is extra writing).
-
-    # XXX need to recursively look at our parents for LocalSnapshots
-    # and upload those FIRST.
-
     # XXX probably want to give this a progress= instance (kind-of
     # like teh one in Tahoe) so we can track upload progress for
     # status-API for GUI etc.
 
     # XXX might want to put all this stuff into a queue so we only
-    # upload X at a time etc. -- that is, this API is probably a
+    # upload X at a time etc. -- that is, the "real" API is probably a
     # high-level one that just queues up the upload .. a low level one
-    # "actually does it", including re-tries etc.
+    # "actually does it", including re-tries etc. Currently, this
+    # function is both of those.
 
     # sanity-checks before we do anything; we must have a
-    # SnapshotAuthor here that is capable of signing (because a
-    # snapshot must be signed).
+    # SnapshotAuthor here that is capable of signing (because all
+    # snapshots must be signed).
     if not snapshot.author.has_signing_key():
         raise ValueError(
             "Can't upload LocalSnapshot: no author signing key"
