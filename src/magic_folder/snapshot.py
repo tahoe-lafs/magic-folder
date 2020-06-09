@@ -303,7 +303,7 @@ class RemoteSnapshot(object):
     metadata = attr.ib()
     capability = attr.ib()
     _parents_raw = attr.ib()
-
+    content_cap = attr.ib()
 
     def count_parents(self):
         """
@@ -378,6 +378,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         metadata = snapshot["content"][1]["metadata"]
 
         name = metadata["magic_folder"]["name"]
+        content_cap = snapshot["content"][1]["ro_uri"]
 
         returnValue(
             RemoteSnapshot(
@@ -387,6 +388,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
                     verify_key=verify_key,
                 ),
                 metadata=metadata,
+                content_cap=content_cap,
                 parents_raw=[],
                 capability=snapshot_cap.decode("ascii"),
             )
@@ -545,7 +547,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
 
     author_signature = snapshot.author._sign_capability_string(content_cap)
-    author_signature_base64 = base64.b64encode(author_signature)
+    author_signature_base64 = base64.b64encode(author_signature.signature)
     author_data = snapshot.author.to_json()
 
     author_cap = yield tahoe_client.create_immutable(
@@ -636,6 +638,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
             metadata=content_metadata,  # XXX not authenticated by signature...
             parents_raw=[],  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
             capability=snapshot_cap.decode("ascii"),
+            content_cap=content_cap,
         )
     )
 
