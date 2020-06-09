@@ -302,14 +302,14 @@ class RemoteSnapshot(object):
     author = attr.ib()  # any SnapshotAuthor instance
     metadata = attr.ib()
     capability = attr.ib()
-    _parents_raw = attr.ib()
+    parents_raw = attr.ib()
     content_cap = attr.ib()
 
     def count_parents(self):
         """
         XXX or something
         """
-        return len(self._parents_raw)
+        return len(self.parents_raw)
 
     @property
     def signature(self):
@@ -367,6 +367,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         snapshot = json.loads(snapshot_json)
         debug = json.dumps(snapshot, indent=4)
 
+        print("debug: {}".format(debug))
         # create SnapshotAuthor
         author_cap = snapshot["author"][1]["ro_uri"]
         author_json = yield tahoe_client.download_capability(author_cap)
@@ -389,7 +390,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
                 ),
                 metadata=metadata,
                 content_cap=content_cap,
-                parents_raw=[],
+                parents_raw=[], # XXX: This needs to be populated
                 capability=snapshot_cap.decode("ascii"),
             )
         )
@@ -636,7 +637,7 @@ def write_snapshot_to_tahoe(snapshot, tahoe_client):
                 verify_key=snapshot.author.verify_key,
             ),
             metadata=content_metadata,  # XXX not authenticated by signature...
-            parents_raw=[],  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
+            parents_raw=snapshot.parents_remote,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
         )
