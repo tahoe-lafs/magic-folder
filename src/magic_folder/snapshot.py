@@ -620,15 +620,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             "dirnode", {
                 "ro_uri": parent_cap,
                 # is not having "metadata" permitted?
-                # (ram) looks like, NO. :-(
-                "metadata": {
-                    "ctime": 1202777696.7564139,
-                    "mtime": 1202777696.7564139,
-                    "tahoe": {
-                        "linkcrtime": 1202777696.7564139,
-                        "linkmotime": 1202777696.7564139
-                    }
-                }
+                # (ram) Yes, looks like.
             }
         ]
 
