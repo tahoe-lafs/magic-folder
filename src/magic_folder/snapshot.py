@@ -641,7 +641,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
                 verify_key=snapshot.author.verify_key,
             ),
             metadata=content_metadata,  # XXX not authenticated by signature...
-            parents_raw=snapshot.parents_remote,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
+            parents_raw=parents_raw,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't work yet)
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
         )
