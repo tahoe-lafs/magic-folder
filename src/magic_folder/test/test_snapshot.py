@@ -298,3 +298,68 @@ class TahoeSnapshotTest(TestCase):
                 name_matcher
             )
         )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_snapshots_with_parents(self, content1, content2, filename):
+        """
+        Create a local snapshot, commit it to the grid, then extend that
+        with another local snapshot and again commit it with the previously
+        created remote snapshot as the parent. Now, fetch the remote from the
+        capability string and compare parent to see if they match.
+        """
+        data1 = io.BytesIO(content1)
+        local_snapshots = []
+        remote_snapshots = []
+
+        # create a local snapshot and commit it to the grid
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(local_snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # commit to grid
+        d = write_snapshot_to_tahoe(local_snapshots[0], self.tahoe_client)
+        d.addCallback(remote_snapshots.append)
+
+        # now modify the same file and create a new local snapshot
+        # with the last committed remote as parent
+        data2 = io.BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash_dir,
+            parents=remote_snapshots,
+        )
+
+        d.addCallback(local_snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        d = write_snapshot_to_tahoe(local_snapshots[1], self.tahoe_client)
+        d.addCallback(remote_snapshots.append)
+
+        # now if we fetch the tip remote snapshot, it should have the previous
+        # remote snapshot as its parent
+
+        parentsMatcher = MatchesStructure(parents_raw=Equals([remote_snapshots[0].capability]))
+        self.assertThat(
+            create_snapshot_from_capability(remote_snapshots[1].capability, self.tahoe_client),
+            succeeded(
+                parentsMatcher
+            )
+        )
