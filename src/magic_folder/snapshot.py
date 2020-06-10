@@ -384,6 +384,10 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         name = metadata["magic_folder"]["name"]
         content_cap = snapshot["content"][1]["ro_uri"]
 
+        # find all parents
+        parents = [k for k in snapshot.keys() if k.startswith('parent')]
+        parent_caps = [snapshot[parent][1]["ro_uri"] for parent in parents]
+
         returnValue(
             RemoteSnapshot(
                 name=name,
@@ -393,7 +397,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
                 ),
                 metadata=metadata,
                 content_cap=content_cap,
-                parents_raw=[], # XXX: This needs to be populated
+                parents_raw=parent_caps, # XXX: This needs to be populated
                 capability=snapshot_cap.decode("ascii"),
             )
         )
@@ -531,6 +535,12 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # "actually does it", including re-tries etc. Currently, this
     # function is both of those.
 
+    parents_raw = [] # raw capability strings
+
+    if len(snapshot.parents_remote):
+        for parent in snapshot.parents_remote:
+            parents_raw.append(parent.capability)
+
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
     # uploading the actual content of the parents first.
@@ -541,7 +551,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
-            snapshot.parents_remote.append(parent_remote_snapshot.capability)
+            parents_raw.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 
     # upload the content itself
@@ -605,14 +615,24 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     }
 
     # XXX 'parents_remote1 are just Tahoe capability-strings for now
-    for idx, parent_cap in enumerate(snapshot.parents_remote):
+    for idx, parent_cap in enumerate(parents_raw):
         data[u"parent{}".format(idx)] = [
             "dirnode", {
                 "ro_uri": parent_cap,
                 # is not having "metadata" permitted?
+                # (ram) looks like, NO. :-(
+                "metadata": {
+                    "ctime": 1202777696.7564139,
+                    "mtime": 1202777696.7564139,
+                    "tahoe": {
+                        "linkcrtime": 1202777696.7564139,
+                        "linkmotime": 1202777696.7564139
+                    }
+                }
             }
         ]
 
+    # print("data: {}".format(data))
     snapshot_cap = yield tahoe_client.create_immutable_directory(data)
 
     # XXX *now* is the moment we can remove the LocalSnapshot from our
