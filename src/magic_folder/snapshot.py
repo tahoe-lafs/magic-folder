@@ -339,12 +339,10 @@ class RemoteSnapshot(object):
         """
         Fetches our content from the grid, returning an IBodyProducer?
         """
+        yield tahoe_client.stream_capability(self.content_cap, writable_file)
         # XXX should verify the signature using self.author + signature
-
         # XXX returns some kind of streaming API to download the content
-
         # XXX OR it just downloads all the content into memory and returns it?
-
         # XXX OR you give this a file-like to WRITE into
 
 

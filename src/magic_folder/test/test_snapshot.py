@@ -297,13 +297,14 @@ class TahoeSnapshotTest(TestCase):
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
 
-        name_matcher = MatchesStructure(name=Equals(filename))
-        self.assertThat(
-            create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client),
-            succeeded(
-                name_matcher
-            )
-        )
+        snapshot_d = create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client)
+        self.assertThat(snapshot_d, succeeded(Always()))
+        snapshot = snapshot_d.result
+
+        self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
+        content_io = io.BytesIO()
+        snapshot.fetch_content(self.tahoe_client, content_io)
+        self.assertEqual(content_io.getvalue(), content)
 
     @given(
         content1=binary(min_size=1),

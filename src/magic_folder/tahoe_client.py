@@ -89,6 +89,15 @@ class TahoeClient(object):
         data = yield res.content()
         returnValue(data)
 
+    @inlineCallbacks
+    def stream_capability(self, cap, filelike):
+        get_uri = self.url.replace(
+            path=(u"uri",),
+            query=[(u"uri", cap.decode("ascii"))],
+        )
+        res = yield self.http_client.get(get_uri.to_text())
+        yield res.collect(filelike.write)
+
 
 @inlineCallbacks
 def create_tahoe_client(node_directory, treq_client=None):
