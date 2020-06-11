@@ -1,6 +1,7 @@
 import io
 import os
 import json
+import base64
 from tempfile import mktemp
 from shutil import rmtree
 from functools import partial
@@ -9,6 +10,9 @@ from nacl.signing import (
     SigningKey,
     VerifyKey,
 )
+from nacl.exceptions import (
+    BadSignatureError,
+)
 
 from testtools import (
     TestCase,
@@ -16,14 +20,17 @@ from testtools import (
 )
 from testtools.matchers import (
     Equals,
+    Raises,
     MatchesStructure,
     Always,
     AfterPreprocessing,
     StartsWith,
+    IsInstance,
 )
 
 from testtools.twistedsupport import (
     succeeded,
+    failed,
 )
 
 from hypothesis import (
@@ -57,6 +64,7 @@ from treq.testing import (
 )
 from allmydata.testing.web import (
     create_tahoe_treq_client,
+    create_fake_tahoe_root,
 )
 
 from hyperlink import (
@@ -144,7 +152,8 @@ class TahoeSnapshotTest(TestCase):
         a stash directory
         """
         super(TahoeSnapshotTest, self).setUp()
-        self.http_client = yield create_tahoe_treq_client()
+        self.root = create_fake_tahoe_root()
+        self.http_client = yield create_tahoe_treq_client(self.root)
         self.tahoe_client = TahoeClient(
             url=DecodedURL.from_text(u"http://example.com"),
             http_client=self.http_client,
@@ -368,5 +377,61 @@ class TahoeSnapshotTest(TestCase):
             create_snapshot_from_capability(remote_snapshots[1].capability, self.tahoe_client),
             succeeded(
                 parents_matcher
+            )
+        )
+
+    def test_snapshot_invalid_signature(self):
+        """
+        Hand-create a snapshot in the grid with an invalid signature,
+        verifying that we fail to read this snapshot out of the grid.
+        """
+        content = (b"fake content\n" * 20)
+        #content_cap = yield self.tahoe_client.create_immutable(content)
+        content_cap = self.root.add_data("URI:CHK:", content)
+
+        author_cap = self.root.add_data(
+            "URI:CHK:",
+            json.dumps(self.alice.to_remote_author().to_json())
+        )
+
+        bad_sig = base64.b64encode(b"0" * 32)
+
+        # create remote snapshot, but with a bogus signature
+        data = {
+            "content": [
+                "filenode", {
+                    "ro_uri": content_cap,
+                    "metadata": {
+                        "magic_folder": {
+                            "name": "a_file",
+                            "author_signature": bad_sig,
+                        }
+                    },
+                },
+            ],
+            "author": [
+                "filenode", {
+                    "ro_uri": author_cap,
+                    "metadata": {
+                        "ctime": 1202777696.7564139,
+                        "mtime": 1202777696.7564139,
+                        "tahoe": {
+                            "linkcrtime": 1202777696.7564139,
+                            "linkmotime": 1202777696.7564139
+                        }
+                    }
+                }
+            ],
+        }
+        snapshot_cap = self.root.add_data("URI:DIR2-CHK:", json.dumps(data))
+
+        snapshot_d = create_snapshot_from_capability(snapshot_cap, self.tahoe_client)
+        self.assertThat(
+            snapshot_d,
+            failed(
+                AfterPreprocessing(
+                    lambda f: f.value,
+                    IsInstance(BadSignatureError)
+                )
             )
         )

@@ -221,6 +221,26 @@ def sign_snapshot(local_author, snapshot, content_capability):
     return local_author.signing_key.sign(data_to_sign.encode("utf8"))
 
 
+def verify_snapshot_signature(remote_author, alleged_signature, content_capability, snapshot_name):
+    """
+    Verify the given snapshot.
+
+    :returns: True on success or exception otherwise
+    """
+    # See comments about "data_to_sign" in sign_snapshot
+    data_to_verify = (
+        u"{content_capability}\n"
+        u"{name}\n"
+    ).format(
+        content_capability=content_capability,
+        name=snapshot_name,
+    )
+    return remote_author.verify_key.verify(
+        data_to_verify.encode("utf8"),
+        alleged_signature,
+    )
+
+
 # XXX see also comments about maybe a ClientSnapshot and a Snapshot or
 # so; "uploading" a ClientSnapshot turns it into a Snapshot.
 
@@ -340,7 +360,6 @@ class RemoteSnapshot(object):
         Fetches our content from the grid, returning an IBodyProducer?
         """
         yield tahoe_client.stream_capability(self.content_cap, writable_file)
-        # XXX should verify the signature using self.author + signature
         # XXX returns some kind of streaming API to download the content
         # XXX OR it just downloads all the content into memory and returns it?
         # XXX OR you give this a file-like to WRITE into
@@ -377,10 +396,14 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         author = create_author_from_json(snapshot_author)
 
         verify_key = VerifyKey(snapshot_author["verify_key"], Base64Encoder)
-        metadata = snapshot["content"][1]["metadata"]
+        metadata = snapshot["content"][1]["metadata"]["magic_folder"]
 
-        name = metadata["magic_folder"]["name"]
+        name = metadata["name"]
         content_cap = snapshot["content"][1]["ro_uri"]
+
+        # verify the signature
+        signature = base64.b64decode(metadata["author_signature"])
+        verify_snapshot_signature(author, signature, content_cap, name)
 
         # find all parents
         parents = [k for k in snapshot.keys() if k.startswith('parent')]
