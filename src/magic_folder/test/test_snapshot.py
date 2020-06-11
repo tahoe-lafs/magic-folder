@@ -12,6 +12,7 @@ from nacl.signing import (
 
 from testtools import (
     TestCase,
+    ExpectedException,
 )
 from testtools.matchers import (
     Equals,
@@ -103,24 +104,33 @@ class TestSnapshotAuthor(AsyncTestCase):
         return d
 
     def test_author_serialize(self):
-        js = self.alice.to_json_private()
-        for k in ['name', 'signing_key', 'verify_key']:
-            self.assertIn(k, js)
+        js = self.alice.to_remote_author().to_json()
         alice2 = create_author_from_json(js)
-        self.assertEqual(self.alice, alice2)
 
-    def test_author_serialize_public(self):
-        js = self.alice.to_json()
-        for k in ['name', 'verify_key']:
-            self.assertIn(k, js)
-        self.assertNotIn("signing_key", js)
-        alice2 = create_author_from_json(js)
-        self.assertEqual(self.alice.name, alice2.name)
-        self.assertEqual(self.alice.verify_key, alice2.verify_key)
+        self.assertThat(
+            alice2,
+            MatchesStructure(
+                name=Equals(self.alice.name),
+                verify_key=Equals(self.alice.verify_key),
+            )
+        )
 
+    def test_author_serialize_extra_data(self):
+        js = {
+            "name": "wrong",
+            "invalid_key": 42,
+        }
+        with ExpectedException(ValueError, ".*key 'invalid_key'.*"):
+            create_author_from_json(js)
 
-# xxx is it 40?  who knows
-MAX_LITERAL_SIZE = 40
+    def test_author_serialize_missing_data(self):
+        js = {
+            "name": "foo",
+            # mising verify_key
+        }
+        with ExpectedException(ValueError, ".*requires 'verify_key'.*"):
+            create_author_from_json(js)
+
 
 class TahoeSnapshotTest(TestCase):
     """
