@@ -55,7 +55,6 @@ from treq.testing import (
     _SynchronousProducer,  # FIXME copy code somewhere, "because private"
 )
 from allmydata.testing.web import (
-    create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
 
