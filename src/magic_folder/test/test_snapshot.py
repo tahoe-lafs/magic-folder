@@ -352,10 +352,10 @@ class TahoeSnapshotTest(TestCase):
         # now if we fetch the tip remote snapshot, it should have the previous
         # remote snapshot as its parent
 
-        parentsMatcher = MatchesStructure(parents_raw=Equals([remote_snapshots[0].capability]))
+        parents_matcher = MatchesStructure(parents_raw=Equals([remote_snapshots[0].capability]))
         self.assertThat(
             create_snapshot_from_capability(remote_snapshots[1].capability, self.tahoe_client),
             succeeded(
-                parentsMatcher
+                parents_matcher
             )
         )
