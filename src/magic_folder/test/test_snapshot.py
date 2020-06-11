@@ -130,8 +130,8 @@ class TahoeSnapshotTest(TestCase):
     @defer.inlineCallbacks
     def setUp(self):
         """
-        Create a Tahoe-LAFS node which contain some magic-folder configuration
-        and run it.
+        Set up a fake Tahoe client via treq, a temporary local author and
+        a stash directory
         """
         super(TahoeSnapshotTest, self).setUp()
         self.http_client = yield create_tahoe_treq_client()
@@ -184,7 +184,6 @@ class TahoeSnapshotTest(TestCase):
             d,
             succeeded(
                 MatchesStructure(
-                    # XXX check signature, ...
                     name=Equals(snapshots[0].name),
                     capability=AfterPreprocessing(
                         self._download_content,
@@ -194,8 +193,6 @@ class TahoeSnapshotTest(TestCase):
                 ),
             ),
         )
-
-        # print("REMOTE: {}".format(remote_snapshot.capability))
 
     @given(
         content1=binary(min_size=1),
