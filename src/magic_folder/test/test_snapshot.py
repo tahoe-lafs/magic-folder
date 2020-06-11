@@ -330,7 +330,7 @@ class TahoeSnapshotTest(TestCase):
         )
 
         # commit to grid
-        d = write_snapshot_to_tahoe(local_snapshots[0], self.tahoe_client)
+        d = write_snapshot_to_tahoe(local_snapshots[0], self.alice, self.tahoe_client)
         d.addCallback(remote_snapshots.append)
 
         # now modify the same file and create a new local snapshot
@@ -350,7 +350,7 @@ class TahoeSnapshotTest(TestCase):
             succeeded(Always()),
         )
 
-        d = write_snapshot_to_tahoe(local_snapshots[1], self.tahoe_client)
+        d = write_snapshot_to_tahoe(local_snapshots[1], self.alice, self.tahoe_client)
         d.addCallback(remote_snapshots.append)
 
         # now if we fetch the tip remote snapshot, it should have the previous
