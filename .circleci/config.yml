@@ -21,14 +21,14 @@ workflows:
           requires:
             - "fedora-29"
 
-      - "centos-7"
+      - "centos-8"
 
       - "slackware-14.2"
 
       - "nixos-19.09"
 
-      # Test against PyPy 2.7/7.1.1
-      - "pypy2.7-7.1"
+      # Test against PyPy 2.7/7.3.0
+      - "pypy2.7-7.3"
 
       # Other assorted tasks and configurations
       - "lint"
@@ -62,9 +62,9 @@ workflows:
       - "build-image-ubuntu-18.04"
       - "build-image-fedora-28"
       - "build-image-fedora-29"
-      - "build-image-centos-7"
+      - "build-image-centos-8"
       - "build-image-slackware-14.2"
-      - "build-image-pypy-2.7-7.1.1-jessie"
+      - "build-image-pypy-2.7-7.3.0-buster"
 
 
 jobs:
@@ -168,10 +168,10 @@ jobs:
         user: "nobody"
 
 
-  pypy2.7-7.1:
+  pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/pypy:2.7-7.1.1-jessie"
+      - image: "magicfolderci/pypy:2.7-7.3.0-buster"
         user: "nobody"
 
     environment:
@@ -239,9 +239,9 @@ jobs:
         user: "nobody"
 
 
-  centos-7: &RHEL_DERIV
+  centos-8: &RHEL_DERIV
     docker:
-      - image: "magicfolderci/centos:7"
+      - image: "magicfolderci/centos:8"
         user: "nobody"
 
     environment: *UTF_8_ENVIRONMENT
@@ -424,12 +424,12 @@ jobs:
       TAG: "18.04"
 
 
-  build-image-centos-7:
+  build-image-centos-8:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "centos"
-      TAG: "7"
+      TAG: "8"
 
 
   build-image-fedora-28:
@@ -456,9 +456,9 @@ jobs:
       TAG: "14.2"
 
 
-  build-image-pypy-2.7-7.1.1-jessie:
+  build-image-pypy-2.7-7.3.0-buster:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "pypy"
-      TAG: "2.7-7.1.1-jessie"
+      TAG: "2.7-7.3.0-buster"

@@ -31,6 +31,11 @@ from eliot import (
     log_call,
 )
 
+from ..util.eliotutil import (
+    MAYBE_NOTIFY,
+    CALLBACK,
+)
+
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThread
 
@@ -38,10 +43,6 @@ from allmydata.util.assertutil import _assert, precondition
 from allmydata.util.encodingutil import quote_output
 from allmydata.util import log, fileutil
 from allmydata.util.pollmixin import PollMixin
-from allmydata.util.eliotutil import (
-    MAYBE_NOTIFY,
-    CALLBACK,
-)
 
 from ..util.fake_inotify import humanReadableMask, \
     IN_WATCH_MASK, IN_ACCESS, IN_MODIFY, IN_ATTRIB, IN_CLOSE_NOWRITE, IN_CLOSE_WRITE, \

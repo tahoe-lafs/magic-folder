@@ -4,7 +4,7 @@ import sys
 from collections import namedtuple
 
 from allmydata.util.dbutil import get_db, DBError
-from allmydata.util.eliotutil import (
+from .util.eliotutil import (
     RELPATH,
     VERSION,
     LAST_UPLOADED_URI,

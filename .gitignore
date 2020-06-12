@@ -1,1 +1,23 @@
+venv
+
 src/magic_folder/_version.py
+
+*.pyc
+*~
+
+# generated files
+src/magic_folder.egg-info/
+
+src/twisted/plugins/dropin.cache
+src/magic_folder/test/plugins/dropin.cache
+
+_trial_temp/
+.hypothesis/
+.tox/
+
+.coverage*
+
+# eliot files
+magic-folder-cli.*.eliot
+eliot.log
+integration.eliot.json

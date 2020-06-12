@@ -56,6 +56,8 @@ install_requires = [
     # WebSocket library for twisted and asyncio
     "autobahn >= 19.5.2",
 
+    "hyperlink",
+
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
@@ -300,7 +302,7 @@ setup(name="magic_folder",
       setup_requires=setup_requires,
       entry_points = {
           "console_scripts": [
-              "magic-folder = magic_folder.scripts.magic_folder_cli:run",
+              "magic-folder = magic_folder.cli:run",
           ],
       },
       **setup_args

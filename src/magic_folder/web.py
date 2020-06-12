@@ -1,14 +1,12 @@
 import json
 import cgi
 
-from twisted.internet.endpoints import (
-    serverFromString,
-)
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
 from twisted.web.server import (
     Site,
+    NOT_DONE_YET,
 )
 from twisted.web import (
     http,
@@ -16,27 +14,41 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
-from allmydata.web.common import (
-    WebError,
-)
 from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
-def magic_folder_web_service(reactor, webport, get_magic_folder, get_auth_token):
+
+def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
+    """
+    :param web_endpoint: a IStreamServerEndpoint where we should listen
+
+    :param get_magic_folder: a callable that returns a MagicFolder given a name
+
+    :param get_auth_token: a callable that returns the current authentication token
+
+    :returns: a StreamServerEndpointService instance
+    """
     root = Resource()
     root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
     return StreamServerEndpointService(
-        serverFromString(reactor, webport),
+        web_endpoint,
         Site(root),
     )
 
+
+def error(request, code, message):
+    request.setResponseCode(code, message)
+    request.finish()
+
 def authorize(request, get_auth_token):
     if "token" in request.args:
-        raise WebError(
-            "Do not pass 'token' as URL argument",
+        error(
+            request,
             http.BAD_REQUEST,
+            "Do not pass 'token' as URL argument",
         )
+        return False
 
     t = request.content.tell()
     request.content.seek(0)
@@ -56,9 +68,13 @@ def authorize(request, get_auth_token):
     if fields and 'token' in fields:
         token = fields['token'].value.strip()
     if not token:
-        raise WebError("Missing token", http.UNAUTHORIZED)
+        error(request, http.UNAUTHORIZED, "Missing token")
+        return False
     if not timing_safe_compare(token, get_auth_token()):
-        raise WebError("Invalid token", http.UNAUTHORIZED)
+        error(request, http.UNAUTHORIZED, "Invalid token")
+        return False
+
+    return True
 
 
 class MagicFolderWebApi(Resource):
@@ -72,7 +88,8 @@ class MagicFolderWebApi(Resource):
         self.get_auth_token = get_auth_token
 
     def render_POST(self, request):
-        authorize(request, self.get_auth_token)
+        if not authorize(request, self.get_auth_token):
+            return NOT_DONE_YET
 
         request.setHeader("content-type", "application/json")
         nick = request.args.get("name", ["default"])[0]
@@ -80,34 +97,32 @@ class MagicFolderWebApi(Resource):
         try:
             magic_folder = self.get_magic_folder(nick)
         except KeyError:
-            raise WebError(
-                "No such magic-folder '{}'".format(nick),
-                404,
-            )
+            request.setResponseCode(http.NOT_FOUND)
+            return json.dumps({
+                u"error":
+                u"No such magic-folder: {}".format(
+                    nick.decode("utf-8"),
+                ),
+            })
 
         data = []
         for item in magic_folder.uploader.get_status():
-            d = dict(
-                path=item.relpath_u,
-                status=item.status_history()[-1][0],
-                kind='upload',
-            )
-            for (status, ts) in item.status_history():
-                d[status + '_at'] = ts
-            d['percent_done'] = item.progress.progress
-            d['size'] = item.size
-            data.append(d)
+            data.append(status_for_item("upload", item))
 
         for item in magic_folder.downloader.get_status():
-            d = dict(
-                path=item.relpath_u,
-                status=item.status_history()[-1][0],
-                kind='download',
-            )
-            for (status, ts) in item.status_history():
-                d[status + '_at'] = ts
-            d['percent_done'] = item.progress.progress
-            d['size'] = item.size
-            data.append(d)
+            data.append(status_for_item("download", item))
 
         return json.dumps(data)
+
+
+def status_for_item(kind, item):
+    d = dict(
+        path=item.relpath_u,
+        status=item.status_history()[-1][0],
+        kind=kind,
+    )
+    for (status, ts) in item.status_history():
+        d[status + '_at'] = ts
+    d['percent_done'] = item.progress.progress
+    d['size'] = item.size
+    return d

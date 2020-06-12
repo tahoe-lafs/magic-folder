@@ -40,15 +40,24 @@ from allmydata.immutable.upload import Data
 from allmydata.mutable.common import (
         UnrecoverableFileError,
 )
-from allmydata.util.eliotutil import (
+
+from eliot.twisted import (
     inline_callbacks,
+)
+
+from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 
-from ..frontends import magic_folder
-from ..frontends.magic_folder import (
-    MagicFolder, WriteFileMixin,
+from magic_folder.magic_folder import (
+    MagicFolder,
+    WriteFileMixin,
     ConfigurationError,
+    get_inotify_module,
+    load_magic_folders,
+    maybe_upgrade_magic_folders,
+    is_new_file,
+    _upgrade_magic_folder_config,
 )
 from ..util import (
     fake_inotify,
@@ -72,7 +81,7 @@ from .cli.test_magic_folder import MagicFolderCLITestMixin
 _debug = False
 
 try:
-    magic_folder.get_inotify_module()
+    get_inotify_module()
 except NotImplementedError:
     support_missing = True
     support_message = (
@@ -162,7 +171,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write(yamlutil.safe_dump({u"magic-folders": folder_configuration}))
 
     def test_load(self):
-        folders = magic_folder.load_magic_folders(self.basedir)
+        folders = load_magic_folders(self.basedir)
         self.assertEqual(['default'], list(folders.keys()))
         self.assertEqual(folders['default'][u'umask'], 0o077)
 
@@ -178,7 +187,7 @@ class NewConfigUtilTests(SyncTestCase):
         self.folders[u"default"][u"umask"] = (0o777 & ~perm)
         self.write_magic_folder_config(self.basedir, self.folders)
 
-        magic_folder.load_magic_folders(self.basedir)
+        load_magic_folders(self.basedir)
 
         # It is created.
         self.assertTrue(
@@ -206,7 +215,7 @@ class NewConfigUtilTests(SyncTestCase):
         open(self.local_dir, "w").close()
 
         with self.assertRaises(ConfigurationError) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "exists and is not a directory",
             str(ctx.exception),
@@ -224,7 +233,7 @@ class NewConfigUtilTests(SyncTestCase):
         self.write_magic_folder_config(self.basedir, self.folders)
 
         with self.assertRaises(ConfigurationError) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "could not be created",
             str(ctx.exception),
@@ -233,7 +242,7 @@ class NewConfigUtilTests(SyncTestCase):
     def test_both_styles_of_config(self):
         os.unlink(join(self.basedir, u"private", u"magic_folders.yaml"))
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "[magic_folder] is enabled but has no YAML file and no 'local.directory' option",
             str(ctx.exception)
@@ -245,7 +254,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write('----\n')
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "should contain a dict",
             str(ctx.exception)
@@ -257,7 +266,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write('')
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "should contain a dict",
             str(ctx.exception)
@@ -269,7 +278,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write('magic-folders: "foo"\n')
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "should be a dict",
             str(ctx.exception)
@@ -290,7 +299,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write(yamlutil.safe_dump({u"magic-folders": self.folders}))
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "umask must be an integer",
             str(ctx.exception)
@@ -302,7 +311,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write("magic-folders:\n  default:   foo\n")
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "must itself be a dict",
             str(ctx.exception)
@@ -315,7 +324,7 @@ class NewConfigUtilTests(SyncTestCase):
             f.write(yamlutil.safe_dump({u"magic-folders": self.folders}))
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "missing 'poll_interval'",
             str(ctx.exception)
@@ -370,7 +379,7 @@ class LegacyConfigUtilTests(SyncTestCase):
                 )
             )
 
-        magic_folder.load_magic_folders(self.basedir)
+        load_magic_folders(self.basedir)
 
         self.assertTrue(
             isdir(expected),
@@ -394,7 +403,7 @@ class LegacyConfigUtilTests(SyncTestCase):
             f.write("not a directory")
 
         with self.assertRaises(ConfigurationError) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "is not a directory",
             str(ctx.exception)
@@ -405,7 +414,7 @@ class LegacyConfigUtilTests(SyncTestCase):
             f.write("---")
 
         with self.assertRaises(Exception) as ctx:
-            magic_folder.load_magic_folders(self.basedir)
+            load_magic_folders(self.basedir)
         self.assertIn(
             "both old-style configuration and new-style",
             str(ctx.exception)
@@ -413,7 +422,7 @@ class LegacyConfigUtilTests(SyncTestCase):
 
     def test_upgrade(self):
         # test data is created in setUp; upgrade config
-        magic_folder._upgrade_magic_folder_config(self.basedir)
+        _upgrade_magic_folder_config(self.basedir)
 
         # ensure old stuff is gone
         self.assertFalse(
@@ -435,7 +444,7 @@ class LegacyConfigUtilTests(SyncTestCase):
         self.assertFalse(config.has_option("magic_folder", "local.directory"))
 
     def test_load_legacy(self):
-        folders = magic_folder.load_magic_folders(self.basedir)
+        folders = load_magic_folders(self.basedir)
 
         self.assertEqual(['default'], list(folders.keys()))
         self.assertTrue(
@@ -449,8 +458,8 @@ class LegacyConfigUtilTests(SyncTestCase):
         )
 
     def test_load_legacy_upgrade(self):
-        magic_folder.maybe_upgrade_magic_folders(self.basedir)
-        folders = magic_folder.load_magic_folders(self.basedir)
+        maybe_upgrade_magic_folders(self.basedir)
+        folders = load_magic_folders(self.basedir)
 
         self.assertEqual(['default'], list(folders.keys()))
         # 'legacy' files should be gone
@@ -1805,25 +1814,15 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         #print "_wait_until_started"
         client_node = self.get_client()
         name = 'default'
-        config = magic_folder.load_magic_folders(
+        config = load_magic_folders(
             client_node.config._basedir,
         )[name]
-        self.magicfolder = magic_folder.MagicFolder.from_config(
+        self.magicfolder = MagicFolder.from_config(
             client_node,
             name,
             config,
         )
 
-        # There's probably already a default magicfolder on the client in our way...
-        existing = client_node.getServiceNamed("magic-folder-default")
-        # It's in some quasi-comprehensible intermediate state and can't
-        # actually stop without some help from us.
-        from twisted.internet.task import LoopingCall
-        for o in [existing.downloader, existing.uploader]:
-            o._processing = defer.succeed(None)
-            o._processing_loop = LoopingCall(None)
-            o._processing_loop.start(0, now=False)
-        existing.disownServiceParent()
         self.magicfolder.setServiceParent(client_node)
 
         self.fileops = FileOperationsHelper(self.magicfolder.uploader, self.inject_inotify)
@@ -1883,12 +1882,12 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         pathinfo = fileutil.get_pathinfo(path2)
         db.did_upload_version(relpath2, 0, 'URI:LIT:2', 'URI:LIT:1', 0, pathinfo)
         db_entry = db.get_db_entry(relpath2)
-        self.assertFalse(magic_folder.is_new_file(pathinfo, db_entry))
+        self.assertFalse(is_new_file(pathinfo, db_entry))
 
         different_pathinfo = fileutil.PathInfo(isdir=False, isfile=True, islink=False,
                                                exists=True, size=0, mtime_ns=pathinfo.mtime_ns,
                                                ctime_ns=pathinfo.ctime_ns)
-        self.assertTrue(magic_folder.is_new_file(different_pathinfo, db_entry))
+        self.assertTrue(is_new_file(different_pathinfo, db_entry))
 
     def _test_magicfolder_start_service(self):
         # what is this even testing?
@@ -2279,6 +2278,7 @@ class MockTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
 
     def setUp(self):
         self.inotify = fake_inotify
+        from magic_folder import magic_folder
         self.patch(magic_folder, 'get_inotify_module', lambda: self.inotify)
         return super(MockTestAliceBob, self).setUp()
 
@@ -2290,6 +2290,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
 
     def setUp(self):
         self.inotify = fake_inotify
+        from magic_folder import magic_folder
         self.patch(magic_folder, 'get_inotify_module', lambda: self.inotify)
         return super(MockTest, self).setUp()
 
@@ -2325,6 +2326,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
 
             def _not_implemented():
                 raise NotImplementedError("blah")
+            from magic_folder import magic_folder
             self.patch(magic_folder, 'get_inotify_module', _not_implemented)
             self.shouldFail(NotImplementedError, 'unsupported', 'blah',
                             MagicFolder, client, upload_dircap, '', errors_dir, magicfolderdb, 0o077, 'default')
@@ -2413,14 +2415,11 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         d.addCallback(lambda res: self.GET("statistics"))
         def _got_stats(res):
             self.assertIn("Operational Statistics", res)
-            self.assertIn("Magic Folder", res)
-            self.assertIn("<li>Local Directories Monitored: 1 directories</li>", res)
-            self.assertIn("<li>Files Uploaded: 1 files</li>", res)
-            self.assertIn("<li>Files Queued for Upload: 0 files</li>", res)
-            self.assertIn("<li>Failed Uploads: 0 files</li>", res)
-            self.assertIn("<li>Files Downloaded: 0 files</li>", res)
-            self.assertIn("<li>Files Queued for Download: 0 files</li>", res)
-            self.assertIn("<li>Failed Downloads: 0 files</li>", res)
+            self.assertIn("General", res)
+            self.assertIn("<li>Load Average: None</li>", res)
+            self.assertIn("<li>Peak Load: None</li>", res)
+            self.assertIn("<li>Files Uploaded (immutable): 1 files / 4 bytes (4B)</li>", res)
+            self.assertIn("<li>Files Downloaded (immutable): 0 files / 0 bytes (0B)</li>", res)
         d.addCallback(_got_stats)
         d.addCallback(lambda res: self.GET("statistics?t=json"))
         def _got_stats_json(res):
@@ -2440,7 +2439,7 @@ class RealTest(SingleMagicFolderTestMixin, AsyncTestCase):
 
     def setUp(self):
         d = super(RealTest, self).setUp()
-        self.inotify = magic_folder.get_inotify_module()
+        self.inotify = get_inotify_module()
         return d
 
 
@@ -2451,5 +2450,5 @@ class RealTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
 
     def setUp(self):
         d = super(RealTestAliceBob, self).setUp()
-        self.inotify = magic_folder.get_inotify_module()
+        self.inotify = get_inotify_module()
         return d
