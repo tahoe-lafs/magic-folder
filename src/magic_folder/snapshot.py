@@ -139,23 +139,55 @@ def create_local_author(name):
     )
 
 
+def write_local_author(local_author, magic_folder_name, config):
+    key_fname = "magicfolder_{}.privkey".format(magic_folder_name)
+    path = config.get_config_path("private", key_fname)
+    keydata_base64 = local_author.signing_key.encode(encoder=Base64Encoder)
+    key_data = {
+        "author_name": local_author.name,
+        "author_private_key": keydata_base64,
+    }
+    with open(path, "w") as f:
+        json.dump(key_data, f)
+
+
 # XXX how do we serialize the author's information? Should there be
 # one author per magic-folder? (probably, for privacy). How will the
 # author's name get created?
-def create_local_author_from_config(config):
+def create_local_author_from_config(config, name=None):
     """
     :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
 
     :returns: a LocalAuthor instance from our configuration
     """
+    # private-keys go in "<node_dir>/private/magicfolder_<name>.privkey"
+    # to mirror where the sqlite database goes
+    if name is None:
+        name = "default"
     nodedir = config.get_config_path()
     magic_folders = load_magic_folders(nodedir)
-    print("MAAAGIC", magic_folders)
-    signing_key_data = config.get_private_config("magic_folder_author")
-    # If we don't *have* an author yet, create one
-    print("DING DING", signing_key_data)
-    return LocalAuthor()
-#        name=config.get_
+    if name not in magic_folders:
+        raise RuntimeError(
+            "No magic-folder named '{}'".format(name)
+        )
+
+    # if we don't have author information for this magic-folder yet,
+    # we need to create it .. so either throw a catch-able exception
+    # so the caller can do that, or just make one up here? I guess we
+    # could not have names at all for authors which gets rid of the
+    # UI/UX concern about "where would an author name come from,
+    # anyway".
+
+    author_raw = config.get_private_config("magicfolder_{}.privkey".format(name))
+    author_data = json.loads(author_raw)
+
+    return LocalAuthor(
+        name=author_data[u"author_name"],
+        signing_key=SigningKey(
+            author_data[u"author_private_key"],
+            encoder=Base64Encoder,
+        ),
+    )
 
 
 def create_author(name, verify_key):
@@ -175,11 +207,10 @@ def create_author(name, verify_key):
     )
 
 
-
 def create_author_from_json(data):
     """
-    :returns: a SnapshotAuthor instance from the given data (which
-       would usually come from SnapshotAuthor.to_json())
+    :returns: a RemoteAuthor instance from the given data (which
+       would usually come from RemoteAuthor.to_json())
     """
     permitted_keys = required_keys = ["name", "verify_key"]
     for k in data.keys():
