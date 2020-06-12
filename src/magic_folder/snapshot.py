@@ -128,7 +128,7 @@ def create_local_author(name):
     """
     Create a new local author with a freshly generated private
     (signing) key. This author will not be saved on disk anywhere; see
-    XXX to do that.
+    `write_local_author` to do that.
 
     :param name: the name of this author
     """
@@ -151,9 +151,6 @@ def write_local_author(local_author, magic_folder_name, config):
         json.dump(key_data, f)
 
 
-# XXX how do we serialize the author's information? Should there be
-# one author per magic-folder? (probably, for privacy). How will the
-# author's name get created?
 def create_local_author_from_config(config, name=None):
     """
     :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
