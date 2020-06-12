@@ -7,8 +7,6 @@ from functools import (
     partial,
 )
 
-import util
-
 import pytest_twisted
 
 from eliot import (
@@ -41,6 +39,15 @@ from magic_folder.cli import (
     do_magic_folder,
     poll,
 )
+from .util import (
+    MagicFolderEnabledNode,
+    _generate_invite,
+    _pair_magic_folder,
+    _command,
+    await_file_contents,
+    await_files_exist,
+    await_file_vanishes,
+)
 
 from magic_folder.status import (
     status,
@@ -65,7 +72,7 @@ def test_alice_writes_bob_receives(magic_folder):
     with open(join(alice_dir, "first_file"), "w") as f:
         f.write("alice wrote this")
 
-    util.await_file_contents(join(bob_dir, "first_file"), "alice wrote this")
+    await_file_contents(join(bob_dir, "first_file"), "alice wrote this")
     return
 
 
@@ -85,7 +92,7 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     with open(join(alice_dir, "multiple"), "w") as f:
         f.write("alice wrote this")
 
-    util.await_file_contents(
+    await_file_contents(
         join(bob_dir, "multiple"), "alice wrote this",
         error_if=unwanted_files,
     )
@@ -94,7 +101,7 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     with open(join(alice_dir, "multiple"), "w") as f:
         f.write("someone changed their mind")
 
-    util.await_file_contents(
+    await_file_contents(
         join(bob_dir, "multiple"), "someone changed their mind",
         error_if=unwanted_files,
     )
@@ -103,7 +110,7 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     with open(join(alice_dir, "multiple"), "w") as f:
         f.write("absolutely final version ship it")
 
-    util.await_file_contents(
+    await_file_contents(
         join(bob_dir, "multiple"), "absolutely final version ship it",
         error_if=unwanted_files,
     )
@@ -118,7 +125,7 @@ def test_alice_writes_bob_receives_multiple(magic_folder):
     bob_conflict = join(bob_dir, "multiple.conflict")
     alice_conflict = join(alice_dir, "multiple.conflict")
 
-    found = util.await_files_exist([
+    found = await_files_exist([
         bob_conflict,
         alice_conflict,
     ])
@@ -137,7 +144,7 @@ def test_alice_writes_bob_receives_old_timestamp(magic_folder):
     utime(fname, (time.time(), ts))
 
     fname = join(bob_dir, "ts_file")
-    util.await_file_contents(fname, "alice wrote this")
+    await_file_contents(fname, "alice wrote this")
     # make sure the timestamp is correct
     assert int(getmtime(fname)) == int(ts)
     return
@@ -149,7 +156,7 @@ def test_bob_writes_alice_receives(magic_folder):
     with open(join(bob_dir, "second_file"), "w") as f:
         f.write("bob wrote this")
 
-    util.await_file_contents(join(alice_dir, "second_file"), "bob wrote this")
+    await_file_contents(join(alice_dir, "second_file"), "bob wrote this")
     return
 
 
@@ -160,14 +167,14 @@ def test_alice_deletes(magic_folder):
     with open(join(alice_dir, "delfile"), "w") as f:
         f.write("alice wrote this")
 
-    util.await_file_contents(join(bob_dir, "delfile"), "alice wrote this")
+    await_file_contents(join(bob_dir, "delfile"), "alice wrote this")
 
     # bob has the file; now alices deletes it
     unlink(join(alice_dir, "delfile"))
 
     # bob should remove his copy, but preserve a backup
-    util.await_file_vanishes(join(bob_dir, "delfile"))
-    util.await_file_contents(join(bob_dir, "delfile.backup"), "alice wrote this")
+    await_file_vanishes(join(bob_dir, "delfile"))
+    await_file_contents(join(bob_dir, "delfile.backup"), "alice wrote this")
     return
 
 
@@ -178,13 +185,13 @@ def test_alice_creates_bob_edits(magic_folder):
     with open(join(alice_dir, "editfile"), "w") as f:
         f.write("alice wrote this")
 
-    util.await_file_contents(join(bob_dir, "editfile"), "alice wrote this")
+    await_file_contents(join(bob_dir, "editfile"), "alice wrote this")
 
     # now bob edits it
     with open(join(bob_dir, "editfile"), "w") as f:
         f.write("bob says foo")
 
-    util.await_file_contents(join(alice_dir, "editfile"), "bob says foo")
+    await_file_contents(join(alice_dir, "editfile"), "bob says foo")
 
 
 def test_bob_creates_sub_directory(magic_folder):
@@ -196,16 +203,16 @@ def test_bob_creates_sub_directory(magic_folder):
         f.write("bob wuz here")
 
     # alice gets it
-    util.await_file_contents(join(alice_dir, "subdir", "a_file"), "bob wuz here")
+    await_file_contents(join(alice_dir, "subdir", "a_file"), "bob wuz here")
 
     # now bob deletes it again
     shutil.rmtree(join(bob_dir, "subdir"))
 
     # alice should delete it as well
-    util.await_file_vanishes(join(alice_dir, "subdir", "a_file"))
+    await_file_vanishes(join(alice_dir, "subdir", "a_file"))
     # i *think* it's by design that the subdir won't disappear,
     # because a "a_file.backup" should appear...
-    util.await_file_contents(join(alice_dir, "subdir", "a_file.backup"), "bob wuz here")
+    await_file_contents(join(alice_dir, "subdir", "a_file.backup"), "bob wuz here")
 
 
 def test_bob_creates_alice_deletes_bob_restores(magic_folder):
@@ -215,14 +222,14 @@ def test_bob_creates_alice_deletes_bob_restores(magic_folder):
     with open(join(bob_dir, "boom"), "w") as f:
         f.write("bob wrote this")
 
-    util.await_file_contents(
+    await_file_contents(
         join(alice_dir, "boom"),
         "bob wrote this"
     )
 
     # alice deletes it (so bob should as well .. but keep a backup)
     unlink(join(alice_dir, "boom"))
-    util.await_file_vanishes(join(bob_dir, "boom"))
+    await_file_vanishes(join(bob_dir, "boom"))
     assert exists(join(bob_dir, "boom.backup"))
 
     # bob restore it, with new contents
@@ -230,7 +237,7 @@ def test_bob_creates_alice_deletes_bob_restores(magic_folder):
     with open(join(bob_dir, "boom"), "w") as f:
         f.write("bob wrote this again, because reasons")
 
-    util.await_file_contents(
+    await_file_contents(
         join(alice_dir, "boom"),
         "bob wrote this again, because reasons",
     )
@@ -243,20 +250,20 @@ def test_bob_creates_alice_deletes_alice_restores(magic_folder):
     with open(join(bob_dir, "boom2"), "w") as f:
         f.write("bob wrote this")
 
-    util.await_file_contents(
+    await_file_contents(
         join(alice_dir, "boom2"),
         "bob wrote this"
     )
 
     # alice deletes it (so bob should as well)
     unlink(join(alice_dir, "boom2"))
-    util.await_file_vanishes(join(bob_dir, "boom2"))
+    await_file_vanishes(join(bob_dir, "boom2"))
 
     # alice restore it, with new contents
     with open(join(alice_dir, "boom2"), "w") as f:
         f.write("alice re-wrote this again, because reasons")
 
-    util.await_file_contents(
+    await_file_contents(
         join(bob_dir, "boom2"),
         "alice re-wrote this again, because reasons"
     )
@@ -283,7 +290,7 @@ def test_bob_conflicts_with_alice_preexisting(magic_folder):
     # have bob create the file
     with open(join(bob_dir, 'beta'), 'w') as f:
         f.write("original beta (from bob)\n")
-    util.await_file_contents(join(alice_dir, 'beta'), "original beta (from bob)\n")
+    await_file_contents(join(alice_dir, 'beta'), "original beta (from bob)\n")
 
     # both alice and bob now have a "beta" file, at version 0
 
@@ -302,7 +309,7 @@ def _bob_conflicts_alice_await_conflicts(name, alice_dir, bob_dir):
     """
     shared code between _fresh and _preexisting conflict test
     """
-    found = util.await_files_exist(
+    found = await_files_exist(
         [
             join(bob_dir, '{}.conflict'.format(name)),
             join(alice_dir, '{}.conflict'.format(name)),
@@ -433,7 +440,7 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
     # Start Bob up again
     yield bob.start_magic_folder()
 
-    yield util.await_files_exist(
+    yield await_files_exist(
         list(
             join(bob_magic_dir, name)
             for name
@@ -453,3 +460,74 @@ def test_alice_adds_files_while_bob_is_offline(reactor, request, temp_dir, magic
             in conflict_files
         ),
     )
+
+
+@pytest_twisted.inlineCallbacks
+def test_francis_leaves(reactor, request, introducer_furl, flog_gatherer, temp_dir, magic_folder, alice, bob):
+    """
+    Set up a magic-folder with francis + gloria; after francis leaves
+    she shouldn't receive any more updates.
+    """
+    with start_action(action_type=u"integration:francis:magic_folder:create"):
+        francis = yield MagicFolderEnabledNode.create(
+            reactor,
+            request,
+            temp_dir,
+            introducer_furl,
+            flog_gatherer,
+            "francis",
+            tahoe_web_port="tcp:9986:interface=localhost",
+            magic_folder_web_port="tcp:19986:interface=localhost",
+            storage=False,
+        )
+
+    with start_action(action_type=u"integration:gloria:magic_folder:create"):
+        gloria = yield MagicFolderEnabledNode.create(
+            reactor,
+            request,
+            temp_dir,
+            introducer_furl,
+            flog_gatherer,
+            "gloria",
+            tahoe_web_port="tcp:9987:interface=localhost",
+            magic_folder_web_port="tcp:19987:interface=localhost",
+            storage=False,
+        )
+
+    # create a magic folder and invite gloria
+    invite = yield _generate_invite(reactor, francis, "gloria")
+    yield _pair_magic_folder(reactor, invite, francis, gloria)
+
+    # make an update from francis -> gloria
+    first_fname = join(francis.magic_directory, "francis_to_gloria")
+    with open(first_fname, "w") as f:
+        f.write("francis some content")
+
+    # wait for gloria to get it
+    yield await_file_contents(
+        join(gloria.magic_directory, "francis_to_gloria"),
+        "francis some content",
+    )
+
+    print("okay, it worked")
+
+    # gloria leaves the magic-folder
+    yield _command(
+        "--node-directory", gloria.node_directory,
+        "leave",
+    )
+
+    # make another update from francis -> gloria
+    second_fname = join(francis.magic_directory, "francis_to_gloria_2")
+    with open(second_fname, "w") as f:
+        f.write("francis some MOAR content")
+
+    # gloria should not get it (we want an error)
+    try:
+        yield await_file_contents(
+            join(gloria.magic_directory, "francis_to_gloria_2"),
+            "francis some MOAR content",
+        )
+        assert False, "Gloria got the new file, but shouldn't have"
+    except Exception as e:
+        print("expected: {}".format(e))
