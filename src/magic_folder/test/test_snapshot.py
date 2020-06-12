@@ -66,6 +66,9 @@ from allmydata.testing.web import (
     create_tahoe_treq_client,
     create_fake_tahoe_root,
 )
+from allmydata.node import (
+    read_config,
+)
 
 from hyperlink import (
     DecodedURL,
@@ -89,6 +92,8 @@ from .strategies import (
 from magic_folder.snapshot import (
     create_author,
     create_local_author,
+    create_local_author_from_config,
+    write_local_author,
     create_author_from_json,
     create_snapshot,
     create_snapshot_from_capability,
@@ -433,5 +438,33 @@ class TahoeSnapshotTest(TestCase):
                     lambda f: f.value,
                     IsInstance(BadSignatureError)
                 )
+            )
+        )
+
+    def test_serialize_snapshot_author(self):
+        """
+        Write and then read a LocalAuthor to our node-directory
+        """
+        magic_dir = FilePath(mktemp())
+        node = self.useFixture(NodeDirectory(FilePath(mktemp())))
+        node.create_magic_folder(
+            u"default",
+            u"URI:CHK2:{}:{}:1:1:256".format(u"a"*16, u"a"*32),
+            u"URI:CHK2:{}:{}:1:1:256".format(u"b"*16, u"b"*32),
+            magic_dir,
+            60,
+        )
+
+        config = read_config(node.path.path, "portnum")
+        author = create_local_author("bob")
+        write_local_author(author, "default", config)
+
+        # read back the author
+        bob = create_local_author_from_config(config)
+        self.assertThat(
+            bob,
+            MatchesStructure(
+                name=Equals("bob"),
+                verify_key=Equals(author.verify_key),
             )
         )
