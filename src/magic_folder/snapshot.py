@@ -140,6 +140,9 @@ def create_local_author(name):
 
 
 def write_local_author(local_author, magic_folder_name, config):
+    """
+    Writes a LocalAuthor instance beside other magic-folder data in the node-directory
+    """
     key_fname = "magicfolder_{}.privkey".format(magic_folder_name)
     path = config.get_config_path("private", key_fname)
     keydata_base64 = local_author.signing_key.encode(encoder=Base64Encoder)
