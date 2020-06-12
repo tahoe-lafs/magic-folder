@@ -74,8 +74,8 @@ else
     alternative="false"
 fi
 
-${TIMEOUT} ${BOOTSTRAP_VENV}/bin/tox \
-    -c ${PROJECT_ROOT}/tox.ini \
+${TIMEOUT} "${BOOTSTRAP_VENV}"/bin/tox \
+    -c "${PROJECT_ROOT}"/tox.ini \
     --workdir /tmp/magic-folder.tox \
     -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
     ${MAGIC_FOLDER_TOX_ARGS} || "${alternative}"
@@ -83,5 +83,5 @@ ${TIMEOUT} ${BOOTSTRAP_VENV}/bin/tox \
 if [ -n "${ARTIFACTS}" ]; then
     # Create a junitxml results area.
     mkdir -p "$(dirname "${JUNITXML}")"
-    ${BOOTSTRAP_VENV}/bin/subunit2junitxml < "${SUBUNIT2}" > "${JUNITXML}" || "${alternative}"
+    "${BOOTSTRAP_VENV}"/bin/subunit2junitxml < "${SUBUNIT2}" > "${JUNITXML}" || "${alternative}"
 fi
