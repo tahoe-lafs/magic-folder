@@ -626,7 +626,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     author_data = snapshot.author.to_remote_author().to_json()
 
     author_cap = yield tahoe_client.create_immutable(
-        io.BytesIO(json.dumps(author_data))
+        json.dumps(author_data)
     )
     # print("author_cap: {}".format(author_cap))
 

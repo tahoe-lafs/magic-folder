@@ -27,18 +27,11 @@ class TahoeClient(object):
     An object that knows how to call a particular tahoe client's
     WebAPI. Usually this means a node-directory (to get the base URL)
     and a treq client (to make HTTP requests).
-
-    XXX probably in a different package than this? Re-factor a couple
-    things so that tahoe_mkdir() etc take a 'tahoe_client' (instead of
-    a treq + node_dir)?
     """
 
     # node_directory = attr.ib()
     url = attr.ib()
     http_client = attr.ib()
-
-    # XXX this is "kind-of" the start of prototyping "a Python API to Tahoe"
-    # XXX for our immediate use, we need something like:
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
@@ -57,14 +50,12 @@ class TahoeClient(object):
 
     @inlineCallbacks
     def create_immutable(self, producer):
-        # XXX should handle "any" producer, taking a shortcut for now
-        raw_data = None
-        if isinstance(producer, FileBodyProducer):
-            raw_data = producer._inputFile.read()
-        elif hasattr(producer, "read"):
-            raw_data = producer.read()
-        else:
-            raise NotImplementedError()
+        """
+        :param producer: can take anything that treq's data= method to
+            treq.request allows which is currently: str, file-like or
+            IBodyProducer. See
+            https://treq.readthedocs.io/en/release-20.3.0/api.html#treq.request
+        """
 
         put_uri = self.url.replace(
             path=(u"uri",),
@@ -72,7 +63,7 @@ class TahoeClient(object):
         )
         res = yield self.http_client.put(
             put_uri.to_text(),
-            data=raw_data,
+            data=producer,
         )
         capability_string = yield res.content()
         returnValue(
