@@ -428,6 +428,18 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         verify_key = VerifyKey(snapshot_author["verify_key"], Base64Encoder)
         metadata = snapshot["content"][1]["metadata"]["magic_folder"]
 
+        if "snapshot_version" not in metadata:
+            raise Exception(
+                "No 'snapshot_version' in snapshot metadata"
+            )
+        if metadata["snapshot_version"] != SNAPSHOT_VERSION:
+            raise Exception(
+                "Unknown snapshot_version '{}' (not '{}')".format(
+                    metadata["snapshot_version"],
+                    SNAPSHOT_VERSION,
+                )
+            )
+
         name = metadata["name"]
         content_cap = snapshot["content"][1]["ro_uri"]
 
@@ -632,6 +644,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # XXX FIXME timestamps are bogus
 
     content_metadata = {
+        "snapshot_version": SNAPSHOT_VERSION,
         "name": snapshot.name,
         "author_signature": author_signature_base64,
     }
