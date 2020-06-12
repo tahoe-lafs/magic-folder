@@ -408,6 +408,7 @@ class TahoeSnapshotTest(TestCase):
                     "ro_uri": content_cap,
                     "metadata": {
                         "magic_folder": {
+                            "snapshot_version": 1,
                             "name": "a_file",
                             "author_signature": bad_sig,
                         }
