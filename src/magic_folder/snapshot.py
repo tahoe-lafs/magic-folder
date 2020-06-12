@@ -155,6 +155,8 @@ def create_local_author_from_config(config, name=None):
     """
     :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
 
+    :param name: which Magic Folder to use (or 'default')
+
     :returns: a LocalAuthor instance from our configuration
     """
     # private-keys go in "<node_dir>/private/magicfolder_<name>.privkey"
