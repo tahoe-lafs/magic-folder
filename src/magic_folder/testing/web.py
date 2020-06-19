@@ -184,7 +184,9 @@ class _FakeTahoeUriHandler(Resource, object):
     def render_PUT(self, request):
         data = request.content.read()
         request.setResponseCode(http.CREATED)  # real code does this for brand-new files
-        replace = request.args.get("replace", True)
+        replace = request.args.get("replace", [True])[0]
+        replace = True if replace == "true" else False
+
         try:
             return self.add_data("URI:CHK:", data, allow_duplicate=replace)
         except ValueError:
