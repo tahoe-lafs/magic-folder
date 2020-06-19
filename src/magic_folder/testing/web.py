@@ -13,8 +13,6 @@ Test-helpers for clients that use the WebUI.
 
 import hashlib
 
-import attr
-
 from hyperlink import DecodedURL
 
 from twisted.web.resource import (
