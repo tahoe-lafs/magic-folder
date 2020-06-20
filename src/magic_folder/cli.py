@@ -171,7 +171,7 @@ class CreateOptions(usage.Options):
 
         if self.nickname and not self.local_dir:
             raise usage.UsageError("If NICKNAME is specified then LOCAL_DIR must also be specified.")
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
+        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
         self['node-url'] = fileutil.read(node_url_file).strip()
 
 
@@ -186,7 +186,7 @@ def create(options):
         treq = HTTPClient(Agent(reactor))
 
         name = options['name']
-        nodedir = options["node-directory"]
+        nodedir = options.parent["node-directory"]
         localdir = options.local_dir
         rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
         print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
@@ -206,7 +206,7 @@ class ListOptions(usage.Options):
 
 
 def list_(options):
-    folders = load_magic_folders(options["node-directory"])
+    folders = load_magic_folders(options.parent["node-directory"])
     if options["json"]:
         _list_json(options, folders)
         return 0
@@ -261,9 +261,9 @@ class InviteOptions(usage.Options):
             raise usage.UsageError("An alias must end with a ':' character.")
         self.alias = alias[:-1]
         self.nickname = argv_to_unicode(nickname)
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
+        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
         self['node-url'] = open(node_url_file, "r").read().strip()
-        aliases = get_aliases(self['node-directory'])
+        aliases = get_aliases(self.parent['node-directory'])
         self.aliases = aliases
 
 @inlineCallbacks
@@ -275,7 +275,7 @@ def invite(options):
     treq = HTTPClient(Agent(reactor))
 
     try:
-        invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+        invite_code = yield _invite(options.parent["node-directory"], options.alias, options.nickname, treq)
         print("{}".format(invite_code), file=options.stdout)
     except Exception as e:
         print("magic-folder: {}".format(str(e)))
@@ -312,7 +312,7 @@ def join(options):
     """
     try:
         invite_code = options.invite_code
-        node_directory = options["node-directory"]
+        node_directory = options.parent["node-directory"]
         local_directory = options.local_dir
         name = options['name']
         poll_interval = options["poll-interval"]
@@ -358,7 +358,7 @@ def _leave(node_directory, name, existing_folders):
     return 0
 
 def leave(options):
-    existing_folders = load_magic_folders(options["node-directory"])
+    existing_folders = load_magic_folders(options.parent["node-directory"])
 
     if not existing_folders:
         print("No magic-folders at all", file=options.stderr)
@@ -369,7 +369,7 @@ def leave(options):
         return 1
 
     try:
-        _leave(options["node-directory"], options["name"], existing_folders)
+        _leave(options.parent["node-directory"], options["name"], existing_folders)
     except Exception as e:
         print("Warning: {}".format(str(e)))
         return 1
@@ -386,7 +386,7 @@ class StatusOptions(usage.Options):
 
     def parseArgs(self):
         super(StatusOptions, self).parseArgs()
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
+        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
         try:
             with open(node_url_file, "r") as f:
                 self['node-url'] = f.read().strip()
@@ -443,7 +443,7 @@ def status(options):
     :return Deferred: A ``Deferred`` which fires with an exit status for the
         process when the status operation has completed.
     """
-    nodedir = options["node-directory"]
+    nodedir = options.parent["node-directory"]
     stdout, stderr = options.stdout, options.stderr
 
     # Create a client without persistent connections to simplify testing.
@@ -625,7 +625,7 @@ def main(options):
     from twisted.internet import  reactor
     service = MagicFolderService.from_node_directory(
         reactor,
-        options["node-directory"],
+        options.parent["node-directory"],
         options["web-port"],
     )
     return service.run()
