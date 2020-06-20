@@ -1,0 +1,1 @@
+Remove --basedir option from all subcommands (use --node-directory instead)
