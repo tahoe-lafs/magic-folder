@@ -167,6 +167,7 @@ def create_local_author_from_config(config, name=None):
 @attr.s
 class LocalSnapshot(object):
     name = attr.ib()
+    author = attr.ib()
     metadata = attr.ib()
     content_path = attr.ib()  # full filesystem path to our stashed contents
     parents_local = attr.ib()  # LocalSnapshot instances
@@ -220,7 +221,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     # parents, so the "parents" list may contain either kind in the
     # future.
     parents_local = []
-    for idx, parent in enumerate(parents):
+    for idx, parent in enumerate(parents_local):
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
         else:
@@ -264,7 +265,6 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                 "mtime": now,
             },
             content_path=temp_file_name,
-            parents_remote=parents_remote,
             parents_local=parents_local,
         )
     )
