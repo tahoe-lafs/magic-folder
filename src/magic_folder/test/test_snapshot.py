@@ -25,7 +25,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from allmydata.node import (
+from allmydata.client import (
     read_config,
 )
 
