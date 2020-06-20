@@ -1027,6 +1027,9 @@ class MagicFolderCommand(BaseOptions):
         Override usage.Options
         """
         super(MagicFolderCommand, self).parseOptions(*args, **kw)
+        # we do this here and not in postOptions because many of the
+        # sub-command postOptions() validatators need the
+        # node-directory to be valid already
         if self["node-directory"] is None:
             raise usage.UsageError(
                 "Must supply --node-directory"
