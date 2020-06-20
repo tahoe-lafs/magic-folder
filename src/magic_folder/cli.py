@@ -1022,6 +1022,16 @@ class MagicFolderCommand(BaseOptions):
         "readcaps contained in the master magic-folder directory."
     )
 
+    def parseOptions(self, *args, **kw):
+        """
+        Override usage.Options
+        """
+        super(MagicFolderCommand, self).parseOptions(*args, **kw)
+        if self["node-directory"] is None:
+            raise usage.UsageError(
+                "Must supply --node-directory"
+            )
+
     @property
     def parent(self):
         return None
