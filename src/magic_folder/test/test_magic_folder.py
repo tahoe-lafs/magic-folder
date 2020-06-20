@@ -76,7 +76,6 @@ from .common import (
     AsyncTestCase,
     skipIf,
 )
-
 from .cli.test_magic_folder import MagicFolderCLITestMixin
 
 _debug = False
