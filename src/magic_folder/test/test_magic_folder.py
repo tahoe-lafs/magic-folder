@@ -9,14 +9,12 @@ from errno import ENOENT
 from twisted.internet import defer, task, reactor
 from twisted.python.runtime import platform
 from twisted.python.filepath import FilePath
-from twisted.web.client import Agent
 
 from testtools.matchers import (
     Not,
     Is,
     ContainsDict,
     Equals,
-    StartsWith,
 )
 
 from eliot import (
@@ -45,14 +43,6 @@ from allmydata.mutable.common import (
 
 from eliot.twisted import (
     inline_callbacks,
-)
-
-from treq.client import (
-    HTTPClient,
-)
-
-from .fixtures import (
-    SelfConnectedClient,
 )
 
 from magic_folder.util.eliotutil import (
@@ -85,10 +75,6 @@ from .common import (
     SyncTestCase,
     AsyncTestCase,
     skipIf,
-)
-
-from .cli.common import (
-    cli,
 )
 
 from .cli.test_magic_folder import MagicFolderCLITestMixin
