@@ -156,6 +156,14 @@ class LocalSnapshot(object):
             open(self.content_path, "rb")
         )
 
+    def _get_synchronous_content(self):
+        """
+        For testing only.
+        :returns: the content immediately
+        """
+        with open(self.content_path, "rb") as f:
+            return f.read()
+
 
 @inlineCallbacks
 def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None):
@@ -220,6 +228,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                 else:
                     done = True
                     break
+            yield
     finally:
         os.close(temp_file_fd)
 

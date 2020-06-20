@@ -6,6 +6,7 @@ from shutil import rmtree
 from testtools.matchers import (
     Equals,
     MatchesStructure,
+    AfterPreprocessing,
     Always,
 )
 
@@ -106,13 +107,12 @@ class TestLocalSnapshot(SyncTestCase):
         content=binary(min_size=1),
         filename=magic_folder_filenames(),
     )
-    def test_create_new_tahoe_snapshot(self, content, filename):
+    def test_create_new_snapshot(self, content, filename):
         """
         create a new snapshot (this will have no parent snapshots).
         """
         data = io.BytesIO(content)
 
-        snapshots = []
         d = create_snapshot(
             name=filename,
             author=self.alice,
@@ -120,10 +120,26 @@ class TestLocalSnapshot(SyncTestCase):
             snapshot_stash_dir=self.stash_dir,
             parents=[],
         )
-        d.addCallback(snapshots.append)
+
+        def get_data(snap):
+            """
+            So, what we really want to do here is to call
+            snap.get_content_producer() and pull all the data out of
+            that ... but we can't, because testtools can't work with
+            a real reactor (and the only work-around I know of is
+            the _SynchronousBodyProducer from treq, but we don't want
+            to use that inside Snapshot because "in the real case"
+            we don't want it to produce all the data synchronously)
+            ...
+            so, instead, we cheat a little with a test-only method
+            """
+            return snap._get_synchronous_content()
+
         self.assertThat(
             d,
-            succeeded(Always()),
+            succeeded(
+                AfterPreprocessing(get_data, Equals(content))
+            )
         )
         # we should assert some stuff about snapshots[0] now
 
