@@ -98,7 +98,6 @@ from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 from allmydata.util.encodingutil import quote_output
 
 from allmydata.scripts.common import (
-    BasedirOptions,
     get_aliases,
 )
 from allmydata.client import (
@@ -137,7 +136,7 @@ from ._coverage import (
 from .util.observer import ListenObserver
 
 
-class CreateOptions(BasedirOptions):
+class CreateOptions(usage.Options):
     nickname = None  # NOTE: *not* the "name of this magic-folder"
     local_dir = None
     synopsis = "MAGIC_ALIAS: [NICKNAME LOCAL_DIR]"
@@ -153,7 +152,7 @@ class CreateOptions(BasedirOptions):
     )
 
     def parseArgs(self, alias, nickname=None, local_dir=None):
-        BasedirOptions.parseArgs(self)
+        super(CreateOptions, self).parseArgs()
         alias = argv_to_unicode(alias)
         if not alias.endswith(u':'):
             raise usage.UsageError("An alias must end with a ':' character.")
@@ -206,7 +205,7 @@ def create(options):
 
     returnValue(rc)
 
-class ListOptions(BasedirOptions):
+class ListOptions(usage.Options):
     description = (
         "List all magic-folders this client has joined"
     )
@@ -251,7 +250,7 @@ def _list_human(options, folders):
         print("No magic-folders", file=options.stdout)
 
 
-class InviteOptions(BasedirOptions):
+class InviteOptions(usage.Options):
     nickname = None
     synopsis = "MAGIC_ALIAS: NICKNAME"
     stdin = MixedIO(u"")
@@ -265,7 +264,7 @@ class InviteOptions(BasedirOptions):
     )
 
     def parseArgs(self, alias, nickname=None):
-        BasedirOptions.parseArgs(self)
+        super(InviteOptions, self).parseArgs()
         alias = argv_to_unicode(alias)
         if not alias.endswith(u':'):
             raise usage.UsageError("An alias must end with a ':' character.")
@@ -293,7 +292,7 @@ def invite(options):
 
     returnValue(0)
 
-class JoinOptions(BasedirOptions):
+class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"
     dmd_write_cap = ""
     magic_readonly_cap = ""
@@ -303,7 +302,7 @@ class JoinOptions(BasedirOptions):
     ]
 
     def parseArgs(self, invite_code, local_dir):
-        BasedirOptions.parseArgs(self)
+        super(Join, self).parseArgs()
 
         try:
             if int(self['poll-interval']) <= 0:
@@ -334,7 +333,7 @@ def join(options):
 
     return rc
 
-class LeaveOptions(BasedirOptions):
+class LeaveOptions(usage.Options):
     description = "Remove a magic-folder and forget all state"
     optParameters = [
         ("name", "n", "default", "Name of magic-folder to leave"),
@@ -387,7 +386,7 @@ def leave(options):
     return 0
 
 
-class StatusOptions(BasedirOptions):
+class StatusOptions(usage.Options):
     synopsis = ""
     stdin = MixedIO(u"")
     optParameters = [
@@ -395,7 +394,7 @@ class StatusOptions(BasedirOptions):
     ]
 
     def parseArgs(self):
-        BasedirOptions.parseArgs(self)
+        super(StatusOptions, self).parseArgs()
         node_url_file = os.path.join(self['node-directory'], u"node.url")
         try:
             with open(node_url_file, "r") as f:
@@ -615,7 +614,7 @@ def _format_magic_folder_status(now, magic_data):
                 yield u"Failed: {}".format(item)
 
 
-class RunOptions(BasedirOptions):
+class RunOptions(usage.Options):
     optParameters = [
         ("web-port", None, None,
          "String description of an endpoint on which to run the web interface (required).",
