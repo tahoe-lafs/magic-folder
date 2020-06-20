@@ -6,58 +6,27 @@ Functions and types that implement snapshots
 """
 from __future__ import print_function
 
-import io
 import os
 import time
 import json
-import base64
 from tempfile import mkstemp
 
 import attr
-import nacl
 
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
 from twisted.web.client import (
-    BrowserLikeRedirectAgent,
     FileBodyProducer,
 )
 
-from .common import (
-    get_node_url,
-)
 from .magic_folder import (
     load_magic_folders,
-    save_magic_folders,
-)
-
-from twisted.web.client import (
-    readBody,
-)
-
-from twisted.web.http import (
-    OK,
-    CREATED,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from .common import (
-    bad_response,
-)
-
-from eliot import (
-    start_action,
-    register_exception_extractor,
 )
 
 from nacl.signing import (
     SigningKey,
-    VerifyKey,
 )
 from nacl.encoding import (
     Base64Encoder,

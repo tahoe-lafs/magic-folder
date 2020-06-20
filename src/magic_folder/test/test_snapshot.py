@@ -1,28 +1,16 @@
 import io
 import os
-import json
-import base64
 from tempfile import mktemp
 from shutil import rmtree
-from functools import partial
 
-from testtools import (
-    TestCase,
-    ExpectedException,
-)
 from testtools.matchers import (
     Equals,
-    Raises,
     MatchesStructure,
     Always,
-    AfterPreprocessing,
-    StartsWith,
-    IsInstance,
 )
 
 from testtools.twistedsupport import (
     succeeded,
-    failed,
 )
 
 from hypothesis import (
@@ -30,50 +18,21 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
-    text,
 )
 
-from twisted.internet import defer
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.web.resource import (
-    Resource,
-)
-from twisted.web.client import (
-    Agent,
-    FileBodyProducer,
-)
 
-from treq.client import (
-    HTTPClient,
-)
-from treq.testing import (
-    RequestTraversalAgent,
-    RequestSequence,
-    StubTreq,
-    _SynchronousProducer,  # FIXME copy code somewhere, "because private"
-)
-from allmydata.testing.web import (
-    create_tahoe_treq_client,
-    create_fake_tahoe_root,
-)
 from allmydata.node import (
     read_config,
-)
-
-from hyperlink import (
-    DecodedURL,
 )
 
 from .fixtures import (
     NodeDirectory,
 )
 from .common import (
-    ShouldFailMixin,
     SyncTestCase,
-    AsyncTestCase,
-    skipIf,
 )
 from .strategies import (
     magic_folder_filenames,

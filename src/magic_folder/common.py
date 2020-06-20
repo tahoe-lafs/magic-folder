@@ -23,8 +23,6 @@ from twisted.web.http import (
     OK,
 )
 
-from allmydata.util import fileutil
-
 INVITE_SEPARATOR = "+"
 
 class BadFolderName(Exception):
