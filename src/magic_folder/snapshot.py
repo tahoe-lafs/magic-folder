@@ -179,7 +179,6 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     """
     if parents is None:
         parents = []
-    yield
 
     if not isinstance(author, LocalAuthor):
         raise ValueError(
