@@ -186,7 +186,6 @@ class TestLocalSnapshot(SyncTestCase):
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
-            parents=[],
         )
         d.addCallback(parents.append)
         self.assertThat(
