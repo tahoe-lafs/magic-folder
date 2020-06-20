@@ -174,15 +174,6 @@ class CreateOptions(usage.Options):
         node_url_file = os.path.join(self['node-directory'], u"node.url")
         self['node-url'] = fileutil.read(node_url_file).strip()
 
-def _delegate_options(source_options, target_options):
-    target_options.aliases = get_aliases(source_options['node-directory'])
-    target_options["node-url"] = source_options["node-url"]
-    target_options["node-directory"] = source_options["node-directory"]
-    target_options["name"] = source_options["name"]
-    target_options.stdin = MixedIO(u"")
-    target_options.stdout = MixedIO()
-    target_options.stderr = MixedIO()
-    return target_options
 
 @inlineCallbacks
 def create(options):
