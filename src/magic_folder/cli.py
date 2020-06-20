@@ -302,7 +302,7 @@ class JoinOptions(usage.Options):
     ]
 
     def parseArgs(self, invite_code, local_dir):
-        super(Join, self).parseArgs()
+        super(JoinOptions, self).parseArgs()
 
         try:
             if int(self['poll-interval']) <= 0:
