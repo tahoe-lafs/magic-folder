@@ -994,6 +994,20 @@ class CreateMagicFolder(AsyncTestCase):
         o.parent = magic_folder_cli.MagicFolderCommand()
         o.parent.getSynopsis()
 
+    def test_no_node_directory(self):
+        """
+        Running a command without --node-directory fails
+        """
+        o = magic_folder_cli.InviteOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+
+        try:
+            o.parseOptions(["alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("Must supply --node-directory", str(e))
+        else:
+            self.fail("expected UsageError")
+
     def test_create_invite_join_failure(self):
         """
         Test the cli input for valid local directory name.
