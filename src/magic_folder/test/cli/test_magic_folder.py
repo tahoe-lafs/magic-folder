@@ -475,7 +475,7 @@ class StatusMagicFolder(AsyncTestCase):
         )
         self.expectThat(
             outcome.stderr,
-            Contains(b"No such file or directory"),
+            Contains(b"does not exist"),
         )
 
     @defer.inlineCallbacks
