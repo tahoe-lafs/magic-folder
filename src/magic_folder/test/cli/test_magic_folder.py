@@ -1008,6 +1008,22 @@ class CreateMagicFolder(AsyncTestCase):
         else:
             self.fail("expected UsageError")
 
+    def test_node_directory_is_file(self):
+        """
+        Using --node-directory with a file is an error
+        """
+        o = magic_folder_cli.MagicFolderCommand()
+        nodefile = self.mktemp()
+        with open(nodefile, "w") as f:
+            f.write("dummy\n")
+
+        try:
+            o.parseOptions(["--node-directory", nodefile, "invite", "alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("is not a directory", str(e))
+        else:
+            self.fail("expected UsageError")
+
     def test_create_invite_join_failure(self):
         """
         Test the cli input for valid local directory name.
