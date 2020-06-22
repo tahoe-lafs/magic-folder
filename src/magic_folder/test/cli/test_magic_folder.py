@@ -1024,6 +1024,21 @@ class CreateMagicFolder(AsyncTestCase):
         else:
             self.fail("expected UsageError")
 
+    def test_node_directory_empty(self):
+        """
+        A directory that is empty isn't valid for --node-directory
+        """
+        o = magic_folder_cli.MagicFolderCommand()
+        nodedir = self.mktemp()
+        os.mkdir(nodedir)
+
+        try:
+            o.parseOptions(["--node-directory", nodedir, "invite", "alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("doesn't look like a Tahoe directory", str(e))
+        else:
+            self.fail("expected UsageError")
+
     def test_create_invite_join_failure(self):
         """
         Test the cli input for valid local directory name.
