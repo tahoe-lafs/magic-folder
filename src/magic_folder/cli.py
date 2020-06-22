@@ -171,8 +171,6 @@ class CreateOptions(usage.Options):
 
         if self.nickname and not self.local_dir:
             raise usage.UsageError("If NICKNAME is specified then LOCAL_DIR must also be specified.")
-        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
-        self['node-url'] = fileutil.read(node_url_file).strip()
 
 
 @inlineCallbacks
@@ -261,9 +259,7 @@ class InviteOptions(usage.Options):
             raise usage.UsageError("An alias must end with a ':' character.")
         self.alias = alias[:-1]
         self.nickname = argv_to_unicode(nickname)
-        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
-        self['node-url'] = open(node_url_file, "r").read().strip()
-        aliases = get_aliases(self.parent['node-directory'])
+        aliases = get_aliases(self.parent.node_directory)
         self.aliases = aliases
 
 @inlineCallbacks
@@ -383,19 +379,6 @@ class StatusOptions(usage.Options):
     optParameters = [
         ("name", "n", "default", "Name for the magic-folder to show status"),
     ]
-
-    def parseArgs(self):
-        super(StatusOptions, self).parseArgs()
-        node_url_file = os.path.join(self.parent['node-directory'], u"node.url")
-        try:
-            with open(node_url_file, "r") as f:
-                self['node-url'] = f.read().strip()
-        except EnvironmentError as e:
-            raise usage.UsageError(
-                "Could not read node url from {!r}: {!r}".format(
-                    node_url_file,
-                    e,
-                ))
 
 
 def _item_status(item, now, longest):
