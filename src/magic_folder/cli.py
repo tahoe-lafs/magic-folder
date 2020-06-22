@@ -186,7 +186,7 @@ def create(options):
         treq = HTTPClient(Agent(reactor))
 
         name = options['name']
-        nodedir = options.parent["node-directory"]
+        nodedir = options.parent.node_directory
         localdir = options.local_dir
         rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
         print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
@@ -206,7 +206,7 @@ class ListOptions(usage.Options):
 
 
 def list_(options):
-    folders = load_magic_folders(options.parent["node-directory"])
+    folders = load_magic_folders(options.parent.node_directory)
     if options["json"]:
         _list_json(options, folders)
         return 0
@@ -275,7 +275,7 @@ def invite(options):
     treq = HTTPClient(Agent(reactor))
 
     try:
-        invite_code = yield _invite(options.parent["node-directory"], options.alias, options.nickname, treq)
+        invite_code = yield _invite(options.parent.node_directory, options.alias, options.nickname, treq)
         print("{}".format(invite_code), file=options.stdout)
     except Exception as e:
         print("magic-folder: {}".format(str(e)))
@@ -312,7 +312,7 @@ def join(options):
     """
     try:
         invite_code = options.invite_code
-        node_directory = options.parent["node-directory"]
+        node_directory = options.parent.node_directory
         local_directory = options.local_dir
         name = options['name']
         poll_interval = options["poll-interval"]
@@ -358,7 +358,7 @@ def _leave(node_directory, name, existing_folders):
     return 0
 
 def leave(options):
-    existing_folders = load_magic_folders(options.parent["node-directory"])
+    existing_folders = load_magic_folders(options.parent.node_directory)
 
     if not existing_folders:
         print("No magic-folders at all", file=options.stderr)
@@ -369,7 +369,7 @@ def leave(options):
         return 1
 
     try:
-        _leave(options.parent["node-directory"], options["name"], existing_folders)
+        _leave(options.parent.node_directory, options["name"], existing_folders)
     except Exception as e:
         print("Warning: {}".format(str(e)))
         return 1
@@ -443,7 +443,7 @@ def status(options):
     :return Deferred: A ``Deferred`` which fires with an exit status for the
         process when the status operation has completed.
     """
-    nodedir = options.parent["node-directory"]
+    nodedir = options.parent.node_directory
     stdout, stderr = options.stdout, options.stderr
 
     # Create a client without persistent connections to simplify testing.
@@ -625,7 +625,7 @@ def main(options):
     from twisted.internet import  reactor
     service = MagicFolderService.from_node_directory(
         reactor,
-        options.parent["node-directory"],
+        options.parent.node_directory,
         options["web-port"],
     )
     return service.run()
@@ -1022,18 +1022,26 @@ class MagicFolderCommand(BaseOptions):
         "readcaps contained in the master magic-folder directory."
     )
 
-    def parseOptions(self, *args, **kw):
-        """
-        Override usage.Options
-        """
-        super(MagicFolderCommand, self).parseOptions(*args, **kw)
-        # we do this here and not in postOptions because many of the
-        # sub-command postOptions() validatators need the
-        # node-directory to be valid already
+    @property
+    def node_directory(self):
         if self["node-directory"] is None:
             raise usage.UsageError(
-                "Must supply --node-directory"
+                "Must supply --node-directory (or -d)"
             )
+        nd = self["node-directory"]
+        if not os.path.exists(nd):
+            raise usage.UsageError(
+                "'{}' does not exist".format(nd)
+            )
+        if not os.path.isdir(nd):
+            raise usage.UsageError(
+                "'{}' is not a directory".format(nd)
+            )
+        if not os.path.exists(os.path.join(nd, "tahoe.cfg")):
+            raise usage.UsageError(
+                "'{}' doesn't look like a Tahoe directory (no 'tahoe.cfg')".format(nd)
+            )
+        return nd
 
     @property
     def parent(self):
