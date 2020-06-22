@@ -170,6 +170,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
                 self.do_cli(
                     "magic-folder",
                     "join",
+                    "--author", "test-dummy",
                     invite_code,
                     local_dir_arg,
                     client_num=client_num,
@@ -890,6 +891,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.node_directory, [
                 b"join",
+                b"--author", b"test-dummy",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -947,6 +949,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.node_directory, [
                 b"join",
+                b"--author", b"test-dummy",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -973,6 +976,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.node_directory, [
                 b"join",
+                b"--author", b"test-dummy",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1077,6 +1081,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.node_directory, [
                 b"join",
+                b"--author", b"test-dummy",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1091,6 +1096,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.node_directory, [
                 b"join",
+                b"--author", b"test-dummy",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1136,9 +1142,9 @@ class InviteErrors(AsyncTestCase):
 class JoinErrors(AsyncTestCase):
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("join", "--poll-interval=frog", "code", "localdir")
+            parse_cli("join", "--author", "test-dummy", "--poll-interval=frog", "code", "localdir")
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("join", "--poll-interval=-2", "code", "localdir")
+            parse_cli("join", "--author", "test-dummy", "--poll-interval=-2", "code", "localdir")
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")

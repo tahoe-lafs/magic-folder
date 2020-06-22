@@ -300,6 +300,7 @@ class JoinOptions(BasedirOptions):
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
         ("name", "n", "default", "Name of the magic-folder"),
+        ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
 
     def parseArgs(self, invite_code, local_dir):
@@ -315,6 +316,13 @@ class JoinOptions(BasedirOptions):
         # Expand the path relative to the current directory of the CLI command, not the node.
         self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
         self.invite_code = to_str(argv_to_unicode(invite_code))
+        if self['author'] is None:
+            self['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
+            if self['author'] is None:
+                raise usage.UsageError(
+                    "--author not provided and no USERNAME environment-variable"
+                )
+
 
 def join(options):
     """
@@ -324,10 +332,11 @@ def join(options):
         invite_code = options.invite_code
         node_directory = options["node-directory"]
         local_directory = options.local_dir
-        name = options['name']
+        name = options["name"]
         poll_interval = options["poll-interval"]
+        author = options["author"]
 
-        rc = _join(invite_code, node_directory, local_directory, name, poll_interval)
+        rc = _join(invite_code, node_directory, local_directory, name, poll_interval, author)
     except Exception as e:
         print(e, file=options.stderr)
         return 1
