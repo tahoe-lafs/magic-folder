@@ -197,7 +197,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     # parents, so the "parents" list may contain either kind in the
     # future.
     parents_local = []
-    for idx, parent in enumerate(parents_local):
+    for idx, parent in enumerate(parents):
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
         else:
