@@ -1,0 +1,1 @@
+Sub-commands no longer accept the --basedir option; use --node-directory instead
