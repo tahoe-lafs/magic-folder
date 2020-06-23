@@ -951,7 +951,6 @@ class TahoeClient(object):
         uri = self.node_uri.child(
             u"uri",
             dirnode_uri.to_string().decode("ascii"),
-            u"",
         ).add(
             u"t",
             u"set-children",
@@ -981,9 +980,12 @@ class TahoeClient(object):
                     ),
                 ),
             )
+            body = yield readBody(response)
             if response.code != 200:
-                raise Exception("Error response from metadata endpoint: {code} {phrase}".format(
-                    **vars(response)
+                raise Exception("Error response from metadata endpoint: {code} {phrase}: {body}".format(
+                    code=response.code,
+                    phrase=response.phrase,
+                    body=body,
                 ))
         returnValue(Node(self, from_string(filecap)))
 
