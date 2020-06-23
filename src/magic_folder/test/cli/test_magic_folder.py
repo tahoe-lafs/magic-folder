@@ -1078,6 +1078,69 @@ class CreateMagicFolder(AsyncTestCase):
             self.fail("expected UsageError")
 
     @defer.inlineCallbacks
+    def test_join_author_user(self):
+        """
+        The CLI will use USER from the environment
+        """
+        basedir = self.tempdir.child(u"join-author-user")
+        basedir.makedirs()
+
+        outcome = yield cli(
+            self.node_directory, [
+                b"create",
+                b"join_author_user:",
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+        # create invite code for bob
+        outcome = yield cli(
+            self.node_directory, [
+                b"invite",
+                b"join_author_user:",
+                b"bob",
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+        # capture the invite code from stdout
+        invite_code = outcome.stdout.strip()
+
+        # create a directory for Bob
+        mf_bob = basedir.child(u"bob")
+        mf_bob.makedirs()
+
+        # join
+        # we don't pass --author so should get author from $USER
+        olduser = os.environ.get("USER", None)
+        os.environ["USER"] = "bob_from_user"
+        try:
+            outcome = yield cli(
+                self.node_directory, [
+                    b"join",
+                    # no --author, so it should come from USER env-var
+                    invite_code,
+                    mf_bob.asBytesMode().path,
+                ],
+            )
+        finally:
+            if olduser is None:
+                del os.environ["USER"]
+            else:
+                os.environ["USER"] = olduser
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+
+    @defer.inlineCallbacks
     def test_join_twice_failure(self):
         """
         Create a magic folder, create an invite code, use it to join and then
