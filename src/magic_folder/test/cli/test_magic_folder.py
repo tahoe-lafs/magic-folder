@@ -475,7 +475,7 @@ class StatusMagicFolder(AsyncTestCase):
         )
         self.expectThat(
             outcome.stderr,
-            Contains(b"No such file or directory"),
+            Contains(b"does not exist"),
         )
 
     @defer.inlineCallbacks
@@ -993,6 +993,51 @@ class CreateMagicFolder(AsyncTestCase):
         o = magic_folder_cli.CreateOptions()
         o.parent = magic_folder_cli.MagicFolderCommand()
         o.parent.getSynopsis()
+
+    def test_no_node_directory(self):
+        """
+        Running a command without --node-directory fails
+        """
+        o = magic_folder_cli.InviteOptions()
+        o.parent = magic_folder_cli.MagicFolderCommand()
+
+        try:
+            o.parseOptions(["alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("Must supply --node-directory", str(e))
+        else:
+            self.fail("expected UsageError")
+
+    def test_node_directory_is_file(self):
+        """
+        Using --node-directory with a file is an error
+        """
+        o = magic_folder_cli.MagicFolderCommand()
+        nodefile = self.mktemp()
+        with open(nodefile, "w") as f:
+            f.write("dummy\n")
+
+        try:
+            o.parseOptions(["--node-directory", nodefile, "invite", "alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("is not a directory", str(e))
+        else:
+            self.fail("expected UsageError")
+
+    def test_node_directory_empty(self):
+        """
+        A directory that is empty isn't valid for --node-directory
+        """
+        o = magic_folder_cli.MagicFolderCommand()
+        nodedir = self.mktemp()
+        os.mkdir(nodedir)
+
+        try:
+            o.parseOptions(["--node-directory", nodedir, "invite", "alias:", "nickname"])
+        except usage.UsageError as e:
+            self.assertIn("doesn't look like a Tahoe directory", str(e))
+        else:
+            self.fail("expected UsageError")
 
     def test_create_invite_join_failure(self):
         """

@@ -98,7 +98,6 @@ from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
 from allmydata.util.encodingutil import quote_output
 
 from allmydata.scripts.common import (
-    BasedirOptions,
     get_aliases,
 )
 from allmydata.client import (
@@ -137,7 +136,7 @@ from ._coverage import (
 from .util.observer import ListenObserver
 
 
-class CreateOptions(BasedirOptions):
+class CreateOptions(usage.Options):
     nickname = None  # NOTE: *not* the "name of this magic-folder"
     local_dir = None
     synopsis = "MAGIC_ALIAS: [NICKNAME LOCAL_DIR]"
@@ -153,7 +152,7 @@ class CreateOptions(BasedirOptions):
     )
 
     def parseArgs(self, alias, nickname=None, local_dir=None):
-        BasedirOptions.parseArgs(self)
+        super(CreateOptions, self).parseArgs()
         alias = argv_to_unicode(alias)
         if not alias.endswith(u':'):
             raise usage.UsageError("An alias must end with a ':' character.")
@@ -172,18 +171,7 @@ class CreateOptions(BasedirOptions):
 
         if self.nickname and not self.local_dir:
             raise usage.UsageError("If NICKNAME is specified then LOCAL_DIR must also be specified.")
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
-        self['node-url'] = fileutil.read(node_url_file).strip()
 
-def _delegate_options(source_options, target_options):
-    target_options.aliases = get_aliases(source_options['node-directory'])
-    target_options["node-url"] = source_options["node-url"]
-    target_options["node-directory"] = source_options["node-directory"]
-    target_options["name"] = source_options["name"]
-    target_options.stdin = MixedIO(u"")
-    target_options.stdout = MixedIO()
-    target_options.stderr = MixedIO()
-    return target_options
 
 @inlineCallbacks
 def create(options):
@@ -196,7 +184,7 @@ def create(options):
         treq = HTTPClient(Agent(reactor))
 
         name = options['name']
-        nodedir = options["node-directory"]
+        nodedir = options.parent.node_directory
         localdir = options.local_dir
         rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
         print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
@@ -206,7 +194,7 @@ def create(options):
 
     returnValue(rc)
 
-class ListOptions(BasedirOptions):
+class ListOptions(usage.Options):
     description = (
         "List all magic-folders this client has joined"
     )
@@ -216,7 +204,7 @@ class ListOptions(BasedirOptions):
 
 
 def list_(options):
-    folders = load_magic_folders(options["node-directory"])
+    folders = load_magic_folders(options.parent.node_directory)
     if options["json"]:
         _list_json(options, folders)
         return 0
@@ -251,7 +239,7 @@ def _list_human(options, folders):
         print("No magic-folders", file=options.stdout)
 
 
-class InviteOptions(BasedirOptions):
+class InviteOptions(usage.Options):
     nickname = None
     synopsis = "MAGIC_ALIAS: NICKNAME"
     stdin = MixedIO(u"")
@@ -265,15 +253,13 @@ class InviteOptions(BasedirOptions):
     )
 
     def parseArgs(self, alias, nickname=None):
-        BasedirOptions.parseArgs(self)
+        super(InviteOptions, self).parseArgs()
         alias = argv_to_unicode(alias)
         if not alias.endswith(u':'):
             raise usage.UsageError("An alias must end with a ':' character.")
         self.alias = alias[:-1]
         self.nickname = argv_to_unicode(nickname)
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
-        self['node-url'] = open(node_url_file, "r").read().strip()
-        aliases = get_aliases(self['node-directory'])
+        aliases = get_aliases(self.parent.node_directory)
         self.aliases = aliases
 
 @inlineCallbacks
@@ -285,7 +271,7 @@ def invite(options):
     treq = HTTPClient(Agent(reactor))
 
     try:
-        invite_code = yield _invite(options["node-directory"], options.alias, options.nickname, treq)
+        invite_code = yield _invite(options.parent.node_directory, options.alias, options.nickname, treq)
         print("{}".format(invite_code), file=options.stdout)
     except Exception as e:
         print("magic-folder: {}".format(str(e)))
@@ -293,7 +279,7 @@ def invite(options):
 
     returnValue(0)
 
-class JoinOptions(BasedirOptions):
+class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"
     dmd_write_cap = ""
     magic_readonly_cap = ""
@@ -303,7 +289,7 @@ class JoinOptions(BasedirOptions):
     ]
 
     def parseArgs(self, invite_code, local_dir):
-        BasedirOptions.parseArgs(self)
+        super(JoinOptions, self).parseArgs()
 
         try:
             if int(self['poll-interval']) <= 0:
@@ -322,7 +308,7 @@ def join(options):
     """
     try:
         invite_code = options.invite_code
-        node_directory = options["node-directory"]
+        node_directory = options.parent.node_directory
         local_directory = options.local_dir
         name = options['name']
         poll_interval = options["poll-interval"]
@@ -334,7 +320,7 @@ def join(options):
 
     return rc
 
-class LeaveOptions(BasedirOptions):
+class LeaveOptions(usage.Options):
     description = "Remove a magic-folder and forget all state"
     optParameters = [
         ("name", "n", "default", "Name of magic-folder to leave"),
@@ -368,7 +354,7 @@ def _leave(node_directory, name, existing_folders):
     return 0
 
 def leave(options):
-    existing_folders = load_magic_folders(options["node-directory"])
+    existing_folders = load_magic_folders(options.parent.node_directory)
 
     if not existing_folders:
         print("No magic-folders at all", file=options.stderr)
@@ -379,7 +365,7 @@ def leave(options):
         return 1
 
     try:
-        _leave(options["node-directory"], options["name"], existing_folders)
+        _leave(options.parent.node_directory, options["name"], existing_folders)
     except Exception as e:
         print("Warning: {}".format(str(e)))
         return 1
@@ -387,25 +373,12 @@ def leave(options):
     return 0
 
 
-class StatusOptions(BasedirOptions):
+class StatusOptions(usage.Options):
     synopsis = ""
     stdin = MixedIO(u"")
     optParameters = [
         ("name", "n", "default", "Name for the magic-folder to show status"),
     ]
-
-    def parseArgs(self):
-        BasedirOptions.parseArgs(self)
-        node_url_file = os.path.join(self['node-directory'], u"node.url")
-        try:
-            with open(node_url_file, "r") as f:
-                self['node-url'] = f.read().strip()
-        except EnvironmentError as e:
-            raise usage.UsageError(
-                "Could not read node url from {!r}: {!r}".format(
-                    node_url_file,
-                    e,
-                ))
 
 
 def _item_status(item, now, longest):
@@ -453,7 +426,7 @@ def status(options):
     :return Deferred: A ``Deferred`` which fires with an exit status for the
         process when the status operation has completed.
     """
-    nodedir = options["node-directory"]
+    nodedir = options.parent.node_directory
     stdout, stderr = options.stdout, options.stderr
 
     # Create a client without persistent connections to simplify testing.
@@ -615,7 +588,7 @@ def _format_magic_folder_status(now, magic_data):
                 yield u"Failed: {}".format(item)
 
 
-class RunOptions(BasedirOptions):
+class RunOptions(usage.Options):
     optParameters = [
         ("web-port", None, None,
          "String description of an endpoint on which to run the web interface (required).",
@@ -635,7 +608,7 @@ def main(options):
     from twisted.internet import  reactor
     service = MagicFolderService.from_node_directory(
         reactor,
-        options["node-directory"],
+        options.parent.node_directory,
         options["web-port"],
     )
     return service.run()
@@ -1033,6 +1006,27 @@ class MagicFolderCommand(BaseOptions):
     )
 
     @property
+    def node_directory(self):
+        if self["node-directory"] is None:
+            raise usage.UsageError(
+                "Must supply --node-directory (or -d)"
+            )
+        nd = self["node-directory"]
+        if not os.path.exists(nd):
+            raise usage.UsageError(
+                "'{}' does not exist".format(nd)
+            )
+        if not os.path.isdir(nd):
+            raise usage.UsageError(
+                "'{}' is not a directory".format(nd)
+            )
+        if not os.path.exists(os.path.join(nd, "tahoe.cfg")):
+            raise usage.UsageError(
+                "'{}' doesn't look like a Tahoe directory (no 'tahoe.cfg')".format(nd)
+            )
+        return nd
+
+    @property
     def parent(self):
         return None
 
@@ -1051,6 +1045,8 @@ class MagicFolderCommand(BaseOptions):
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
             raise usage.UsageError("must specify a subcommand")
+        # ensure our node-directory is valid
+        _ = self.node_directory
 
     def getSynopsis(self):
         return "Usage: magic-folder [global-options] <subcommand> [subcommand-options]"
