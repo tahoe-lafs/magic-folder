@@ -5,6 +5,7 @@ from shutil import rmtree
 
 from testtools.matchers import (
     Equals,
+    Contains,
     MatchesStructure,
     AfterPreprocessing,
     Always,
@@ -12,6 +13,7 @@ from testtools.matchers import (
 
 from testtools.twistedsupport import (
     succeeded,
+    failed,
 )
 
 from hypothesis import (
@@ -139,6 +141,34 @@ class TestLocalSnapshot(SyncTestCase):
             d,
             succeeded(
                 AfterPreprocessing(get_data, Equals(content))
+            )
+        )
+
+    @given(
+        content=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_snapshot_improper_parent(self, content, filename):
+        """
+        a snapshot with non-LocalSnapshot parents fails
+        """
+        data = io.BytesIO(content)
+
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=["not a LocalSnapshot instance"],
+        )
+
+        self.assertThat(
+            d,
+            failed(
+                AfterPreprocessing(
+                    str,
+                    Contains("Parent 0 is type <type 'str'> not LocalSnapshot")
+                )
             )
         )
 
