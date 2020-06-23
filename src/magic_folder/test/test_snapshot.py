@@ -141,7 +141,6 @@ class TestLocalSnapshot(SyncTestCase):
                 AfterPreprocessing(get_data, Equals(content))
             )
         )
-        # we should assert some stuff about snapshots[0] now
 
     @given(
         content1=binary(min_size=1),
