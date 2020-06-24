@@ -735,6 +735,7 @@ def _pair_magic_folder(reactor, alice_invite, alice, bob):
     yield _command(
         "--node-directory", bob.node_directory,
         "join",
+        "--author", "bob",
         "--poll-interval", "1",
         alice_invite,
         bob.magic_directory,

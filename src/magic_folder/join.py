@@ -8,6 +8,8 @@ import os
 
 from twisted.python import usage
 
+from allmydata.client import read_config
+
 from .magic_folder import (
     load_magic_folders,
     maybe_upgrade_magic_folders,
@@ -17,8 +19,13 @@ from .magic_folder import (
 from .common import (
     INVITE_SEPARATOR
 )
+from .snapshot import (
+    create_local_author,
+    write_local_author,
+)
 
-def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interval):
+
+def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interval, author_name):
     """
     Join a magic-folder specified by the ``name`` and create the config files.
 
@@ -35,6 +42,8 @@ def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interva
     :param integer poll_interval: Periodic time interval after which the
         client polls for updates.
 
+    :param unicode author_name: Our own name for Snapshot authorship
+
     :return integer: If the function succeeds, returns 0, else an exception
         is raised.
     """
@@ -48,6 +57,10 @@ def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interva
 
     if name in existing_folders:
         raise Exception("This client already has a magic-folder named '{}'".format(name))
+
+    author = create_local_author(author_name)
+    config = read_config(node_directory, "portnum")
+    write_local_author(author, name, config)
 
     db_fname = os.path.join(
         node_directory,

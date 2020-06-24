@@ -23,8 +23,6 @@ from twisted.web.http import (
     OK,
 )
 
-from allmydata.util import fileutil
-
 INVITE_SEPARATOR = "+"
 
 class BadFolderName(Exception):
@@ -90,11 +88,18 @@ def bad_response(url, response):
     body = yield readBody(response)
     raise BadResponseCode(url, response.code, body)
 
-def get_node_url(node_directory):
-    node_url_file = os.path.join(node_directory, u"node.url")
-    node_url = fileutil.read(node_url_file).strip()
 
+def get_node_url(node_directory):
+    """
+    :param str node_directory: A Tahoe client directory
+
+    :returns: the base URL for the Tahoe given client.
+    """
+    node_url_file = os.path.join(node_directory, u"node.url")
+    with open(node_url_file, "r") as f:
+        node_url = f.read().strip()
     return node_url
+
 
 @inlineCallbacks
 def tahoe_mkdir(nodeurl, treq):
