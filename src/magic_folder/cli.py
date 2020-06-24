@@ -1009,7 +1009,7 @@ class MagicFolderCommand(BaseOptions):
     def node_directory(self):
         if self["node-directory"] is None:
             raise usage.UsageError(
-                "Must supply --node-directory (or -d)"
+                "Must supply --node-directory (or -n)"
             )
         nd = self["node-directory"]
         if not os.path.exists(nd):
