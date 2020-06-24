@@ -62,6 +62,8 @@ install_requires = [
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
     "tahoe-lafs",
+
+    "treq",
 ]
 
 setup_requires = [
@@ -290,7 +292,6 @@ setup(name="magic_folder",
               "pytest",
               "pytest-twisted",
               "hypothesis >= 3.6.1",
-              "treq",
               "towncrier",
               "testtools",
               "fixtures",
