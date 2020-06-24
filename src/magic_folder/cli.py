@@ -975,7 +975,7 @@ class BaseOptions(usage.Options):
         ["version-and-path", None, "Display version numbers and paths to their locations."],
     ]
     optParameters = [
-        ["node-directory", "d", None, NODEDIR_HELP],
+        ["node-directory", "n", None, NODEDIR_HELP],
     ]
 
 class MagicFolderCommand(BaseOptions):
