@@ -172,6 +172,8 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     data is stashed in `snapshot_stash_dir` before this function
     returns.
 
+    :param name: The name for this snapshot (usually the 'mangled' filename).
+
     :param author: LocalAuthor instance (which will have a valid
         signing-key)
 
