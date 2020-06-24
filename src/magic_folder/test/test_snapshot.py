@@ -45,6 +45,7 @@ from magic_folder.snapshot import (
     create_local_author_from_config,
     write_local_author,
     create_snapshot,
+    LocalSnapshot,
 )
 
 
@@ -254,4 +255,52 @@ class TestLocalSnapshot(SyncTestCase):
         self.assertThat(
             d,
             succeeded(Always()),
+        )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_serialize_deserialize_snapshot(self, content1, content2, filename):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+        data1 = io.BytesIO(content1)
+
+        snapshots = []
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # now modify the same file and create a new local snapshot
+        data2 = io.BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash_dir,
+            parents=snapshots,
+        )
+        d.addCallback(snapshots.append)
+
+        serialized = snapshots[1].serialize()
+
+        reconstructed_local_snapshot = LocalSnapshot.deserialize(serialized, self.alice)
+
+        self.assertThat(
+            reconstructed_local_snapshot,
+            MatchesStructure(
+                name=Equals(filename),
+            )
         )

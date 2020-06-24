@@ -164,6 +164,58 @@ class LocalSnapshot(object):
         with open(self.content_path, "rb") as f:
             return f.read()
 
+    def serialize(self):
+        """
+        XXX
+        """
+        # return (json.dumps(self, default=lambda o: o.__dict__))
+        # name, author, metadata, content_path, parents_local
+        # Recursively serialize into one object.
+
+        def _serialized_dict(local_snapshot):
+            serialized = {
+                'name' : local_snapshot.name,
+                'metadata' : local_snapshot.metadata,
+                'content_path' : local_snapshot.content_path,
+                'parents_local' : [ _serialized_dict(parent) for parent in local_snapshot.parents_local ]
+            }
+
+            return serialized
+
+        serialized = _serialized_dict(self)
+
+        return (json.dumps(serialized))
+
+    @classmethod
+    def deserialize(cls, serialized, author):
+        """
+        Creates a LocalSnapshot from a serialized string that represents the LocalSnapshot.
+
+        :param str serialized: the JSON string that represents the LocalSnapshot
+
+        :param author: an instance of LocalAuthor
+
+        :returns: A LocalSnapshot object representation of the JSON serialized string.
+        """
+        local_snapshot_dict = json.loads(serialized)
+
+        def deserialize_dict(snapshot_dict, author):
+            name = snapshot_dict["name"]
+
+            # deserialize metadata
+            metadata = {}
+            metadata["ctime"] = snapshot_dict["metadata"]["ctime"]
+            metadata["mtime"] = snapshot_dict["metadata"]["mtime"]
+
+            return cls(
+                name=name,
+                author=author,
+                metadata=metadata,
+                content_path=snapshot_dict["content_path"],
+                parents_local=[ deserialize_dict(parent, author) for parent in snapshot_dict["parents_local"] ],
+            )
+
+        return deserialize_dict(local_snapshot_dict, author)
 
 @inlineCallbacks
 def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None):
@@ -199,6 +251,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     # parents, so the "parents" list may contain either kind in the
     # future.
     parents_local = []
+
     for idx, parent in enumerate(parents):
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
