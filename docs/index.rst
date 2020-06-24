@@ -16,6 +16,7 @@ Contents:
 
    ../.github/CONTRIBUTING
 
+   invites
    backdoors
    magic-folder-howto
 
