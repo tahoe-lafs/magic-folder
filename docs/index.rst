@@ -37,7 +37,8 @@ been) incompatible changes to how the feature is configured.
 We are very interested in feedback on how well this feature works for
 you.  We welcome suggestions to improve its usability, functionality,
 and reliability.  Please file issues you find with Magic Folder at the
-`GitHub project`_.
+`GitHub project`_, or chat with us on IRC in the channel
+``#tahoe-lafs`` on ``irc.freenode.net``.
 
 .. _`Open Technology Fund`: https://www.opentech.fund/
 .. _`Tahoe-LAFS`: https://tahoe-lafs.org/
