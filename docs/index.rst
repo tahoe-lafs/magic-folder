@@ -49,10 +49,10 @@ Contents
 
    usage
    invites
-   backdoors
    magic-folder-howto
    limitations
    proposed/index
+   backdoors
 
 Indices and tables
 ------------------
