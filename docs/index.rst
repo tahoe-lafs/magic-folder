@@ -18,8 +18,15 @@ The implementation of the "drop-upload" frontend, on which Magic
 Folder is based, was written as a prototype at the First International
 Tahoe-LAFS Summit in June 2011.  In 2015, with the support of a grant
 from the `Open Technology Fund`_, it was redesigned and extended to
-support synchronization between clients.  It currently works on all
-major platforms.
+support synchronization between clients.  It should work on all major
+platforms.
+
+.. warning::
+
+   At the time of this writing, we are in the process of refactoring
+   Magic Folder out of Tahoe-LAFS source tree and re-writing it.
+   Because of this state of development, the documentation you read
+   here may not be up-to-date, and subject to changes.
 
 Magic Folder is not currently in as mature a state as the other
 Tahoe-LAFS frontends (web, CLI, SFTP and FTP).  This means that you
