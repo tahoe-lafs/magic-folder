@@ -36,9 +36,8 @@ Known Issues and Limitations
 * If a file in the upload directory is changed (actually relinked to a
   new file), then the old file is still present on the grid, and any
   other caps to it will remain valid.  Eventually it will be possible
-  to use :doc:`../garbage-collection` to reclaim the space used by
-  these files; however currently they are retained
-  indefinitely. (`#2440`_)
+  to use `garbage collection`_ to reclaim the space used by these
+  files; however currently they are retained indefinitely. (`#2440`_)
 
 * Unicode filenames are supported on both Linux and Windows, but on
   Linux the local name of a file must be encoded correctly in order
@@ -59,3 +58,4 @@ Known Issues and Limitations
 .. _`#2218`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2218
 .. _`#2219`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2219
 .. _`#2440`: https://tahoe-lafs.org/trac/tahoe-lafs/ticket/2440
+.. _`garbage collection`: https://tahoe-lafs.readthedocs.io/en/latest/garbage-collection.html
