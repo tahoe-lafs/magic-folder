@@ -67,20 +67,13 @@ synchronized.  The local directory is not removed.
 
 See ``magic-folder leave --help`` for details.
 
-
-Configuring Magic Folder
-========================
-
-Magic Folder configuration lives in a Tahoe-LAFS node's private area.
-This is a historical artifact resulting from the origin of Magic
-Folder as a part of Tahoe-LAFS itself.
-
 Magic Folder configuration file
 -------------------------------
 
 The commands documented above manipulate ``magic_folders.yaml`` in the
-Tahoe-LAFS node's private area.  Configuration can be changed by
-modifying this file directly.
+Tahoe-LAFS node's private area.  This is a historical artifact
+resulting from the origin of Magic Folder as a part of Tahoe-LAFS
+itself. Configuration can be changed by modifying this file directly.
 
 Tahoe-LAFS also has historical configuration for Magic-Folder in the
 ``tahoe.cfg`` configuration file.  This configuration is deprecated.
