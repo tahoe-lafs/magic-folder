@@ -2,8 +2,8 @@
 
 .. _configuration:
 
-Usage
-=====
+Using Magic Folder
+==================
 
 Magic-Folder is used in two ways.  To interact with configuration, the
 ``magic-folder`` command line tool is used.  For details of this, see
@@ -15,13 +15,6 @@ To interact with content, use your normal filesystem-based tools.  The
 folder which Magic-Folder synchronizes is a normal folder in the
 filesystem.  The platform's filesystem change notification features
 are used to detect changes.
-
-Configuring Magic Folder
-========================
-
-Magic Folder configuration lives in a Tahoe-LAFS node's private area.
-This is a historical artifact resulting from the origin of Magic
-Folder as a part of Tahoe-LAFS itself.
 
 Creating Magic Folders
 ----------------------
@@ -74,6 +67,13 @@ synchronized.  The local directory is not removed.
 
 See ``magic-folder leave --help`` for details.
 
+
+Configuring Magic Folder
+========================
+
+Magic Folder configuration lives in a Tahoe-LAFS node's private area.
+This is a historical artifact resulting from the origin of Magic
+Folder as a part of Tahoe-LAFS itself.
 
 Magic Folder configuration file
 -------------------------------
