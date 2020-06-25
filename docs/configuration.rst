@@ -48,15 +48,18 @@ further changes to files in the folder will not be synchronized.
 The local directory is not removed.
 See ``magic-folder leave --help`` for details.
 
-magic_folders.yaml
-==================
 
-The commands documented above manipulate ``magic_folders.yaml`` in the Tahoe-LAFS node's private area.
-Configuration can be changed by modifying this file directly.
-Tahoe-LAFS also has historical configuration for Magic-Folder in the ``tahoe.cfg`` configuration file.
-This configuration is deprecated.
-In particular,
-the ``enabled`` boolean in the ``magic_folder`` section is ignored by Magic-Folder.
-It should be set to false to prevent any Magic-Folder functionality included in Tahoe-LAFS from activating.
-To activate the Magic-Folder configuration for a Tahoe-LAFS node,
-use ``magic-folder run``.
+Magic Folder configuration file
+-------------------------------
+
+The commands documented above manipulate ``magic_folders.yaml`` in the
+Tahoe-LAFS node's private area.  Configuration can be changed by
+modifying this file directly.
+
+Tahoe-LAFS also has historical configuration for Magic-Folder in the
+``tahoe.cfg`` configuration file.  This configuration is deprecated.
+In particular, the ``enabled`` boolean in the ``magic_folder`` section
+is ignored by Magic-Folder.  It should be set to false to prevent any
+Magic-Folder functionality included in Tahoe-LAFS from activating.  To
+activate the Magic-Folder configuration for a Tahoe-LAFS node, use
+``magic-folder run``.
