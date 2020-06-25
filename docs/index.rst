@@ -35,11 +35,13 @@ directory to result in successful uploads.  There might be (and have
 been) incompatible changes to how the feature is configured.
 
 We are very interested in feedback on how well this feature works for
-you and suggestions to improve its usability, functionality, and
-reliability.
+you.  We welcome suggestions to improve its usability, functionality,
+and reliability.  Please file issues you find with Magic Folder at the
+`GitHub project`_.
 
 .. _`Open Technology Fund`: https://www.opentech.fund/
 .. _`Tahoe-LAFS`: https://tahoe-lafs.org/
+.. _`GitHub project`: https://github.com/LeastAuthority/magic-folder
 
 Contents
 --------
