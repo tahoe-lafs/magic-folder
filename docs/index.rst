@@ -47,7 +47,7 @@ Contents
 .. toctree::
    :maxdepth: 1
 
-   configuration
+   usage
    invites
    backdoors
    magic-folder-howto
