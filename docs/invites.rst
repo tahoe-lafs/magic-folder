@@ -18,7 +18,7 @@ Glossary
   Folder.
 
 Invitation Process
-==================
+------------------
 
 Suppose Alice wants to collaborate with Bob and wish to share files.
 These are the steps Alice would take.
