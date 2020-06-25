@@ -8,11 +8,14 @@ How invites work
 Glossary
 --------
 
-Folder: an abstract directory that is synchronized between clients.
-(A folder is not the same as the directory corresponding to it on
-any particular client, nor is it the same as a DMD.)
-DMD: Distributed Mutable Directory
-Collective: the set of clients subscribed to a given Magic Folder.
+* **Folder**: An abstract directory that is synchronized between
+  clients.  A folder is not the same as the directory corresponding to
+  it on any particular client, nor is it the same as a DMD.
+
+* **DMD**: Distributed Mutable Directory
+
+* **Collective**: the set of clients subscribed to a given Magic
+  Folder.
 
 Invitation Process
 ==================
