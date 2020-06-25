@@ -1,6 +1,6 @@
 
-Tahoe-LAFS
-==========
+Magic Folder
+============
 
 .. Please view a nicely formatted version of this documentation at
    http://tahoe-lafs.readthedocs.io/en/latest/
