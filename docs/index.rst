@@ -3,7 +3,7 @@ Magic Folder
 ============
 
 .. Please view a nicely formatted version of this documentation at
-   http://tahoe-lafs.readthedocs.io/en/latest/
+   https://magic-folder.readthedocs.io/en/latest/
 
 Contents
 --------
