@@ -984,7 +984,7 @@ class BaseOptions(usage.Options):
         ["version-and-path", None, "Display version numbers and paths to their locations."],
     ]
     optParameters = [
-        ["node-directory", "d", None, NODEDIR_HELP],
+        ["node-directory", "n", None, NODEDIR_HELP],
     ]
 
 class MagicFolderCommand(BaseOptions):
@@ -1018,7 +1018,7 @@ class MagicFolderCommand(BaseOptions):
     def node_directory(self):
         if self["node-directory"] is None:
             raise usage.UsageError(
-                "Must supply --node-directory (or -d)"
+                "Must supply --node-directory (or -n)"
             )
         nd = self["node-directory"]
         if not os.path.exists(nd):
