@@ -5,8 +5,8 @@
 How invites work
 ================
 
-Glossarry
-'''''''''
+Glossary
+--------
 
 Folder: an abstract directory that is synchronized between clients.
 (A folder is not the same as the directory corresponding to it on
