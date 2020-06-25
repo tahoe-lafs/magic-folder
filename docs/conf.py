@@ -201,6 +201,10 @@ html_static_path = ['_static']
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'magic-folder-doc'
 
+html_css_files = [
+    'custom.css',
+]
+
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
