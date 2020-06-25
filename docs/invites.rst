@@ -23,34 +23,38 @@ Invitation Process
 Suppose Alice wants to collaborate with Bob and wish to share files.
 These are the steps Alice would take.
 
-0. Alice creates a magic-folder with a name, say "foo". She then proceeds
-to "invite" Bob to the folder. Only Alice as the creator of the folder
-can invite other people into the folder.
+0. Alice creates a magic-folder with a name, say "foo". She then
+   proceeds to "invite" Bob to the folder. Only Alice as the creator
+   of the folder can invite other people into the folder.
 
-1. Alice would create an unlinked directory and get the write cap. This
-directory would form the "DMD" of the folder. Let us call it `dmd_write_cap`.
+1. Alice would create an unlinked directory and get the write
+   cap. This directory would form the "DMD" of the folder. Let us call
+   it ``dmd_write_cap``.
 
 2. Alice would derive a read-only cap from the write cap derived in
-step #1. Let us call it `dmd_read_cap`.
+   step #1. Let us call it ``dmd_read_cap``.
 
 3. Alice creates a "collective" directory (Alice has write caps to it)
-and stores an alias corresponds to that directory in her
-"private/aliases" file. Let us call the write cap to the collective
-as "collective_write_cap". A side note: There should only be one user
-who has writecaps to the collective folder, since concurrent writes
-to a mutable directory by multiple users is not guaranteed to be
-consistent.
+   and stores an alias corresponds to that directory in her
+   ``private/aliases`` file.  Let us call the write cap to the
+   collective a ``collective_write_cap``.
 
-4. Alice derives a read-only cap to the collective. ("collective_read_cap")
+   A side note: There should only be one user who has writecaps to the
+   collective folder, since concurrent writes to a mutable directory
+   by multiple users is not guaranteed to be consistent.
 
-5. Alice stores read-only cap from step #2 in <collective>/nick file.
+4. Alice derives a read-only cap (``collective_read_cap``) to the
+   collective.
 
-6. To join the collective, Alice sends the string, "collective-read-cap +
-dmd_write_cap" to Bob.
+5. Alice stores read-only cap from step #2 in ``<collective>/nick``
+   file.
+
+6. To join the collective, Alice sends the string,
+   ``collective-read-cap + dmd_write_cap`` to Bob.
 
 7. Bob stores the collective_read_cap as "collective_dircap" and the
-"dmd_write_cap" as the "upload_dircap" in his in config file
-("private/magic_folders.yaml").
+   ``dmd_write_cap`` as the ``upload_dircap`` in his in config file,
+   ``private/magic_folders.yaml``.
 
 At this point Alice has stored Bob's nick in the collective. (Alice
 already stored her own nick during the "create" process when she invited
