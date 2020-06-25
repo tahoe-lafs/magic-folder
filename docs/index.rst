@@ -5,10 +5,6 @@ Magic Folder
 .. Please view a nicely formatted version of this documentation at
    https://magic-folder.readthedocs.io/en/latest/
 
-
-Introduction
-============
-
 Magic Folder synchronizes local directories on two or more clients.
 It uses a `Tahoe-LAFS`_ grid for storage.  Whenever a file is created
 or changed under the local directory of one of the clients, the change
