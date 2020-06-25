@@ -10,9 +10,9 @@ Introduction
 ============
 
 Magic Folder synchronizes local directories on two or more clients.
-It uses a Tahoe-LAFS grid for storage.  Whenever a file is created or
-changed under the local directory of one of the clients, the change is
-propagated to the grid and then to the other clients.
+It uses a `Tahoe-LAFS`_ grid for storage.  Whenever a file is created
+or changed under the local directory of one of the clients, the change
+is propagated to the grid and then to the other clients.
 
 The implementation of the "drop-upload" frontend, on which Magic
 Folder is based, was written as a prototype at the First International
@@ -32,7 +32,7 @@ you and suggestions to improve its usability, functionality, and
 reliability.
 
 .. _`Open Technology Fund`: https://www.opentech.fund/
-
+.. _`Tahoe-LAFS`: https://tahoe-lafs.org/
 
 Contents
 --------
