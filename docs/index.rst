@@ -11,13 +11,10 @@ Contents:
    :maxdepth: 2
 
    configuration
-
-   frontends/magic-folder
-
+   magic-folder
    invites
    backdoors
    magic-folder-howto
-
    proposed/index
 
 Indices and tables
