@@ -1,7 +1,7 @@
 .. _Known Issues in Magic-Folder:
 
-Known Issues and Limitations With Magic-Folder
-==============================================
+Known Issues and Limitations
+============================
 
 * The only way to determine whether uploads have failed is to look at
   the 'Operational Statistics' page linked from the Welcome page.
