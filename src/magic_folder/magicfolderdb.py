@@ -70,6 +70,16 @@ CREATE TABLE local_files
  last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
  last_downloaded_timestamp TIMESTAMP
 );
+
+CREATE TABLE local_snapshots
+(
+ index              INTEGER PRIMARY KEY,
+ foldername         TEXT,                         -- magic folder name that the file lives in
+ filename           TEXT,                         -- file name that the snapshot represents
+ content_path       TEXT,                         -- file path to the stashed contents
+ metadata_blob      BLOB,                         -- a JSON blob corresponding to the metadata
+ parents_local      INTEGER                       -- table index of the local parent snapshot
+);
 """
 
 
