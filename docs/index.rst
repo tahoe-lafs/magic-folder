@@ -14,8 +14,6 @@ Contents:
 
    frontends/magic-folder
 
-   ../.github/CONTRIBUTING
-
    invites
    backdoors
    magic-folder-howto
