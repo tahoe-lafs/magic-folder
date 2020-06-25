@@ -52,6 +52,7 @@ Contents
    invites
    backdoors
    magic-folder-howto
+   limitations
    proposed/index
 
 Indices and tables
