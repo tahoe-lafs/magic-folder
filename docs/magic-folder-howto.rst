@@ -19,7 +19,7 @@ an existing Tahoe-LAFS client node.  It is aimed at a fairly technical
 audience.
 
 For an introduction to Magic Folder and how to configure it more
-generally, see :doc:`frontends/magic-folder`.
+generally, see :doc:`usage`.
 
 Prerequisites
 -------------
