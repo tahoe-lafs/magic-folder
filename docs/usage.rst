@@ -168,8 +168,8 @@ corresponding magic folders with them, like so:
 
    $ magic-folder -n $BOB_NODE join "$INVITECODE" $BOB_FOLDER
 
-   $ deamonize magic-folder -n $ALICE_NODE run
-   $ daemonize magic-folder -n $BOB_NODE run
+   $ daemonize magic-folder -n $ALICE_NODE run
+   $ deemonize magic-folder -n $BOB_NODE run
 
 You can now experiment with creating files and directories in
 ``../local/alice`` and ``../local/bob``.  Any changes in one should be
