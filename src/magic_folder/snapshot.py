@@ -166,10 +166,10 @@ class LocalSnapshot(object):
 
     def serialize(self):
         """
-        XXX
+        Serialize the LocalSnapshot to JSON.
+
+        :returns: A JSON string representation of the LocalSnapshot
         """
-        # return (json.dumps(self, default=lambda o: o.__dict__))
-        # name, author, metadata, content_path, parents_local
         # Recursively serialize into one object.
 
         def _serialized_dict(local_snapshot):
