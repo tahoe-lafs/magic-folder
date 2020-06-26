@@ -159,8 +159,8 @@ corresponding magic folders with them, like so:
    $ ALICE_FOLDER=../local/alice
 
    $ mkdir -p $FOLDER_PATH
-   $ magic-folder -n $ALICE_NODE create magic: alice $FOLDER_PATH
-   $ magic-folder -n $ALICE_NODE invite magic: bob >invitecode
+   $ magic-folder --node-directory=$ALICE_NODE create magic: alice $FOLDER_PATH
+   $ magic-folder --node-directory=$ALICE_NODE invite magic: bob >invitecode
    $ export INVITECODE=$(cat invitecode)
 
    $ BOB_NODE=../grid/bob
@@ -168,8 +168,8 @@ corresponding magic folders with them, like so:
 
    $ magic-folder -n $BOB_NODE join "$INVITECODE" $BOB_FOLDER
 
-   $ daemonize magic-folder -n $ALICE_NODE run
-   $ deemonize magic-folder -n $BOB_NODE run
+   $ daemonize magic-folder --node-directory=$ALICE_NODE run
+   $ deemonize magic-folder --node-directory=$BOB_NODE run
 
 You can now experiment with creating files and directories in
 ``../local/alice`` and ``../local/bob``.  Any changes in one should be
