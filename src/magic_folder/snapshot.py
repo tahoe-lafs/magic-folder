@@ -9,6 +9,7 @@ from __future__ import print_function
 import os
 import time
 import json
+import base64
 from tempfile import mkstemp
 
 import attr
@@ -23,8 +24,14 @@ from twisted.web.client import (
 
 import magic_folder
 
+from eliot import (
+    start_action,
+    register_exception_extractor,
+)
+
 from nacl.signing import (
     SigningKey,
+    VerifyKey,
 )
 from nacl.encoding import (
     Base64Encoder,
