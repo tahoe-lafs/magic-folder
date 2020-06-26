@@ -49,7 +49,6 @@ Contents
 
    usage
    invites
-   magic-folder-howto
    limitations
    proposed/index
    backdoors
