@@ -251,6 +251,7 @@ class LocalSnapshot(object):
     metadata = attr.ib()
     content_path = attr.ib()  # full filesystem path to our stashed contents
     parents_local = attr.ib()  # LocalSnapshot instances
+    parents_remote = attr.ib(default=attr.Factory(list))  # capability-strings
 
     # once we do uploads / downloads and have RemoteSnapshots, we will
     # also have those kind of parents too:
