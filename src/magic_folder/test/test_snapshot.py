@@ -19,10 +19,12 @@ from testtools.matchers import (
     Always,
     HasLength,
 )
-
 from testtools.twistedsupport import (
     succeeded,
     failed,
+)
+from testtools import (
+    ExpectedException,
 )
 
 from hyperlink import (
@@ -64,6 +66,7 @@ from .strategies import (
 from magic_folder.snapshot import (
     create_local_author,
     create_local_author_from_config,
+    create_author_from_json,
     write_local_author,
     create_snapshot,
     LocalSnapshot,
@@ -118,6 +121,48 @@ class TestLocalAuthor(SyncTestCase):
                 verify_key=Equals(alice.verify_key),
             )
         )
+
+
+class TestRemoteAuthor(AsyncTestCase):
+    """
+    Test serialization (to/from JSON) of RemoteAuthor
+    """
+
+    def setUp(self):
+        """
+        We have Alices's signing+verify key
+        """
+        d = super(TestRemoteAuthor, self).setUp()
+        self.alice = create_local_author("alice")
+        return d
+
+    def test_author_serialize(self):
+        js = self.alice.to_remote_author().to_json()
+        alice2 = create_author_from_json(js)
+
+        self.assertThat(
+            alice2,
+            MatchesStructure(
+                name=Equals(self.alice.name),
+                verify_key=Equals(self.alice.verify_key),
+            )
+        )
+
+    def test_author_serialize_extra_data(self):
+        js = {
+            "name": "wrong",
+            "invalid_key": 42,
+        }
+        with ExpectedException(ValueError, ".*key 'invalid_key'.*"):
+            create_author_from_json(js)
+
+    def test_author_serialize_missing_data(self):
+        js = {
+            "name": "foo",
+            # mising verify_key
+        }
+        with ExpectedException(ValueError, ".*requires 'verify_key'.*"):
+            create_author_from_json(js)
 
 
 class TestLocalSnapshot(SyncTestCase):
