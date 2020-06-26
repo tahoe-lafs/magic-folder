@@ -64,6 +64,20 @@ details about this.
 
 See ``magic-folder create --help`` for specific usage details.
 
+Listing Magic Folders
+---------------------
+
+Existing magic folders can be listed using the ``magic-folder list``
+command:
+
+.. code-block:: console
+
+   $ magic-folder --node-directory=alice list
+   This client has the following magic-folders:
+     default: /home/alice/Work/Magic
+       magic: /home/alice/Documents/Shared
+
+
 Inviting Participant Devices
 ----------------------------
 
@@ -178,4 +192,3 @@ It is also possible to run the nodes on different machines, to
 synchronize between three or more clients, to mix Windows and Linux
 clients, and to use multiple servers (as long as the Tahoe-LAFS
 encoding parameters are changed).
-
