@@ -98,6 +98,14 @@ activate the Magic-Folder configuration for a Tahoe-LAFS node, use
 Setting up Magic Folder
 -----------------------
 
+This is preliminary documentation of how to set up Magic Folder using
+an existing Tahoe-LAFS client node.  It is aimed at a fairly technical
+audience.
+
+For an introduction to Magic Folder and how to configure it more
+generally, see :doc:`usage`.
+
+
 Run::
 
   ALICE_NODE=../grid/alice
