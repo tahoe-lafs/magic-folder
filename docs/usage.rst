@@ -47,37 +47,56 @@ Creating Magic Folders
 ----------------------
 
 A new magic folder is created using the ``magic-folder create``
-command.  A magic folder is created with an alias, a nickname, and a
-local directory.  The root capability for the new magic folder is
-assigned the given nickname.
+command:
+
+.. code-block:: console
+
+   $ magic-folder --node-directory=alice create magic: shared-docs /home/alice/Documents/Shared
+
+A magic folder is created with an alias (such as ``magic:`` in the
+above command), a nickname (such as ``shared-docs``), and a local
+directory (such as ``~/Documents/Shared``).  The root capability for
+the new magic folder is assigned the given nickname.
 
 If the nickname and local directory are given, the client also invites
 itself to join the folder.  See `Joining a Magic Folder`_ for more
-details about this.  See ``magic-folder create --help`` for specific
-usage details.
+details about this.
+
+See ``magic-folder create --help`` for specific usage details.
 
 Inviting Participant Devices
 ----------------------------
 
 A new participant device is invited to collaborate on a magic folder
-using the ``magic-folder invite`` command.
+using the ``magic-folder invite`` command:
 
-An invitation is created using an alias for an existing magic folder
-and a nickname for the new participant device.  The magic folder alias
-identifies a previously created magic folder.  The nickname is
-assigned to the participant device in the magic folder configuration
-and grid state.  Note that only the creator of a magic folder can
-invite new participant devices.
+
+.. code-block:: console
+
+   $ magic-folder --node-device=alice invite magic: bob
+
+An invitation code is created using an alias for an existing magic
+folder (``magic:`` above) and a nickname for the new participant
+device (``bob`` above).  The magic folder alias identifies a
+previously created magic folder.  The nickname is assigned to the
+participant device in the magic folder configuration and grid state.
+Note that only the creator of a magic folder can invite new
+participant devices.
 
 Joining a Magic Folder
 ----------------------
 
 A participant device accepts an invitation using the ``magic-folder
-join`` command.  The first argument required is an invitation code, as
-described in `Inviting Participant Devices`_ is required.  The second
-argument required is the path to a local directory.  This is the
-directory to which content will be downloaded and from which it will
-be uploaded.
+join`` command:
+
+.. code-block:: console
+
+   $ magic-folder -d bob join $INVITECODE /home/bob/Documents/Shared
+
+The first argument required is an invitation code, as described in
+`Inviting Participant Devices`_ is required.  The second argument
+required is the path to a local directory.  This is the directory to
+which content will be downloaded and from which it will be uploaded.
 
 Further options are documented in ``magic-folder join --help``.
 
