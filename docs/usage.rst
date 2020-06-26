@@ -87,7 +87,7 @@ using the ``magic-folder invite`` command:
 
 .. code-block:: console
 
-   $ magic-folder --node-device=alice invite magic: bob
+   $ magic-folder --node-directory=alice invite magic: bob
 
 An invitation code is created using an alias for an existing magic
 folder (``magic:`` above) and a nickname for the new participant
