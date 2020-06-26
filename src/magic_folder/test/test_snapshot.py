@@ -3,6 +3,14 @@ import os
 from tempfile import mktemp
 from shutil import rmtree
 
+from nacl.signing import (
+    SigningKey,
+    VerifyKey,
+)
+from nacl.exceptions import (
+    BadSignatureError,
+)
+
 from testtools.matchers import (
     Equals,
     Contains,
@@ -17,6 +25,10 @@ from testtools.twistedsupport import (
     failed,
 )
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from hypothesis import (
     given,
 )
@@ -27,9 +39,16 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    inlineCallbacks,
+)
 
 from allmydata.client import (
     read_config,
+)
+from allmydata.testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
 )
 
 from .fixtures import (
@@ -37,6 +56,7 @@ from .fixtures import (
 )
 from .common import (
     SyncTestCase,
+    AsyncTestCase,
 )
 from .strategies import (
     magic_folder_filenames,
@@ -47,6 +67,11 @@ from magic_folder.snapshot import (
     write_local_author,
     create_snapshot,
     LocalSnapshot,
+    create_snapshot_from_capability,
+    write_snapshot_to_tahoe,
+)
+from magic_folder.tahoe_client import (
+    create_tahoe_client,
 )
 
 from .. import (
