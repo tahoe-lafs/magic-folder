@@ -61,6 +61,17 @@ example, you can run the test suite on multiple cores to speed it up:
 
 * ``MAGIC_FOLDER_TRIAL_ARGS="-j4" tox``
 
+Documentation
+=============
+
+Documentation is written as reStructuredText documents and processed
+using Sphinx; you will need ``sphinx`` and ``sphinx_rtd_theme``.  To
+generate HTML version of Magic Folder documents, do:
+
+* ``cd docs; make html``
+
+Resulting HTML files will be under ``docs/_build/html/``.
+
 LICENCE
 =======
 

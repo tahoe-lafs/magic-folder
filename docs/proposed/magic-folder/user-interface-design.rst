@@ -63,10 +63,12 @@ modifying the collective directory in a way that would lose data. This motivates
 ensuring that each client only has access to the caps above, rather than, say,
 every client having a write cap to the collective directory.
 
-Another important design constraint is that we cannot violate the :doc:`write
-coordination directive<../../write_coordination>`; that is, we cannot write to
-the same mutable directory from multiple clients, even during the setup phase
+Another important design constraint is that we cannot violate the
+`write coordination directive`_; that is, we cannot write to the same
+mutable directory from multiple clients, even during the setup phase
 when adding a client.
+
+.. _`write coordination directive`: https://tahoe-lafs.readthedocs.io/en/latest/write_coordination.html
 
 Within these constraints, for usability we want to minimize the number of steps
 required to configure a Magic Folder collective.
@@ -175,14 +177,13 @@ to add, modify or delete any object within the Magic Folder,
 we considered the potential security/reliability improvement
 here not to be worth the loss of usability.
 
-We also considered a design where each client had write access to
-the collective directory. This would arguably be a more serious
-violation of the Principle of Least Authority than the one above
-(because all clients would have excess authority rather than just
-the inviter). In any case, it was not clear how to make such a
-design satisfy the :doc:`write coordination
-directive<../../write_coordination>`, because the collective
-directory would have needed to be written to by multiple clients.
+We also considered a design where each client had write access to the
+collective directory. This would arguably be a more serious violation
+of the Principle of Least Authority than the one above (because all
+clients would have excess authority rather than just the inviter). In
+any case, it was not clear how to make such a design satisfy the
+`write coordination directive`_, because the collective directory
+would have needed to be written to by multiple clients.
 
 The reliance on a secure channel to send the invitation to its
 intended recipient is not ideal, since it may involve additional

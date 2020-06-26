@@ -21,3 +21,4 @@ _trial_temp/
 magic-folder-cli.*.eliot
 eliot.log
 integration.eliot.json
+docs/_build/
