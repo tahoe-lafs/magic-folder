@@ -96,7 +96,7 @@ def create_tahoe_client(url, http_client):
     Create a new TahoeClient instance that is speaking to a particular
     Tahoe node.
 
-    :param url: the baes URL of the Tahoe instance
+    :param url: the base URL of the Tahoe instance
 
     :param http_client: a Treq HTTP client
 
@@ -104,8 +104,8 @@ def create_tahoe_client(url, http_client):
     """
 
     client = TahoeClient(
-        url=DecodedURL.from_text(base_url),
-        http_client=treq_client,
+        url=DecodedURL.from_text(url),
+        http_client=http_client,
     )
     yield  # maybe we want to at least try getting / to see if it's alive?
     returnValue(client)
