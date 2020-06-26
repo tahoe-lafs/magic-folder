@@ -7,7 +7,7 @@ Using Magic Folder
 
 Magic-Folder is used in two ways.  To interact with configuration, the
 ``magic-folder`` command line tool is used.  For details of this, see
-the `configuration`_ documentation.  For additional information see
+the section on :ref:`config-file`.  For additional information see
 `Magic Folder CLI design`_.
 
 .. _`Magic Folder CLI design`: ../proposed/magic-folder/user-interface-design
@@ -76,6 +76,8 @@ folder, further changes to files in the folder will not be
 synchronized.  The local directory is not removed.
 
 See ``magic-folder leave --help`` for details.
+
+.. _config-file:
 
 Magic Folder configuration file
 -------------------------------
