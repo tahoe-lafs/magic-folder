@@ -6,6 +6,7 @@ from collections import namedtuple
 from allmydata.util.dbutil import get_db, DBError
 from .util.eliotutil import (
     RELPATH,
+    FOLDERNAME
     VERSION,
     LAST_UPLOADED_URI,
     LAST_DOWNLOADED_URI,
@@ -51,6 +52,12 @@ UPDATE_ENTRY = ActionType(
     u"Record some metadata about a relative path in the magic-folder.",
 )
 
+STORE_OR_UPDATE_SNAPSHOTS = ActionType(
+    u"magic-folder-db:update-snapshot-entry",
+    [RELPATH, FOLDERNAME],
+    [_INSERT_OR_UPDATE],
+    u"Persist local snapshot object of a relative path in the magic-folder db.",
+)
 
 # magic-folder db schema version 1
 SCHEMA_v1 = """
@@ -73,12 +80,9 @@ CREATE TABLE local_files
 
 CREATE TABLE local_snapshots
 (
- index              INTEGER PRIMARY KEY,
+ path               TEXT PRIMARY KEY,             -- UTF-8 relative filepath that the snapshot represents
  foldername         TEXT,                         -- magic folder name that the file lives in
- filename           TEXT,                         -- file name that the snapshot represents
- content_path       TEXT,                         -- file path to the stashed contents
- metadata_blob      BLOB,                         -- a JSON blob corresponding to the metadata
- parents_local      INTEGER                       -- table index of the local parent snapshot
+ snapshot_blob      BLOB                          -- a JSON blob representing the snapshot instance
 );
 """
 
@@ -210,5 +214,25 @@ class MagicFolderDB(object):
                                     (pathinfo.size, pathinfo.mtime_ns, pathinfo.ctime_ns, version,
                                      last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp,
                                      relpath_u))
+                action.add_success_fields(insert_or_update=u"update")
+            self.connection.commit()
+
+    def store_local_snapshot(self, serialized_snapshot, path, foldername):
+        """
+        XXX
+        """
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=path,
+            foldername=foldername,
+        )
+        with action:
+            try:
+                self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?,?)",
+                                    (path, foldername, serialized_snapshot))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+                self.cursor.execute("UPDATE local_snapshots"
+                                    " SET path=?, foldername=?, snapshot_blob=?",
+                                    (path, foldername, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
