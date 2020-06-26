@@ -350,41 +350,12 @@ class RemoteSnapshot(object):
     parents_raw = attr.ib()
     content_cap = attr.ib()
 
-    def count_parents(self):
-        """
-        XXX or something
-        """
-        return len(self.parents_raw)
-
-    @property
-    def signature(self):
-        return self.metadata["author_signature"]
-
-    @inlineCallbacks
-    def fetch_parent(self, parent_index, tahoe_client):
-        """
-        Fetches the given parent.
-
-        :param int parent_index: which parent to fetch
-
-        :param tahoe_client: the Tahoe client to use to retrieve
-            capabilities
-
-        :returns: a Snapshot instance or raises an exception
-        """
-        assert parent_index >= 0 and parent_index < len(self.parents_raw)
-        raise NotImplemented
-
     @inlineCallbacks
     def fetch_content(self, tahoe_client, writable_file):
         """
         Fetches our content from the grid, returning an IBodyProducer?
         """
         yield tahoe_client.stream_capability(self.content_cap, writable_file)
-        # XXX returns some kind of streaming API to download the content
-        # XXX OR it just downloads all the content into memory and returns it?
-        # XXX OR you give this a file-like to WRITE into
-
 
 
 @inlineCallbacks
