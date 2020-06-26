@@ -91,32 +91,20 @@ class TahoeClient(object):
 
 
 @inlineCallbacks
-def create_tahoe_client(node_directory, treq_client=None):
+def create_tahoe_client(url, http_client):
     """
     Create a new TahoeClient instance that is speaking to a particular
     Tahoe node.
 
-    XXX is treq_client= enough of a hook to get a 'testing' treq
-    client?.
+    :param url: the baes URL of the Tahoe instance
+
+    :param http_client: a Treq HTTP client
+
+    :returns: a TahoeClient instance
     """
 
-    # real:
-    # client = create_tahoe_client(tmpdir)
-
-    # testing:
-    # root = create_fake_tahoe_root()
-    # client = create_tahoe_client(tmpdir, treq_client=create_tahoe_treq_client(root))
-
-    # from allmydata.node import read_config  ??
-    base_url = get_node_url(node_directory)
-    url = DecodedURL.from_text(base_url)
-
-    if treq_client is None:
-        treq_client = HTTPClient(
-            agent=BrowserLikeRedirectAgent(),
-        )
     client = TahoeClient(
-        url=url,
+        url=DecodedURL.from_text(base_url),
         http_client=treq_client,
     )
     yield  # maybe we want to at least try getting / to see if it's alive?

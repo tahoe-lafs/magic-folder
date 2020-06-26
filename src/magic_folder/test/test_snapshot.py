@@ -254,52 +254,6 @@ class TestLocalSnapshot(SyncTestCase):
         )
 
     @given(
-        content=binary(min_size=1),
-        filename=magic_folder_filenames(),
-    )
-    def test_snapshot_roundtrip(self, content, filename):
-        """
-        Create a local snapshot, write into tahoe to create a remote snapshot,
-        then read back the data from the snapshot cap to recreate the remote
-        snapshot and check if it is the same as the previous one.
-        """
-        data = io.BytesIO(content)
-
-        snapshots = []
-        # create LocalSnapshot
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[],
-        )
-        d.addCallback(snapshots.append)
-        self.assertThat(
-            d,
-            succeeded(Always()),
-        )
-
-        # create remote snapshot
-        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
-        d.addCallback(snapshots.append)
-
-        # snapshots[1] is a RemoteSnapshot
-        # print("remote snapshot: {}".format(snapshots[1]))
-
-        # now, recreate remote snapshot from the cap string and compare with the original.
-        # Check whether information is preserved across these changes.
-
-        snapshot_d = create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client)
-        self.assertThat(snapshot_d, succeeded(Always()))
-        snapshot = snapshot_d.result
-
-        self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
-        content_io = io.BytesIO()
-        snapshot.fetch_content(self.tahoe_client, content_io)
-        self.assertEqual(content_io.getvalue(), content)
-
-    @given(
         content1=binary(min_size=1),
         content2=binary(min_size=1),
         filename=magic_folder_filenames(),
@@ -343,6 +297,88 @@ class TestLocalSnapshot(SyncTestCase):
             d,
             succeeded(Always()),
         )
+
+
+class TestRemoteSnapshot(AsyncTestCase):
+    """
+    Test upload and download of LocalSnapshot (creating RemoteSnapshot)
+    """
+
+    @inlineCallbacks
+    def setUp(self):
+        super(TestRemoteSnapshot, self).setUp()
+        self.root = create_fake_tahoe_root()
+        self.http_client = yield create_tahoe_treq_client(self.root)
+        self.tahoe_client = yield create_tahoe_client(
+            u"http://example.com",
+            self.http_client,
+        )
+        self.alice = create_local_author("alice")
+        self.stash_dir = mktemp()
+        os.mkdir(self.stash_dir)
+
+    def tearDown(self):
+        rmtree(self.stash_dir)
+        return super(TestRemoteSnapshot, self).tearDown()
+
+    def _download_content(self, snapshot_cap):
+        d = self.tahoe_client.download_capability(snapshot_cap)
+        data = json.loads(d.result)
+        content_cap = data["content"][1]["ro_uri"]
+        sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
+        # XXX is it "testtools-like" to check the signature here too?
+        return self.tahoe_client.download_capability(content_cap)
+
+    @given(
+        content=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_snapshot_roundtrip(self, content, filename):
+        """
+        Create a local snapshot, write into tahoe to create a remote snapshot,
+        then read back the data from the snapshot cap to recreate the remote
+        snapshot and check if it is the same as the previous one.
+        """
+        data = io.BytesIO(content)
+
+        snapshots = []
+        # create LocalSnapshot
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # create remote snapshot
+        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # snapshots[1] is a RemoteSnapshot
+        # print("remote snapshot: {}".format(snapshots[1]))
+
+        # now, recreate remote snapshot from the cap string and compare with the original.
+        # Check whether information is preserved across these changes.
+
+        snapshot_d = create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client)
+        self.assertThat(snapshot_d, succeeded(Always()))
+        snapshot = snapshot_d.result
+
+        self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
+        content_io = io.BytesIO()
+        snapshot.fetch_content(self.tahoe_client, content_io)
+        self.assertEqual(content_io.getvalue(), content)
 
     @given(
         content1=binary(min_size=1),
@@ -454,4 +490,3 @@ class TestLocalSnapshot(SyncTestCase):
                 parents_local=HasLength(0),
             )
         )
-
