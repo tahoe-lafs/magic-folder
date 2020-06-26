@@ -5,27 +5,30 @@
 How invites work
 ================
 
-Glossary
---------
+Let us clarify the glossary first:
 
-* **Folder**: An abstract directory that is synchronized between
+* A **folder** is an abstract directory that is synchronized between
   clients.  A folder is not the same as the directory corresponding to
   it on any particular client, nor is it the same as a DMD.
 
-* **DMD**: Distributed Mutable Directory
+* **DMD**, abbrevition for Distributed Mutable Directory, is a
+  physical Tahoe-LAFS mutable directory.  Each client has the write
+  capability to their own DMD, and read capabilities to all other
+  client's DMDs.
 
-* **Collective**: the set of clients subscribed to a given Magic
+* A **collective** is the set of clients subscribed to a given Magic
   Folder.
 
 Invitation Process
 ------------------
 
-Suppose Alice wants to collaborate with Bob and wish to share files.
-These are the steps Alice would take.
+Suppose Alice wants to share files with Bob.  These are the steps
+Alice would take.
 
-0. Alice creates a magic-folder with a name, say "foo". She then
-   proceeds to "invite" Bob to the folder. Only Alice as the creator
-   of the folder can invite other people into the folder.
+0. Alice creates a magic-folder with a name, say
+   ``/home/alice/Documents/Shared``.  She then proceeds to "invite"
+   Bob to the folder.  Only Alice as the creator of the folder can
+   invite other people into the folder.
 
 1. Alice would create an unlinked directory and get the write
    cap. This directory would form the "DMD" of the folder. Let us call
@@ -37,11 +40,10 @@ These are the steps Alice would take.
 3. Alice creates a "collective" directory (Alice has write caps to it)
    and stores an alias corresponds to that directory in her
    ``private/aliases`` file.  Let us call the write cap to the
-   collective a ``collective_write_cap``.
-
-   A side note: There should only be one user who has writecaps to the
-   collective folder, since concurrent writes to a mutable directory
-   by multiple users is not guaranteed to be consistent.
+   collective a ``collective_write_cap``.  Note that there should only
+   be one user who has writecaps to the collective folder, since
+   concurrent writes to a mutable directory by multiple users is not
+   guaranteed to be consistent.
 
 4. Alice derives a read-only cap (``collective_read_cap``) to the
    collective.
