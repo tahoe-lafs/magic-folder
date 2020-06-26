@@ -26,6 +26,23 @@ configured storage nodes.  The client nodes must all share the same
 storage nodes.  The nodes must be running.
 
 
+Running a Magic Folder process
+------------------------------
+
+If you are running a Tahoe-LAFS client off a Tahoe-LAFS node directory
+``alice``, like so:
+
+.. code-block:: console
+
+   $ tahoe --node-directory=alice run
+
+you can start the corresponding magic folder process like so:
+
+.. code-block:: console
+
+   $ magic-folder --node-directory=alice run --web-port tcp:6000
+
+
 Creating Magic Folders
 ----------------------
 
