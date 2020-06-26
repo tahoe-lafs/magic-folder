@@ -50,8 +50,8 @@ Contents
    usage
    invites
    limitations
-   proposed/index
    backdoors
+   proposed/index
 
 Indices and tables
 ------------------
