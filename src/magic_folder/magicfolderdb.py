@@ -6,7 +6,7 @@ from collections import namedtuple
 from allmydata.util.dbutil import get_db, DBError
 from .util.eliotutil import (
     RELPATH,
-    FOLDERNAME
+    FOLDERNAME,
     VERSION,
     LAST_UPLOADED_URI,
     LAST_DOWNLOADED_URI,
@@ -233,8 +233,9 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
                 self.cursor.execute("UPDATE local_snapshots"
-                                    " SET path=?, foldername=?, snapshot_blob=?",
-                                    (path, foldername, serialized_snapshot))
+                                    " SET foldername=?, snapshot_blob=?"
+                                    " WHERE path=?",
+                                    (foldername, serialized_snapshot, path))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
@@ -250,4 +251,4 @@ class MagicFolderDB(object):
         if not row:
             return None
         else:
-            return snapshot_blob[0]
+            return row[0]

@@ -21,6 +21,7 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
+    text,
 )
 
 from twisted.python.filepath import (
@@ -47,7 +48,11 @@ from magic_folder.snapshot import (
     create_snapshot,
     LocalSnapshot,
 )
+from allmydata.util.fileutil import abspath_expanduser_unicode
 
+from .. import (
+    magicfolderdb,
+)
 
 class TestLocalAuthor(SyncTestCase):
     """
@@ -100,10 +105,22 @@ class TestLocalSnapshot(SyncTestCase):
         self.alice = create_local_author("alice")
         self.stash_dir = mktemp()
         os.mkdir(self.stash_dir)
+
+        # create a magicfolder db
+        self.tempdb=abspath_expanduser_unicode(unicode(mktemp()))
+        os.mkdir(self.tempdb)
+        dbfile= abspath_expanduser_unicode(u"test_snapshot.sqlite", base=self.tempdb)
+        self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
+
+        self.failUnless(self.db, "unable to create magicfolderdb from %r" % (dbfile,))
+        self.failUnlessEqual(self.db.VERSION, 1)
+
         return super(TestLocalSnapshot, self).setUp()
 
     def tearDown(self):
         rmtree(self.stash_dir)
+        self.db.close()
+        rmtree(self.tempdb)
         return super(TestLocalSnapshot, self).tearDown()
 
     @given(
@@ -304,3 +321,70 @@ class TestLocalSnapshot(SyncTestCase):
                 name=Equals(filename),
             )
         )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        foldername=text(min_size=1),
+    )
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, foldername):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+        data1 = io.BytesIO(content1)
+
+        snapshots = []
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        serialized = snapshots[0].serialize()
+        self.db.store_local_snapshot(serialized, filename, foldername)
+
+        # now modify the same file and create a new local snapshot
+        data2 = io.BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash_dir,
+            parents=snapshots,
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        serialized = snapshots[1].serialize()
+        self.db.store_local_snapshot(serialized, filename, foldername)
+
+        # now read back the serialized snapshot from db
+        snapshot_blob = self.db.get_snapshot(filename, foldername)
+
+        reconstructed_local_snapshot = LocalSnapshot.deserialize(snapshot_blob, self.alice)
+
+        self.assertThat(
+            reconstructed_local_snapshot,
+            MatchesStructure(
+                name=Equals(filename),
+            )
+        )
+
+        # the initial snapshot does not have parent snapshots
+        self.assertThat(
+            reconstructed_local_snapshot.parents_local[0],
+            MatchesStructure(
+                parents_local=Equals([]),
+            )
+        )
+
