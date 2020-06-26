@@ -21,13 +21,6 @@ audience.
 For an introduction to Magic Folder and how to configure it more
 generally, see :doc:`usage`.
 
-Prerequisites
--------------
-
-You must have one or more Tahoe-LAFS client nodes configured to be
-able to store objects somewhere.  They must be able to reach their
-configured storage nodes.  The client nodes must all share the same
-storage nodes.  The nodes must be running.
 
 Setting up Magic Folder
 -----------------------

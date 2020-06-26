@@ -16,6 +16,15 @@ folder which Magic-Folder synchronizes is a normal folder in the
 filesystem.  The platform's filesystem change notification features
 are used to detect changes.
 
+Prerequisites
+-------------
+
+You must have one or more Tahoe-LAFS client nodes configured to be
+able to store objects somewhere.  They must be able to reach their
+configured storage nodes.  The client nodes must all share the same
+storage nodes.  The nodes must be running.
+
+
 Creating Magic Folders
 ----------------------
 
@@ -82,3 +91,4 @@ is ignored by Magic-Folder.  It should be set to false to prevent any
 Magic-Folder functionality included in Tahoe-LAFS from activating.  To
 activate the Magic-Folder configuration for a Tahoe-LAFS node, use
 ``magic-folder run``.
+
