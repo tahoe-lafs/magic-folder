@@ -145,40 +145,34 @@ Magic-Folder functionality included in Tahoe-LAFS from activating.  To
 activate the Magic-Folder configuration for a Tahoe-LAFS node, use
 ``magic-folder run``.
 
-Setting up Magic Folder
------------------------
 
-This is preliminary documentation of how to set up Magic Folder using
-an existing Tahoe-LAFS client node.  It is aimed at a fairly technical
-audience.
+A quick test
+------------
 
-For an introduction to Magic Folder and how to configure it more
-generally, see :doc:`usage`.
+If you want to test that things work as expected using a single
+machine, you can create two separate Tahoe-LAFS nodes, and assign
+corresponding magic folders with them, like so:
 
+.. code-block:: console
 
-Run::
+   $ ALICE_NODE=../grid/alice
+   $ ALICE_FOLDER=../local/alice
 
-  ALICE_NODE=../grid/alice
-  ALICE_FOLDER=../local/alice
+   $ mkdir -p $FOLDER_PATH
+   $ magic-folder -n $ALICE_NODE create magic: alice $FOLDER_PATH
+   $ magic-folder -n $ALICE_NODE invite magic: bob >invitecode
+   $ export INVITECODE=$(cat invitecode)
 
-  mkdir -p $FOLDER_PATH
-  magic-folder -d $NODE_PATH create magic: alice $FOLDER_PATH
-  magic-folder -d $NODE_PATH invite magic: bob >invitecode
-  export INVITECODE=$(cat invitecode)
+   $ BOB_NODE=../grid/bob
+   $ BOB_FOLDER=../local/bob
 
-  BOB_NODE=../grid/bob
-  BOB_FOLDER=../local/bob
+   $ magic-folder -n $BOB_NODE join "$INVITECODE" $BOB_FOLDER
 
-  magic-folder -d $BOB_NODE join "$INVITECODE" $BOB_FOLDER
-
-  deamonize magic-folder -d $ALICE_NODE run
-  daemonize magic-folder -d $BOB_NODE run
-
-Testing
--------
+   $ deamonize magic-folder -n $ALICE_NODE run
+   $ daemonize magic-folder -n $BOB_NODE run
 
 You can now experiment with creating files and directories in
-``../local/alice`` and ``/local/bob``.  Any changes should be
+``../local/alice`` and ``../local/bob``.  Any changes in one should be
 propagated to the other directory.
 
 Note that when a file is deleted, the corresponding file in the other
