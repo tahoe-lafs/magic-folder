@@ -458,17 +458,19 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
             "create_snapshot 'author' must be a LocalAuthor instance"
         )
 
-    # when we do uploads, we will distinguish between remote and local
-    # parents, so the "parents" list may contain either kind in the
-    # future.
+    # separate the two kinds of parents we can have (LocalSnapshot or
+    # RemoteSnapshot)
     parents_local = []
+    parents_remote = []
 
     for idx, parent in enumerate(parents):
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
+        elif isinstance(parent, RemoteSnapshot):
+            parents_remote.append(parent)
         else:
             raise ValueError(
-                "Parent {} is type {} not LocalSnapshot".format(
+                "Parent {} is type {} not LocalSnapshot or RemoteSnapshot".format(
                     idx,
                     type(parent),
                 )
@@ -509,6 +511,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
             },
             content_path=temp_file_name,
             parents_local=parents_local,
+            parents_remote=parents_remote,
         )
     )
 

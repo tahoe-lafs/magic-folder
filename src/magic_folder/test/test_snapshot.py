@@ -533,5 +533,83 @@ class TestRemoteSnapshot(AsyncTestCase):
             reconstructed_local_snapshot.parents_local[0],
             MatchesStructure(
                 parents_local=HasLength(0),
+
+    @given(
+        content=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_snapshot_remote_parent(self, content, filename):
+        """
+        Create a local snapshot, write into tahoe to create a remote snapshot,
+        then create another local snapshot with a remote parent.
+        """
+        data = io.BytesIO(content)
+
+        snapshots = []
+        # create LocalSnapshot
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # snapshots[0] is a LocalSnapshot with no parents
+
+        # turn it into a remote snapshot by uploading
+        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # snapshots[1] is a RemoteSnapshot with no parents,
+        # corresponding to snapshots[0]
+
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[snapshots[1]],
+        )
+        d.addCallback(snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+        self.assertThat(
+            snapshots[2],
+            MatchesStructure(
+                name=Equals(filename),
+                parents_remote=AfterPreprocessing(len, Equals(1)),
+            )
+        )
+
+        # upload snapshots[2], turning it into a RemoteSnapshot
+        # .. which should have one parent
+
+        d = write_snapshot_to_tahoe(snapshots[2], self.alice, self.tahoe_client)
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+        # ...the last thing we wrote is now a RemoteSnapshot and
+        # should have a single parent
+        self.assertThat(
+            snapshots[3],
+            MatchesStructure(
+                name=Equals(filename),
+                parents_raw=Equals([snapshots[1].capability]),
             )
         )
