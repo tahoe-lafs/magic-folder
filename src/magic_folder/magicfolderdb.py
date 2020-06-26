@@ -236,3 +236,17 @@ class MagicFolderDB(object):
                                     (path, foldername, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
+
+    def get_snapshot(self, path, foldername):
+        """
+        return a serialized blob that corresponds to the given path's latest snapshot.
+        Traversing the parents would give the entire history of snapshots.
+        """
+        self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                            " WHERE foldername=? AND path=?",
+                            (foldername, path))
+        row = self.cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return snapshot_blob[0]
