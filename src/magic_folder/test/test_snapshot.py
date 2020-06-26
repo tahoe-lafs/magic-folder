@@ -5,6 +5,7 @@ from shutil import rmtree
 
 from testtools.matchers import (
     Equals,
+    NotEquals,
     Contains,
     MatchesStructure,
     AfterPreprocessing,
@@ -377,6 +378,7 @@ class TestLocalSnapshot(SyncTestCase):
             reconstructed_local_snapshot,
             MatchesStructure(
                 name=Equals(filename),
+                parents_local=NotEquals([])
             )
         )
 
