@@ -613,3 +613,72 @@ class TestRemoteSnapshot(AsyncTestCase):
                 parents_raw=Equals([snapshots[1].capability]),
             )
         )
+
+    @given(
+        content=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_snapshot_local_parent(self, content, filename):
+        """
+        Create a local snapshot and then another local snapshot with the
+        first as parent. Then upload both at once.
+        """
+        data = io.BytesIO(content)
+
+        snapshots = []
+        # create LocalSnapshot
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # snapshots[0] is a LocalSnapshot with no parents
+
+        # create another LocalSnapshot with the first as parent
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        # turn them both into RemoteSnapshots
+        d = write_snapshot_to_tahoe(snapshots[1], self.alice, self.tahoe_client)
+        d.addCallback(snapshots.append)
+        self.assertThat(d, succeeded(Always()))
+
+        # ...the last thing we wrote is now a RemoteSnapshot and
+        # should have a single parent.
+        self.assertThat(
+            snapshots[2],
+            MatchesStructure(
+                name=Equals(filename),
+                parents_raw=AfterPreprocessing(len, Equals(1)),
+            )
+        )
+
+        # turn the parent into a RemoteSnapshot
+        d = snapshots[2].fetch_parent(self.tahoe_client, 0)
+        d.addCallback(snapshots.append)
+        self.assertThat(d, succeeded(Always()))
+        self.assertThat(
+            snapshots[3],
+            MatchesStructure(
+                name=Equals(filename),
+                parents_raw=Equals([]),
+            )
+        )

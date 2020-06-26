@@ -351,6 +351,21 @@ class RemoteSnapshot(object):
     content_cap = attr.ib()
 
     @inlineCallbacks
+    def fetch_parent(self, tahoe_client, parent_index):
+        """
+        Download the given parent, creating a RemoteSnapshot.
+
+        :param tahoe_client: the client to use
+
+        :param parent_index: which parent to fetch
+
+        :returns: a RemoteSnapshot instance.
+        """
+        capability = self.parents_raw[parent_index]
+        snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
+        returnValue(snapshot)
+
+    @inlineCallbacks
     def fetch_content(self, tahoe_client, writable_file):
         """
         Fetches our content from the grid, returning an IBodyProducer?
