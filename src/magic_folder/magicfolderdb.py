@@ -219,7 +219,8 @@ class MagicFolderDB(object):
 
     def store_local_snapshot(self, serialized_snapshot, path, foldername):
         """
-        XXX
+        Store or update the given serialized form of Local Snapshot for the
+        given file path and folder name.
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=path,
