@@ -202,15 +202,10 @@ class LocalSnapshot(object):
         def deserialize_dict(snapshot_dict, author):
             name = snapshot_dict["name"]
 
-            # deserialize metadata
-            metadata = {}
-            metadata["ctime"] = snapshot_dict["metadata"]["ctime"]
-            metadata["mtime"] = snapshot_dict["metadata"]["mtime"]
-
             return cls(
                 name=name,
                 author=author,
-                metadata=metadata,
+                metadata=snapshot_dict["metadata"],
                 content_path=snapshot_dict["content_path"],
                 parents_local=[ deserialize_dict(parent, author) for parent in snapshot_dict["parents_local"] ],
             )
