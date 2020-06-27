@@ -164,7 +164,7 @@ class LocalSnapshot(object):
         with open(self.content_path, "rb") as f:
             return f.read()
 
-    def serialize(self):
+    def to_json(self):
         """
         Serialize the LocalSnapshot to JSON.
 
@@ -187,9 +187,9 @@ class LocalSnapshot(object):
         return (json.dumps(serialized))
 
     @classmethod
-    def deserialize(cls, serialized, author):
+    def from_json(cls, serialized, author):
         """
-        Creates a LocalSnapshot from a serialized string that represents the LocalSnapshot.
+        Creates a LocalSnapshot from a JSON serialized string that represents the LocalSnapshot.
 
         :param str serialized: the JSON string that represents the LocalSnapshot
 

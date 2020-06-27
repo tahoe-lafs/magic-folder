@@ -312,9 +312,9 @@ class TestLocalSnapshot(SyncTestCase):
         )
         d.addCallback(snapshots.append)
 
-        serialized = snapshots[1].serialize()
+        serialized = snapshots[1].to_json()
 
-        reconstructed_local_snapshot = LocalSnapshot.deserialize(serialized, self.alice)
+        reconstructed_local_snapshot = LocalSnapshot.from_json(serialized, self.alice)
 
         self.assertThat(
             reconstructed_local_snapshot,
@@ -350,7 +350,7 @@ class TestLocalSnapshot(SyncTestCase):
             succeeded(Always()),
         )
 
-        serialized = snapshots[0].serialize()
+        serialized = snapshots[0].to_json()
         self.db.store_local_snapshot(serialized, filename, foldername)
 
         # now modify the same file and create a new local snapshot
@@ -366,13 +366,13 @@ class TestLocalSnapshot(SyncTestCase):
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        serialized = snapshots[1].serialize()
+        serialized = snapshots[1].to_json()
         self.db.store_local_snapshot(serialized, filename, foldername)
 
         # now read back the serialized snapshot from db
         snapshot_blob = self.db.get_snapshot(filename, foldername)
 
-        reconstructed_local_snapshot = LocalSnapshot.deserialize(snapshot_blob, self.alice)
+        reconstructed_local_snapshot = LocalSnapshot.from_json(snapshot_blob, self.alice)
 
         self.assertThat(
             reconstructed_local_snapshot,
