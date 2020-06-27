@@ -217,42 +217,49 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def store_local_snapshot(self, serialized_snapshot, path, foldername):
+    def store_local_snapshot(self, serialized_snapshot, name, foldername):
         """
         Store or update the given serialized form of Local Snapshot for the
-        given file path and folder name.
+        given magicpath of the file (mangled file path) and folder name.
 
         :param str serialized_snashot: A JSON representation of a LocalSnapshot
 
-        :param str path: Relative path of the file whose snapshot is being stored
+        :param str name: magicname of the filepath whose snapshot is being stored
 
         :param str foldername: Magic folder name
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=path,
+            relpath=name,
             foldername=foldername,
         )
         with action:
             try:
                 self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?,?)",
-                                    (path, foldername, serialized_snapshot))
+                                    (name, foldername, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
                 self.cursor.execute("UPDATE local_snapshots"
                                     " SET foldername=?, snapshot_blob=?"
                                     " WHERE path=?",
-                                    (foldername, serialized_snapshot, path))
+                                    (foldername, serialized_snapshot, name))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def get_snapshot(self, path, foldername):
+    def get_snapshot(self, name, foldername):
         """
-        return a serialized blob that corresponds to the given path's latest snapshot.
+        return a serialized blob that corresponds to the given name's latest snapshot.
         Traversing the parents would give the entire history of snapshots.
+
+        :param str name: magicpath that represents the relative path of the file.
+
+        :param str foldername: Magic folder name where the file lives.
+
+        :returns: A string blob that represents the latest stored LocalSnapshot for
+               the given magicpath and foldername.
         """
         self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
                             " WHERE foldername=? AND path=?",
-                            (foldername, path))
+                            (foldername, name))
         row = self.cursor.fetchone()
         if not row:
             return None
