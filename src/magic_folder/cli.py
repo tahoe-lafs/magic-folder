@@ -668,6 +668,10 @@ class MagicFolderService(MultiService):
             ),
             Agent(self.reactor),
         )
+
+        if self.webport.isdigit():
+            self.webport = "tcp:{}".format(self.webport)
+
         web_endpoint = RecordLocation(
             serverFromString(self.reactor, self.webport),
             self._write_web_url,
