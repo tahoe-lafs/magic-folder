@@ -5,11 +5,11 @@ from shutil import rmtree
 
 from testtools.matchers import (
     Equals,
-    NotEquals,
     Contains,
     MatchesStructure,
     AfterPreprocessing,
     Always,
+    HasLength,
 )
 
 from testtools.twistedsupport import (
@@ -49,7 +49,6 @@ from magic_folder.snapshot import (
     create_snapshot,
     LocalSnapshot,
 )
-from allmydata.util.fileutil import abspath_expanduser_unicode
 
 from .. import (
     magicfolderdb,
@@ -108,12 +107,12 @@ class TestLocalSnapshot(SyncTestCase):
         os.mkdir(self.stash_dir)
 
         # create a magicfolder db
-        self.tempdb=abspath_expanduser_unicode(unicode(mktemp()))
+        self.tempdb = mktemp()
         os.mkdir(self.tempdb)
-        dbfile= abspath_expanduser_unicode(u"test_snapshot.sqlite", base=self.tempdb)
+        dbfile = self.tempdb + "/" + "test_snapshot.sqlite"
         self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
 
-        self.failUnless(self.db, "unable to create magicfolderdb from %r" % (dbfile,))
+        self.failUnless(self.db, "unable to create magicfolderdb from {}".format(dbfile))
         self.failUnlessEqual(self.db.VERSION, 1)
 
         return super(TestLocalSnapshot, self).setUp()
@@ -320,6 +319,7 @@ class TestLocalSnapshot(SyncTestCase):
             reconstructed_local_snapshot,
             MatchesStructure(
                 name=Equals(filename),
+                parents_local=HasLength(1),
             )
         )
 
@@ -360,7 +360,7 @@ class TestLocalSnapshot(SyncTestCase):
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
-            parents=snapshots,
+            parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
 
@@ -378,7 +378,7 @@ class TestLocalSnapshot(SyncTestCase):
             reconstructed_local_snapshot,
             MatchesStructure(
                 name=Equals(filename),
-                parents_local=NotEquals([])
+                parents_local=HasLength(1)
             )
         )
 
@@ -386,7 +386,7 @@ class TestLocalSnapshot(SyncTestCase):
         self.assertThat(
             reconstructed_local_snapshot.parents_local[0],
             MatchesStructure(
-                parents_local=Equals([]),
+                parents_local=HasLength(0),
             )
         )
 
