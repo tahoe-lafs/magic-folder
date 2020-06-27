@@ -600,7 +600,8 @@ def _format_magic_folder_status(now, magic_data):
 class RunOptions(usage.Options):
     optParameters = [
         ("web-port", None, None,
-         "String description of an endpoint on which to run the web interface (required).",
+         "String description of an endpoint (e.g., `tcp:8000`) on which to run "
+         "the web interface (required).",
         ),
     ]
 
