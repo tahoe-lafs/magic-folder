@@ -221,6 +221,12 @@ class MagicFolderDB(object):
         """
         Store or update the given serialized form of Local Snapshot for the
         given file path and folder name.
+
+        :param str serialized_snashot: A JSON representation of a LocalSnapshot
+
+        :param str path: Relative path of the file whose snapshot is being stored
+
+        :param str foldername: Magic folder name
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=path,
