@@ -327,9 +327,8 @@ class TestLocalSnapshot(SyncTestCase):
         content1=binary(min_size=1),
         content2=binary(min_size=1),
         filename=magic_folder_filenames(),
-        foldername=text(min_size=1),
     )
-    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, foldername):
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename):
         """
         create a new snapshot (this will have no parent snapshots).
         """
@@ -351,7 +350,7 @@ class TestLocalSnapshot(SyncTestCase):
         )
 
         serialized = snapshots[0].to_json()
-        self.db.store_local_snapshot(serialized, filename, foldername)
+        self.db.store_local_snapshot(serialized, filename)
 
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
@@ -367,10 +366,10 @@ class TestLocalSnapshot(SyncTestCase):
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
         serialized = snapshots[1].to_json()
-        self.db.store_local_snapshot(serialized, filename, foldername)
+        self.db.store_local_snapshot(serialized, filename)
 
         # now read back the serialized snapshot from db
-        snapshot_blob = self.db.get_snapshot(filename, foldername)
+        snapshot_blob = self.db.get_snapshot(filename)
 
         reconstructed_local_snapshot = LocalSnapshot.from_json(snapshot_blob, self.alice)
 

@@ -85,12 +85,6 @@ RELPATH = Field.for_types(
     u"The relative path of a file in a magic-folder.",
 )
 
-FOLDERNAME = Field.for_types(
-    u"foldername",
-    [unicode],
-    u"The magic-folder name.",
-)
-
 VERSION = Field.for_types(
     u"version",
     [int, long],
