@@ -107,9 +107,9 @@ class TestLocalSnapshot(SyncTestCase):
         os.mkdir(self.stash_dir)
 
         # create a magicfolder db
-        self.tempdb = mktemp()
-        os.mkdir(self.tempdb)
-        dbfile = self.tempdb + "/" + "test_snapshot.sqlite"
+        self.tempdb = FilePath(mktemp())
+        self.tempdb.makedirs()
+        dbfile = self.tempdb.child(u"test_snapshot.sqlite").asBytesMode().path
         self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
 
         self.failUnless(self.db, "unable to create magicfolderdb from {}".format(dbfile))
@@ -120,7 +120,7 @@ class TestLocalSnapshot(SyncTestCase):
     def tearDown(self):
         rmtree(self.stash_dir)
         self.db.close()
-        rmtree(self.tempdb)
+        rmtree(self.tempdb.asBytesMode().path)
         return super(TestLocalSnapshot, self).tearDown()
 
     @given(
