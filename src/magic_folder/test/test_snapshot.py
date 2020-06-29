@@ -22,7 +22,6 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
-    text,
 )
 
 from twisted.python.filepath import (
