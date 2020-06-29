@@ -331,6 +331,34 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d
 
 
+class RunMagicFolder(AsyncTestCase):
+    """
+    """
+    @defer.inlineCallbacks
+    def setUp(self):
+        """
+        Create a Tahoe-LAFS node which can contain some magic folder configuration
+        and run it.
+        """
+        yield super(RunMagicFolder, self).setUp()
+        self.client_fixture = SelfConnectedClient(reactor)
+        yield self.client_fixture.use_on(self)
+
+        self.tempdir = self.client_fixture.tempdir
+        self.node_directory = self.client_fixture.node_directory
+
+    @defer.inlineCallbacks
+    def test_run_cmd(self):
+        """
+        Running ``magic-folder run`` command without --web-port switch is expected
+        to fail.
+        """
+        outcome = yield cli(
+            self.node_directory,
+            [b"run"],
+        )
+        self.assertThat(outcome.stderr, Contains(u"Must specify a listening endpoint with --web-port"))
+
 class ListMagicFolder(AsyncTestCase):
     """
     Tests for the command-line interface ``magic-folder list``.
