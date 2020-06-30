@@ -348,7 +348,7 @@ class TestLocalSnapshot(SyncTestCase):
             succeeded(Always()),
         )
 
-        self.db.store_local_snapshot(snapshots[0], filename)
+        self.db.store_local_snapshot(snapshots[0])
 
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
@@ -363,7 +363,7 @@ class TestLocalSnapshot(SyncTestCase):
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        self.db.store_local_snapshot(snapshots[1], filename)
+        self.db.store_local_snapshot(snapshots[1])
 
         # now read back the serialized snapshot from db
         reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
