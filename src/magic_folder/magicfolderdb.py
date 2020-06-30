@@ -14,6 +14,11 @@ from .util.eliotutil import (
     validateSetMembership,
     validateInstanceOf,
 )
+
+from .snapshot import (
+    LocalSnapshot,
+)
+
 from eliot import (
     Field,
     ActionType,
@@ -215,40 +220,41 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def store_local_snapshot(self, serialized_snapshot, name):
+    def store_local_snapshot(self, snapshot):
         """
-        Store or update the given serialized form of Local Snapshot for the
+        Store or update the given Local Snapshot for the
         given the magicpath of the file (mangled file path).
 
-        :param str serialized_snashot: A JSON representation of a LocalSnapshot
-
-        :param str name: magicpath of the filepath whose snapshot is being stored
+        :param str snapshot: A LocalSnapshot instance
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=name,
+            relpath=snapshot.name,
         )
         with action:
+            serialized_snapshot = snapshot.to_json()
             try:
                 self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
-                                    (name, serialized_snapshot))
+                                    (snapshot.name, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
                 self.cursor.execute("UPDATE local_snapshots"
                                     " SET snapshot_blob=?"
                                     " WHERE path=?",
-                                    (serialized_snapshot, name))
+                                    (serialized_snapshot, snapshot.name))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def get_snapshot(self, name):
+    def get_local_snapshot(self, name, author):
         """
-        return a serialized blob that corresponds to the given name's latest snapshot.
-        Traversing the parents would give the entire history of snapshots.
+        return an instance of LocalSnapshot corresponding to
+        the given name and author. Traversing the parents
+        would give the entire history of local snapshots.
 
         :param str name: magicpath that represents the relative path of the file.
 
-        :returns: A string blob that represents the latest stored LocalSnapshot for
-               the given magicpath and foldername.
+        :param author: an instance of LocalAuthor
+
+        :returns: An instance of LocalSnapshot for the given magicpath.
         """
         self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
                             " WHERE path=?",
@@ -257,4 +263,4 @@ class MagicFolderDB(object):
         if not row:
             return None
         else:
-            return row[0]
+            return LocalSnapshot.from_json(row[0], author)

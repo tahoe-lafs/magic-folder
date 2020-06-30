@@ -21,9 +21,7 @@ from twisted.web.client import (
     FileBodyProducer,
 )
 
-from .magic_folder import (
-    load_magic_folders,
-)
+import magic_folder
 
 from nacl.signing import (
     SigningKey,
@@ -111,7 +109,7 @@ def create_local_author_from_config(config, name=None):
     if name is None:
         name = "default"
     nodedir = config.get_config_path()
-    magic_folders = load_magic_folders(nodedir)
+    magic_folders = magic_folder.load_magic_folders(nodedir)
     if name not in magic_folders:
         raise RuntimeError(
             "No magic-folder named '{}'".format(name)

@@ -306,7 +306,7 @@ class TestLocalSnapshot(SyncTestCase):
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
-            parents=snapshots,
+            parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
 
@@ -348,8 +348,7 @@ class TestLocalSnapshot(SyncTestCase):
             succeeded(Always()),
         )
 
-        serialized = snapshots[0].to_json()
-        self.db.store_local_snapshot(serialized, filename)
+        self.db.store_local_snapshot(snapshots[0])
 
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
@@ -364,13 +363,10 @@ class TestLocalSnapshot(SyncTestCase):
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        serialized = snapshots[1].to_json()
-        self.db.store_local_snapshot(serialized, filename)
+        self.db.store_local_snapshot(snapshots[1])
 
         # now read back the serialized snapshot from db
-        snapshot_blob = self.db.get_snapshot(filename)
-
-        reconstructed_local_snapshot = LocalSnapshot.from_json(snapshot_blob, self.alice)
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
 
         self.assertThat(
             reconstructed_local_snapshot,
