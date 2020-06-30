@@ -51,6 +51,12 @@ UPDATE_ENTRY = ActionType(
     u"Record some metadata about a relative path in the magic-folder.",
 )
 
+STORE_OR_UPDATE_SNAPSHOTS = ActionType(
+    u"magic-folder-db:update-snapshot-entry",
+    [RELPATH],
+    [_INSERT_OR_UPDATE],
+    u"Persist local snapshot object of a relative path in the magic-folder db.",
+)
 
 # magic-folder db schema version 1
 SCHEMA_v1 = """
@@ -69,6 +75,12 @@ CREATE TABLE local_files
  last_uploaded_uri   VARCHAR(256),                -- URI:CHK:...
  last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
  last_downloaded_timestamp TIMESTAMP
+);
+
+CREATE TABLE local_snapshots
+(
+ path               TEXT PRIMARY KEY,             -- UTF-8 relative filepath that the snapshot represents
+ snapshot_blob      BLOB                          -- a JSON blob representing the snapshot instance
 );
 """
 
@@ -202,3 +214,47 @@ class MagicFolderDB(object):
                                      relpath_u))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
+
+    def store_local_snapshot(self, serialized_snapshot, name):
+        """
+        Store or update the given serialized form of Local Snapshot for the
+        given the magicpath of the file (mangled file path).
+
+        :param str serialized_snashot: A JSON representation of a LocalSnapshot
+
+        :param str name: magicpath of the filepath whose snapshot is being stored
+        """
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=name,
+        )
+        with action:
+            try:
+                self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
+                                    (name, serialized_snapshot))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+                self.cursor.execute("UPDATE local_snapshots"
+                                    " SET snapshot_blob=?"
+                                    " WHERE path=?",
+                                    (serialized_snapshot, name))
+                action.add_success_fields(insert_or_update=u"update")
+            self.connection.commit()
+
+    def get_snapshot(self, name):
+        """
+        return a serialized blob that corresponds to the given name's latest snapshot.
+        Traversing the parents would give the entire history of snapshots.
+
+        :param str name: magicpath that represents the relative path of the file.
+
+        :returns: A string blob that represents the latest stored LocalSnapshot for
+               the given magicpath and foldername.
+        """
+        self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                            " WHERE path=?",
+                            (name,))
+        row = self.cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return row[0]
