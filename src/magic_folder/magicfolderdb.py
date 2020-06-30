@@ -215,12 +215,12 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def store_local_snapshot(self, serialized_snapshot, name):
+    def store_local_snapshot(self, snapshot, name):
         """
-        Store or update the given serialized form of Local Snapshot for the
+        Store or update the given Local Snapshot for the
         given the magicpath of the file (mangled file path).
 
-        :param str serialized_snashot: A JSON representation of a LocalSnapshot
+        :param str snapshot: A LocalSnapshot instance
 
         :param str name: magicpath of the filepath whose snapshot is being stored
         """
@@ -228,6 +228,7 @@ class MagicFolderDB(object):
             relpath=name,
         )
         with action:
+            serialized_snapshot = snapshot.to_json()
             try:
                 self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
                                     (name, serialized_snapshot))
