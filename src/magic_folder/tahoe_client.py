@@ -7,18 +7,11 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
-from twisted.web.client import (
-    FileBodyProducer,
-)
 from hyperlink import (
     DecodedURL,
 )
 
 import attr
-
-from .common import (
-    get_node_url,
-)
 
 
 @attr.s

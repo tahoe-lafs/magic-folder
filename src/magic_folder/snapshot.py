@@ -393,7 +393,6 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     with action:
         snapshot_json = yield tahoe_client.download_capability(snapshot_cap)
         snapshot = json.loads(snapshot_json)
-        debug = json.dumps(snapshot, indent=4)
 
         # create SnapshotAuthor
         author_cap = snapshot["author"][1]["ro_uri"]

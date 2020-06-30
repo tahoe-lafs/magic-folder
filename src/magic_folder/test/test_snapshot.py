@@ -1,15 +1,8 @@
 import io
 import os
+import json
 from tempfile import mktemp
 from shutil import rmtree
-
-from nacl.signing import (
-    SigningKey,
-    VerifyKey,
-)
-from nacl.exceptions import (
-    BadSignatureError,
-)
 
 from testtools.matchers import (
     Equals,
@@ -25,10 +18,6 @@ from testtools.twistedsupport import (
 )
 from testtools import (
     ExpectedException,
-)
-
-from hyperlink import (
-    DecodedURL,
 )
 
 from hypothesis import (
@@ -376,7 +365,7 @@ class TestRemoteSnapshot(AsyncTestCase):
         d = self.tahoe_client.download_capability(snapshot_cap)
         data = json.loads(d.result)
         content_cap = data["content"][1]["ro_uri"]
-        sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
+        # sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
         # XXX is it "testtools-like" to check the signature here too?
         return self.tahoe_client.download_capability(content_cap)
 
