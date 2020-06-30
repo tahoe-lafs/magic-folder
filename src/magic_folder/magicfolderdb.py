@@ -246,7 +246,7 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def get_snapshot(self, name, author):
+    def get_local_snapshot(self, name, author):
         """
         return an instance of LocalSnapshot corresponding to
         the given name and author. Traversing the parents

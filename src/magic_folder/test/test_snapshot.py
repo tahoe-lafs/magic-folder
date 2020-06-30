@@ -366,7 +366,7 @@ class TestLocalSnapshot(SyncTestCase):
         self.db.store_local_snapshot(snapshots[1], filename)
 
         # now read back the serialized snapshot from db
-        reconstructed_local_snapshot = self.db.get_snapshot(filename, self.alice)
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
 
         self.assertThat(
             reconstructed_local_snapshot,
