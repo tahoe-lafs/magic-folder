@@ -24,6 +24,10 @@ from eliot import (
     ActionType,
 )
 
+from functools import (
+    wraps
+)
+
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
                                     'last_downloaded_uri last_downloaded_timestamp')
 
@@ -114,6 +118,20 @@ class LocalPath(object):
         p.entry = PathEntry(*row[1:])
         return p
 
+def with_cursor(f):
+    """
+    Decorate a function so it is automatically passed a cursor with an active
+    transaction as the first positional argument.  If the function returns
+    normally then the transaction will be committed.  Otherwise, the
+    transaction will be rolled back.
+    """
+    @wraps(f)
+    def with_cursor(self, *a, **kw):
+        with self.connection:
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            return f(self, cursor, *a, **kw)
+    return with_cursor
 
 class MagicFolderDB(object):
     VERSION = 1
