@@ -238,7 +238,8 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def store_local_snapshot(self, snapshot):
+    @with_cursor
+    def store_local_snapshot(self, cursor, snapshot):
         """
         Store or update the given Local Snapshot for the
         given the magicpath of the file (mangled file path).
@@ -251,18 +252,19 @@ class MagicFolderDB(object):
         with action:
             serialized_snapshot = snapshot.to_json()
             try:
-                self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
-                                    (snapshot.name, serialized_snapshot))
+                cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
+                               (snapshot.name, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
-                self.cursor.execute("UPDATE local_snapshots"
-                                    " SET snapshot_blob=?"
-                                    " WHERE path=?",
-                                    (serialized_snapshot, snapshot.name))
+                cursor.execute("UPDATE local_snapshots"
+                               " SET snapshot_blob=?"
+                               " WHERE path=?",
+                               (serialized_snapshot, snapshot.name))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def get_local_snapshot(self, name, author):
+    @with_cursor
+    def get_local_snapshot(self, cursor, name, author):
         """
         return an instance of LocalSnapshot corresponding to
         the given name and author. Traversing the parents
@@ -274,10 +276,10 @@ class MagicFolderDB(object):
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
-        self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
-                            " WHERE path=?",
-                            (name,))
-        row = self.cursor.fetchone()
+        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
         if not row:
             return None
         else:
