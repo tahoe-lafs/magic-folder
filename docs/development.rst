@@ -74,6 +74,7 @@ Here are a few guidelines which should help you write good news fragments:
     it MAY contain a reference to the version in which the bug was introduced.
 
 Fragment files MUST be placed in ``newsfragments`` and be named ``<ticket number>.<fragment type>``.
+You can preview the generated news content using ``tox -e draftnews``.
 
 Backwards Incompatible Changes
 ``````````````````````````````
