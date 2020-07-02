@@ -1,6 +1,8 @@
 import json
 import cgi
 
+import attr
+
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
@@ -19,6 +21,39 @@ from allmydata.util.hashutil import (
 )
 
 
+def magic_folder_resource(get_magic_folder, get_auth_token):
+    """
+    Create the root resource for the Magic Folder HTTP API.
+
+    :param get_magic_folder: See ``magic_folder_web_service``.
+    :param get_auth_token: See ``magic_folder_web_service``.
+
+    :return IResource: The resource that is the root of the HTTP API.
+    """
+    root = Resource()
+    root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
+    root.putChild(b"v1", V1MagicFolderAPI(get_magic_folder, get_auth_token))
+    return root
+
+
+@attr.s
+class V1MagicFolderAPI(Resource, object):
+    """
+    The root of the ``/v1`` HTTP API hierarchy.
+
+    :ivar (unicode -> MagicFolder) _get_magic_folder: A function that looks up
+        a magic folder by its nickname.
+
+    :ivar (IO bytes) _get_auth_token: A function that returns the correct
+        authentication token.
+    """
+    _get_magic_folder = attr.ib()
+    _get_auth_token = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+
 def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
@@ -29,8 +64,7 @@ def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
 
     :returns: a StreamServerEndpointService instance
     """
-    root = Resource()
-    root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
+    root = magic_folder_resource(get_magic_folder, get_auth_token)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),

@@ -118,3 +118,16 @@ class MatchesSameElements(object):
     def match(self, value):
         left, right = value
         return Equals(left).match(right)
+
+
+def matches_response_code(code):
+    """
+    Match a Treq response object with the given response code.
+
+    :param int code: The response code to match against.
+
+    :return: A matcher.
+    """
+    return MatchesStructure(
+        code=Equals(code),
+    )
