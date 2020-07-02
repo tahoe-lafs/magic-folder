@@ -1,3 +1,4 @@
+import attr
 import six
 import sys, os
 import os.path
@@ -2140,18 +2141,24 @@ class Downloader(QueueMixin, WriteFileMixin):
 # would be to create a queue and push file paths into it with another
 # processing "thread" periodically emptying the queue and creating
 # LocalSnapshots and then writing them into the disk.
+# XXX: Add some state and methods to track the "status" of the upload process.
 @attr.s
 class UploadLocalSnapshots(object):
-    local_path_u = attr.ib()
-    db = attr.ib()
-    polling_interval = attr.ib()
-    clock = attr.ib()
-    author = attr.ib()   # str
-    stash_dir = attr.ib()
 
-    self._pending = set()
-    self._deque = deque()
-    self._author = create_local_author(author)
+    def __init__(self, local_path_u, dbfile, polling_interval,
+                 name, author, stash_dir, clock=None):
+
+        local_path_u = attr.ib()
+        dbfile = attr.ib()
+        polling_interval = attr.ib()
+        clock = attr.ib()
+        author = attr.ib()
+        stash_dir = attr.ib()
+
+        def __attrs_post_init__(self):
+            self._pending = set()
+            self._deque = deque()
+            self._author = create_local_author(author)
 
     def start_processing(self):
         """
