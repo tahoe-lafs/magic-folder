@@ -340,6 +340,68 @@ class TestLocalSnapshot(SyncTestCase):
             succeeded(Always()),
         )
 
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+    )
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+        data1 = io.BytesIO(content1)
+
+        snapshots = []
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        self.db.store_local_snapshot(snapshots[0])
+
+        # now modify the same file and create a new local snapshot
+        data2 = io.BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        self.db.store_local_snapshot(snapshots[1])
+
+        # now read back the serialized snapshot from db
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
+
+        self.assertThat(
+            reconstructed_local_snapshot,
+            MatchesStructure(
+                name=Equals(filename),
+                parents_local=HasLength(1)
+            )
+        )
+
+        # the initial snapshot does not have parent snapshots
+        self.assertThat(
+            reconstructed_local_snapshot.parents_local[0],
+            MatchesStructure(
+                parents_local=HasLength(0),
+            )
+        )
+
 
 class TestRemoteSnapshot(AsyncTestCase):
     """
@@ -470,66 +532,6 @@ class TestRemoteSnapshot(AsyncTestCase):
                 parents_local=HasLength(1),
             )
         )
-
-    @given(
-        content1=binary(min_size=1),
-        content2=binary(min_size=1),
-        filename=magic_folder_filenames(),
-    )
-    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename):
-        """
-        create a new snapshot (this will have no parent snapshots).
-        """
-        data1 = io.BytesIO(content1)
-
-        snapshots = []
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data1,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[],
-        )
-        d.addCallback(snapshots.append)
-
-        self.assertThat(
-            d,
-            succeeded(Always()),
-        )
-
-        self.db.store_local_snapshot(snapshots[0])
-
-        # now modify the same file and create a new local snapshot
-        data2 = io.BytesIO(content2)
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data2,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[snapshots[0]],
-        )
-        d.addCallback(snapshots.append)
-
-        # serialize and store the snapshot in db.
-        # It should rewrite the previously written row.
-        self.db.store_local_snapshot(snapshots[1])
-
-        # now read back the serialized snapshot from db
-        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
-
-        self.assertThat(
-            reconstructed_local_snapshot,
-            MatchesStructure(
-                name=Equals(filename),
-                parents_local=HasLength(1)
-            )
-        )
-
-        # the initial snapshot does not have parent snapshots
-        self.assertThat(
-            reconstructed_local_snapshot.parents_local[0],
-            MatchesStructure(
-                parents_local=HasLength(0),
 
     @given(
         content=binary(min_size=1),
