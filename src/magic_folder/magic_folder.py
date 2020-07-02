@@ -18,6 +18,9 @@ from twisted.python import runtime
 from twisted.application import service
 
 from zope.interface import Interface, Attribute, implementer
+from twisted.internet.defer import (
+    inlineCallbacks,
+)
 
 from eliot import (
     Field,
@@ -2184,7 +2187,7 @@ class UploadLocalSnapshots(object):
         self._processing_loop.stop()
         self._processing = None
 
-        returnValue d
+        returnValue(d)
 
     def upload_files(self, relpaths):
         # XXX: deduplicate filepaths by putting them into a set and
@@ -2196,7 +2199,7 @@ class UploadLocalSnapshots(object):
             self._pending.add(relpath)
 
         self.start_processing()
-k
+
     def process_queue(self):
         """
         Empty the queue, convert each item into LocalSnapshot and persist
