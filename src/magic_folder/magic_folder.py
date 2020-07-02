@@ -2134,3 +2134,92 @@ class Downloader(QueueMixin, WriteFileMixin):
             return False
         d.addErrback(trap_conflicts)
         return d.addActionFinish()
+
+# Given a list of file paths, the LocalSnapshots for these file paths
+# should be created and then persisted into the disk. A way to do that
+# would be to create a queue and push file paths into it with another
+# processing "thread" periodically emptying the queue and creating
+# LocalSnapshots and then writing them into the disk.
+@attr.s
+class UploadLocalSnapshots(object):
+    local_path_u = attr.ib()
+    db = attr.ib()
+    polling_interval = attr.ib()
+    clock = attr.ib()
+    author = attr.ib()   # str
+    stash_dir = attr.ib()
+
+    self._pending = set()
+    self._deque = deque()
+    self._author = create_local_author(author)
+
+    def start_processing(self):
+        """
+        Start a periodic loop that looks for work and does it.
+        """
+        self._processing_loop = task.LoopingCall(self.process_queue)
+        self._processing_loop.clock = self.clock
+
+        self._processing = self._processing_loop.start(self.polling_interval, now=True)
+
+        d = Deferred()
+        d.addCallback(self._processing)
+
+    @inlineCallbacks
+    def stop_processing(self):
+        """
+        Don't process queued items anymore.
+
+        :return Deferred: A ``Deferred`` that fires when processing has
+            completely stopped.
+        """
+        d = yield self._processing
+        self._processing_loop.stop()
+        self._processing = None
+
+        returnValue d
+
+    def upload_files(self, relpaths):
+        # XXX: deduplicate filepaths by putting them into a set and
+        # then move them to a queue.
+
+        # XXX: if a filepath is a directory, then all its children
+        # files should be added.
+        for relpath in relpaths:
+            self._pending.add(relpath)
+
+        self.start_processing()
+k
+    def process_queue(self):
+        """
+        Empty the queue, convert each item into LocalSnapshot and persist
+        the snapshots into the disk.
+        """
+        relpaths = list(self._pending)
+        for relpath in relpaths:
+            # 1. create local snapshot
+            # 2. persist local snapshot
+
+            # XXX: Is relpath, a magicpath or a regular FilePath?
+            input_stream = io.FileIO(relpath, mode='r')
+            snapshot = yield create_snapshot(
+                name=relpath,
+                author=self.author,
+                data_producer=input_stream,
+                spapshot_stash_dir=self.stash_dir,
+                # XXX: we should query the db to check if there is
+                # an existing local snapshot or remote snapshot for
+                # the file being added. If so, we should use that
+                # as the parent.
+                parents=[],
+            )
+
+            # store the local snapshot to the disk
+            self.db.store_local_snapshot(snapshot)
+
+            # remove the element from the set
+            self._pending.remove(relpath)
+
+        # XXX: at this point, for the happy path, the _pending set
+        # should be empty
+
