@@ -37,7 +37,9 @@ from twisted.internet.defer import (
 from allmydata.client import (
     read_config,
 )
-from allmydata.testing.web import (
+# After a Tahoe 1.15.0 or higher release, these should be imported
+# from Tahoe instead
+from magic_folder.testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
