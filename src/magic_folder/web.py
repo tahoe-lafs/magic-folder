@@ -112,6 +112,11 @@ class MagicFolderWebApi(Resource):
         for item in magic_folder.downloader.get_status():
             data.append(status_for_item("download", item))
 
+        # XXX Serializing to a JSON Array is a security issue.  The Array
+        # prototype can be replaced to run arbitrary code in someone else's
+        # security context.
+        #
+        # See https://github.com/LeastAuthority/magic-folder/issues/174
         return json.dumps(data)
 
 
