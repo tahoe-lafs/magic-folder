@@ -25,7 +25,7 @@ from eliot import (
 )
 
 from functools import (
-    wraps
+    wraps,
 )
 
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
