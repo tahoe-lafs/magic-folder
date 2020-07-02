@@ -61,7 +61,6 @@ from magic_folder.snapshot import (
     create_author,
     write_local_author,
     create_snapshot,
-    LocalSnapshot,
     create_snapshot_from_capability,
     write_snapshot_to_tahoe,
     LocalSnapshot,
