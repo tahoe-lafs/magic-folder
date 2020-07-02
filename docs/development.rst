@@ -47,12 +47,12 @@ Changes should:
   * have appropriate developer-facing and user-facing documentation.
   * have full line and branch coverage provided by the test suite.
   * be implemented in a way that is not unnecessarily difficult to understand and maintain.
-  * satisfy all of the mechnical checks performed by the continuous integration system.
+  * satisfy all of the mechanical checks performed by the continuous integration system.
 
 News Fragments
 ~~~~~~~~~~~~~~
 
-One of the mechnical checks performed by continuous integration against proposed changes is the existence of a "news fragment".
+One of the mechanical checks performed by continuous integration against proposed changes is the existence of a "news fragment".
 News fragments are assembled at release time by `towncrier <https://pypi.org/project/towncrier/>`_ to contribute to the release announcement.
 News fragments are meant to be user-facing and should have a consistent style.
 News fragments can use a inline formatting directives from reStructuredText.
@@ -184,7 +184,7 @@ Some specific areas to which a reviewer can pay attention:
   * Does the documentation (developer- and user-facing) accurately describe the new behavior?
 
 Beyond these areas there are a number of mechanical checks applied by the continuous integration system.
-Changes should only be accepted if all of these mechnical checks pass
+Changes should only be accepted if all of these mechanical checks pass
 *or* if there are failures which are certainly unrelated to the changes and for which tickets have been filed.
 
 .. _merged into the master branch:
