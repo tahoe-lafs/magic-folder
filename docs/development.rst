@@ -55,7 +55,7 @@ News Fragments
 One of the mechanical checks performed by continuous integration against proposed changes is the existence of a "news fragment".
 News fragments are assembled at release time by `towncrier <https://pypi.org/project/towncrier/>`_ to contribute to the release announcement.
 News fragments are meant to be user-facing and should have a consistent style.
-News fragments can use a inline formatting directives from reStructuredText.
+News fragments can use any inline formatting directives from reStructuredText.
 
 magic-folder's news fragment style is adapted from `the style guidelines from the Twisted project>`_.
 The fragment types accepted are canonically defined by the towncrier configuration file in the project root.
