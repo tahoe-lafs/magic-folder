@@ -16,6 +16,10 @@ from json import (
 
 import attr
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from hypothesis import (
     given,
     assume,
@@ -23,6 +27,8 @@ from hypothesis import (
 
 from hypothesis.strategies import (
     lists,
+    text,
+    binary,
 )
 
 from testtools.matchers import (
@@ -41,6 +47,9 @@ from twisted.python.failure import (
 )
 from twisted.python.filepath import (
     FilePath,
+)
+from twisted.web.http import (
+    NOT_FOUND,
 )
 from twisted.web.resource import (
     Resource,
@@ -61,7 +70,11 @@ from allmydata.uri import (
 )
 
 from .common import (
+    SyncTestCase,
     AsyncTestCase,
+)
+from .matchers import (
+    matches_response_code,
 )
 
 from .strategies import (
@@ -83,6 +96,7 @@ from .agentutil import (
 )
 
 from ..web import (
+    magic_folder_resource,
     MagicFolderWebApi,
     status_for_item,
 )
@@ -570,3 +584,34 @@ class StubQueue(object):
 class StubMagicFolder(object):
     uploader = attr.ib(default=attr.Factory(StubQueue))
     downloader = attr.ib(default=attr.Factory(StubQueue))
+
+
+class ListSnapshotTests(SyncTestCase):
+    """
+    Tests for listing snapshots via ``GET /v1/<folder name>/snapshots``.
+    """
+    @given(folder_name=text(), auth_token=binary())
+    def test_folder_does_not_exist(self, folder_name, auth_token):
+        """
+        If no Magic Folder with the given nickname exists then the response code
+        is NOT FOUND.
+        """
+        def get_auth_token():
+            return auth_token
+        def get_magic_folder(name):
+            raise KeyError(name)
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        treq = StubTreq(root)
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(folder_name, u"snapshots")
+        encoded_url = url.to_uri().to_text().encode("ascii")
+        self.assertThat(
+            treq.get(
+                encoded_url,
+                headers={
+                    b"Authorization": b"Bearer {}".format(auth_token),
+                }),
+            succeeded(
+                matches_response_code(NOT_FOUND),
+            ),
+        )
