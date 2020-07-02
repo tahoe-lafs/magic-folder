@@ -118,6 +118,8 @@ class LocalPath(object):
         p.entry = PathEntry(*row[1:])
         return p
 
+# XXX: with_cursor lacks unit tests, see:
+#      https://github.com/LeastAuthority/magic-folder/issues/173
 def with_cursor(f):
     """
     Decorate a function so it is automatically passed a cursor with an active
