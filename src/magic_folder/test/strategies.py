@@ -215,6 +215,8 @@ def progresses():
     Build ``PercentProgress`` instances.
     """
     def a_progress(progress, total_size):
+        import time
+        time.sleep(1)
         p = PercentProgress(total_size)
         p.set_progress(progress)
         return p
