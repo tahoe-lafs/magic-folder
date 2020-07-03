@@ -339,7 +339,21 @@ jobs:
             # build a couple simple little dependencies that don't take
             # advantage of multiple cores and we get a little speedup by doing
             # them in parallel.
-            nix-build --cores 3 --max-jobs 2 nix/
+            #
+            # Keep failed build intermediates so we can upload logs for failed
+            # runs as artifacts, too.
+            nix-build --keep-failed --cores 3 --max-jobs 2 nix/
+
+      - "run":
+          name: "Prepare logs for upload"
+          # They need to be moved to the right place always, whether tests
+          # passed or failed.
+          when: "always"
+          command: |
+            mkdir -p /tmp/artifacts/logs
+            cp -a /tmp/nix-build-*-magic-folder-*.drv-0/magic-folder/_trial_temp/*/{test,eliot}.log /tmp/artifacts/logs/
+      - store_artifacts:
+          path: "/tmp/artifacts/logs"
 
       - save_cache:
           name: "Cache Nix Store Paths"
