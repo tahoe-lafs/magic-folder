@@ -329,7 +329,13 @@ jobs:
           when: "always"
           command: |
             mkdir -p /tmp/artifacts/logs
-            cp -a /tmp/nix-build-*-magic-folder-*.drv-0/magic-folder/_trial_temp/*/{test,eliot}.log /tmp/artifacts/logs/
+            # Let the copy fail because the files won't exist any time the
+            # build succeeds.
+            cp -a \
+              /tmp/nix-build-*-magic-folder-*.drv-0/magic-folder/_trial_temp/*/{test,eliot}.log \
+              /tmp/artifacts/logs/ ||
+              true
+
       - store_artifacts:
           path: "/tmp/artifacts/logs"
 
