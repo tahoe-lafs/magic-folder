@@ -52,7 +52,7 @@ def _configure_hypothesis():
     )
 
     settings.register_profile(
-        "ci",
+        "magic-folder-ci",
         suppress_health_check=[
             # CPU resources available to CI builds typically varies
             # significantly from run to run making it difficult to determine
