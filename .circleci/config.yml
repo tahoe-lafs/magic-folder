@@ -357,6 +357,7 @@ jobs:
           when: "always"
           command: |
             mkdir -p /tmp/artifacts/logs
+            nix-shell -p busybox --run 'find /tmp/nix-build-*-magic-folder-*.drv-0'
             # Let the copy fail because the files won't exist any time the
             # build succeeds.
             cp -a \
