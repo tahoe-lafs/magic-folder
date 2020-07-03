@@ -96,7 +96,7 @@ jobs:
       # otherwise.
       ALLOWED_FAILURE: "no"
       # Tell Hypothesis which configuration we want it to use.
-      MAGIC_FOLDER_HYPOTHESIS_PROFILE: "ci"
+      MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       # Tell the C runtime things about character encoding (mainly to do with
       # filenames and argv).
       LANG: "en_US.UTF-8"
