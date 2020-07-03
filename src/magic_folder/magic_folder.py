@@ -404,6 +404,23 @@ class MagicFolder(service.MultiService):
                                      self.set_public_status, poll_interval=downloader_delay)
         self._public_status = (False, ['Magic folder has not yet started'])
 
+        # create author instance
+        config_path = client.config.get_config_path();
+        config = client.config.read_config(config_path, "portnum")
+        author = create_local_author_from_config(config, name)
+
+        # XXX: create stash_dir. This should be a configurable item?
+        stash_dir=FilePath("/tmp")
+        # local_path_u, db, polling_interval, author, stash_dir, clock
+        self.snapshot_store = UploadLocalSnapshots(
+            local_path_u,
+            db,
+            polling_interval=uploader_delay,
+            author=author,
+            stash_dir=stash_dir,
+            clock=clock,
+        )
+
     def get_public_status(self):
         """
         For the web UI, basically.
