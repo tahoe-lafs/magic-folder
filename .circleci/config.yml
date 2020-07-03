@@ -362,7 +362,9 @@ jobs:
             # Let a glob expand to nothing if there are no matches.
             shopt -s nullglub
 
-            # Copy any logs from a failed build we can find.
+            # Copy any logs from a failed build we can find.  Note that in
+            # this CircleCI build context, the source directory is named
+            # "project" instead of magic-folder.
             for p in /tmp/nix-build-*-magic-folder-*.drv-0/project/_trial_temp/*; do
               out="/tmp/artifacts/logs/$(basename "$p")"
               mkdir "$out"
