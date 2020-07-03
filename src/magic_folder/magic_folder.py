@@ -2148,20 +2148,16 @@ class Downloader(QueueMixin, WriteFileMixin):
 @attr.s
 class UploadLocalSnapshots(object):
 
-    def __init__(self, local_path_u, dbfile, polling_interval,
-                 name, author, stash_dir, clock=None):
+    local_path_u = attr.ib()
+    db = attr.ib()
+    polling_interval = attr.ib()
+    clock = attr.ib()
+    author = attr.ib()
+    stash_dir = attr.ib()
 
-        local_path_u = attr.ib()
-        dbfile = attr.ib()
-        polling_interval = attr.ib()
-        clock = attr.ib()
-        author = attr.ib()
-        stash_dir = attr.ib()
-
-        def __attrs_post_init__(self):
-            self._pending = set()
-            self._deque = deque()
-            self._author = create_local_author(author)
+    def __attrs_post_init__(self):
+        self._pending = set()
+        self._deque = deque()
 
     def start_processing(self):
         """
