@@ -358,12 +358,16 @@ jobs:
           command: |
             mkdir -p /tmp/artifacts/logs
             nix-shell -p busybox --run 'find /tmp/nix-build-*-magic-folder-*.drv-0'
-            # Let the copy fail because the files won't exist any time the
-            # build succeeds.
-            cp -a \
-              /tmp/nix-build-*-magic-folder-*.drv-0/magic-folder/_trial_temp/*/{test,eliot}.log \
-              /tmp/artifacts/logs/ ||
-              true
+
+            # Let a glob expand to nothing if there are no matches.
+            shopt -s nullglub
+
+            # Copy any logs from a failed build we can find.
+            for p in /tmp/nix-build-*-magic-folder-*.drv-0/project/_trial_temp/*; do
+              out="/tmp/artifacts/logs/$(basename "$p")"
+              mkdir "$out"
+              cp "$p"/*.log "$out"
+            done
 
       - store_artifacts:
           path: "/tmp/artifacts/logs"
