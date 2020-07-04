@@ -30,7 +30,7 @@ jobs:
         pip wheel --wheel-dir ./wheelhouse tahoe-lafs==1.14.0
     - name: Test with tox
       env:
-        MAGIC_FOLDER_HYPOTHESIS_PROFILE: "ci"
+        MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
         PIP_FIND_LINKS=./wheelhouse tox -e py27-coverage
 
