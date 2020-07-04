@@ -357,7 +357,6 @@ jobs:
           when: "always"
           command: |
             mkdir -p /tmp/artifacts/logs
-            nix-shell -p busybox --run 'find /tmp/nix-build-*-magic-folder-*.drv-0'
 
             # Let a glob expand to nothing if there are no matches.
             shopt -s nullglub
