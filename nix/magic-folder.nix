@@ -22,6 +22,8 @@ buildPythonPackage rec {
   checkPhase = ''
     ${python}/bin/python -m twisted.trial -j $NIX_BUILD_CORES magic_folder
 
+    exit 1
+
     # TODO Run the integration test suite.  But pytest_twisted is unpackaged
     # afaict.
   '';
