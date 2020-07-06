@@ -20,6 +20,7 @@ buildPythonPackage rec {
   '';
 
   checkPhase = ''
+    export MAGIC_FOLDER_HYPOTHESIS_PROFILE="magic-folder-ci"
     ${python}/bin/python -m twisted.trial -j $NIX_BUILD_CORES magic_folder
 
     # TODO Run the integration test suite.  But pytest_twisted is unpackaged
