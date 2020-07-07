@@ -2164,12 +2164,25 @@ class Downloader(QueueMixin, WriteFileMixin):
 # XXX: Add some state and methods to track the "status" of the upload process.
 @attr.s
 class UploadLocalSnapshots(object):
+    """
+    :ivar local_path_u: Base path of the folder.
+
+    :ivar db: An instance of MagicFolderDb.
+
+    :ivar integer polling_interval: queue monitoring task polling interval.
+
+    :ivar clock: Twisted clock.
+
+    :ivar author: An instance of LocalAuthor.
+
+    :ivar stash_dir: A temporary but persistent directory to store local snapshots.
+    """
 
     local_path_u = attr.ib()
     db = attr.ib()
     polling_interval = attr.ib()
     clock = attr.ib()
-    author = attr.ib()
+    author = attr.ib()  # XXX: should have a validator
     stash_dir = attr.ib()
 
     def __attrs_post_init__(self):
@@ -2246,3 +2259,16 @@ class UploadLocalSnapshots(object):
         # XXX: at this point, for the happy path, the _pending set
         # should be empty
 
+# XXX: This would only create local snapshots and write them into
+# the disk as of now.
+def upload_files_to_grid(client, local_path_u, files):
+    """
+    Given a list of files, upload them into the grid. This function
+    would be used by watchdog when it has a bunch of files to upload.
+
+    :param local_path_u: Absolute path (as FilePath) of the Magic Folder
+        base directory.
+    :param files: List of FilePath objects representing relative
+        file paths.
+    """
+    pass
