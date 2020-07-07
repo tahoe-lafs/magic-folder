@@ -2174,9 +2174,6 @@ class Downloader(QueueMixin, WriteFileMixin):
 # and then a second queue that takes LocalSnapshots and uploads them
 # to the grid
 #
-# Since we're using Twisted it probably makes sense for both of these
-# to be IService instances.
-
 # Given a list of file paths, the LocalSnapshots for these file paths
 # should be created and then persisted into the disk. A way to do that
 # would be to create a queue and push file paths into it with another
