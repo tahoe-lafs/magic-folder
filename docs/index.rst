@@ -52,4 +52,5 @@ Contents
    invites
    limitations
    backdoors
+   development
    proposed/index

@@ -24,6 +24,10 @@ from eliot import (
     ActionType,
 )
 
+from functools import (
+    wraps,
+)
+
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
                                     'last_downloaded_uri last_downloaded_timestamp')
 
@@ -114,6 +118,22 @@ class LocalPath(object):
         p.entry = PathEntry(*row[1:])
         return p
 
+# XXX: with_cursor lacks unit tests, see:
+#      https://github.com/LeastAuthority/magic-folder/issues/173
+def with_cursor(f):
+    """
+    Decorate a function so it is automatically passed a cursor with an active
+    transaction as the first positional argument.  If the function returns
+    normally then the transaction will be committed.  Otherwise, the
+    transaction will be rolled back.
+    """
+    @wraps(f)
+    def with_cursor(self, *a, **kw):
+        with self.connection:
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            return f(self, cursor, *a, **kw)
+    return with_cursor
 
 class MagicFolderDB(object):
     VERSION = 1
@@ -220,7 +240,8 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def store_local_snapshot(self, snapshot):
+    @with_cursor
+    def store_local_snapshot(self, cursor, snapshot):
         """
         Store or update the given Local Snapshot for the
         given the magicpath of the file (mangled file path).
@@ -233,18 +254,19 @@ class MagicFolderDB(object):
         with action:
             serialized_snapshot = snapshot.to_json()
             try:
-                self.cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
-                                    (snapshot.name, serialized_snapshot))
+                cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
+                               (snapshot.name, serialized_snapshot))
                 action.add_success_fields(insert_or_update=u"insert")
             except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
-                self.cursor.execute("UPDATE local_snapshots"
-                                    " SET snapshot_blob=?"
-                                    " WHERE path=?",
-                                    (serialized_snapshot, snapshot.name))
+                cursor.execute("UPDATE local_snapshots"
+                               " SET snapshot_blob=?"
+                               " WHERE path=?",
+                               (serialized_snapshot, snapshot.name))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    def get_local_snapshot(self, name, author):
+    @with_cursor
+    def get_local_snapshot(self, cursor, name, author):
         """
         return an instance of LocalSnapshot corresponding to
         the given name and author. Traversing the parents
@@ -256,10 +278,10 @@ class MagicFolderDB(object):
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
-        self.cursor.execute("SELECT snapshot_blob FROM local_snapshots"
-                            " WHERE path=?",
-                            (name,))
-        row = self.cursor.fetchone()
+        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
         if not row:
             return None
         else:
