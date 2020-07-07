@@ -352,12 +352,19 @@ class MagicFolder(service.MultiService):
         :param dict config: Magic-folder configuration like that in the list
             returned by ``load_magic_folders``.
         """
-        db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
         local_dir_config = config['directory']
         try:
             poll_interval = int(config["poll_interval"])
         except ValueError:
             raise ValueError("'poll_interval' option must be an int")
+
+        db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
+        database = magicfolderdb.get_magicfolderdb(
+            abspath_expanduser_unicode(db_filename),
+            create_version=(magicfolderdb.SCHEMA_v1, 1)
+        )
+        if database is None:
+            raise Exception('ERROR: Unable to load magic folder db.')
 
         return cls(
             client=client_node,
@@ -368,13 +375,13 @@ class MagicFolder(service.MultiService):
                 local_dir_config,
                 base=client_node.config.get_config_path(),
             ),
-            dbfile=abspath_expanduser_unicode(db_filename),
+            db=database,
             umask=config["umask"],
             name=name,
             downloader_delay=poll_interval,
         )
 
-    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, dbfile, umask,
+    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
@@ -387,9 +394,6 @@ class MagicFolder(service.MultiService):
         service.MultiService.__init__(self)
 
         clock = clock or reactor
-        db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
-        if db is None:
-            raise Exception('ERROR: Unable to load magic folder db.')
 
         # for tests
         self._client = client
