@@ -2250,9 +2250,11 @@ class LocalSnapshotCreator(service.Service):
                 try:
                     p.segmentsFrom(self.magic_path)
                 except ValueError:
-                    # XXX how do we show a FilePath to a user??
                     raise ValueError(
-                        "'{}' is not within '{}'".format(p, self.magic_path)
+                        "'{}' is not within '{}'".format(
+                            p.path,
+                            self.magic_path.path,
+                        )
                     )
                 self.queue.put(p)
 
