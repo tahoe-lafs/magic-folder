@@ -410,7 +410,7 @@ class MagicFolder(service.MultiService):
         author = create_local_author_from_config(config, name)
 
         # XXX: create stash_dir. This should be a configurable item?
-        stash_dir=FilePath("/tmp")
+        stash_dir = FilePath("/tmp")
         # local_path_u, db, polling_interval, author, stash_dir, clock
         self.snapshot_store = UploadLocalSnapshots(
             local_path_u,
