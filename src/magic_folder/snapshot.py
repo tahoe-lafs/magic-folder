@@ -46,7 +46,7 @@ class RemoteAuthor(object):
     """
     Represents the author of a RemoteSnapshot.
 
-    :ivar name: author's name
+    :ivar unicode name: author's name
 
     :ivar nacl.signing.VerifyKey verify_key: author's public key
     """
