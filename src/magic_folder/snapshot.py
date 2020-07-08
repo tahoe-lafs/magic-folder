@@ -335,7 +335,8 @@ class RemoteSnapshot(object):
         can be anything JSON can serialize (so text, numbers, booleans
         or lists and dicts of the same).
 
-    :ivar parents_raw: list of capability-strings of our parents.
+    :ivar parents_raw: list of capability-strings of our
+        parents. Capability-strings are bytes.
 
     :ivar author: SnapshotAuthor instance
 
