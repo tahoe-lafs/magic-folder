@@ -2284,7 +2284,7 @@ class LocalSnapshotCreator(service.Service):
             """
             # how else to get the unicode version of this path?
             path = p.asBytesMode().path
-            return magicpath.path2pagic(path)
+            return magicpath.path2magic(path)
 
         input_stream = io.FileIO(path, mode='rb')
         snapshot = yield create_snapshot(
@@ -2301,17 +2301,3 @@ class LocalSnapshotCreator(service.Service):
 
         # store the local snapshot to the disk
         self.db.store_local_snapshot(snapshot)
-
-# XXX: This would only create local snapshots and write them into
-# the disk as of now.
-def upload_files_to_grid(client, local_path_u, files):
-    """
-    Given a list of files, upload them into the grid. This function
-    would be used by watchdog when it has a bunch of files to upload.
-
-    :param local_path_u: Absolute path (as FilePath) of the Magic Folder
-        base directory.
-    :param files: List of FilePath objects representing relative
-        file paths.
-    """
-    pass
