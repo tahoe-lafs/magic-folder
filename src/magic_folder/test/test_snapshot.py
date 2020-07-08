@@ -482,7 +482,10 @@ class TestRemoteSnapshot(AsyncTestCase):
 
         self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
         content_io = io.BytesIO()
-        snapshot.fetch_content(self.tahoe_client, content_io)
+        self.assertThat(
+            snapshot.fetch_content(self.tahoe_client, content_io),
+            succeeded(Always()),
+        )
         self.assertEqual(content_io.getvalue(), content)
 
     @given(
