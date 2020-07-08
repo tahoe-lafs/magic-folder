@@ -22,6 +22,7 @@ from testtools import (
 
 from hypothesis import (
     given,
+    note,
 )
 from hypothesis.strategies import (
     binary,
@@ -469,7 +470,7 @@ class TestRemoteSnapshot(AsyncTestCase):
         )
 
         # snapshots[1] is a RemoteSnapshot
-        # print("remote snapshot: {}".format(snapshots[1]))
+        note("remote snapshot: {}".format(snapshots[1]))
 
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
