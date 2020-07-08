@@ -451,7 +451,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
                 ),
                 metadata=metadata,
                 content_cap=content_cap,
-                parents_raw=parent_caps, # XXX: This needs to be populated
+                parents_raw=parent_caps,
                 capability=snapshot_cap.decode("ascii"),
             )
         )
