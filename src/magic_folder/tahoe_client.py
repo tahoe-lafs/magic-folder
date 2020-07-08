@@ -7,8 +7,13 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
+
 from hyperlink import (
     DecodedURL,
+)
+
+from treq.client import (
+    HTTPClient,
 )
 
 import attr
@@ -22,9 +27,8 @@ class TahoeClient(object):
     and a treq client (to make HTTP requests).
     """
 
-    # node_directory = attr.ib()
-    url = attr.ib()
-    http_client = attr.ib()
+    url = attr.ib(validator=attr.validators.instance_of(DecodedURL))
+    http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
