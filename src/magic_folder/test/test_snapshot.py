@@ -152,7 +152,7 @@ class TestRemoteAuthor(AsyncTestCase):
     def test_author_serialize_missing_data(self):
         js = {
             "name": "foo",
-            # mising verify_key
+            # missing verify_key
         }
         with ExpectedException(ValueError, ".*requires 'verify_key'.*"):
             create_author_from_json(js)
