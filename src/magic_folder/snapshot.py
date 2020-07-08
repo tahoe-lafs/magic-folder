@@ -341,6 +341,10 @@ class RemoteSnapshot(object):
     :ivar author: SnapshotAuthor instance
 
     :ivar bytes capability: an immutable CHK:DIR2 capability-string.
+
+    :ivar bytes content_cap: a capability-string for the actual
+        content of this RemoteSnapshot. Use `fetch_content()` to
+        retrieve the contents.
     """
 
     name = attr.ib()
