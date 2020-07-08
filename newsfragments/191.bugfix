@@ -1,0 +1,1 @@
+Internal functions sign_snapshot() and write_snapshot_to_tahoe() support upload of LocalSnapshot instances
