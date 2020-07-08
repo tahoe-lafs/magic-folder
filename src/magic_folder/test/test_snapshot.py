@@ -476,8 +476,9 @@ class TestRemoteSnapshot(AsyncTestCase):
         # Check whether information is preserved across these changes.
 
         snapshot_d = create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client)
+        snapshot_d.addCallback(snapshots.append)
         self.assertThat(snapshot_d, succeeded(Always()))
-        snapshot = snapshot_d.result
+        snapshot = snapshots[-1]
 
         self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
         content_io = io.BytesIO()
