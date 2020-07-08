@@ -12,6 +12,7 @@ from __future__ import (
 
 from json import (
     dumps,
+    loads,
 )
 
 import attr
@@ -75,6 +76,7 @@ from .common import (
 )
 from .matchers import (
     matches_response_code,
+    matches_response_body,
 )
 
 from .strategies import (
@@ -85,6 +87,7 @@ from .strategies import (
     tokens,
     filenodes,
     queued_items,
+    local_snapshots,
 )
 
 from .fixtures import (
@@ -586,6 +589,7 @@ class StubMagicFolder(object):
     downloader = attr.ib(default=attr.Factory(StubQueue))
 
 
+
 class ListSnapshotTests(SyncTestCase):
     """
     Tests for listing snapshots via ``GET /v1/<folder name>/snapshots``.
@@ -615,3 +619,41 @@ class ListSnapshotTests(SyncTestCase):
                 matches_response_code(NOT_FOUND),
             ),
         )
+
+    @given(folder_name=text(), auth_token=binary(), local_snapshots=lists(local_snapshots()))
+    def test_list_some_snapshots(self, folder_name, auth_token, local_snapshots):
+        """
+        Snapshots belonging to files in the Magic Folder with the given nickname
+        are returned in a JSON object.
+        """
+        def get_auth_token():
+            return auth_token
+        def get_magic_folder(name):
+            raise KeyError(name)
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        treq = StubTreq(root)
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(folder_name, u"snapshots")
+        encoded_url = url.to_uri().to_text().encode("ascii")
+        self.assertThat(
+            treq.get(
+                encoded_url,
+                headers={
+                    b"Authorization": b"Bearer {}".format(auth_token),
+                }),
+            succeeded(
+                matches_response_body(
+                    AfterPreprocessing(
+                        good_loads,
+                        Equals({u"snapshots": local_snapshots}),
+                    ),
+                ),
+            ),
+        )
+
+
+def good_loads(s):
+    try:
+        return loads(s)
+    except Exception as e:
+        raise Exception("Could not parse {!r} as JSON: {}".format(s, e))
