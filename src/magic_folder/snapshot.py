@@ -206,19 +206,22 @@ def create_author_from_json(data):
 
 def sign_snapshot(local_author, snapshot, content_capability):
     """
-    Signs the given snapshot with the given key
+    Signs the given snapshot with provided author
 
-    :param SigningKey signing_key: the key to sign the data with
+    :param LocalAuthor local_author: the author to sign the data with
 
     :param LocalSnapshot snapshot: snapshot to sign
 
-    :param str content_capability: the Tahoe immutable capability of
-        the actual snapshot data.
+    :param str content_capability: the Tahoe immutable
+        capability-string of the actual snapshot data.
 
-    :returns: bytes representing the signature or exception on
-        error.
+    :returns: bytes representing the signature (or exception on
+        error).
     """
-    # XXX what do we sign? Should we hash it first? Ask our cryptographers
+    # XXX See
+    # https://github.com/LeastAuthority/magic-folder/issues/190 as
+    # this is likely insufficient (and hasn't been looked at by our
+    # cryptograhphers yet).
     data_to_sign = (
         u"{content_capability}\n"
         u"{name}\n"
