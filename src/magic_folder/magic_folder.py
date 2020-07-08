@@ -2283,7 +2283,8 @@ class LocalSnapshotCreator(service.Service):
             according to .. whatever rules magic-folder already uses?)
             """
             # how else to get the unicode version of this path?
-            return u".".join(p.splitext())
+            path = p.asBytesMode().path
+            return magicpath.path2pagic(path)
 
         input_stream = io.FileIO(path, mode='rb')
         snapshot = yield create_snapshot(
