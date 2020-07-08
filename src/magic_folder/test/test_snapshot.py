@@ -158,7 +158,7 @@ class TestRemoteAuthor(AsyncTestCase):
             create_author_from_json(js)
 
     def test_author_create_wrong_key(self):
-        with ExpectedException(ValueError, ".*must be a nacl.signing.VerifyKey.*"):
+        with ExpectedException(TypeError, ".*not a VerifyKey.*"):
             create_author("diane", "not a VerifyKey")
 
 
