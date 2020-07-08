@@ -32,6 +32,16 @@ class TahoeClient(object):
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
+        """
+        Creates a new immutable directory in Tahoe.
+
+        :param directory_data: a dict contain JSON-able data in a
+            shape suitable for the `/uri?t=mkdir-immutable` Tahoe
+            API. See
+            https://tahoe-lafs.readthedocs.io/en/tahoe-lafs-1.12.1/frontends/webapi.html#creating-a-new-directory
+
+        :returns: a capability-string
+        """
         post_uri = self.url.replace(
             path=(u"uri",),
             query=[(u"t", u"mkdir-immutable")],
