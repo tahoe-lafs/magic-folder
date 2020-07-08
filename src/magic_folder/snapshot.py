@@ -178,6 +178,14 @@ def create_author(name, verify_key):
 
 def create_author_from_json(data):
     """
+    Deserialize a RemoteAuthor.
+
+    :param data: a dict containing "name" and "verify_key". "name"
+        maps to a unicode string and "verify_key" maps to a unicode
+        string in base64 format (that decodes to 32 bytes of key
+        data). Usually these data would be obtained from
+        `RemoteAuthor.to_json`.
+
     :returns: a RemoteAuthor instance from the given data (which
        would usually come from RemoteAuthor.to_json())
     """
