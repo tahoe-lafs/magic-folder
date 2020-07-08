@@ -341,7 +341,7 @@ class RemoteSnapshot(object):
     :ivar unicode name: the name of this Snapshot. This is a mangled
         path relative to our local magic-folder path.
 
-    :ivar metadata: a dict containing metadata about this
+    :ivar dict metadata: a dict containing metadata about this
         Snapshot. Usually these are unicode keys mapping to data that
         can be anything JSON can serialize (so text, numbers, booleans
         or lists and dicts of the same).
