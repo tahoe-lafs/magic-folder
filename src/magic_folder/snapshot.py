@@ -340,7 +340,7 @@ class RemoteSnapshot(object):
 
     :ivar author: SnapshotAuthor instance
 
-    :ivar capability: an immutable CHK:DIR2 capability-string.
+    :ivar bytes capability: an immutable CHK:DIR2 capability-string.
     """
 
     name = attr.ib()
