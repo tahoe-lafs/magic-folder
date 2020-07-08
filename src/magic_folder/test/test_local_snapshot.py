@@ -118,25 +118,38 @@ class LocalSnapshotTests(AsyncTestCase):
             stash_dir=self.stash_dir,
         )
 
-    def test_add_single_file(self):
+    @given(content=binary())
+    def test_add_single_file(self, content):
         foo = self.magic_path.child("foo")
         with open(foo, "w") as f:
-            f.write("fake data\n" * 100)  # hypothesis, probably
+            f.write(content)
 
         self.snapshot_creator.add_files(foo)
         self.startService()
         # I *think* we should have processed 1 item by now..
+
+        # XXX need a matcher that calls
+        # snap._get_synchronous_content() and ensure it's the same as
+        # "content"
         self.assertThat(
-            self.db,
+            self.db.snapshots,
             MatchesStructure(
                 snapshots=Equals([
                     LocalSnapshot(
                         name="foo",
                         author=self.author,
                         metadata={},
-                        content_path="some random content path",
+                        content_path="some random content path",  # XXX won't match
                         parents_local=[],
                     )
                 ])
             )
+        )
+
+        def get_data(snap):
+            return snap._get_synchronous_content()
+
+        self.assertThat(
+            self.db.snapshots[0],
+            AfterPreprocessing(get_data, Equals(content))
         )
