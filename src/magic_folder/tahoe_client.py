@@ -58,10 +58,14 @@ class TahoeClient(object):
     @inlineCallbacks
     def create_immutable(self, producer):
         """
+        Creates a new immutable in Tahoe.
+
         :param producer: can take anything that treq's data= method to
             treq.request allows which is currently: str, file-like or
             IBodyProducer. See
             https://treq.readthedocs.io/en/release-20.3.0/api.html#treq.request
+
+        :returns: a capability-string
         """
 
         put_uri = self.url.replace(
@@ -79,6 +83,13 @@ class TahoeClient(object):
 
     @inlineCallbacks
     def download_capability(self, cap):
+        """
+        Retrieve the raw data for a capability from Tahoe
+
+        :param cap: a capability-string
+
+        :returns: bytes
+        """
         get_uri = self.url.replace(
             path=(u"uri",),
             query=[(u"uri", cap.decode("ascii"))],
@@ -89,6 +100,17 @@ class TahoeClient(object):
 
     @inlineCallbacks
     def stream_capability(self, cap, filelike):
+        """
+        Retrieve the raw data for a capability from Tahoe
+
+        :param cap: a capability-string
+
+        :param filelike: a writable file object. `.write` will be
+            called on it an arbitrary number of times, but no other
+            methods (that is, it won't be closed).
+
+        :returns: Deferred that fires with `None`
+        """
         get_uri = self.url.replace(
             path=(u"uri",),
             query=[(u"uri", cap.decode("ascii"))],
