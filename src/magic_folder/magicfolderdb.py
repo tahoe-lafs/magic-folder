@@ -135,6 +135,7 @@ def with_cursor(f):
             return f(self, cursor, *a, **kw)
     return with_cursor
 
+
 class MagicFolderDB(object):
     VERSION = 1
 

@@ -2231,7 +2231,7 @@ class LocalSnapshotCreator(service.Service):
         self._service_d.cancel()
         self._service_d = None
 
-    def upload_files(self, *paths):
+    def add_files(self, *paths):
         """
         Add each item in `paths` to our queue. If an item is itself a
         directory, we add all its children. If the path does not exist
@@ -2266,6 +2266,7 @@ class LocalSnapshotCreator(service.Service):
             else:
                 add_if_file(FilePath(relpath))
 
+    @inlineCallbacks
     def _process_item(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
@@ -2282,6 +2283,10 @@ class LocalSnapshotCreator(service.Service):
             FIXME returns a unicode string give an FilePath (should be mangled
             according to .. whatever rules magic-folder already uses?)
             """
+            # XXX why DO we "mangle paths"? Could we just put the
+            # relative path for the name here instead? (that is,
+            # relative to the magic-folder base).
+
             # how else to get the unicode version of this path?
             path = p.asBytesMode().path
             return magicpath.path2magic(path)
