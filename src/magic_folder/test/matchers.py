@@ -13,6 +13,9 @@ from testtools.matchers import (
     Always,
     Equals,
 )
+from testtools.twistedsupport import (
+    succeeded,
+)
 
 from foolscap.furl import (
     decode_furl,
@@ -27,6 +30,10 @@ from allmydata.node import (
 from allmydata.crypto import (
     ed25519,
     error,
+)
+
+from treq import (
+    text_content,
 )
 
 @attr.s
@@ -130,4 +137,10 @@ def matches_response_code(code):
     """
     return MatchesStructure(
         code=Equals(code),
+    )
+
+def matches_response_body(body_matcher):
+    return AfterPreprocessing(
+        lambda response: text_content(response),
+        succeeded(body_matcher),
     )
