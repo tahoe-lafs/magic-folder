@@ -543,8 +543,10 @@ class TestRemoteSnapshot(AsyncTestCase):
     )
     def test_snapshot_remote_parent(self, content, filename):
         """
-        Create a local snapshot, write into tahoe to create a remote snapshot,
-        then create another local snapshot with a remote parent.
+        Create a local snapshot, write into tahoe to create a remote
+        snapshot, then create another local snapshot with a remote
+        parent. This local snapshot retains its parent when converted
+        to a remote.
         """
         data = io.BytesIO(content)
 
