@@ -327,10 +327,13 @@ class RemoteSnapshot(object):
     Represents a snapshot corresponding to a particular version of a
     file authored by a particular human.
 
-    :ivar name: the name of this Snapshot. This is a mangled path
-        relative to our local magic-folder path.
+    :ivar unicode name: the name of this Snapshot. This is a mangled
+        path relative to our local magic-folder path.
 
-    :ivar metadata: a dict containing metadata about this Snapshot.
+    :ivar metadata: a dict containing metadata about this
+        Snapshot. Usually these are unicode keys mapping to data that
+        can be anything JSON can serialize (so text, numbers, booleans
+        or lists and dicts of the same).
 
     :ivar parents_raw: list of capablitiy-strings instances of our
         parents
