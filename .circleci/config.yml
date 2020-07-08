@@ -96,7 +96,7 @@ jobs:
       # otherwise.
       ALLOWED_FAILURE: "no"
       # Tell Hypothesis which configuration we want it to use.
-      MAGIC_FOLDER_HYPOTHESIS_PROFILE: "ci"
+      MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       # Tell the C runtime things about character encoding (mainly to do with
       # filenames and argv).
       LANG: "en_US.UTF-8"
@@ -304,6 +304,28 @@ jobs:
 
     steps:
       - "checkout"
+
+      - restore_cache:
+          # Get all of Nix's state relating to the particular revision of
+          # nixpkgs we're using.  It will always be the same.  CircleCI
+          # artifacts and nixpkgs store objects are probably mostly hosted in
+          # the same place (S3) so there's not a lot of difference for
+          # anything that's pre-built.  For anything we end up building
+          # ourselves, though, this saves us all of the build time (less the
+          # download time).
+          #
+          # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
+          name: "Restore Nix Store Paths"
+          keys:
+            # Construct cache keys that allow sharing as long as nixpkgs
+            # revision is unchanged.
+            #
+            # If nixpkgs changes then potentially a lot of cached packages for
+            # the base system will be invalidated so we may as well drop them
+            # and make a new cache with the new packages.
+            - magic_folder-nix-store-v1-19.09-small
+            - magic_folder-nix-store-v1-
+
       - "run":
           name: "Build and Test"
           command: |
@@ -317,7 +339,39 @@ jobs:
             # build a couple simple little dependencies that don't take
             # advantage of multiple cores and we get a little speedup by doing
             # them in parallel.
-            nix-build --cores 3 --max-jobs 2 nix/
+            #
+            # Keep failed build intermediates so we can upload logs for failed
+            # runs as artifacts, too.
+            nix-build --keep-failed --cores 3 --max-jobs 2 nix/
+
+      - "run":
+          name: "Prepare logs for upload"
+          # They need to be moved to the right place always, whether tests
+          # passed or failed.
+          when: "always"
+          command: |
+            mkdir -p /tmp/artifacts/logs
+
+            # Let a glob expand to nothing if there are no matches.
+            shopt -s nullglob
+
+            # Copy any logs from a failed build we can find.  Note that in
+            # this CircleCI build context, the source directory is named
+            # "project" instead of magic-folder.
+            for p in /tmp/nix-build-*-magic-folder-*.drv-0/project/_trial_temp/*; do
+              out="/tmp/artifacts/logs/$(basename "$p")"
+              mkdir "$out"
+              cp "$p"/*.log "$out"
+            done
+
+      - store_artifacts:
+          path: "/tmp/artifacts/logs"
+
+      - save_cache:
+          name: "Cache Nix Store Paths"
+          key: magic_folder-nix-store-v1-19.09-small
+          paths:
+            - "/nix"
 
   build-image: &BUILD_IMAGE
     # This is a template for a job to build a Docker image that has as much of
