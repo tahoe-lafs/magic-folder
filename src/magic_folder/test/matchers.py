@@ -69,18 +69,13 @@ class MatchesNodePublicKey(object):
 @attr.s
 class MatchesAuthorSignature(object):
     """
-    FIXME
+    Confirm signatures on a RemoteSnapshot
     """
     snapshot = attr.ib()  # LocalSnapshot
     remote_snapshot = attr.ib()
-##    capability = attr.ib()  # RemoteSnapshot's capability-string
 
     def match(self, other):
-        """
-        FIXME
-        """
         # "other" is the RemoteSnapshot's signature
-        # XXX need the capability-string of the RemoteSnapshot
         public_key = self.snapshot.author.verify_key
         alleged_sig = base64.b64decode(self.remote_snapshot.signature)
         signed_data = (
