@@ -332,6 +332,7 @@ class LocalSnapshot(object):
 
         return deserialize_dict(local_snapshot_dict, author)
 
+
 @attr.s
 class RemoteSnapshot(object):
     """
