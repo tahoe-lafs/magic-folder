@@ -170,9 +170,6 @@ def create_author(name, verify_key):
 
     :returns: a RemoteAuthor instance.
     """
-    if not isinstance(verify_key, VerifyKey):
-        raise ValueError("verify_key must be a nacl.signing.VerifyKey")
-
     return RemoteAuthor(
         name=name,
         verify_key=verify_key,
