@@ -1,10 +1,21 @@
 from __future__ import print_function
 
-import os, sys, time
+import os
+import sys
+import time
 import stat, shutil, json
 import mock
 from os.path import join, exists, isdir
 from errno import ENOENT
+
+import attr
+
+from hypothesis import (
+    given,
+)
+from hypothesis.strategies import (
+    binary,
+)
 
 from twisted.internet import defer, task, reactor
 from twisted.python.runtime import platform
@@ -15,6 +26,13 @@ from testtools.matchers import (
     Is,
     ContainsDict,
     Equals,
+    MatchesStructure,
+    Always,
+    Contains,
+    HasLength,
+)
+from testtools.twistedsupport import (
+    succeeded,
 )
 
 from eliot import (
@@ -22,7 +40,6 @@ from eliot import (
     start_action,
     log_call,
 )
-from eliot.twisted import DeferredContext
 
 from allmydata.interfaces import (
     IDirectoryNode,
@@ -47,6 +64,7 @@ from eliot.twisted import (
 
 from magic_folder.util.eliotutil import (
     log_call_deferred,
+    DeferredContext,
 )
 
 from magic_folder.magic_folder import (
@@ -58,6 +76,11 @@ from magic_folder.magic_folder import (
     maybe_upgrade_magic_folders,
     is_new_file,
     _upgrade_magic_folder_config,
+    LocalSnapshotCreator,
+)
+from magic_folder.snapshot import (
+    create_local_author,
+    LocalSnapshot,
 )
 from ..util import (
     fake_inotify,
@@ -96,7 +119,7 @@ class MemoryMagicFolderDatabase(object):
         return LocalSnapshot(
             name=name,
             author=author,
-            metdata=meta,
+            metadata=meta,
             content_path=content,
             parents_local=parents,
         )
@@ -105,8 +128,9 @@ class MemoryMagicFolderDatabase(object):
 class LocalSnapshotTests(AsyncTestCase):
 
     def setUp(self):
+        super(LocalSnapshotTests, self).setUp()
         self.db = MemoryMagicFolderDatabase()
-        self.clock = Clock()
+        self.clock = task.Clock()
         self.author = create_local_author("alice")
         self.stash_dir = FilePath("/tmp")  # XXX FIXME
         self.magic_path = FilePath("/tmp")  # XXX FIXME
@@ -118,38 +142,25 @@ class LocalSnapshotTests(AsyncTestCase):
             stash_dir=self.stash_dir,
         )
 
-    @given(content=binary())
-    def test_add_single_file(self, content):
+#    @given(content=binary())
+    def test_add_single_file(self):#, content):
+        content = b"random stuff\n" * 200
         foo = self.magic_path.child("foo")
-        with open(foo, "w") as f:
+        with foo.open("w") as f:
             f.write(content)
 
         self.snapshot_creator.add_files(foo)
-        self.startService()
-        # I *think* we should have processed 1 item by now..
-
-        # XXX need a matcher that calls
-        # snap._get_synchronous_content() and ensure it's the same as
-        # "content"
+        self.snapshot_creator.startService()
         self.assertThat(
-            self.db.snapshots,
-            MatchesStructure(
-                snapshots=Equals([
-                    LocalSnapshot(
-                        name="foo",
-                        author=self.author,
-                        metadata={},
-                        content_path="some random content path",  # XXX won't match
-                        parents_local=[],
-                    )
-                ])
-            )
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
         )
 
-        def get_data(snap):
-            return snap._get_synchronous_content()
+        # we should have processed one snapshot upload
 
-        self.assertThat(
-            self.db.snapshots[0],
-            AfterPreprocessing(get_data, Equals(content))
-        )
+        self.assertThat(self.db.snapshots, HasLength(1))
+        stored_snapshot = self.db.get_local_snapshot("@_tmp@_foo", self.author)
+        stored_content = stored_snapshot._get_synchronous_content()
+        self.assertThat(content, Equals(content))
+        self.assertThat(stored_snapshot.parents_local, HasLength(0))
+        # self.assertThat(stored_snapshot.parents_remote, HasLength(0))
