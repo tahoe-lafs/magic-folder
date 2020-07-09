@@ -1818,9 +1818,11 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
             client_node.config._basedir,
         )[name]
         self.magicfolder = MagicFolder.from_config(
+            reactor,
             client_node,
             name,
             config,
+            client_node.config,
         )
 
         self.magicfolder.setServiceParent(client_node)

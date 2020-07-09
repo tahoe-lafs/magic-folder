@@ -51,6 +51,7 @@ from magic_folder.util.eliotutil import (
 from ...magic_folder import (
     MagicFolder,
     load_magic_folders,
+    LocalSnapshotCreator,
 )
 from ... import cli as magic_folder_cli
 
@@ -59,6 +60,13 @@ from ...web import (
 )
 from ...status import (
     Status,
+)
+from ...magicfolderdb import (
+    get_magicfolderdb,
+    SCHEMA_v1,
+)
+from ...snapshot import (
+    create_local_author_from_config,
 )
 
 from ..no_network import GridTestMixin
@@ -264,17 +272,36 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
 
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
         dbfile = abspath_expanduser_unicode(u"magicfolder_default.sqlite", base=self.get_clientdir(i=client_num))
+        try:
+            db=get_magicfolderdb(dbfile, create_version=(SCHEMA_v1, 1))
+        except Exception as e:
+            self.fail("Unable to create the db: {}".format(str(e)))
+
+        client = self.get_client(client_num)
+        global_config = client.config
+        name='default'
+        local_author = create_local_author_from_config(global_config, name)
+
+        snapshot_creator = LocalSnapshotCreator(
+            magic_path=FilePath(local_magic_dir),
+            db=db,
+            clock=reactor,
+            author=local_author,
+            stash_dir=FilePath("/tmp"),  # XXX FIXME
+        )
+
         magicfolder = MagicFolder(
-            client=self.get_client(client_num),
+            client=client,
             upload_dircap=upload_dircap,
             collective_dircap=collective_dircap,
             local_path_u=local_magic_dir,
-            dbfile=dbfile,
+            db=db,
             umask=0o077,
-            name='default',
+            name=name,
             clock=clock,
             uploader_delay=0.2,
             downloader_delay=0,
+            snapshot_creator=snapshot_creator,
         )
 
         magicfolder.setServiceParent(self.get_client(client_num))
