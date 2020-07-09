@@ -58,6 +58,8 @@ from magic_folder.magic_folder import (
     maybe_upgrade_magic_folders,
     is_new_file,
     _upgrade_magic_folder_config,
+    LocalSnapshotCreator,
+    create_local_author_from_config,
 )
 from ..util import (
     fake_inotify,
@@ -2303,10 +2305,21 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         os.mkdir(errors_dir)
         not_a_dir = abspath_expanduser_unicode(u"NOT_A_DIR", base=self.basedir)
         fileutil.write(not_a_dir, "")
-        magicfolderdb = abspath_expanduser_unicode(u"magicfolderdb", base=self.basedir)
+        dbfile = abspath_expanduser_unicode(u"magicfolderdb", base=self.basedir)
         doesnotexist  = abspath_expanduser_unicode(u"doesnotexist", base=self.basedir)
-
+        db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
         client = self.g.clients[0]
+        name = 'default'
+        global_config = client.config
+        local_author = create_local_author_from_config(global_config, name)
+        snapshot_creator = LocalSnapshotCreator(
+            magic_path=FilePath(errors_dir),
+            db=db,
+            clock=reactor,
+            author=local_author,
+            stash_dir=FilePath("/tmp"),  # XXX FIXME
+        )
+
         d = DeferredContext(client.create_dirnode())
         def _check_errors(n):
             self.failUnless(IDirectoryNode.providedBy(n))
@@ -2314,24 +2327,24 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
             readonly_dircap = n.get_readonly_uri()
 
             self.shouldFail(ValueError, 'does not exist', 'does not exist',
-                            MagicFolder, client, upload_dircap, '', doesnotexist, magicfolderdb, 0o077, 'default')
+                           MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(ValueError, 'is not a directory', 'is not a directory',
-                            MagicFolder, client, upload_dircap, '', not_a_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, upload_dircap, '', not_a_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(AssertionError, 'bad upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'bad', '', errors_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, 'bad', '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(AssertionError, 'non-directory upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'URI:LIT:foo', '', errors_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, 'URI:LIT:foo', '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(AssertionError, 'readonly upload.dircap', 'is not a writecap to a directory',
-                            MagicFolder, client, readonly_dircap, '', errors_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, readonly_dircap, '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(AssertionError, 'collective dircap', 'is not a readonly cap to a directory',
-                            MagicFolder, client, upload_dircap, upload_dircap, errors_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, upload_dircap, upload_dircap, errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
 
             def _not_implemented():
                 raise NotImplementedError("blah")
             from magic_folder import magic_folder
             self.patch(magic_folder, 'get_inotify_module', _not_implemented)
             self.shouldFail(NotImplementedError, 'unsupported', 'blah',
-                            MagicFolder, client, upload_dircap, '', errors_dir, magicfolderdb, 0o077, 'default')
+                            MagicFolder, client, upload_dircap, '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
         d.addCallback(_check_errors)
         return d.result
 
