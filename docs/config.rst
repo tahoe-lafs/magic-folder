@@ -104,7 +104,14 @@ UI to Change the Config
 Writing configuration files is hard, error-prone and not a great
 interface. It also makes it hard (or impossible) to change where or
 how configuration is stored. All configuration shall be changed by
-command-line (GUI front-ends can use this command-line too).
+command-line. Since most command-line tools that interact with
+magic-folder should be thin wrappers over an underlying HTTP API there
+should also be "an HTTP API" to do that. GUI front-ends could use the
+command-line or the HTTP API. Nothing except the HTTP API should be
+touching the actual stored configuration.
+
+(Of course we can't stop users from editing the config files
+themselves, but this should be discouraged).
 
 
 Where and How To Store the Configuration
