@@ -130,19 +130,24 @@ indents and newlines.
 The "configuration directory" will look like this:
 
 - `confdir` (e.g. `~/.config/magic-folder`)
-  - `global_config.json`
-    - "endpoint": a Twisted server-endpoint string
-    - "tahoe_node_directory": a path to our Tahoe client's node-dir
-    - ... can be expanded for any global config
+  - `global.sqlite`
+    - a table for configuration (just key/value?)
+      - "endpoint": a Twisted server-endpoint string
+      - "tahoe_node_directory": a path to our Tahoe client's node-dir (or just "tahoe_endpoint")
+      - ... can be expanded for any global config
   - `api_token`: 32 bytes of binary data
-  - `magic_folders/` subdir (for state)
-    - `arbitrary_name_of_folder/`
-      - `config.json`
-        - "author":
-          - "name": arbitrary name
-          - "private_key": base64-encoded signing key
+  - `magicfolder_<name>.sqlite`
+    - a table for this folder's configuration (just key/value?)
+        - "author_name": arbitrary name
+        - "author_private_key": 32 bytes signing key
         - "poll_interval": int, how often to check for updates
         - "stash_directory": path to our local-snapshot stash directory
         - ... can be expanded for any per-magic-folder config
-      - `local_snapshots.sqlite`: snapshots we haven't yet uploaded
-      - `remote_snapshots.sqlite`: cache of remote snapshot data (ours and other users)
+    - a table for this folder's local snapshots
+    - a table for this folders remote snapshot data cache
+    - `stashdir_<name>/`, the default location for stashed file-data for this magic-folder
+
+We could roll all the per-magic-folder state and config into tables in
+the `global.sqlite` database instead. This might make it harder to
+purge data relating to a single magic-folder and make cross-folder
+information leaks easier.
