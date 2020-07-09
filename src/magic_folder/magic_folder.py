@@ -1777,7 +1777,7 @@ class Downloader(QueueMixin, WriteFileMixin):
     def start_downloading(self):
         action = START_DOWNLOADING(**self._log_fields)
         with action:
-            ALL_FILES.log(files=self._db.get_all_relpaths())
+            ALL_FILES.log(files=list(self._db.get_all_relpaths()))
 
             while True:
                 try:
