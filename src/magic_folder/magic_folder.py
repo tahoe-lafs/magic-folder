@@ -1,4 +1,3 @@
-import io
 import os
 import attr
 import six
@@ -23,7 +22,6 @@ from zope.interface import Interface, Attribute, implementer
 from twisted.internet.defer import (
     inlineCallbacks,
     DeferredQueue,
-    returnValue,
     CancelledError,
 )
 

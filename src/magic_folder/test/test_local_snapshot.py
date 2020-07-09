@@ -1,13 +1,5 @@
 from __future__ import print_function
 
-import os
-import sys
-import time
-import stat, shutil, json
-import mock
-from os.path import join, exists, isdir
-from errno import ENOENT
-
 import attr
 
 from hypothesis import (
@@ -17,89 +9,33 @@ from hypothesis.strategies import (
     binary,
 )
 
-from twisted.internet import defer, task, reactor
-from twisted.python.runtime import platform
-from twisted.python.filepath import FilePath
+from twisted.internet import (
+    task,
+)
+from twisted.python.filepath import (
+    FilePath,
+)
 
 from testtools.matchers import (
-    Not,
-    Is,
-    ContainsDict,
     Equals,
-    MatchesStructure,
     Always,
-    Contains,
     HasLength,
 )
 from testtools.twistedsupport import (
     succeeded,
 )
 
-from eliot import (
-    Message,
-    start_action,
-    log_call,
-)
-
-from allmydata.interfaces import (
-    IDirectoryNode,
-    NoSharesError,
-)
-from allmydata.util.assertutil import precondition
-
-from allmydata.util import fileutil, configutil, yamlutil
-from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
-from allmydata.util.consumer import download_to_data
-
-from allmydata.util.fileutil import get_pathinfo
-from allmydata.util.fileutil import abspath_expanduser_unicode
-from allmydata.immutable.upload import Data
-from allmydata.mutable.common import (
-        UnrecoverableFileError,
-)
-
-from eliot.twisted import (
-    inline_callbacks,
-)
-
-from magic_folder.util.eliotutil import (
-    log_call_deferred,
-    DeferredContext,
-)
-
 from magic_folder.magic_folder import (
-    MagicFolder,
-    WriteFileMixin,
-    ConfigurationError,
-    get_inotify_module,
-    load_magic_folders,
-    maybe_upgrade_magic_folders,
-    is_new_file,
-    _upgrade_magic_folder_config,
     LocalSnapshotCreator,
 )
 from magic_folder.snapshot import (
     create_local_author,
     LocalSnapshot,
 )
-from ..util import (
-    fake_inotify,
-)
 
-from .. import (
-    magicfolderdb,
-    magicpath,
-)
-
-from .no_network import GridTestMixin
-from .common_util import ReallyEqualMixin
 from .common import (
-    ShouldFailMixin,
-    SyncTestCase,
     AsyncTestCase,
-    skipIf,
 )
-from .cli.test_magic_folder import MagicFolderCLITestMixin
 
 
 @attr.s
