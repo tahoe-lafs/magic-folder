@@ -81,13 +81,13 @@ WANT to store is:
 - our own API endpoint (a Twisted server endpoint-string,
   e.g. `tcp:1234` or `unix:/tmp/foo`)
 
-State that we need to store (per magic-folder):
+State that we need to store:
 
 - a secret token that protects the API (only users who can read the
   file can access the endpoint)
-- list of other participants (see note)
-- local cache of remote snapshots
-- local cache of snapshots we haven't yet uploaded
+- list of other participants (per magic-folder) (see note)
+- local cache of remote snapshots (probably per-magic folder)
+- local copy of snapshots we haven't yet uploaded (probably per-magic folder)
   - metadata details of the snapshot
   - "stash directory" for file-data of the snapshot
 
