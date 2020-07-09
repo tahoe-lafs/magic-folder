@@ -21,6 +21,7 @@ from zope.interface import Interface, Attribute, implementer
 from twisted.internet.defer import (
     inlineCallbacks,
     DeferredQueue,
+    returnValue,
 )
 
 from eliot import (
@@ -2212,7 +2213,7 @@ class LocalSnapshotCreator(service.Service):
 
         self._service_d = restart(None)
 
-    # async
+    @inlineCallbacks
     def _process_once(self, _):
         """
         Wait for a single item from the queue, process it and recurse (in
@@ -2222,7 +2223,8 @@ class LocalSnapshotCreator(service.Service):
         item_d = self.queue.get()
         item_d.addCallbacks(self._process_item, write_failure)
         item_d.addBoth(self._process_once)
-        return item_d
+
+        yield item_d
 
     def stopService(self):
         """
