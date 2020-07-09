@@ -22,6 +22,7 @@ from twisted.internet.defer import (
     inlineCallbacks,
     DeferredQueue,
     returnValue,
+    CancelledError,
 )
 
 from eliot import (
@@ -2220,11 +2221,15 @@ class LocalSnapshotCreator(service.Service):
         a Deferred way). Our single argument is ignored (allowing this
         method to be added as a callback).
         """
-        item_d = self.queue.get()
-        item_d.addCallbacks(self._process_item, write_failure)
-        item_d.addBoth(self._process_once)
-
-        yield item_d
+        try:
+            item = yield self.queue.get()
+            self._process_item(item)
+        except CancelledError:
+            pass
+        except Exception:
+            write_failure(Failure())
+        else:
+            yield self._process_once(None)
 
     def stopService(self):
         """
