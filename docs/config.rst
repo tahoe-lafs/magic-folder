@@ -69,8 +69,15 @@ WANT to store is:
   - some state (see below)
 - the node-directory of our Tahoe-LAFS client
   - we may need the `private/api_auth_token`
-  - we will need the `node.url`
-  - (it MAY be sufficient to only store the API endpoint, not node-directory)
+  - we will need the `node.url` (at least)
+  - (it MAY be sufficient to only store the API endpoint (the contents
+    of `node.url`), not node-directory. If it's feasible to only store
+    the API endpoint, we should do that instead of caring about the
+    node-directory. It would probably still be convenient to refer to
+    a Tahoe client by node-directory (but we can just pull out the
+    Web-API endpoint). If we only store the endpoint and the Tahoe
+    config changes, the user would also have to change their
+    magic-folder config.
 - our own API endpoint (a Twisted server endpoint-string,
   e.g. `tcp:1234` or `unix:/tmp/foo`)
 
