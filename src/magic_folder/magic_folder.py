@@ -2202,34 +2202,21 @@ class LocalSnapshotCreator(service.Service):
         """
         Start a periodic loop that looks for work and does it.
         """
-
-        def restart(_):
-            d = self._process_once(None)
-            d.addCallbacks(restart, log_and_restart)
-            return d
-
-        def log_and_restart(f):
-            write_failure(f)
-            return restart(None)
-
-        self._service_d = restart(None)
+        self._service_d = self._process_queue()
 
     @inlineCallbacks
-    def _process_once(self, _):
+    def _process_queue(self):
         """
-        Wait for a single item from the queue, process it and recurse (in
-        a Deferred way). Our single argument is ignored (allowing this
-        method to be added as a callback).
+        Wait for a single item from the queue and process it, forever.
         """
-        try:
-            item = yield self.queue.get()
-            self._process_item(item)
-        except CancelledError:
-            pass
-        except Exception:
-            write_failure(Failure())
-        else:
-            yield self._process_once(None)
+        while True:
+            try:
+                item = yield self.queue.get()
+                self._process_item(item)
+            except CancelledError:
+                break
+            except Exception:
+                write_failure(Failure())
 
     def stopService(self):
         """
