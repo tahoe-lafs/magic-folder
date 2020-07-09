@@ -2212,7 +2212,7 @@ class LocalSnapshotCreator(service.Service):
         while True:
             try:
                 item = yield self.queue.get()
-                self._process_item(item)
+                yield self._process_item(item)
             except CancelledError:
                 break
             except Exception:
@@ -2223,7 +2223,9 @@ class LocalSnapshotCreator(service.Service):
         Don't process queued items anymore.
         """
         self._service_d.cancel()
+        d = self._service_d
         self._service_d = None
+        return d
 
     def add_files(self, *paths):
         """
