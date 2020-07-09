@@ -78,9 +78,8 @@ class LocalSnapshotTests(AsyncTestCase):
             stash_dir=self.stash_dir,
         )
 
-#    @given(content=binary())
-    def test_add_single_file(self):#, content):
-        content = b"random stuff\n" * 200
+    @given(content=binary())
+    def test_add_single_file(self, content):
         foo = self.magic_path.child("foo")
         with foo.open("w") as f:
             f.write(content)
@@ -97,6 +96,6 @@ class LocalSnapshotTests(AsyncTestCase):
         self.assertThat(self.db.snapshots, HasLength(1))
         stored_snapshot = self.db.get_local_snapshot("@_tmp@_foo", self.author)
         stored_content = stored_snapshot._get_synchronous_content()
-        self.assertThat(content, Equals(content))
+        self.assertThat(stored_content, Equals(content))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
         # self.assertThat(stored_snapshot.parents_remote, HasLength(0))
