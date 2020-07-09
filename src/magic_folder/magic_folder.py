@@ -1,6 +1,8 @@
+import io
+import os
 import attr
 import six
-import sys, os
+import sys
 import os.path
 from errno import EEXIST
 from collections import deque
@@ -73,6 +75,7 @@ from . import (
 )
 from .snapshot import (
     create_local_author_from_config,
+    create_snapshot,
 )
 
 if six.PY3:
@@ -2254,13 +2257,13 @@ class LocalSnapshotCreator(service.Service):
                     )
                 self.queue.put(p)
 
-        for relpath in relpaths:
-            if os.path.isdir(relpath):
-                for (dirpath, dirnames, filenames) in os.walk(relpath):
+        for path in paths:
+            if path.isdir():
+                for (dirpath, dirnames, filenames) in path.walk():
                     for fname in filenames:
                         add_if_file(FilePath(os.path.join(dirpath, fname)))
             else:
-                add_if_file(FilePath(relpath))
+                add_if_file(path)
 
     @inlineCallbacks
     def _process_item(self, path):
@@ -2284,21 +2287,20 @@ class LocalSnapshotCreator(service.Service):
             # relative to the magic-folder base).
 
             # how else to get the unicode version of this path?
-            path = p.asBytesMode().path
-            return magicpath.path2magic(path)
+            return magicpath.path2magic(p.asBytesMode().path)
 
-        input_stream = io.FileIO(path, mode='rb')
-        snapshot = yield create_snapshot(
-            name=mangle_path(path),
-            author=self.author,
-            data_producer=input_stream,
-            snapshot_stash_dir=self.stash_dir,
-            # XXX: we should query the db to check if there is
-            # an existing local snapshot or remote snapshot for
-            # the file being added. If so, we should use that
-            # as the parent.
-            parents=[],
-        )
+        with path.open('rb') as input_stream:
+            snapshot = yield create_snapshot(
+                name=mangle_path(path),
+                author=self.author,
+                data_producer=input_stream,
+                snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
+                # XXX: we should query the db to check if there is
+                # an existing local snapshot or remote snapshot for
+                # the file being added. If so, we should use that
+                # as the parent.
+                parents=[],
+            )
 
         # store the local snapshot to the disk
         self.db.store_local_snapshot(snapshot)
