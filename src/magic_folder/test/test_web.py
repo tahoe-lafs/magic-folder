@@ -12,7 +12,6 @@ from __future__ import (
 
 from json import (
     dumps,
-    loads,
 )
 
 import attr
@@ -53,7 +52,6 @@ from twisted.python.filepath import (
 )
 from twisted.web.http import (
     OK,
-    NOT_FOUND,
     UNAUTHORIZED,
 )
 from twisted.web.resource import (
