@@ -9,10 +9,6 @@ from string import (
     printable,
 )
 
-from functools import (
-    partial,
-)
-
 from os.path import (
     join,
 )
@@ -26,7 +22,6 @@ from base64 import (
 )
 
 from hypothesis.strategies import (
-    recursive,
     just,
     one_of,
     booleans,
@@ -36,7 +31,6 @@ from hypothesis.strategies import (
     binary,
     integers,
     floats,
-    dictionaries,
     fixed_dictionaries,
     sampled_from,
 )
@@ -49,15 +43,6 @@ from allmydata.util.progress import (
 )
 from allmydata.uri import (
     from_string as cap_from_string,
-)
-
-from nacl.signing import (
-    SigningKey,
-)
-
-from ..snapshot import (
-    LocalAuthor,
-    LocalSnapshot,
 )
 from ..magic_folder import (
     QueuedItem,
@@ -265,50 +250,3 @@ def queued_items():
 
 def magic_folder_filenames():
     return text(min_size=1)
-
-
-def local_authors():
-    return builds(
-        LocalAuthor,
-        name=text(),
-        signing_key=builds(
-            SigningKey,
-            binary(min_size=32, max_size=32),
-        ),
-    )
-
-def jsonable_dictionaries():
-    # TODO
-    return dictionaries(
-        text(),
-        text(),
-    )
-
-def local_snapshots():
-    """
-    Build ``LocalSnapshot`` instances.
-    """
-    names = magic_folder_filenames()
-    authors = local_authors()
-    metadatas = jsonable_dictionaries()
-    content_paths = magic_folder_filenames()
-
-    # Snapshot graph non-root internal and leaf nodes have parents.
-    parent_snapshots = partial(
-        builds,
-        LocalSnapshot,
-        name=names,
-        author=authors,
-        metadata=metadatas,
-        content_path=content_paths,
-    )
-
-    # *Strategy* leaves are the *snapshot graph* roots - they have no parents.
-    leaf_snapshots = parent_snapshots(
-        parents_local=just([]),
-    )
-
-    return recursive(
-        leaf_snapshots,
-        lambda child_strategy: parent_snapshots(parents_local=lists(child_strategy)),
-    )
