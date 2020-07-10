@@ -1,0 +1,1 @@
+Magic-Folder now exposes a new HTTP API hierarchy beneath ``/v1``.
