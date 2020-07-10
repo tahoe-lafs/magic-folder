@@ -250,3 +250,18 @@ def queued_items():
 
 def magic_folder_filenames():
     return text(min_size=1)
+
+
+def tokens():
+    """
+    Build authorization tokens for the HTTP API as byte strings.
+    """
+    # TODO An empty token will fail authorization because something fiddles
+    # with whitespace.  It fails unauthorization so it's safe but it'd be nice
+    # to clean up.  The min_size here prevents the success test from hitting
+    # this failure case.
+    #
+    # Auth tokens aren't necessarily limited to hex encoded strings but this
+    # is a cheap way to avoid trying to put newlines and such into the value.
+    # It would be okay to do better than this.
+    return binary(min_size=1).map(lambda b: b.encode("hex"))
