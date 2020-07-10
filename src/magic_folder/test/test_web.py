@@ -91,7 +91,6 @@ from .strategies import (
     tokens,
     filenodes,
     queued_items,
-    local_snapshots,
 )
 
 from .fixtures import (
