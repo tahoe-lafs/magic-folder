@@ -30,6 +30,8 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
+    one_of,
+    just,
 )
 
 from testtools.matchers import (
@@ -50,7 +52,9 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.web.http import (
+    OK,
     NOT_FOUND,
+    UNAUTHORIZED,
 )
 from twisted.web.resource import (
     Resource,
@@ -75,11 +79,11 @@ from .common import (
     AsyncTestCase,
 )
 from .matchers import (
-    matches_response_code,
-    matches_response_body,
+    matches_response,
 )
 
 from .strategies import (
+    path_segments,
     folder_names,
     absolute_paths,
     tahoe_lafs_dir_capabilities as dircaps,
@@ -589,42 +593,86 @@ class StubMagicFolder(object):
     downloader = attr.ib(default=attr.Factory(StubQueue))
 
 
+def tokens():
+    return binary(min_size=1).map(lambda b: b.encode("hex"))
 
-class ListSnapshotTests(SyncTestCase):
+
+class AuthorizationTests(SyncTestCase):
     """
-    Tests for listing snapshots via ``GET /v1/<folder name>/snapshots``.
+    Tests for the authorization requirements for resources beneath ``/v1``.
     """
-    @given(folder_name=text(), auth_token=binary())
-    def test_folder_does_not_exist(self, folder_name, auth_token):
+    @given(
+        good_token=tokens(),
+        bad_token=one_of(just(None), tokens()),
+        child_segments=lists(text()),
+    )
+    def test_unauthorized(self, good_token, bad_token, child_segments):
         """
-        If no Magic Folder with the given nickname exists then the response code
-        is NOT FOUND.
+        If the correct bearer token is not given in the **Authorization** header
+        of the request then the response code is UNAUTHORIZED.
+
+        :param bytes good_token: A bearer token which, when presented, should
+            authorize access to the resource.
+
+        :param bad_token: A bearer token which, when presented, should not
+            authorize access to the resource.  Alternatively, ``None`` to omit a
+            bearer token from the request entirely.
+
+        :param [unicode] child_segments: Additional path segments to add to the
+            request path beneath **v1**.
         """
+        # We're trying to test the *unauthorized* case.  Don't randomly hit
+        # the authorized case by mistake.
+        assume(good_token != bad_token)
+
         def get_auth_token():
-            return auth_token
+            return good_token
         def get_magic_folder(name):
             raise KeyError(name)
 
         root = magic_folder_resource(get_magic_folder, get_auth_token)
         treq = StubTreq(root)
-        url = DecodedURL.from_text(u"http://example.invalid./v1").child(folder_name, u"snapshots")
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url.to_uri().to_text().encode("ascii")
+
+        # A request with no token at all or the wrong token should receive an
+        # unauthorized response.
+        headers = {}
+        if bad_token is not None:
+            headers[b"Authorization"] = u"Bearer {}".format(bad_token).encode("ascii")
+
         self.assertThat(
             treq.get(
                 encoded_url,
-                headers={
-                    b"Authorization": b"Bearer {}".format(auth_token),
-                }),
+                headers=headers,
+            ),
             succeeded(
-                matches_response_code(NOT_FOUND),
+                matches_response(code_matcher=Equals(UNAUTHORIZED)),
             ),
         )
 
-    @given(folder_name=text(), auth_token=binary(), local_snapshots=lists(local_snapshots()))
-    def test_list_some_snapshots(self, folder_name, auth_token, local_snapshots):
+    @given(
+        auth_token=tokens(),
+        # It would be great to test /v1 itself but it's harder to construct
+        # that test case so I'm skipping it.  Also there is no actual content
+        # at /v1 so ... :/ It would be good to come back and fix this at some
+        # point.
+        child_segments=lists(path_segments(), min_size=1),
+        content=binary(),
+    )
+    def test_authorized(self, auth_token, child_segments, content):
         """
-        Snapshots belonging to files in the Magic Folder with the given nickname
-        are returned in a JSON object.
+        If the correct bearer token is not given in the **Authorization** header
+        of the request then the response code is UNAUTHORIZED.
+
+        :param bytes auth_token: A bearer token which, when presented, should
+            authorize access to the resource.
+
+        :param [unicode] child_segments: Additional path segments to add to the
+            request path beneath **v1**.
+
+        :param bytes content: The bytes we expect to see on a successful
+            request.
         """
         def get_auth_token():
             return auth_token
@@ -632,28 +680,41 @@ class ListSnapshotTests(SyncTestCase):
             raise KeyError(name)
 
         root = magic_folder_resource(get_magic_folder, get_auth_token)
+
+        # Since we don't want to exercise any real magic-folder application
+        # logic we'll just magic up the child resource being requested.
+        resource = root.getChildWithDefault(b"v1", object())._resource
+        for seg in child_segments[:-1]:
+            leaf = Resource()
+            resource.putChild(seg.encode("utf-8"), leaf)
+            resource = leaf
+        resource.putChild(
+            child_segments[-1].encode("utf-8"),
+            Data(
+                content,
+                b"application/binary",
+            ),
+        )
+
         treq = StubTreq(root)
-        url = DecodedURL.from_text(u"http://example.invalid./v1").child(folder_name, u"snapshots")
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url.to_uri().to_text().encode("ascii")
+
+        # A request with no token at all or the wrong token should receive an
+        # unauthorized response.
+        headers = {
+            b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+        }
+
         self.assertThat(
             treq.get(
                 encoded_url,
-                headers={
-                    b"Authorization": b"Bearer {}".format(auth_token),
-                }),
+                headers=headers,
+            ),
             succeeded(
-                matches_response_body(
-                    AfterPreprocessing(
-                        good_loads,
-                        Equals({u"snapshots": local_snapshots}),
-                    ),
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=Equals(content),
                 ),
             ),
         )
-
-
-def good_loads(s):
-    try:
-        return loads(s)
-    except Exception as e:
-        raise Exception("Could not parse {!r} as JSON: {}".format(s, e))

@@ -31,9 +31,50 @@ def magic_folder_resource(get_magic_folder, get_auth_token):
     :return IResource: The resource that is the root of the HTTP API.
     """
     root = Resource()
-    root.putChild(b"api", MagicFolderWebApi(get_magic_folder, get_auth_token))
-    root.putChild(b"v1", V1MagicFolderAPI(get_magic_folder, get_auth_token))
+    root.putChild(
+        b"api",
+        MagicFolderWebApi(get_magic_folder, get_auth_token),
+    )
+    root.putChild(
+        b"v1",
+        BearerTokenAuthorization(
+            V1MagicFolderAPI(get_magic_folder),
+            get_auth_token,
+        ),
+    )
     return root
+
+
+@attr.s
+class BearerTokenAuthorization(Resource, object):
+    """
+    Protect a resource hierarchy with bearer-token based authorization.
+
+    :ivar IResource _resource: The root of a resource hierarchy to which to
+        delegate actual rendering.
+
+    :ivar (IO bytes) _get_auth_token: A function that returns the correct
+        authentication token.
+    """
+    _resource = attr.ib()
+    _get_auth_token = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render(self, request):
+        # TODO We don't even check authorization here so we can never render
+        # ``/v1`` but maybe that's fine.  It might be confusing to get an
+        # unauthorized response if you request it, though.
+        return unauthorized(request)
+
+    def getChildWithDefault(self, path, request):
+        if not _is_authorized(request, self._get_auth_token):
+            # Don't let anything through that isn't authorized.
+            return Unauthorized()
+        # Authorization checks out, let the protected resource do what it
+        # will.
+        return self._resource.getChildWithDefault(path, request)
 
 
 @attr.s
@@ -43,15 +84,23 @@ class V1MagicFolderAPI(Resource, object):
 
     :ivar (unicode -> MagicFolder) _get_magic_folder: A function that looks up
         a magic folder by its nickname.
-
-    :ivar (IO bytes) _get_auth_token: A function that returns the correct
-        authentication token.
     """
     _get_magic_folder = attr.ib()
-    _get_auth_token = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
+
+
+class Unauthorized(Resource):
+    isLeaf = True
+
+    def render(self, request):
+        return unauthorized(request)
+
+
+def unauthorized(request):
+    request.setResponseCode(http.UNAUTHORIZED)
+    return b""
 
 
 def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
@@ -74,6 +123,24 @@ def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
 def error(request, code, message):
     request.setResponseCode(code, message)
     request.finish()
+
+
+def _is_authorized(request, get_auth_token):
+    authorization = request.requestHeaders.getRawHeaders(u"authorization")
+    if authorization is None or len(authorization) == 0:
+        return False
+    if len(authorization) > 1:
+        raise ValueError("Scammy")
+    auth_token = get_auth_token()
+    if not auth_token:
+        # XXX Untested
+        return False
+    expected = u"Bearer {}".format(auth_token).encode("ascii")
+    return timing_safe_compare(
+        authorization[0].encode("ascii"),
+        expected,
+    )
+
 
 def authorize(request, get_auth_token):
     if "token" in request.args:

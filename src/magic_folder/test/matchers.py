@@ -10,6 +10,7 @@ from testtools.matchers import (
     MatchesStructure,
     MatchesDict,
     MatchesListwise,
+    MatchesAll,
     Always,
     Equals,
 )
@@ -33,7 +34,7 @@ from allmydata.crypto import (
 )
 
 from treq import (
-    text_content,
+    content,
 )
 
 @attr.s
@@ -127,20 +128,21 @@ class MatchesSameElements(object):
         return Equals(left).match(right)
 
 
-def matches_response_code(code):
+def matches_response(code_matcher=Always(), body_matcher=Always()):
     """
-    Match a Treq response object with the given response code.
+    Match a Treq response object with certain code and body.
 
-    :param int code: The response code to match against.
+    :param Matcher code_matcher: A matcher to apply to the response code.
+    :param Matcher body_matcher: A matcher to apply to the response body.
 
     :return: A matcher.
     """
-    return MatchesStructure(
-        code=Equals(code),
-    )
-
-def matches_response_body(body_matcher):
-    return AfterPreprocessing(
-        lambda response: text_content(response),
-        succeeded(body_matcher),
+    return MatchesAll(
+        MatchesStructure(
+            code=code_matcher,
+        ),
+        AfterPreprocessing(
+            lambda response: content(response),
+            succeeded(body_matcher),
+        ),
     )
