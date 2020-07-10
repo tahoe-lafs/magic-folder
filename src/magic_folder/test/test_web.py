@@ -115,6 +115,14 @@ from ..common import (
     BadDirectoryCapability,
     BadMetadataResponse,
 )
+from ..magic_folder import (
+    MagicFolder,
+    MagicFolderModel,
+)
+from ..magicfolderdb import (
+    get_magicfolderdb,
+)
+
 class StatusTests(AsyncTestCase):
     """
     Tests for ``magic_folder.status.status``.
@@ -585,9 +593,9 @@ class StubQueue(object):
 
 @attr.s
 class StubMagicFolder(object):
+    model = attr.ib(default=None)
     uploader = attr.ib(default=attr.Factory(StubQueue))
     downloader = attr.ib(default=attr.Factory(StubQueue))
-
 
 
 class ListSnapshotTests(SyncTestCase):
@@ -626,10 +634,20 @@ class ListSnapshotTests(SyncTestCase):
         Snapshots belonging to files in the Magic Folder with the given nickname
         are returned in a JSON object.
         """
+        db = get_magicfolderdb(":memory:")
+        for snapshot in local_snapshots:
+            db.store_local_snapshot(snapshot)
+
+        model = MagicFolderModel(db)
+
+        folders = {
+            folder_name: StubMagicFolder(model),
+        }
         def get_auth_token():
             return auth_token
+
         def get_magic_folder(name):
-            raise KeyError(name)
+            return folders[name]
 
         root = magic_folder_resource(get_magic_folder, get_auth_token)
         treq = StubTreq(root)

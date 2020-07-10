@@ -264,7 +264,7 @@ def queued_items():
     )
 
 def magic_folder_filenames():
-    return text(min_size=1)
+    return binary(min_size=1)
 
 
 def local_authors():

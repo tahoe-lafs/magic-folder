@@ -7,6 +7,8 @@ from datetime import datetime
 import time
 import ConfigParser
 
+import attr
+
 from twisted.python.log import msg as twmsg
 from twisted.python.filepath import FilePath
 from twisted.python.monkey import MonkeyPatcher
@@ -334,6 +336,54 @@ def save_magic_folders(node_directory, folders):
     )
 
 
+def _iter_parents(local_snapshot):
+    """
+    Yield all parents of ``local_snapshot`` and their parents and so on.  No
+    guarantees are made of uniqueness.
+
+    :return: An iterator of ``LocalSnapshot`` instances.
+    """
+    for parent in local_snapshot.parents_local:
+        yield parent
+        for ancestor in _iter_parents(parent):
+            yield ancestor
+
+
+@attr.s
+class MagicFolderModel(object):
+    """
+    It's a model.  It *has* stuff.  It doesn't *do* stuff.
+    """
+    _db = attr.ib()
+
+    def _iter_snapshots(self):
+        """
+        Yield all snapshots available in the database.  Each snapshot will be
+        yielded exactly once.
+        """
+        seen = set()
+        for path in self._db.get_snapshot_paths():
+            snapshot = self._db.get_local_snapshot(path, None)
+            if snapshot.id() not in seen:
+                seen.add(snapshot.id())
+                yield snapshot
+                for parent in _iter_parents(snapshot):
+                    if parent.id() not in seen:
+                        seen.add(parent.id())
+                        yield parent
+
+
+    def query_snapshots(self):
+        """
+        Get some snapshots from this folder.
+
+        This returns snapshots belonging to any and all files in the folder.
+
+        :return [LocalSnapshot]: The requested snapshots.
+        """
+        return list(self._iter_snapshots())
+
+
 class MagicFolder(service.MultiService):
 
     @classmethod
@@ -370,6 +420,10 @@ class MagicFolder(service.MultiService):
             downloader_delay=poll_interval,
         )
 
+    @property
+    def _db(self):
+        return self._model.db
+
     def __init__(self, client, upload_dircap, collective_dircap, local_path_u, dbfile, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
@@ -377,6 +431,7 @@ class MagicFolder(service.MultiService):
             raise ValueError("'{}' does not exist".format(local_path_u))
         if not os.path.isdir(local_path_u):
             raise ValueError("'{}' is not a directory".format(local_path_u))
+
         # this is used by 'service' things and must be unique in this Service hierarchy
         self.name = 'magic-folder-{}'.format(name)
 
@@ -387,9 +442,12 @@ class MagicFolder(service.MultiService):
         if db is None:
             raise Exception('ERROR: Unable to load magic folder db.')
 
+        self.model = MagicFolderModel(
+            db=db,
+        )
+
         # for tests
         self._client = client
-        self._db = db
 
         upload_dirnode = self._client.create_node_from_uri(upload_dircap)
         collective_dirnode = self._client.create_node_from_uri(collective_dircap)

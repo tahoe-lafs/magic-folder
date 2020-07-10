@@ -10,7 +10,9 @@ import os
 import time
 import json
 from tempfile import mkstemp
-
+from hashlib import (
+    sha256,
+)
 import attr
 
 from twisted.internet.defer import (
@@ -21,7 +23,9 @@ from twisted.web.client import (
     FileBodyProducer,
 )
 
-import magic_folder
+from .magic_folder import (
+    load_magic_folders,
+)
 
 from nacl.signing import (
     SigningKey,
@@ -109,7 +113,7 @@ def create_local_author_from_config(config, name=None):
     if name is None:
         name = "default"
     nodedir = config.get_config_path()
-    magic_folders = magic_folder.load_magic_folders(nodedir)
+    magic_folders = load_magic_folders(nodedir)
     if name not in magic_folders:
         raise RuntimeError(
             "No magic-folder named '{}'".format(name)
@@ -136,13 +140,29 @@ class LocalSnapshot(object):
     name = attr.ib()
     author = attr.ib()
     metadata = attr.ib()
-    content_path = attr.ib()  # full filesystem path to our stashed contents
+    # full filesystem path to our stashed contents
+    content_path = attr.ib(validator=attr.validators.instance_of(bytes))
     parents_local = attr.ib()  # LocalSnapshot instances
 
     # once we do uploads / downloads and have RemoteSnapshots, we will
     # also have those kind of parents too:
     # parents_remote = attr.ib()
     # ..and need to add methods here to count and async get parents
+
+    def id(self):
+        intrinsic = b"\0".join((
+            self.name.encode("utf-8"),
+            u"" if self.author is None else self.author.name.encode("utf-8"),
+            self.content_path,
+            # XXX metadata
+        ))
+        parents_local = b"\0".join(
+            parent.id().encode("ascii")
+            for parent
+            in self.parents_local
+        )
+        return sha256(intrinsic + b"\0" + parents_local).hexdigest()[:6]
+
 
     def get_content_producer(self):
         """

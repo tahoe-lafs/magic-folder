@@ -1,6 +1,8 @@
 import json
 import cgi
-
+from json import (
+    dumps,
+)
 import attr
 
 from twisted.application.internet import (
@@ -15,6 +17,7 @@ from twisted.web import (
 )
 from twisted.web.resource import (
     Resource,
+    NoResource,
 )
 from allmydata.util.hashutil import (
     timing_safe_compare,
@@ -52,6 +55,58 @@ class V1MagicFolderAPI(Resource, object):
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
+
+    def getChild(self, name, request):
+        """
+        The direct children of ``V1MagicFolderAPI`` are resources that correspond
+        to individual Magic Folders.
+        """
+        try:
+            magic_folder = self._get_magic_folder(name.decode("utf-8"))
+        except KeyError:
+            return NoResource()
+        return V1MagicFolder(magic_folder, self._get_auth_token)
+
+
+@attr.s
+class V1MagicFolder(Resource, object):
+    _magic_folder = attr.ib()
+    _get_auth_token = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+        self.putChild(b"snapshots", V1Snapshots(self._magic_folder, self._get_auth_token))
+
+
+def _snapshot_json(snapshot):
+    snapshot_json = {
+        u"name": snapshot.name,
+        u"author": snapshot.author.name,
+        u"content-path": snapshot.content_path,
+        u"parents": list(parent.id() for parent in snapshot.parents_local),
+    }
+    snapshot_id = _snapshot_id(snapshot_json)
+    snapshot_json[u"id"] = snapshot_id
+    return snapshot_json
+
+
+@attr.s
+class V1Snapshots(Resource, object):
+    _magic_folder = attr.ib()
+    _get_auth_token = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+        return dumps({
+            u"snapshots": list(
+                _snapshot_json(snapshot)
+                for snapshot
+                in self._magic_folder.model.query_snapshots()
+            ),
+        })
 
 
 def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):

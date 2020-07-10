@@ -15,9 +15,6 @@ from .util.eliotutil import (
     validateInstanceOf,
 )
 
-from .snapshot import (
-    LocalSnapshot,
-)
 
 from eliot import (
     Field,
@@ -285,4 +282,21 @@ class MagicFolderDB(object):
         if not row:
             return None
         else:
+            from .snapshot import (
+                LocalSnapshot,
+            )
             return LocalSnapshot.from_json(row[0], author)
+
+    @with_cursor
+    def get_snapshot_paths(self, cursor):
+        """
+        :return {str}: All of the relative paths into the Magic Folder for which a
+            snapshot exists.
+        """
+        cursor.execute("SELECT DISTINCT [path] FROM [local_snapshots]")
+        rows = cursor.fetchall()
+        return set(
+            path
+            for (path,)
+            in rows
+        )

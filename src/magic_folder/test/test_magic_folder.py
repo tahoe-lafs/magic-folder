@@ -2452,3 +2452,58 @@ class RealTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
         d = super(RealTestAliceBob, self).setUp()
         self.inotify = get_inotify_module()
         return d
+
+
+class MagicFolderModelTests(SyncTestCase):
+    """
+    Tests for ``magic_folder.magic_folder.MagicFolderModel``.
+    """
+    @given(
+        snapshots=local_snapshots(),
+        order=sampled_from([ORDER.CREATED]),
+        direction=sampled_from([Direction.ASCENDING, Direction.DESCENDING]),
+        limit=sampled_from([just(None), integers(min_value=1)]),
+        data=data(),
+    )
+    def test_list_snapshots(self, snapshots, order, direction, limit, data):
+        db = SomeDatabase()
+        model = MagicFolderModel(db)
+
+        expected_snapshots = Order.sort_snapshots(order, direction, snapshots)
+
+        start_snapshot = data.sample(
+            sampled_from([
+                just(None),
+                sampled_from(snapshots),
+            ]),
+        )
+        if start_snapshot is None:
+            start = None
+        else:
+            # I hope this is "created time".
+            start = Order.snapshot_value(order, start_snapshot)
+            expected_snapshots = list(
+                snapshot
+                for snapshot
+                in expected_snapshots
+                if Direction.compare(
+                        Order.snapshot_value(order, snapshot),
+                        start,
+                )
+            )
+
+
+        db.insert_snapshots(snapshots)
+
+        result_snapshots = model.query_snapshots(start, order, direction, limit)
+
+        if
+
+        self.assertThat(
+            result_snapshots,
+            MatchesAll(
+                # Result ordering should match what was requested.
+                ,
+
+            ),
+        )
