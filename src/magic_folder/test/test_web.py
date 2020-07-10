@@ -594,6 +594,10 @@ class StubMagicFolder(object):
 
 
 def tokens():
+    # TODO An empty token will fail authorization because something fiddles
+    # with whitespace.  It fails unauthorization so it's safe but it'd be nice
+    # to clean up.  The min_size here prevents the success test from hitting
+    # this failure case.
     return binary(min_size=1).map(lambda b: b.encode("hex"))
 
 
