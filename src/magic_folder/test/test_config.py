@@ -88,6 +88,25 @@ class TestGlobalConfig(SyncTestCase):
             Equals(alice),
         )
 
+    def test_create_folder_duplicate(self):
+        config = create_global_configuration(self.temp, "tcp:1234")
+        alice = create_local_author("alice")
+        magic = self.temp.child("magic")
+        mkdir(magic.path)
+        config.create_magic_folder(
+            u"foo",
+            magic,
+            self.temp.child("state"),
+            alice,
+        )
+        with ExpectedException(ValueError, "Already have a magic-folder named 'foo'"):
+            config.create_magic_folder(
+                u"foo",
+                magic,
+                self.temp.child("state2"),
+                alice,
+            )
+
     def test_folder_nonexistant_magic_path(self):
         config = create_global_configuration(self.temp, "tcp:1234")
         alice = create_local_author("alice")

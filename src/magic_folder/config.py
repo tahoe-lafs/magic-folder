@@ -276,7 +276,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
-            if cursor.fetchone() is not None:
+            if len(cursor.fetchall()):
                 raise ValueError(
                     "Already have a magic-folder named '{}'".format(name)
                 )
@@ -313,4 +313,12 @@ class GlobalConfigDatabase(object):
             database=connection,
             stash_path=stash_path,
         )
+
+        # add to the global config
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "INSERT INTO magic_folders VALUES (?, ?)",
+                (name, state_path.path)
+            )
         return config
