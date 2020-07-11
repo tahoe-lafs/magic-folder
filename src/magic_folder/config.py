@@ -18,6 +18,7 @@ from nacl.signing import (
 )
 from nacl.encoding import (
     RawEncoder,
+    Base32Encoder,
 )
 
 from twisted.internet.endpoints import (
@@ -27,7 +28,12 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from .magicfolderdb import with_cursor
+from .magicfolderdb import (
+    with_cursor,
+)
+from .snapshot import (
+    LocalAuthor,
+)
 
 
 class ConfigurationError(Exception):
@@ -67,7 +73,7 @@ CREATE TABLE version
 CREATE TABLE author
 (
     name          TEXT PRIMARY KEY,  -- UTF8 name of the author
-    private_key   BLOB               -- 32 bytes
+    private_key   TEXT               -- base32 key in UTF8
 );
 
 CREATE TABLE poll_interval
@@ -80,7 +86,7 @@ CREATE TABLE local_snapshots
     id VARCHAR(256) PRIMARY KEY, -- identifier (hash of .. stuff)
     name TEXT,                   -- the (mangled) name in UTF8
     metadata TEXT,               -- arbitrary JSON metadata in UTF8
-    content_path TEXT,           -- where the content is sitting (path, UTF8)
+    content_path TEXT            -- where the content is sitting (path, UTF8)
 );
 """
 ## XXX "parents_local" should be IDs of other local_snapshots, not
@@ -173,10 +179,10 @@ class MagicFolderConfig(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name, private_key FROM author");
-            name, keydata = self.cursor.fetchone()[0]
+            name, keydata = cursor.fetchone()
             return LocalAuthor(
                 name=name,
-                signing_key=SigningKey(keydata),
+                signing_key=SigningKey(keydata, encoder=Base32Encoder),
             )
 
 
@@ -264,6 +270,8 @@ class GlobalConfigDatabase(object):
 
         :param LocalAuthor author: the signer of snapshots created in
             this folder
+
+        :returns: a MagicFolderConfig instance
         """
         with self.database:
             cursor = self.database.cursor()
@@ -297,7 +305,7 @@ class GlobalConfigDatabase(object):
             )
             cursor.execute(
                 "INSERT INTO author (name, private_key) VALUES (?, ?)",
-                (author.name, author.signing_key.encode(RawEncoder))
+                (author.name, author.signing_key.encode(Base32Encoder))
             )
 
         config = MagicFolderConfig(
@@ -305,3 +313,4 @@ class GlobalConfigDatabase(object):
             database=connection,
             stash_path=stash_path,
         )
+        return config

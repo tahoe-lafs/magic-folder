@@ -20,6 +20,10 @@ from ..config import (
     create_global_configuration,
     load_global_configuration,
 )
+from ..snapshot import (
+    create_local_author,
+)
+
 
 class TestGlobalConfig(SyncTestCase):
 
@@ -40,4 +44,20 @@ class TestGlobalConfig(SyncTestCase):
         self.assertThat(
             config.api_endpoint,
             Equals("tcp:1234")
+        )
+
+    def test_create_folder(self):
+        config = create_global_configuration(self.temp, "tcp:1234")
+        alice = create_local_author("alice")
+        magic = self.temp.child("magic")
+        mkdir(magic.path)
+        magic_folder = config.create_magic_folder(
+            u"foo",
+            magic,
+            self.temp.child("state"),
+            alice,
+        )
+        self.assertThat(
+            magic_folder.author,
+            Equals(alice),
         )
