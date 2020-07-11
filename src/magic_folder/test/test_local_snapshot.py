@@ -9,9 +9,6 @@ from hypothesis.strategies import (
     binary,
 )
 
-from twisted.internet import (
-    task,
-)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -66,14 +63,12 @@ class LocalSnapshotTests(AsyncTestCase):
     def setUp(self):
         super(LocalSnapshotTests, self).setUp()
         self.db = MemoryMagicFolderDatabase()
-        self.clock = task.Clock()
         self.author = create_local_author("alice")
         self.stash_dir = FilePath("/tmp")  # XXX FIXME
         self.magic_path = FilePath("/tmp")  # XXX FIXME
         self.snapshot_creator = LocalSnapshotCreator(
             magic_path=self.magic_path,
             db=self.db,
-            clock=self.clock,
             author=self.author,
             stash_dir=self.stash_dir,
         )

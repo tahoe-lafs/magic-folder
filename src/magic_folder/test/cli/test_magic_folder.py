@@ -285,7 +285,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         snapshot_creator = LocalSnapshotCreator(
             magic_path=FilePath(local_magic_dir),
             db=db,
-            clock=reactor,
             author=local_author,
             stash_dir=FilePath("/tmp"),  # XXX FIXME
         )

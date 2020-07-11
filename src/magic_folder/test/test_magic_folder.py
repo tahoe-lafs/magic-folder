@@ -2315,7 +2315,6 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         snapshot_creator = LocalSnapshotCreator(
             magic_path=FilePath(errors_dir),
             db=db,
-            clock=reactor,
             author=local_author,
             stash_dir=FilePath("/tmp"),  # XXX FIXME
         )

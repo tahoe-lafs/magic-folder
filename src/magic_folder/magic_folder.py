@@ -382,7 +382,6 @@ class MagicFolder(service.MultiService):
         snapshot_creator = LocalSnapshotCreator(
             magic_path=FilePath(local_dir_config),
             db=database,
-            clock=reactor,
             author=local_author,
             stash_dir=FilePath("/tmp"),  # XXX FIXME
         )
@@ -2194,7 +2193,6 @@ class LocalSnapshotCreator(service.Service):
 
     magic_path = attr.ib()  # FilePath of our magic-folder base
     db = attr.ib()  # our database
-    clock = attr.ib()  # IReactorClock instance
     author = attr.ib()  # LocalAuthor instance
     stash_dir = attr.ib()  # FilePath of our stash-dir
     queue = attr.ib(default=attr.Factory(DeferredQueue))
