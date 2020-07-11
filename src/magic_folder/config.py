@@ -80,6 +80,23 @@ def create_global_configuration(basedir, api_endpoint):
     return config
 
 
+def load_global_configuration(basedir):
+    """
+    Load an existing configuration from `basedir`.
+
+    :param FilePath basedir: an existing config directory
+
+    :returns: a GlobalConfigDatabase instance
+    """
+    if not basedir.exists():
+        raise ValueError(
+            "'{}' doesn't exist".format(basedir.path)
+        )
+    db_fname = basedir.child("global.sqlite")
+    connection = sqlite3.connect(db_fname.path)
+    return GlobalConfigDatabase(database=connection)
+
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
@@ -116,6 +133,12 @@ class GlobalConfigDatabase(object):
         # IStreamServerEndpoint instead, how can we turn that back
         # into an endpoint-string?
         serverFromString(reactor, ep_string)
+
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("UPDATE api_endpoint SET endpoint=?", (ep_string, ))
+            cursor.execute("SELECT endpoint from api_endpoint")
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute("UPDATE api_endpoint SET endpoint=?", (ep_string, ))
+            else:
+                cursor.execute("INSERT INTO api_endpoint VALUES (?)", (ep_string, ))
