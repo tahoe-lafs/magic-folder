@@ -285,7 +285,7 @@ class GlobalConfigDatabase(object):
                 "'{}' does not exist".format(magic_path.path)
             )
         if state_path.exists():
-            raise ValueEerror(
+            raise ValueError(
                 "'{}' already exists".format(state_path.path)
             )
 
