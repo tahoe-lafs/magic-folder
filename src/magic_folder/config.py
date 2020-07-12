@@ -124,6 +124,17 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
         )
     mkdir(basedir.path)
 
+    # explain what is in this directory
+    with basedir.child("README").open("w") as f:
+        f.write(
+            "This is a Magic Folder daemon configuration\n"
+            "\n"
+            "To find out more you can run a command like:\n"
+            "\n"
+            "    magic-folder --config {} --help\n"
+            "\n".format(basedir.path)
+        )
+
     # set up the configuration database
     db_fname = basedir.child("global.sqlite")
     connection = sqlite3.connect(db_fname.path)

@@ -187,7 +187,7 @@ def initialize(options):
             options['listen-endpoint'],
             options['tahoe-url'],
         )
-        print("Created Magic Folder daemon configuration in '{}'".format(options.config))
+        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
         returnValue(1)

@@ -5,6 +5,10 @@
 Implements the magic-folder init command.
 """
 
+from twisted.python.filepath import (
+    FilePath,
+)
+
 from .config import (
     create_global_configuration,
 )
@@ -25,6 +29,10 @@ def magic_folder_initialize(config_dir, listen_endpoint, tahoe_url):
         an appropriate exception is raised.
     """
 
-    create_global_configuration(config_dir, listen_endpoint, tahoe_url)
+    create_global_configuration(
+        FilePath(config_dir),
+        listen_endpoint,
+        tahoe_url,
+    )
 
-    returnValue(0)
+    return 0
