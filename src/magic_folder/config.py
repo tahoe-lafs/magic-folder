@@ -64,7 +64,7 @@ CREATE TABLE api_endpoint
 
 CREATE TABLE tahoe_client
 (
-    endpoint TEXT                   -- The Twisted client-string of our Tahoe client
+    url TEXT                   -- HTTP URL of our Tahoe-LAFS client
 );
 """
 
@@ -74,6 +74,11 @@ _magicfolder_config_schema = """
 CREATE TABLE version
 (
     version INTEGER  -- contains one row, set to 1
+);
+
+CREATE TABLE stash
+(
+    path TEXT    -- the path to our stash-directory
 );
 
 CREATE TABLE author
@@ -99,7 +104,7 @@ CREATE TABLE local_snapshots
 ## sure how to do that w/o docs here
 
 
-def create_global_configuration(basedir, api_endpoint, tahoe_client_endpoint):
+def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
@@ -108,7 +113,7 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_endpoint):
     :param unicode api_endpoint: the Twisted server endpoint string
         where we will listen for API requests.
 
-    :param unicode tahoe_client_endpoint: the Twisted client endpoint
+    :param unicode tahoe_client_url: the Twisted client endpoint
         string where we will contact our Tahoe LAFS client WebUI.
 
     :returns: a GlobalConfigDatabase instance
@@ -138,7 +143,7 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_endpoint):
         api_token_path=basedir.child("api_token"),
     )
     config.api_endpoint = api_endpoint
-    config.tahoe_client_endpoint = tahoe_client_endpoint
+    config.tahoe_client_url = tahoe_client_url
     return config
 
 
@@ -169,7 +174,6 @@ class MagicFolderConfig(object):
     """
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
-    stash_path = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     def __attrs_post_init__(self):
         with self.database:
@@ -197,6 +201,14 @@ class MagicFolderConfig(object):
                 name=name,
                 signing_key=SigningKey(keydata, encoder=Base32Encoder),
             )
+
+    @property
+    def stash_path(self):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT path FROM stash");
+            path_raw = cursor.fetchone()
+            return FilePath(path_raw)
 
 
 @attr.s
@@ -270,31 +282,24 @@ class GlobalConfigDatabase(object):
                 cursor.execute("INSERT INTO api_endpoint VALUES (?)", (ep_string, ))
 
     @property
-    def tahoe_client_endpoint(self):
+    def tahoe_client_url(self):
         """
         The twisted client-string describing how we will connect to the
         Tahoe LAFS client we will use.
         """
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT endpoint FROM tahoe_client")
+            cursor.execute("SELECT url FROM tahoe_client")
             return cursor.fetchone()[0]
 
-    @tahoe_client_endpoint.setter
-    def tahoe_client_endpoint(self, ep_string):
-        # confirm we have a valid endpoint-string
-        from twisted.internet import reactor  # uhm...
-        # XXX so, having the reactor here sucks. But if we pass in an
-        # IStreamClientEndpoint instead, how can we turn that back
-        # into an endpoint-string?
-        clientFromString(reactor, ep_string)
-
+    @tahoe_client_url.setter
+    def tahoe_client_url(self, url):
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT endpoint FROM tahoe_client")
+            cursor.execute("SELECT url FROM tahoe_client")
             existing = cursor.fetchone()
             if existing:
-                cursor.execute("UPDATE tahoe_client SET endpoint=?", (ep_string, ))
+                cursor.execute("UPDATE tahoe_client SET url=?", (url, ))
             else:
                 cursor.execute("INSERT INTO tahoe_client VALUES (?)", (ep_string, ))
 
@@ -349,11 +354,14 @@ class GlobalConfigDatabase(object):
                 "INSERT INTO author (name, private_key) VALUES (?, ?)",
                 (author.name, author.signing_key.encode(Base32Encoder))
             )
+            cursor.execute(
+                "INSERT INTO stash (path) VALUES (?)",
+                (stash_path.path, )
+            )
 
         config = MagicFolderConfig(
             name=name,
             database=connection,
-            stash_path=stash_path,
         )
 
         # add to the global config
