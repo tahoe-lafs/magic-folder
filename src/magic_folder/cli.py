@@ -12,6 +12,10 @@ import json
 from collections import (
     defaultdict,
 )
+from os.path import (
+    exists,
+    expanduser,
+)
 from zope.interface import (
     implementer,
 )
@@ -125,6 +129,10 @@ from .create import (
     magic_folder_create as _create
 )
 
+from .initialize import (
+    magic_folder_initialize,
+)
+
 from .join import (
     magic_folder_join as _join
 )
@@ -134,6 +142,57 @@ from ._coverage import (
 )
 
 from .util.observer import ListenObserver
+
+
+class InitializeOptions(usage.Options):
+    """
+    Create and initialize a new Magic Folder daemon directory (which
+    will have no magic-folders in it; use "magic-folder create" for
+    that).
+    """
+
+    optParameters = [
+        ("config", "c", None, "A non-existant directory to contain config (default ~/.magic_folder)"),
+        ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
+        ("tahoe-url", "t", None, "The HTTP URI for our Tahoe-LAFS client (e.g. \"http://localhost:3456\")"),
+    ]
+    description = (
+        "Initialize a new magic-folder daemon. A single daemon may run "
+        "any number of magic-folders (use \"magic-folder create\" to "
+        "create a new one."
+    )
+
+    def postOptions(self):
+        # defaults
+        if self['config'] is None:
+            self['config'] = expanduser("~/.magic_folder")
+
+        # required args
+        if self['listen-endpoint'] is None:
+            raise usage.UsageError("--listen-endpoint / -l is required")
+        if self['tahoe-url'] is None:
+            raise usage.UsageError("--tahoe-url / -t is required")
+
+        # validate
+        if exists(self['config']):
+            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+
+
+@inlineCallbacks
+def initialize(options):
+
+    try:
+        rc = yield magic_folder_initialize(
+            options['config'],
+            options['listen-endpoint'],
+            options['tahoe-url'],
+        )
+        print("Created Magic Folder daemon configuration in '{}'".format(options.config))
+    except Exception as e:
+        print("%s" % str(e), file=options.stderr)
+        returnValue(1)
+
+    returnValue(rc)
 
 
 class CreateOptions(usage.Options):
@@ -993,6 +1052,7 @@ class MagicFolderCommand(BaseOptions):
     stderr = sys.stderr
 
     subCommands = [
+        ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
         ["create", None, CreateOptions, "Create a Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
@@ -1017,6 +1077,8 @@ class MagicFolderCommand(BaseOptions):
     @property
     def node_directory(self):
         if self["node-directory"] is None:
+            if self.subCommand == "init":
+                return
             raise usage.UsageError(
                 "Must supply --node-directory (or -n)"
             )
@@ -1069,6 +1131,7 @@ class MagicFolderCommand(BaseOptions):
         return t
 
 subDispatch = {
+    "init": initialize,
     "create": create,
     "invite": invite,
     "join": join,
