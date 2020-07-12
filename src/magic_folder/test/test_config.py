@@ -40,10 +40,10 @@ class TestGlobalConfig(SyncTestCase):
         rmtree(self.temp.path)
 
     def test_create(self):
-        create_global_configuration(self.temp, "tcp:1234")
+        create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
 
     def test_load_db(self):
-        create_global_configuration(self.temp, "tcp:1234")
+        create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         config = load_global_configuration(self.temp)
         self.assertThat(
             config.api_endpoint,
@@ -51,7 +51,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_rotate_api_key(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         pre = config.api_token
         config.rotate_api_token()
         self.assertThat(
@@ -60,7 +60,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_change_api_endpoint(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
         self.assertThat(
@@ -73,7 +73,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_create_folder(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         mkdir(magic.path)
@@ -89,7 +89,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_create_folder_duplicate(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         mkdir(magic.path)
@@ -108,7 +108,7 @@ class TestGlobalConfig(SyncTestCase):
             )
 
     def test_folder_nonexistant_magic_path(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
@@ -120,7 +120,7 @@ class TestGlobalConfig(SyncTestCase):
             )
 
     def test_folder_state_already_exists(self):
-        config = create_global_configuration(self.temp, "tcp:1234")
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")

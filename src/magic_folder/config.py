@@ -23,6 +23,7 @@ from nacl.encoding import (
 
 from twisted.internet.endpoints import (
     serverFromString,
+    clientFromString,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -60,6 +61,11 @@ CREATE TABLE api_endpoint
 (
     endpoint TEXT
 );
+
+CREATE TABLE tahoe_client
+(
+    endpoint TEXT                   -- The Twisted client-string of our Tahoe client
+);
 """
 
 _magicfolder_config_version = 1
@@ -93,11 +99,17 @@ CREATE TABLE local_snapshots
 ## sure how to do that w/o docs here
 
 
-def create_global_configuration(basedir, api_endpoint):
+def create_global_configuration(basedir, api_endpoint, tahoe_client_endpoint):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
     :param FilePath basedir: a non-existant directory
+
+    :param unicode api_endpoint: the Twisted server endpoint string
+        where we will listen for API requests.
+
+    :param unicode tahoe_client_endpoint: the Twisted client endpoint
+        string where we will contact our Tahoe LAFS client WebUI.
 
     :returns: a GlobalConfigDatabase instance
     """
@@ -126,6 +138,7 @@ def create_global_configuration(basedir, api_endpoint):
         api_token_path=basedir.child("api_token"),
     )
     config.api_endpoint = api_endpoint
+    config.tahoe_client_endpoint = tahoe_client_endpoint
     return config
 
 
@@ -255,6 +268,35 @@ class GlobalConfigDatabase(object):
                 cursor.execute("UPDATE api_endpoint SET endpoint=?", (ep_string, ))
             else:
                 cursor.execute("INSERT INTO api_endpoint VALUES (?)", (ep_string, ))
+
+    @property
+    def tahoe_client_endpoint(self):
+        """
+        The twisted client-string describing how we will connect to the
+        Tahoe LAFS client we will use.
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT endpoint FROM tahoe_client")
+            return cursor.fetchone()[0]
+
+    @tahoe_client_endpoint.setter
+    def tahoe_client_endpoint(self, ep_string):
+        # confirm we have a valid endpoint-string
+        from twisted.internet import reactor  # uhm...
+        # XXX so, having the reactor here sucks. But if we pass in an
+        # IStreamClientEndpoint instead, how can we turn that back
+        # into an endpoint-string?
+        clientFromString(reactor, ep_string)
+
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT endpoint FROM tahoe_client")
+            existing = cursor.fetchone()
+            if existing:
+                cursor.execute("UPDATE tahoe_client SET endpoint=?", (ep_string, ))
+            else:
+                cursor.execute("INSERT INTO tahoe_client VALUES (?)", (ep_string, ))
 
     def create_magic_folder(self, name, magic_path, state_path, author):
         """
