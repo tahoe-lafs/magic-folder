@@ -301,7 +301,33 @@ class GlobalConfigDatabase(object):
             if existing:
                 cursor.execute("UPDATE tahoe_client SET url=?", (url, ))
             else:
-                cursor.execute("INSERT INTO tahoe_client VALUES (?)", (ep_string, ))
+                cursor.execute("INSERT INTO tahoe_client VALUES (?)", (url, ))
+
+    def get_magic_folder(self, name):
+        """
+        Find the config for an existing Magic Folder.
+
+        :param unicode name: the unique name of the magic-folder to find
+
+        :returns: a MagicFolderConfig instance
+
+        :raises: ValueError if there is no such Magic Folder
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT name, location FROM magic_folders WHERE name=?", (name, ))
+            data = cursor.fetchone()
+            if data is None:
+                raise ValueError(
+                    "No Magic Folder named '{}'".format(name)
+                )
+            name, location = data
+            connection = sqlite3.connect(location)
+            config = MagicFolderConfig(
+                name=name,
+                database=connection,
+            )
+            return config
 
     def create_magic_folder(self, name, magic_path, state_path, author):
         """
