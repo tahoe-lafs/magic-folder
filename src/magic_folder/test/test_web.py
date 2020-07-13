@@ -29,8 +29,6 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
-    one_of,
-    just,
 )
 
 from testtools.matchers import (
