@@ -57,15 +57,14 @@ CREATE TABLE magic_folders
     location      TEXT               -- UTF8 path to this folder's configuration/state
 );
 
-CREATE TABLE api_endpoint
+CREATE TABLE config
 (
-    endpoint TEXT
+    api_endpoint TEXT,                -- Twisted server-string for our HTTP API
+    tahoe_client_url TEXT            -- HTTP URL of our Tahoe-LAFS client
 );
 
-CREATE TABLE tahoe_client
-(
-    url TEXT                   -- HTTP URL of our Tahoe-LAFS client
-);
+-- our single config role "always" exists to Python code
+INSERT INTO config (api_endpoint, tahoe_client_url) VALUES ("", "");
 """
 
 _magicfolder_config_version = 1
@@ -271,7 +270,7 @@ class GlobalConfigDatabase(object):
         """
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT endpoint FROM api_endpoint")
+            cursor.execute("SELECT api_endpoint FROM config")
             return cursor.fetchone()[0]
 
     @api_endpoint.setter
@@ -285,12 +284,7 @@ class GlobalConfigDatabase(object):
 
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT endpoint FROM api_endpoint")
-            existing = cursor.fetchone()
-            if existing:
-                cursor.execute("UPDATE api_endpoint SET endpoint=?", (ep_string, ))
-            else:
-                cursor.execute("INSERT INTO api_endpoint VALUES (?)", (ep_string, ))
+            cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
 
     @property
     def tahoe_client_url(self):
@@ -300,19 +294,14 @@ class GlobalConfigDatabase(object):
         """
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT url FROM tahoe_client")
+            cursor.execute("SELECT tahoe_client_url FROM config")
             return cursor.fetchone()[0]
 
     @tahoe_client_url.setter
     def tahoe_client_url(self, url):
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT url FROM tahoe_client")
-            existing = cursor.fetchone()
-            if existing:
-                cursor.execute("UPDATE tahoe_client SET url=?", (url, ))
-            else:
-                cursor.execute("INSERT INTO tahoe_client VALUES (?)", (url, ))
+            cursor.execute("UPDATE config SET tahoe_client_url=?", (url, ))
 
     def get_magic_folder(self, name):
         """
