@@ -112,6 +112,10 @@ class V1MagicFolderAPI(Resource, object):
 
 
 class Unauthorized(Resource):
+    """
+    An ``Unauthorized`` resource renders an HTTP *UNAUTHORIZED* response for
+    all requests it handles (including for child resources of itself).
+    """
     isLeaf = True
 
     def render(self, request):
@@ -119,6 +123,9 @@ class Unauthorized(Resource):
 
 
 def unauthorized(request):
+    """
+    Render an HTTP *UNAUTHORIZED* response to the given request.
+    """
     request.setResponseCode(http.UNAUTHORIZED)
     return b""
 
@@ -146,10 +153,26 @@ def error(request, code, message):
 
 
 def _is_authorized(request, get_auth_token):
+    """
+    Check the authorization carried by the given request.
+
+    :param IRequest request: The request object being considered.  If it has
+        an *Authorization* header carrying a *Bearer token* matching the token
+        returned by ``get_auth_token`` the request is considered authorized,
+        otherwise it is not.
+
+    :param (IO bytes) get_auth_token: A callable which returns the
+        authorization token value which is required for requests to be
+        authorized.
+
+    :return bool: True if and only if the given request contains the required
+        authorization materials.
+    """
     authorization = request.requestHeaders.getRawHeaders(u"authorization")
     if authorization is None or len(authorization) == 0:
         return False
     if len(authorization) > 1:
+        # XXX Untested
         raise ValueError("Scammy")
     auth_token = get_auth_token()
     if not auth_token:
