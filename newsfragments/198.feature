@@ -1,1 +1,1 @@
-Magic-Folder now exposes a new HTTP API hierarchy beneath ``/v1``.
+Magic-Folder now exposes a bearer-token-authorized HTTP API hierarchy beneath ``/v1``.
