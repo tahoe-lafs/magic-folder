@@ -42,6 +42,11 @@ class TestGlobalConfig(SyncTestCase):
     def test_create(self):
         create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
 
+    def test_create_existing_dir(self):
+        mkdir(self.temp.path)
+        with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
+            create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+
     def test_load_db(self):
         create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         config = load_global_configuration(self.temp)
