@@ -62,9 +62,6 @@ CREATE TABLE config
     api_endpoint TEXT,                -- Twisted server-string for our HTTP API
     tahoe_client_url TEXT            -- HTTP URL of our Tahoe-LAFS client
 );
-
--- our single config role "always" exists to Python code
-INSERT INTO config (api_endpoint, tahoe_client_url) VALUES ("", "");
 """
 
 _magicfolder_config_version = 1
@@ -142,19 +139,23 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
         cursor.execute("BEGIN IMMEDIATE TRANSACTION")
         cursor.executescript(_global_config_schema)
         connection.commit()
-        cursor.execute("INSERT INTO version (version) VALUES (?)", (_global_config_version, ))
+        cursor.execute(
+            "INSERT INTO version (version) VALUES (?)",
+            (_global_config_version, )
+        )
+        cursor.execute(
+            "INSERT INTO config (api_endpoint, tahoe_client_url) VALUES (?, ?)",
+            (api_endpoint, tahoe_client_url)
+        )
 
     # create the first API token
     with basedir.child("api_token").open("w") as f:
         f.write(urandom(32))
 
-    config = GlobalConfigDatabase(
+    return GlobalConfigDatabase(
         database=connection,
         api_token_path=basedir.child("api_token"),
     )
-    config.api_endpoint = api_endpoint
-    config.tahoe_client_url = tahoe_client_url
-    return config
 
 
 def load_global_configuration(basedir):
