@@ -28,6 +28,10 @@ def magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=None):
     :param get_magic_folder: See ``magic_folder_web_service``.
     :param get_auth_token: See ``magic_folder_web_service``.
 
+    :param IResource _v1_resource: A resource which will take the place of the
+        usual bearer-token-authorized `/v1` resource.  This is intended to
+        make testing easier.
+
     :return IResource: The resource that is the root of the HTTP API.
     """
     if _v1_resource is None:
@@ -66,6 +70,11 @@ class BearerTokenAuthorization(Resource, object):
         Resource.__init__(self)
 
     def render(self, request):
+        """
+        Render the wrapped resource if the request carries correct authorization.
+
+        If it does not, render an UNAUTHORIZED response.
+        """
         if _is_authorized(request, self._get_auth_token):
             # Authorization checks out, let the protected resource do what it
             # will.
@@ -74,6 +83,12 @@ class BearerTokenAuthorization(Resource, object):
         return unauthorized(request)
 
     def getChildWithDefault(self, path, request):
+        """
+        Get the request child from the wrapped resource if the request carries
+        correct authorization.
+
+        If it does not, return an ``Unauthorized`` resource.
+        """
         if _is_authorized(request, self._get_auth_token):
             # Authorization checks out, let the protected resource do what it
             # will.
