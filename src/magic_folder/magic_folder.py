@@ -920,6 +920,12 @@ REMOTE_DIRECTORY_DELETED = MessageType(
     u"The downloader found a directory has been deleted from the DMD.",
 )
 
+SNAPSHOT_CREATOR_PROCESS_ITEM = MessageType(
+    u"magic-folder:local-snapshot-creator:processing-item",
+    [RELPATH],
+    u"Local snapshot creator is processing an input.",
+)
+
 class QueueMixin(HookMixin):
     """
     A parent class for Uploader and Downloader that handles putting
@@ -2286,6 +2292,7 @@ class LocalSnapshotCreator(service.Service):
             return magicpath.path2magic(p.asBytesMode().path)
 
         with path.open('rb') as input_stream:
+            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=path)
             snapshot = yield create_snapshot(
                 name=mangle_path(path),
                 author=self.author,
