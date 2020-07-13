@@ -103,12 +103,11 @@ UI to Change the Config
 
 Writing configuration files is hard, error-prone and not a great
 interface. It also makes it hard (or impossible) to change where or
-how configuration is stored. All configuration shall be changed by
-command-line. Since most command-line tools that interact with
-magic-folder should be thin wrappers over an underlying HTTP API there
-should also be "an HTTP API" to do that. GUI front-ends could use the
-command-line or the HTTP API. Nothing except the HTTP API should be
-touching the actual stored configuration.
+how configuration is stored. All configuration shall be changed by an
+HTTP API. There will also be CLI commands that are thin wrappers of
+the HTTP API. GUI front-ends could use the command-line or the HTTP
+API. Nothing except the HTTP API should be touching the actual stored
+configuration.
 
 (Of course we can't stop users from editing the config files
 themselves, but this should be discouraged).
@@ -123,31 +122,48 @@ command-line option. (Should we have a default? Seems sensible, most
 OSes have a reasonably well-defined place for programs to store
 configuration data).
 
-Data shall be stored in flat files. Data shall be serialized as JSON,
-unless otherwise specified. JSON shall be pretty-printed with 4-space
-indents and newlines.
+All global configuration and state shall be stored in an SQLite3
+database. This database will have tables for global configuration and
+state.
 
 The "configuration directory" will look like this:
 
 - `confdir` (e.g. `~/.config/magic-folder`)
   - `global.sqlite`
-    - a table for configuration (just key/value?)
-      - "endpoint": a Twisted server-endpoint string
-      - "tahoe_node_directory": a path to our Tahoe client's node-dir (or just "tahoe_endpoint")
-      - ... can be expanded for any global config
   - `api_token`: 32 bytes of binary data
-  - `magicfolder_<name>.sqlite`
-    - a table for this folder's configuration (just key/value?)
-        - "author_name": arbitrary name
-        - "author_private_key": 32 bytes signing key
-        - "poll_interval": int, how often to check for updates
-        - "stash_directory": path to our local-snapshot stash directory
-        - ... can be expanded for any per-magic-folder config
-    - a table for this folder's local snapshots
-    - a table for this folders remote snapshot data cache
-    - `stashdir_<name>/`, the default location for stashed file-data for this magic-folder
+  - `magic_folder.pid`: contains the PID of the currently-running process
 
-We could roll all the per-magic-folder state and config into tables in
-the `global.sqlite` database instead. This might make it harder to
-purge data relating to a single magic-folder and make cross-folder
-information leaks easier.
+The `global.sqlite` database will have the following tables:
+
+- "version" with a single row containing "1"
+- "magic_folders"
+  - columns: `name`, `location`
+  - `location` is a local path for that folder's configuration
+- "config"
+  - columns: "api_endpoint", "tahoe_client_url"
+  - `api_endpoint` is a Twisted server string description
+  - `tahoe_client_url` is a URL to our Tahoe-LAFS client's Web-UI
+
+Each "magic folder" location is a directory containing the
+stash-directory and state for that magic-folder. It will look like
+this:
+
+- `<magic folder location>/`
+  - `README`: a file containing information about magic-folder
+  - `state.sqlite`: the state database
+  - `stash/`: the stash-directory containing LocalSnapshot content
+
+The `state.sqlite` for each magic-folder shall contain the following
+tables:
+
+- "version" (will always contain 1 row)
+  - column: "version"
+  - "version" is an int, currently `1`
+- "config" (will always contain 1 row)
+  - columns: "author_name", "author_private_key", "poll_interval"
+  - "author_name" is a string of unicode
+  - "author_private_key" is a 32-byte blob (a NaCl Signing key)
+  - "poll_interval" says how often (in seconds) to poll for updates
+- "local_snapshots"
+  - columns: "ID", "name", "metadata", "content_path", "parents_local"
+  - actually, whatever https://github.com/LeastAuthority/magic-folder/issues/197 says
