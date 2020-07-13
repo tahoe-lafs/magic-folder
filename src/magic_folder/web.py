@@ -172,12 +172,8 @@ def _is_authorized(request, get_auth_token):
     if authorization is None or len(authorization) == 0:
         return False
     if len(authorization) > 1:
-        # XXX Untested
-        raise ValueError("Scammy")
-    auth_token = get_auth_token()
-    if not auth_token:
-        # XXX Untested
         return False
+    auth_token = get_auth_token()
     expected = u"Bearer {}".format(auth_token).encode("ascii")
     return timing_safe_compare(
         authorization[0].encode("ascii"),

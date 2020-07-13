@@ -596,10 +596,10 @@ class AuthorizationTests(SyncTestCase):
     """
     @given(
         good_token=tokens(),
-        bad_token=one_of(just(None), tokens()),
+        bad_tokens=lists(tokens()),
         child_segments=lists(text()),
     )
-    def test_unauthorized(self, good_token, bad_token, child_segments):
+    def test_unauthorized(self, good_token, bad_tokens, child_segments):
         """
         If the correct bearer token is not given in the **Authorization** header
         of the request then the response code is UNAUTHORIZED.
@@ -607,16 +607,18 @@ class AuthorizationTests(SyncTestCase):
         :param bytes good_token: A bearer token which, when presented, should
             authorize access to the resource.
 
-        :param bad_token: A bearer token which, when presented, should not
-            authorize access to the resource.  Alternatively, ``None`` to omit a
-            bearer token from the request entirely.
+        :param bad_tokens: A list of bearer token which, when presented all at
+            once, should not authorize access to the resource.  If this is
+            empty no tokens are presented at all.  If it contains more than
+            one element then it creates a bad request with multiple
+            authorization header values.
 
         :param [unicode] child_segments: Additional path segments to add to the
             request path beneath **v1**.
         """
         # We're trying to test the *unauthorized* case.  Don't randomly hit
         # the authorized case by mistake.
-        assume(good_token != bad_token)
+        assume([good_token] != bad_tokens)
 
         def get_auth_token():
             return good_token
@@ -631,8 +633,12 @@ class AuthorizationTests(SyncTestCase):
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
         headers = {}
-        if bad_token is not None:
-            headers[b"Authorization"] = u"Bearer {}".format(bad_token).encode("ascii")
+        if bad_tokens:
+            headers[b"Authorization"] = list(
+                u"Bearer {}".format(bad_token).encode("ascii")
+                for bad_token
+                in bad_tokens
+            )
 
         self.assertThat(
             treq.get(
