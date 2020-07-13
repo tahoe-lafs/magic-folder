@@ -82,6 +82,9 @@ class TestGlobalConfig(SyncTestCase):
             magic,
             self.temp.child("state"),
             alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
         )
         self.assertThat(
             magic_folder.author,
@@ -98,6 +101,9 @@ class TestGlobalConfig(SyncTestCase):
             magic,
             self.temp.child("state"),
             alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
         )
         with ExpectedException(ValueError, "Already have a magic-folder named 'foo'"):
             config.create_magic_folder(
@@ -105,6 +111,9 @@ class TestGlobalConfig(SyncTestCase):
                 magic,
                 self.temp.child("state2"),
                 alice,
+                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                60,
             )
 
     def test_folder_nonexistant_magic_path(self):
@@ -117,6 +126,9 @@ class TestGlobalConfig(SyncTestCase):
                 magic,
                 self.temp.child("state"),
                 alice,
+                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                60,
             )
 
     def test_folder_state_already_exists(self):
@@ -132,4 +144,7 @@ class TestGlobalConfig(SyncTestCase):
                 magic,
                 state,
                 alice,
+                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                60,
             )

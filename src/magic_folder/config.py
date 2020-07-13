@@ -80,15 +80,15 @@ CREATE TABLE stash
     path TEXT    -- the path to our stash-directory
 );
 
-CREATE TABLE author
+CREATE TABLE config
 (
-    name          TEXT PRIMARY KEY,  -- UTF8 name of the author
-    private_key   TEXT               -- base32 key in UTF8
-);
-
-CREATE TABLE poll_interval
-(
-    poll_interval INTEGER
+    author_name          TEXT PRIMARY KEY,  -- UTF8 name of the author
+    author_private_key   TEXT,              -- base32 key in UTF8
+    stash_path           TEXT,              -- local path for stash-data
+    collective_dircap    TEXT,              -- read-capability-string
+    upload_dircap        TEXT,              -- write-capability-string
+    magic_directory      TEXT,              -- local path of sync'd directory
+    poll_interval        INTEGER            -- seconds
 );
 
 CREATE TABLE local_snapshots
@@ -205,7 +205,7 @@ class MagicFolderConfig(object):
     def author(self):
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT name, private_key FROM author");
+            cursor.execute("SELECT author_name, author_private_key FROM config");
             name, keydata = cursor.fetchone()
             return LocalAuthor(
                 name=name,
@@ -216,7 +216,7 @@ class MagicFolderConfig(object):
     def stash_path(self):
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT path FROM stash");
+            cursor.execute("SELECT stash_path FROM config");
             path_raw = cursor.fetchone()
             return FilePath(path_raw)
 
@@ -329,7 +329,8 @@ class GlobalConfigDatabase(object):
             )
             return config
 
-    def create_magic_folder(self, name, magic_path, state_path, author):
+    def create_magic_folder(self, name, magic_path, state_path, author,
+                            collective_dircap, upload_dircap, poll_interval):
         """
         Add a new Magic Folder configuration.
 
@@ -343,6 +344,15 @@ class GlobalConfigDatabase(object):
 
         :param LocalAuthor author: the signer of snapshots created in
             this folder
+
+        :param unicode collective_dircap: the read-capability of the
+            directory defining the magic-folder.
+
+        :param unicode upload_dircap: the write-capability of the
+            directory we upload data into.
+
+        :param FilePath magic_directory: local path to the folder we
+            synchronize for this magic-folder.
 
         :returns: a MagicFolderConfig instance
         """
@@ -376,9 +386,18 @@ class GlobalConfigDatabase(object):
                 "INSERT INTO version (version) VALUES (?)",
                 (_magicfolder_config_version, )
             )
+            # default configuration values
             cursor.execute(
-                "INSERT INTO author (name, private_key) VALUES (?, ?)",
-                (author.name, author.signing_key.encode(Base32Encoder))
+                "INSERT INTO CONFIG (author_name, author_private_key, stash_path, collective_dircap, upload_dircap, magic_directory, poll_interval) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    author.name,
+                    author.signing_key.encode(Base32Encoder),
+                    stash_path.path,
+                    collective_dircap,
+                    upload_dircap,
+                    magic_path.path,
+                    poll_interval,
+                )
             )
             cursor.execute(
                 "INSERT INTO stash (path) VALUES (?)",
