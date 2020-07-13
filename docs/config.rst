@@ -163,6 +163,9 @@ tables:
   - columns: "author_name", "author_private_key", "poll_interval"
   - "author_name" is a string of unicode
   - "author_private_key" is a 32-byte blob (a NaCl Signing key)
+  - "collective_dircap" is a read-capability-string which defines the magic-folder
+  - "upload_dircap" is a write-capability-string defining where we put our snapshots
+  - "magic_dierctory" is a local path to the synchronized directory
   - "poll_interval" says how often (in seconds) to poll for updates
 - "local_snapshots"
   - columns: "ID", "name", "metadata", "content_path", "parents_local"
