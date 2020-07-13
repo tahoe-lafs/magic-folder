@@ -21,7 +21,7 @@ from allmydata.util.hashutil import (
 )
 
 
-def magic_folder_resource(get_magic_folder, get_auth_token):
+def magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=None):
     """
     Create the root resource for the Magic Folder HTTP API.
 
@@ -30,6 +30,9 @@ def magic_folder_resource(get_magic_folder, get_auth_token):
 
     :return IResource: The resource that is the root of the HTTP API.
     """
+    if _v1_resource is None:
+        _v1_resource = V1MagicFolderAPI(get_magic_folder)
+
     root = Resource()
     root.putChild(
         b"api",
@@ -38,7 +41,7 @@ def magic_folder_resource(get_magic_folder, get_auth_token):
     root.putChild(
         b"v1",
         BearerTokenAuthorization(
-            V1MagicFolderAPI(get_magic_folder),
+            _v1_resource,
             get_auth_token,
         ),
     )
@@ -63,18 +66,20 @@ class BearerTokenAuthorization(Resource, object):
         Resource.__init__(self)
 
     def render(self, request):
-        # TODO We don't even check authorization here so we can never render
-        # ``/v1`` but maybe that's fine.  It might be confusing to get an
-        # unauthorized response if you request it, though.
+        if _is_authorized(request, self._get_auth_token):
+            # Authorization checks out, let the protected resource do what it
+            # will.
+            return self._resource.render(request)
+        # Don't let anything through that isn't authorized.
         return unauthorized(request)
 
     def getChildWithDefault(self, path, request):
-        if not _is_authorized(request, self._get_auth_token):
-            # Don't let anything through that isn't authorized.
-            return Unauthorized()
-        # Authorization checks out, let the protected resource do what it
-        # will.
-        return self._resource.getChildWithDefault(path, request)
+        if _is_authorized(request, self._get_auth_token):
+            # Authorization checks out, let the protected resource do what it
+            # will.
+            return self._resource.getChildWithDefault(path, request)
+        # Don't let anything through that isn't authorized.
+        return Unauthorized()
 
 
 @attr.s

@@ -646,11 +646,7 @@ class AuthorizationTests(SyncTestCase):
 
     @given(
         auth_token=tokens(),
-        # It would be great to test /v1 itself but it's harder to construct
-        # that test case so I'm skipping it.  Also there is no actual content
-        # at /v1 so ... :/ It would be good to come back and fix this at some
-        # point.
-        child_segments=lists(path_segments(), min_size=1),
+        child_segments=lists(path_segments()),
         content=binary(),
     )
     def test_authorized(self, auth_token, child_segments, content):
@@ -672,22 +668,20 @@ class AuthorizationTests(SyncTestCase):
         def get_magic_folder(name):
             raise KeyError(name)
 
-        root = magic_folder_resource(get_magic_folder, get_auth_token)
-
         # Since we don't want to exercise any real magic-folder application
         # logic we'll just magic up the child resource being requested.
-        resource = root.getChildWithDefault(b"v1", object())._resource
-        for seg in child_segments[:-1]:
-            leaf = Resource()
-            resource.putChild(seg.encode("utf-8"), leaf)
-            resource = leaf
-        resource.putChild(
-            child_segments[-1].encode("utf-8"),
-            Data(
-                content,
-                b"application/binary",
-            ),
+        branch = Data(
+            content,
+            b"application/binary",
         )
+        segments_remaining = child_segments[:]
+        while segments_remaining:
+            name = segments_remaining.pop()
+            resource = Resource()
+            resource.putChild(name, branch)
+            branch = resource
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)
 
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
