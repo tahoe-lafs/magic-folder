@@ -17,21 +17,16 @@ from nacl.signing import (
     SigningKey,
 )
 from nacl.encoding import (
-    RawEncoder,
     Base32Encoder,
 )
 
 from twisted.internet.endpoints import (
     serverFromString,
-    clientFromString,
 )
 from twisted.python.filepath import (
     FilePath,
 )
 
-from .magicfolderdb import (
-    with_cursor,
-)
 from .snapshot import (
     LocalAuthor,
 )
