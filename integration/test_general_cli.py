@@ -1,5 +1,5 @@
 from os import mkdir
-from os.path import join
+from os.path import join, exists
 
 import pytest_twisted
 
@@ -44,3 +44,26 @@ def test_web_port_required(request, reactor, temp_dir, introducer_furl):
     assert False, "Expected an error from magic-folder"
     print("output: '{}'".format(proto.output.getvalue()))
 
+
+@pytest_twisted.inlineCallbacks
+def test_daemon_inititialize(request, reactor, temp_dir):
+    """
+    'magic-folder init' happy-path works
+    """
+
+    node_dir = join(temp_dir, "daemon")
+
+    proto = util._CollectOutputProtocol()
+    proc = util._magic_folder_runner(
+        proto, reactor, request,
+        [
+            "init",
+            "--config", node_dir,
+            "--listen-endpoint", "tcp:1234",
+            "--tahoe-url", "http://localhost:3456",
+        ],
+    )
+    yield proto.done
+
+    assert exists(join(node_dir, "global.sqlite"))
+    assert exists(join(node_dir, "api_token"))
