@@ -8,6 +8,9 @@ from os import (
     mkdir,
     urandom,
 )
+from base64 import (
+    urlsafe_b64encode,
+)
 
 import attr
 
@@ -143,14 +146,13 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
             (api_endpoint, tahoe_client_url)
         )
 
-    # create the first API token
-    with basedir.child("api_token").open("w") as f:
-        f.write(urandom(32))
-
-    return GlobalConfigDatabase(
+    config = GlobalConfigDatabase(
         database=connection,
         api_token_path=basedir.child("api_token"),
     )
+    # make sure we have an API token
+    config.rotate_api_token()
+    return config
 
 
 def load_global_configuration(basedir):
@@ -254,7 +256,9 @@ class GlobalConfigDatabase(object):
         """
         Record a new random API token and then return it
         """
-        self._api_token = urandom(32)
+        # this goes directly into Web headers, so we use the same
+        # encoding as Tahoe uses.
+        self._api_token = urlsafe_b64encode(urandom(32))
         with self.api_token_path.open('wb') as f:
             f.write(self._api_token)
         return self._api_token
