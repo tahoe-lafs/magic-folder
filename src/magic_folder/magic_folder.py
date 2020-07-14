@@ -2292,7 +2292,7 @@ class LocalSnapshotCreator(service.Service):
             return magicpath.path2magic(p.asBytesMode().path)
 
         with path.open('rb') as input_stream:
-            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=path)
+            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=path.asTextMode().path)
             snapshot = yield create_snapshot(
                 name=mangle_path(path),
                 author=self.author,
