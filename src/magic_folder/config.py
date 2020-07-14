@@ -215,7 +215,7 @@ class MagicFolderConfig(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT stash_path FROM config");
-            path_raw = cursor.fetchone()
+            path_raw = cursor.fetchone()[0]
             return FilePath(path_raw)
 
 
@@ -303,6 +303,18 @@ class GlobalConfigDatabase(object):
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET tahoe_client_url=?", (url, ))
 
+    def list_magic_folders(self):
+        """
+        Return a generator that yields the names of all magic-folders
+        configured. Use `get_magic_folder` to retrieve the
+        configuration for a speicific folder.
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT name FROM magic_folders")
+            for row in cursor.fetchall():
+                yield row[0]
+
     def get_magic_folder(self, name):
         """
         Find the config for an existing Magic Folder.
@@ -322,7 +334,7 @@ class GlobalConfigDatabase(object):
                     "No Magic Folder named '{}'".format(name)
                 )
             name, location = data
-            connection = sqlite3.connect(location)
+            connection = sqlite3.connect(FilePath(location).child("state.sqlite").path)
             config = MagicFolderConfig(
                 name=name,
                 database=connection,
