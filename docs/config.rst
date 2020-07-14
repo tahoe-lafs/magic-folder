@@ -5,6 +5,11 @@
 Configuration Storage
 =====================
 
+If you are looking for the description of the current
+configuration-storage mechanisms, skip down to :ref:`the current
+storage description<current>`.
+
+
 Context and History
 -------------------
 
@@ -112,6 +117,8 @@ configuration.
 (Of course we can't stop users from editing the config files
 themselves, but this should be discouraged).
 
+
+.. _current:
 
 Where and How To Store the Configuration
 ----------------------------------------
