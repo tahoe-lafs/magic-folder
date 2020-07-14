@@ -94,3 +94,42 @@ class LocalSnapshotTests(AsyncTestCase):
         self.assertThat(stored_content, Equals(content))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
         # self.assertThat(stored_snapshot.parents_remote, HasLength(0))
+
+
+    @given(content1=binary(),
+           content2=binary(),
+    )
+    def test_add_two_files(self, content1, content2):
+        file1 = self.magic_path.child("file1")
+        with file1.open("w") as f:
+            f.write(content1)
+        file2 = self.magic_path.child("file2")
+        with file2.open("w") as f:
+            f.write(content2)
+
+        self.snapshot_creator.add_files(file1, file2)
+        self.snapshot_creator.startService()
+        self.assertThat(
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
+        )
+
+        self.assertThat(self.db.snapshots, HasLength(2))
+
+        stored_snapshot = self.db.get_local_snapshot("@_tmp@_file1", self.author)
+        stored_content = stored_snapshot._get_synchronous_content()
+        self.assertThat(stored_content, Equals(content1))
+        self.assertThat(stored_snapshot.parents_local, HasLength(0))
+
+        stored_snapshot = self.db.get_local_snapshot("@_tmp@_file2", self.author)
+        stored_content = stored_snapshot._get_synchronous_content()
+        self.assertThat(stored_content, Equals(content2))
+        self.assertThat(stored_snapshot.parents_local, HasLength(0))
+
+    # @given(
+    #     lists(random_files()),
+    # )
+    # def test_add_multiple_files(self, input_files):
+
+    #     self.snapshot_creator.add_files(*input_files)
+    #     pass
