@@ -128,9 +128,11 @@ from .invite import (
 from .create import (
     magic_folder_create as _create
 )
-
 from .initialize import (
     magic_folder_initialize,
+)
+from .migrate import (
+    magic_folder_migrate,
 )
 
 from .join import (
@@ -193,6 +195,70 @@ def initialize(options):
         returnValue(1)
 
     returnValue(rc)
+
+
+class MigrateOptions(usage.Options):
+    """
+    Migrate a magic-folder configuration from an existing Tahoe-LAFS
+    node-directory.
+    """
+
+    optParameters = [
+        ("config", "c", None, "A non-existant directory to contain config (default ~/.magic_folder)"),
+        ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
+        ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
+        ("author-name", "a", None, "The name for the author to use in each migrated magic-folder"),
+    ]
+    description = (
+        "Create a new magic-folder daemon configuration in the --config "
+        "path, using values from the --node-directory Tahoe-LAFS node."
+    )
+
+    def postOptions(self):
+        # defaults
+        if self['config'] is None:
+            self['config'] = expanduser("~/.magic_folder")
+
+        # required args
+        if self['listen-endpoint'] is None:
+            raise usage.UsageError("--listen-endpoint / -l is required")
+        if self['node-directory'] is None:
+            raise usage.UsageError("--node-directory / -n is required")
+        if self['author-name'] is None:
+            raise usage.UsageError("--author-name / -a is required")
+
+        # validate
+        if exists(self['config']):
+            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+        if not exists(self['node-directory']):
+            raise usage.UsageError("--node-directory '{}' doesn't exist".format(self['node-directory']))
+        if not FilePath(self['node-directory']).child("tahoe.cfg").exists():
+            raise usage.UsageError(
+                "'{}' doesn't look like a Tahoe node-directory (no tahoe.cfg)".format(self['node-directory'])
+            )
+
+
+@inlineCallbacks
+def migrate(options):
+
+    try:
+        config = yield magic_folder_migrate(
+            FilePath(options['config']),
+            options['listen-endpoint'],
+            FilePath(options['node-directory']),
+            options['author-name'],
+        )
+        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
+        print("\nIt contains the following magic-folders:")
+        for name in config.list_magic_folders():
+            mf = config.get_magic_folder(name)
+            print("  {}: author={}".format(name, mf.author.name))
+
+    except Exception as e:
+        print("%s" % str(e), file=options.stderr)
+        returnValue(1)
+
+    returnValue(0)
 
 
 class CreateOptions(usage.Options):
@@ -1053,6 +1119,7 @@ class MagicFolderCommand(BaseOptions):
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
+        ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["create", None, CreateOptions, "Create a Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
@@ -1077,7 +1144,7 @@ class MagicFolderCommand(BaseOptions):
     @property
     def node_directory(self):
         if self["node-directory"] is None:
-            if self.subCommand == "init":
+            if self.subCommand in ["init", "migrate"]:
                 return
             raise usage.UsageError(
                 "Must supply --node-directory (or -n)"
@@ -1132,6 +1199,7 @@ class MagicFolderCommand(BaseOptions):
 
 subDispatch = {
     "init": initialize,
+    "migrate": migrate,
     "create": create,
     "invite": invite,
     "join": join,
