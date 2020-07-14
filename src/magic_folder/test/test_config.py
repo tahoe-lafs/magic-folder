@@ -77,6 +77,17 @@ class TestGlobalConfig(SyncTestCase):
             Equals("tcp:42")
         )
 
+
+class TestMagicFolderConfig(SyncTestCase):
+
+    def setUp(self):
+        super(TestMagicFolderConfig, self).setUp()
+        self.temp = FilePath(self.mktemp())
+
+    def tearDown(self):
+        super(TestMagicFolderConfig, self).tearDown()
+        rmtree(self.temp.path)
+
     def test_create_folder(self):
         config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
         alice = create_local_author("alice")
