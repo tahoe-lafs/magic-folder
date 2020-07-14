@@ -926,6 +926,13 @@ SNAPSHOT_CREATOR_PROCESS_ITEM = MessageType(
     u"Local snapshot creator is processing an input.",
 )
 
+ADD_FILES = ActionType(
+    u"magic-folder:local-snapshot-creator:add-files",
+    [_COUNT],
+    [],
+    u"adding a file for local snapshot creation and upload",
+)
+
 class QueueMixin(HookMixin):
     """
     A parent class for Uploader and Downloader that handles putting
@@ -2241,31 +2248,33 @@ class LocalSnapshotCreator(service.Service):
         XXX what about symlinks?
         XXX what about symlinks that resolve to directories?
         """
-        if not all(isinstance(x, FilePath) for x in paths):
-            raise ValueError(
-                "every argument to upload_files must be a FilePath"
-            )
+        action = ADD_FILES(count=len(paths))
+        with action:
+            if not all(isinstance(x, FilePath) for x in paths):
+                raise ValueError(
+                    "every argument to upload_files must be a FilePath"
+                )
 
-        def add_if_file(p):
-            if p.isfile():
-                try:
-                    p.segmentsFrom(self.magic_path)
-                except ValueError:
-                    raise ValueError(
-                        "'{}' is not within '{}'".format(
-                            p.path,
-                            self.magic_path.path,
+            def add_if_file(p):
+                if p.isfile():
+                    try:
+                        p.segmentsFrom(self.magic_path)
+                    except ValueError:
+                        raise ValueError(
+                            "'{}' is not within '{}'".format(
+                                p.path,
+                                self.magic_path.path,
+                            )
                         )
-                    )
-                self.queue.put(p)
+                    self.queue.put(p)
 
-        for path in paths:
-            if path.isdir():
-                for (dirpath, dirnames, filenames) in path.walk():
-                    for fname in filenames:
-                        add_if_file(FilePath(os.path.join(dirpath, fname)))
-            else:
-                add_if_file(path)
+            for path in paths:
+                if path.isdir():
+                    for (dirpath, dirnames, filenames) in path.walk():
+                        for fname in filenames:
+                            add_if_file(FilePath(os.path.join(dirpath, fname)))
+                else:
+                    add_if_file(path)
 
     @inlineCallbacks
     def _process_item(self, path):
