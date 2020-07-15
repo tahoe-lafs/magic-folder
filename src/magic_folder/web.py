@@ -124,17 +124,16 @@ class V1MagicFolderAPI(Resource, object):
             magic_folder = self._get_magic_folder(name.decode("utf-8"))
         except KeyError:
             return NoResource()
-        return V1MagicFolder(magic_folder, self._get_auth_token)
+        return V1MagicFolder(magic_folder)
 
 
 @attr.s
 class V1MagicFolder(Resource, object):
     _magic_folder = attr.ib()
-    _get_auth_token = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
-        self.putChild(b"snapshots", V1Snapshots(self._magic_folder, self._get_auth_token))
+        self.putChild(b"snapshots", V1Snapshots(self._magic_folder))
 
 
 def _snapshot_json(snapshot):
@@ -152,7 +151,6 @@ def _snapshot_json(snapshot):
 @attr.s
 class V1Snapshots(Resource, object):
     _magic_folder = attr.ib()
-    _get_auth_token = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
