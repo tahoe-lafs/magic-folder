@@ -50,7 +50,14 @@ from ..magic_folder import (
 #
 # https://github.com/LeastAuthority/magic-folder/issues/38
 DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
-    blacklist_categories=("Cs",),
+    whitelist_categories=(
+        # Exclude surrogates.  They're complicated.
+        "Cs",
+        # Exclude non-characters.  I don't know if they can appear in real
+        # filesystems or not.  We might want to let them through if we can
+        # make them work (they don't work as of this comment).
+        "Cn",
+    ),
     blacklist_characters=(u"\x00", u".", u"/"),
 )
 SEGMENT_ALPHABET = one_of(
