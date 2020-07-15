@@ -10,8 +10,12 @@ from testtools.matchers import (
     MatchesStructure,
     MatchesDict,
     MatchesListwise,
+    MatchesAll,
     Always,
     Equals,
+)
+from testtools.twistedsupport import (
+    succeeded,
 )
 
 from foolscap.furl import (
@@ -27,6 +31,10 @@ from allmydata.node import (
 from allmydata.crypto import (
     ed25519,
     error,
+)
+
+from treq import (
+    content,
 )
 
 @attr.s
@@ -118,3 +126,23 @@ class MatchesSameElements(object):
     def match(self, value):
         left, right = value
         return Equals(left).match(right)
+
+
+def matches_response(code_matcher=Always(), body_matcher=Always()):
+    """
+    Match a Treq response object with certain code and body.
+
+    :param Matcher code_matcher: A matcher to apply to the response code.
+    :param Matcher body_matcher: A matcher to apply to the response body.
+
+    :return: A matcher.
+    """
+    return MatchesAll(
+        MatchesStructure(
+            code=code_matcher,
+        ),
+        AfterPreprocessing(
+            lambda response: content(response),
+            succeeded(body_matcher),
+        ),
+    )

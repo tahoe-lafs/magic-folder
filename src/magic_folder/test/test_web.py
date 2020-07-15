@@ -16,6 +16,10 @@ from json import (
 
 import attr
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from hypothesis import (
     given,
     assume,
@@ -23,6 +27,8 @@ from hypothesis import (
 
 from hypothesis.strategies import (
     lists,
+    text,
+    binary,
 )
 
 from testtools.matchers import (
@@ -41,6 +47,10 @@ from twisted.python.failure import (
 )
 from twisted.python.filepath import (
     FilePath,
+)
+from twisted.web.http import (
+    OK,
+    UNAUTHORIZED,
 )
 from twisted.web.resource import (
     Resource,
@@ -61,10 +71,15 @@ from allmydata.uri import (
 )
 
 from .common import (
+    SyncTestCase,
     AsyncTestCase,
+)
+from .matchers import (
+    matches_response,
 )
 
 from .strategies import (
+    path_segments,
     folder_names,
     absolute_paths,
     tahoe_lafs_dir_capabilities as dircaps,
@@ -83,6 +98,7 @@ from .agentutil import (
 )
 
 from ..web import (
+    magic_folder_resource,
     MagicFolderWebApi,
     status_for_item,
 )
@@ -570,3 +586,126 @@ class StubQueue(object):
 class StubMagicFolder(object):
     uploader = attr.ib(default=attr.Factory(StubQueue))
     downloader = attr.ib(default=attr.Factory(StubQueue))
+
+
+class AuthorizationTests(SyncTestCase):
+    """
+    Tests for the authorization requirements for resources beneath ``/v1``.
+    """
+    @given(
+        good_token=tokens(),
+        bad_tokens=lists(tokens()),
+        child_segments=lists(text()),
+    )
+    def test_unauthorized(self, good_token, bad_tokens, child_segments):
+        """
+        If the correct bearer token is not given in the **Authorization** header
+        of the request then the response code is UNAUTHORIZED.
+
+        :param bytes good_token: A bearer token which, when presented, should
+            authorize access to the resource.
+
+        :param bad_tokens: A list of bearer token which, when presented all at
+            once, should not authorize access to the resource.  If this is
+            empty no tokens are presented at all.  If it contains more than
+            one element then it creates a bad request with multiple
+            authorization header values.
+
+        :param [unicode] child_segments: Additional path segments to add to the
+            request path beneath **v1**.
+        """
+        # We're trying to test the *unauthorized* case.  Don't randomly hit
+        # the authorized case by mistake.
+        assume([good_token] != bad_tokens)
+
+        def get_auth_token():
+            return good_token
+        def get_magic_folder(name):
+            raise KeyError(name)
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        treq = StubTreq(root)
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
+        encoded_url = url.to_uri().to_text().encode("ascii")
+
+        # A request with no token at all or the wrong token should receive an
+        # unauthorized response.
+        headers = {}
+        if bad_tokens:
+            headers[b"Authorization"] = list(
+                u"Bearer {}".format(bad_token).encode("ascii")
+                for bad_token
+                in bad_tokens
+            )
+
+        self.assertThat(
+            treq.get(
+                encoded_url,
+                headers=headers,
+            ),
+            succeeded(
+                matches_response(code_matcher=Equals(UNAUTHORIZED)),
+            ),
+        )
+
+    @given(
+        auth_token=tokens(),
+        child_segments=lists(path_segments()),
+        content=binary(),
+    )
+    def test_authorized(self, auth_token, child_segments, content):
+        """
+        If the correct bearer token is not given in the **Authorization** header
+        of the request then the response code is UNAUTHORIZED.
+
+        :param bytes auth_token: A bearer token which, when presented, should
+            authorize access to the resource.
+
+        :param [unicode] child_segments: Additional path segments to add to the
+            request path beneath **v1**.
+
+        :param bytes content: The bytes we expect to see on a successful
+            request.
+        """
+        def get_auth_token():
+            return auth_token
+        def get_magic_folder(name):
+            raise KeyError(name)
+
+        # Since we don't want to exercise any real magic-folder application
+        # logic we'll just magic up the child resource being requested.
+        branch = Data(
+            content,
+            b"application/binary",
+        )
+        segments_remaining = child_segments[:]
+        while segments_remaining:
+            name = segments_remaining.pop()
+            resource = Resource()
+            resource.putChild(name, branch)
+            branch = resource
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)
+
+        treq = StubTreq(root)
+        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
+        encoded_url = url.to_uri().to_text().encode("ascii")
+
+        # A request with no token at all or the wrong token should receive an
+        # unauthorized response.
+        headers = {
+            b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+        }
+
+        self.assertThat(
+            treq.get(
+                encoded_url,
+                headers=headers,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=Equals(content),
+                ),
+            ),
+        )
