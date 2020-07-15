@@ -632,6 +632,11 @@ class AuthorizationTests(SyncTestCase):
 
         def get_auth_token():
             return good_token
+        def get_magic_folder(name):
+            raise KeyError(name)
+
+        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url.to_uri().to_text().encode("ascii")
 
