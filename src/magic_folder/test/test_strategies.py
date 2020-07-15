@@ -5,8 +5,13 @@
 Tests for Hypothesis strategies for the test suite.
 """
 
+from os import (
+    makedirs,
+)
+
 from hypothesis import (
     given,
+    assume,
 )
 
 from allmydata.uri import (
@@ -24,6 +29,7 @@ from .common import (
 from .strategies import (
     tahoe_lafs_chk_capabilities,
     tahoe_lafs_dir_capabilities,
+    path_segments,
 )
 
 class StrategyTests(SyncTestCase):
@@ -55,3 +61,21 @@ class StrategyTests(SyncTestCase):
             cap_text,
             Equals(serialized),
         )
+
+    @given(path_segments())
+    def test_legal(self, name):
+        """
+        Path segments build by ``path_segments`` are legal for use in the
+        filesystem.
+        """
+        # Try to avoid accidentally scribbling all over the filesystem in the
+        # test runner's environment if path_segments() ends up building
+        # unfortunate values (/etc/passwd, /root/.bashrc, etc).
+        assume(u"../" not in name)
+        temp = self.mktemp()
+        makedirs(temp)
+        safe = (temp + b"/").decode("utf-8")
+
+        # Now ask the platform if this path is alright or not.
+        with open(safe + name, "w"):
+            pass
