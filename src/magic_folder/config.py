@@ -119,14 +119,14 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
         )
 
     # explain what is in this directory
-    with basedir.child("README").open("w") as f:
+    with basedir.child("README").open("wt") as f:
         f.write(
-            "This is a Magic Folder daemon configuration\n"
-            "\n"
-            "To find out more you can run a command like:\n"
-            "\n"
-            "    magic-folder --config {} --help\n"
-            "\n".format(basedir.path)
+            u"This is a Magic Folder daemon configuration\n"
+            u"\n"
+            u"To find out more you can run a command like:\n"
+            u"\n"
+            u"    magic-folder --config {} --help\n"
+            u"\n".format(basedir.path)
         )
 
     # set up the configuration database
