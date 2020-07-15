@@ -141,10 +141,9 @@ def _snapshot_json(snapshot):
         u"name": snapshot.name,
         u"author": snapshot.author.name,
         u"content-path": snapshot.content_path,
+        u"id": snapshot.id(),
         u"parents": list(parent.id() for parent in snapshot.parents_local),
     }
-    snapshot_id = _snapshot_id(snapshot_json)
-    snapshot_json[u"id"] = snapshot_id
     return snapshot_json
 
 
