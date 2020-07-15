@@ -71,6 +71,9 @@ class BearerTokenAuthorization(Resource, object):
     _resource = attr.ib()
     _get_auth_token = attr.ib()
 
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
     def render(self, request):
         """
         Render the wrapped resource if the request carries correct authorization.
