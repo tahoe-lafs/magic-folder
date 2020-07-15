@@ -5,7 +5,6 @@ See also docs/config.rst
 """
 
 from os import (
-    mkdir,
     urandom,
 )
 from base64 import (
@@ -112,11 +111,12 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
 
     :returns: a GlobalConfigDatabase instance
     """
-    if basedir.exists():
+    try:
+        basedir.makedirs()
+    except OSError:
         raise ValueError(
             "'{}' already exists".format(basedir.path)
         )
-    mkdir(basedir.path)
 
     # explain what is in this directory
     with basedir.child("README").open("w") as f:
@@ -384,48 +384,59 @@ class GlobalConfigDatabase(object):
                 "'{}' already exists".format(state_path.path)
             )
 
-        mkdir(state_path.path)
+        from contextlib import contextmanager
+        @contextmanager
+        def atomic_makedirs(path):
+            path.makedirs()
+            try:
+                yield path
+            except Exception:
+                # on error, clean up our directory
+                path.remove()
+                # ...and pass on the error
+                raise
+
         stash_path = state_path.child("stash")
-        mkdir(stash_path.path)
-        db_path = state_path.child("state.sqlite")
-        connection = sqlite3.connect(db_path.path)
-        with connection:
-            cursor = connection.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            cursor.executescript(_magicfolder_config_schema)
-            connection.commit()
-            cursor.execute(
-                "INSERT INTO version (version) VALUES (?)",
-                (_magicfolder_config_version, )
-            )
-            # default configuration values
-            cursor.execute(
-                "INSERT INTO CONFIG (author_name, author_private_key, stash_path, collective_dircap, upload_dircap, magic_directory, poll_interval) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    author.name,
-                    author.signing_key.encode(Base32Encoder),
-                    stash_path.path,
-                    collective_dircap,
-                    upload_dircap,
-                    magic_path.path,
-                    poll_interval,
+        with atomic_makedirs(state_path), atomic_makedirs(stash_path):
+            db_path = state_path.child("state.sqlite")
+            connection = sqlite3.connect(db_path.path)
+            with connection:
+                cursor = connection.cursor()
+                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+                cursor.executescript(_magicfolder_config_schema)
+                connection.commit()
+                cursor.execute(
+                    "INSERT INTO version (version) VALUES (?)",
+                    (_magicfolder_config_version, )
                 )
-            )
-            cursor.execute(
-                "INSERT INTO stash (path) VALUES (?)",
-                (stash_path.path, )
+                # default configuration values
+                cursor.execute(
+                    "INSERT INTO CONFIG (author_name, author_private_key, stash_path, collective_dircap, upload_dircap, magic_directory, poll_interval) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        author.name,
+                        author.signing_key.encode(Base32Encoder),
+                        stash_path.path,
+                        collective_dircap,
+                        upload_dircap,
+                        magic_path.path,
+                        poll_interval,
+                    )
+                )
+                cursor.execute(
+                    "INSERT INTO stash (path) VALUES (?)",
+                    (stash_path.path, )
+                )
+
+            config = MagicFolderConfig(
+                name=name,
+                database=connection,
             )
 
-        config = MagicFolderConfig(
-            name=name,
-            database=connection,
-        )
-
-        # add to the global config
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute(
-                "INSERT INTO magic_folders VALUES (?, ?)",
-                (name, state_path.path)
-            )
+            # add to the global config
+            with self.database:
+                cursor = self.database.cursor()
+                cursor.execute(
+                    "INSERT INTO magic_folders VALUES (?, ?)",
+                    (name, state_path.path)
+                )
         return config
