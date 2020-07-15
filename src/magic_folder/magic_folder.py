@@ -2245,8 +2245,8 @@ class LocalSnapshotCreator(service.Service):
         directory, we add all its children. If the path does not exist
         below our magic-folder directory, it is an error.
 
-        XXX what about symlinks?
-        XXX what about symlinks that resolve to directories?
+        Does not handle symbolic links at the moment. See:
+        https://github.com/LeastAuthority/magic-folder/issues/201
         """
         action = ADD_FILES(count=len(paths))
         with action:
