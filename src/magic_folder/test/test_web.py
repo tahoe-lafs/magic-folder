@@ -682,7 +682,7 @@ class AuthorizationTests(SyncTestCase):
         while segments_remaining:
             name = segments_remaining.pop()
             resource = Resource()
-            resource.putChild(name, branch)
+            resource.putChild(name.encode("utf-8"), branch)
             branch = resource
 
         root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)
