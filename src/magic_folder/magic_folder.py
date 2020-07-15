@@ -422,7 +422,7 @@ class MagicFolder(service.MultiService):
 
     @property
     def _db(self):
-        return self._model.db
+        return self.model.db
 
     def __init__(self, client, upload_dircap, collective_dircap, local_path_u, dbfile, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60):
