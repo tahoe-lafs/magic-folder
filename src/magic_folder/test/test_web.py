@@ -745,7 +745,7 @@ class ListSnapshotTests(SyncTestCase):
                     b"Authorization": b"Bearer {}".format(auth_token),
                 }),
             succeeded(
-                matches_response(code=Equals(NOT_FOUND)),
+                matches_response(code_matcher=Equals(NOT_FOUND)),
             ),
         )
 
@@ -782,7 +782,7 @@ class ListSnapshotTests(SyncTestCase):
                 }),
             succeeded(
                 matches_response(
-                    body=AfterPreprocessing(
+                    body_matcher=AfterPreprocessing(
                         good_loads,
                         Equals({u"snapshots": local_snapshots}),
                     ),
