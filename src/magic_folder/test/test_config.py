@@ -15,6 +15,7 @@ from testtools import (
 from testtools.matchers import (
     Equals,
     NotEquals,
+    Contains,
 )
 
 from .common import (
@@ -54,6 +55,11 @@ class TestGlobalConfig(SyncTestCase):
             config.api_endpoint,
             Equals("tcp:1234")
         )
+
+    def test_load_db_no_such_directory(self):
+        non_dir = self.temp.child("non-existent")
+        with ExpectedException(ValueError, ".*{}.*".format(non_dir.path)):
+            load_global_configuration(non_dir)
 
     def test_rotate_api_key(self):
         config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
@@ -164,3 +170,28 @@ class TestMagicFolderConfig(SyncTestCase):
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
             )
+
+    def test_folder_get_path(self):
+        """
+        we can retrieve the stash-path from a magic-folder-confgi
+        """
+        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        alice = create_local_author("alice")
+        magic = self.temp.child("magic")
+        state = self.temp.child("state")
+        mkdir(magic.path)
+        config.create_magic_folder(
+            u"foo",
+            magic,
+            state,
+            alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
+        )
+        self.assertThat(config.list_magic_folders(), Contains(u"foo"))
+        mf_config = config.get_magic_folder(u"foo")
+        self.assertThat(
+            mf_config.stash_path,
+            Equals(state.child("stash"))
+        )
