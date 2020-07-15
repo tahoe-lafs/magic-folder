@@ -124,6 +124,16 @@ def absolute_paths(relative_paths=relative_paths()):
     )
 
 
+def absolute_paths_utf8(relative_paths=relative_paths()):
+    """
+    Build byte strings which are valid utf-8 and are usable as absolute
+    filesystem paths.
+    """
+    return relative_paths.map(
+        lambda p: (u"/" + p).encode("utf-8"),
+    )
+
+
 def folder_names():
     """
     Build unicode strings which are usable as magic folder names.

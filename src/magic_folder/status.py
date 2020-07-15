@@ -67,7 +67,7 @@ def status(folder_name, node_directory, treq):
     :return Deferred[Status]: A Deferred which fires with information about
         the magic folder.
     """
-    magic_folders = load_magic_folders(node_directory.path)
+    magic_folders = load_magic_folders(node_directory.asTextMode("utf-8").path)
     token = node_directory.descendant([u"private", u"api_auth_token"]).getContent()
     node_root_url = DecodedURL.from_text(
         node_directory.child(u"node.url").getContent().decode("ascii").strip(),
@@ -198,4 +198,3 @@ def _cap_metadata(treq, root_url, cap):
     if len(result) != 2:
         raise BadMetadataResponse(result)
     returnValue(result)
-
