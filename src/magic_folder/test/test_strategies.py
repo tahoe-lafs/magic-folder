@@ -5,10 +5,6 @@
 Tests for Hypothesis strategies for the test suite.
 """
 
-from os import (
-    makedirs,
-)
-
 from hypothesis import (
     given,
     assume,

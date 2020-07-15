@@ -22,7 +22,6 @@ from testtools.twistedsupport import (
 
 from hypothesis import (
     given,
-    note,
 )
 from hypothesis.strategies import (
     binary,
@@ -402,4 +401,3 @@ class TestLocalSnapshot(SyncTestCase):
                 parents_local=HasLength(0),
             )
         )
-

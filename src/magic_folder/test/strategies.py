@@ -29,7 +29,6 @@ from hypothesis.strategies import (
     integers,
     floats,
     fixed_dictionaries,
-    sampled_from,
 )
 
 from allmydata.util import (
