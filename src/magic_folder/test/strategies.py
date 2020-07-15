@@ -49,7 +49,7 @@ from ..magic_folder import (
 #
 # https://github.com/LeastAuthority/magic-folder/issues/38
 DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
-    whitelist_categories=(
+    blacklist_categories=(
         # Exclude surrogates.  They're complicated.
         "Cs",
         # Exclude non-characters.  I don't know if they can appear in real
