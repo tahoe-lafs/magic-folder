@@ -90,7 +90,7 @@ CREATE TABLE config
 
 CREATE TABLE local_snapshots
 (
-    id VARCHAR(256) PRIMARY KEY, -- identifier (hash of .. stuff)
+    id TEXT PRIMARY KEY,         -- identifier (hash of .. stuff)
     name TEXT,                   -- the (mangled) name in UTF8
     metadata TEXT,               -- arbitrary JSON metadata in UTF8
     content_path TEXT            -- where the content is sitting (path, UTF8)
