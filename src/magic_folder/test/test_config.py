@@ -37,15 +37,15 @@ class TestGlobalConfig(SyncTestCase):
         self.temp = FilePath(self.mktemp())
 
     def test_create(self):
-        create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
 
     def test_create_existing_dir(self):
         mkdir(self.temp.path)
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
-            create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+            create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
 
     def test_load_db(self):
-        create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         config = load_global_configuration(self.temp)
         self.assertThat(
             config.api_endpoint,
@@ -58,7 +58,7 @@ class TestGlobalConfig(SyncTestCase):
             load_global_configuration(non_dir)
 
     def test_rotate_api_key(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         pre = config.api_token
         config.rotate_api_token()
         self.assertThat(
@@ -67,7 +67,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_change_api_endpoint(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
         self.assertThat(
@@ -87,7 +87,7 @@ class TestMagicFolderConfig(SyncTestCase):
         self.temp = FilePath(self.mktemp())
 
     def test_create_folder(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         mkdir(magic.path)
@@ -106,7 +106,7 @@ class TestMagicFolderConfig(SyncTestCase):
         )
 
     def test_create_folder_duplicate(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         mkdir(magic.path)
@@ -131,7 +131,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_nonexistant_magic_path(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
@@ -146,7 +146,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_state_already_exists(self):
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -167,7 +167,7 @@ class TestMagicFolderConfig(SyncTestCase):
         """
         we can retrieve the stash-path from a magic-folder-confgi
         """
-        config = create_global_configuration(self.temp, "tcp:1234", "tcp:localhost:5678")
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
