@@ -72,11 +72,6 @@ CREATE TABLE version
     version INTEGER  -- contains one row, set to 1
 );
 
-CREATE TABLE stash
-(
-    path TEXT    -- the path to our stash-directory
-);
-
 CREATE TABLE config
 (
     author_name          TEXT PRIMARY KEY,  -- UTF8 name of the author
@@ -412,10 +407,6 @@ class GlobalConfigDatabase(object):
                         magic_path.path,
                         poll_interval,
                     )
-                )
-                cursor.execute(
-                    "INSERT INTO stash (path) VALUES (?)",
-                    (stash_path.path, )
                 )
 
             config = MagicFolderConfig(
