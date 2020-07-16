@@ -32,6 +32,9 @@ from hypothesis.strategies import (
     binary,
 )
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     AfterPreprocessing,
     IsInstance,
@@ -83,7 +86,7 @@ from .matchers import (
 from .strategies import (
     path_segments,
     folder_names,
-    absolute_paths,
+    absolute_paths_utf8,
     tahoe_lafs_dir_capabilities as dircaps,
     tahoe_lafs_chk_capabilities as chkcaps,
     tokens,
@@ -129,7 +132,7 @@ class StatusTests(AsyncTestCase):
     """
     Tests for ``magic_folder.status.status``.
     """
-    @given(folder_names(), absolute_paths().map(FilePath))
+    @given(folder_names(), absolute_paths_utf8().map(FilePath))
     def test_missing_node(self, folder_name, node_directory):
         """
         If the given node directory does not exist, ``status`` raises
@@ -137,10 +140,8 @@ class StatusTests(AsyncTestCase):
         """
         assume(not node_directory.exists())
         treq = object()
-        self.assertThat(
-            lambda: status(folder_name, node_directory, treq),
-            raises(EnvironmentError),
-        )
+        with ExpectedException(IOError):
+            status(folder_name, node_directory, treq),
 
     @given(folder_names())
     def test_missing_api_auth_token(self, folder_name):
@@ -695,7 +696,7 @@ class AuthorizationTests(SyncTestCase):
         while segments_remaining:
             name = segments_remaining.pop()
             resource = Resource()
-            resource.putChild(name, branch)
+            resource.putChild(name.encode("utf-8"), branch)
             branch = resource
 
         root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)

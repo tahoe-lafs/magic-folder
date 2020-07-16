@@ -186,16 +186,16 @@ def load_magic_folders(node_directory):
     yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
     folders = dict()
 
-    config_fname = os.path.join(node_directory, "tahoe.cfg")
-    config = configutil.get_config(config_fname)
+    config_fname = os.path.join(node_directory, u"tahoe.cfg")
+    config = configutil.get_config(config_fname.encode("utf-8"))
 
     if not os.path.exists(yaml_fname):
         # there will still be a magic_folder section in a "new"
         # config, but it won't have local.directory nor poll_interval
         # in it.
         if config.has_option("magic_folder", "local.directory"):
-            up_fname = os.path.join(node_directory, "private", "magic_folder_dircap")
-            coll_fname = os.path.join(node_directory, "private", "collective_dircap")
+            up_fname = os.path.join(node_directory, u"private", u"magic_folder_dircap")
+            coll_fname = os.path.join(node_directory, u"private", u"collective_dircap")
             directory = config.get("magic_folder", "local.directory").decode('utf8')
             try:
                 interval = int(config.get("magic_folder", "poll_interval"))
