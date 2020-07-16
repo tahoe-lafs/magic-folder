@@ -203,3 +203,11 @@ class TestMagicFolderConfig(SyncTestCase):
             mf_config.stash_path,
             Equals(state.child("stash"))
         )
+
+    def test_get_folder_nonexistent(self):
+        """
+        an error to retrieve a non-existent folder
+        """
+        config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
+        with ExpectedException(ValueError):
+            config.get_magic_folder(u"non-existent")
