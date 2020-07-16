@@ -1,9 +1,6 @@
 from shutil import (
     rmtree,
 )
-from os import (
-    mkdir,
-)
 
 from twisted.python.filepath import (
     FilePath,
@@ -43,7 +40,7 @@ class TestGlobalConfig(SyncTestCase):
         create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
 
     def test_create_existing_dir(self):
-        mkdir(self.temp.path)
+        self.temp.makedirs()
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
             create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
 
@@ -106,7 +103,7 @@ class TestMagicFolderConfig(SyncTestCase):
         config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
-        mkdir(magic.path)
+        magic.makedirs()
         magic_folder = config.create_magic_folder(
             u"foo",
             magic,
@@ -125,7 +122,7 @@ class TestMagicFolderConfig(SyncTestCase):
         config = create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
-        mkdir(magic.path)
+        magic.makedirs()
         config.create_magic_folder(
             u"foo",
             magic,
@@ -166,8 +163,8 @@ class TestMagicFolderConfig(SyncTestCase):
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
-        mkdir(magic.path)
-        mkdir(state.path)  # shouldn't pre-exist
+        magic.makedirs()
+        state.makedirs()  # shouldn't pre-exist, though
         with ExpectedException(ValueError, ".*{}.*".format(state.path)):
             config.create_magic_folder(
                 u"foo",
@@ -187,7 +184,7 @@ class TestMagicFolderConfig(SyncTestCase):
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
-        mkdir(magic.path)
+        magic.makedirs()
         config.create_magic_folder(
             u"foo",
             magic,
