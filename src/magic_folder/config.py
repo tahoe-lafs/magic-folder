@@ -384,18 +384,6 @@ class GlobalConfigDatabase(object):
                 "'{}' already exists".format(state_path.path)
             )
 
-        from contextlib import contextmanager
-        @contextmanager
-        def atomic_makedirs(path):
-            path.makedirs()
-            try:
-                yield path
-            except Exception:
-                # on error, clean up our directory
-                path.remove()
-                # ...and pass on the error
-                raise
-
         stash_path = state_path.child("stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
