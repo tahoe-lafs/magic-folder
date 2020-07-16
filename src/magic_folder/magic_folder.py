@@ -74,6 +74,7 @@ from . import (
 from .snapshot import (
     create_local_author_from_config,
     create_snapshot,
+    LocalAuthor,
 )
 
 if six.PY3:
@@ -2206,7 +2207,7 @@ class LocalSnapshotCreator(service.Service):
 
     magic_path = attr.ib()  # FilePath of our magic-folder base
     db = attr.ib()  # our database
-    author = attr.ib()  # LocalAuthor instance
+    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     queue = attr.ib(default=attr.Factory(DeferredQueue))
 
