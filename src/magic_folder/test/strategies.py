@@ -31,10 +31,6 @@ from hypothesis.strategies import (
     fixed_dictionaries,
 )
 
-from twisted.python.filepath import (
-    FilePath,
-)
-
 from allmydata.util import (
     base32,
 )
