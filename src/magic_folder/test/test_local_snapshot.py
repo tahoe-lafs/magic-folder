@@ -40,7 +40,7 @@ from .common import (
     AsyncTestCase,
 )
 from .strategies import (
-    relative_paths,
+    path_segments,
 )
 
 @attr.s
@@ -65,6 +65,8 @@ class MemoryMagicFolderDatabase(object):
             parents_local=parents,
         )
 
+    def close(self):
+        snapshots = dict()
 
 class LocalSnapshotTests(AsyncTestCase):
 
@@ -149,8 +151,8 @@ class LocalSnapshotTests(AsyncTestCase):
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
 
-    @given(lists(relative_paths()),
-           lists(binary()))
+    @given(lists(path_segments(), unique=True),
+           lists(binary(), unique=True))
     def test_add_multiple_files(self, filenames, contents):
         files = []
         for (filename, content) in zip(filenames, contents):
@@ -166,5 +168,11 @@ class LocalSnapshotTests(AsyncTestCase):
             succeeded(Always())
         )
 
-        self.assertThat(self.db.snapshots, HasLength(len(files)))
+        self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
 
+    def setup_example(self):
+        """
+        Hypothesis-invoked hook to create per-example state.
+        Reset the database before running each test.
+        """
+        self.db.snapshots = {}

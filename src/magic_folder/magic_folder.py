@@ -2299,7 +2299,7 @@ class LocalSnapshotCreator(service.Service):
             # relative to the magic-folder base).
 
             # how else to get the unicode version of this path?
-            return magicpath.path2magic(p.asBytesMode().path)
+            return magicpath.path2magic(p.asTextMode().path)
 
         with path.open('rb') as input_stream:
             SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=path.asTextMode().path)
