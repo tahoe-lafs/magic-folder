@@ -31,7 +31,9 @@ from magic_folder.snapshot import (
     create_local_author,
     LocalSnapshot,
 )
-
+from magic_folder.magicpath import (
+    path2magic,
+)
 from .common import (
     AsyncTestCase,
 )
@@ -69,7 +71,10 @@ class LocalSnapshotTests(AsyncTestCase):
         self.stash_dir = mktemp()
         os.mkdir(self.stash_dir)
 
-        self.magic_path = FilePath("/tmp")  # XXX FIXME
+        magic_path_dirname = mktemp()
+        os.mkdir(magic_path_dirname)
+
+        self.magic_path = FilePath(magic_path_dirname)
         self.snapshot_creator = LocalSnapshotCreator(
             magic_path=self.magic_path,
             db=self.db,
@@ -98,7 +103,8 @@ class LocalSnapshotTests(AsyncTestCase):
         # we should have processed one snapshot upload
 
         self.assertThat(self.db.snapshots, HasLength(1))
-        stored_snapshot = self.db.get_local_snapshot("@_tmp@_foo", self.author)
+        foo_magicname = path2magic(foo.asTextMode().path)
+        stored_snapshot = self.db.get_local_snapshot(foo_magicname, self.author)
         stored_content = stored_snapshot._get_synchronous_content()
         self.assertThat(stored_content, Equals(content))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
@@ -125,20 +131,15 @@ class LocalSnapshotTests(AsyncTestCase):
 
         self.assertThat(self.db.snapshots, HasLength(2))
 
-        stored_snapshot = self.db.get_local_snapshot("@_tmp@_file1", self.author)
+        file1magic = path2magic(file1.asTextMode().path)
+        stored_snapshot = self.db.get_local_snapshot(file1magic, self.author)
         stored_content = stored_snapshot._get_synchronous_content()
         self.assertThat(stored_content, Equals(content1))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
-        stored_snapshot = self.db.get_local_snapshot("@_tmp@_file2", self.author)
+        file2magic = path2magic(file2.asTextMode().path)
+        stored_snapshot = self.db.get_local_snapshot(file2magic, self.author)
         stored_content = stored_snapshot._get_synchronous_content()
         self.assertThat(stored_content, Equals(content2))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
-    # @given(
-    #     lists(random_files()),
-    # )
-    # def test_add_multiple_files(self, input_files):
-
-    #     self.snapshot_creator.add_files(*input_files)
-    #     pass
