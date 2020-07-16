@@ -31,6 +31,9 @@ from .common import (
 from .fixtures import (
     NodeDirectory,
 )
+from ..config import (
+    load_global_configuration,
+)
 from magic_folder.util.observer import (
     ListenObserver,
 )
@@ -100,7 +103,7 @@ class TestInitialize(SyncTestCase):
 
 class TestMigrate(SyncTestCase):
     """
-    Confirm operation of 'magic-folder initialize' command
+    Confirm operation of 'magic-folder migrate' command
     """
 
     def setUp(self):
@@ -124,4 +127,9 @@ class TestMigrate(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"alice",
+        )
+        config = load_global_configuration(self.temp.child("new_magic"))
+        self.assertThat(
+            list(config.list_magic_folders()),
+            Equals([u"test-folder"]),
         )

@@ -32,6 +32,9 @@ from twisted.python.filepath import (
 from .snapshot import (
     LocalAuthor,
 )
+from .common import (
+    atomic_makedirs,
+)
 
 
 class ConfigurationError(Exception):
