@@ -31,6 +31,10 @@ from hypothesis.strategies import (
     fixed_dictionaries,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
+
 from allmydata.util import (
     base32,
 )
@@ -258,3 +262,4 @@ def queued_items():
 
 def magic_folder_filenames():
     return text(min_size=1)
+

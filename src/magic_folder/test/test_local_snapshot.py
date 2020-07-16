@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import attr
+import os
+from tempfile import mktemp
 
 from hypothesis import (
     given,
@@ -34,7 +36,6 @@ from .common import (
     AsyncTestCase,
 )
 
-
 @attr.s
 class MemoryMagicFolderDatabase(object):
 
@@ -64,14 +65,22 @@ class LocalSnapshotTests(AsyncTestCase):
         super(LocalSnapshotTests, self).setUp()
         self.db = MemoryMagicFolderDatabase()
         self.author = create_local_author("alice")
-        self.stash_dir = FilePath("/tmp")  # XXX FIXME
+
+        self.stash_dir = mktemp()
+        os.mkdir(self.stash_dir)
+
         self.magic_path = FilePath("/tmp")  # XXX FIXME
         self.snapshot_creator = LocalSnapshotCreator(
             magic_path=self.magic_path,
             db=self.db,
             author=self.author,
-            stash_dir=self.stash_dir,
+            stash_dir=FilePath(self.stash_dir),
         )
+
+    def tearDown(self):
+        # No need to close the db, as it is in-memory. GC
+        # would claim the memory back.
+        return super(LocalSnapshotTests, self).tearDown()
 
     @given(content=binary())
     def test_add_single_file(self, content):

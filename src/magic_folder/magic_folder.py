@@ -2207,7 +2207,7 @@ class LocalSnapshotCreator(service.Service):
     magic_path = attr.ib()  # FilePath of our magic-folder base
     db = attr.ib()  # our database
     author = attr.ib()  # LocalAuthor instance
-    stash_dir = attr.ib()  # FilePath of our stash-dir
+    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -2316,3 +2316,4 @@ class LocalSnapshotCreator(service.Service):
 
         # store the local snapshot to the disk
         self.db.store_local_snapshot(snapshot)
+
