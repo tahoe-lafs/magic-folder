@@ -9,6 +9,8 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
+    text,
+    lists,
 )
 
 from twisted.python.filepath import (
@@ -36,6 +38,9 @@ from magic_folder.magicpath import (
 )
 from .common import (
     AsyncTestCase,
+)
+from .strategies import (
+    relative_paths,
 )
 
 @attr.s
@@ -142,4 +147,24 @@ class LocalSnapshotTests(AsyncTestCase):
         stored_content = stored_snapshot._get_synchronous_content()
         self.assertThat(stored_content, Equals(content2))
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
+
+
+    @given(lists(relative_paths()),
+           lists(binary()))
+    def test_add_multiple_files(self, filenames, contents):
+        files = []
+        for (filename, content) in zip(filenames, contents):
+            file = self.magic_path.child(filename)
+            with file.open("w") as f:
+                f.write(content)
+            files.append(file)
+
+        self.snapshot_creator.add_files(*files)
+        self.snapshot_creator.startService()
+        self.assertThat(
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
+        )
+
+        self.assertThat(self.db.snapshots, HasLength(len(files)))
 
