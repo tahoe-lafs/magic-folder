@@ -8,6 +8,9 @@ Implements the magic-folder init command.
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    succeed,
+)
 
 from .config import (
     create_global_configuration,
@@ -35,4 +38,4 @@ def magic_folder_initialize(config_dir, listen_endpoint, tahoe_url):
         tahoe_url,
     )
 
-    return 0
+    return succeed(0)

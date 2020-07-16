@@ -8,6 +8,9 @@ Implements the 'magic-folder migrate' command.
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    succeed,
+)
 
 import yaml
 
@@ -37,8 +40,8 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
     :param unicode author_name: the name of our author (will be used
         for each magic-folder we create from the "other" config)
 
-    :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
-        an appropriate exception is raised.
+    :return Deferred[GlobalConfigDatabase]: the newly migrated
+        configuration or an exception upon error.
     """
 
     # Extract interesting Tahoe configuration. To create the global
@@ -72,4 +75,4 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
             mf_config[u'poll_interval'],  # is this always available?
         )
 
-    return config
+    return succeed(config)
