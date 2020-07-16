@@ -6,6 +6,15 @@ from twisted.python.filepath import (
     FilePath,
 )
 
+from hypothesis import (
+    given,
+    assume,
+    seed,
+)
+from hypothesis.strategies import (
+    text,
+)
+
 from testtools import (
     ExpectedException,
 )
@@ -36,8 +45,14 @@ class TestGlobalConfig(SyncTestCase):
         super(TestGlobalConfig, self).setUp()
         self.temp = FilePath(self.mktemp())
 
-    def test_create(self):
-        create_global_configuration(self.temp, "tcp:1234", "http://localhost:3456")
+    @given(
+        text(min_size=1),
+    )
+    @seed(30413371539814800034558582897873408607)
+    def test_create(self, dirname):
+        temp = FilePath(dirname)
+        assume(not temp.exists())
+        create_global_configuration(temp, "tcp:1234", "http://localhost:3456")
 
     def test_create_existing_dir(self):
         self.temp.makedirs()
