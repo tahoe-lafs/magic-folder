@@ -123,6 +123,19 @@ from ..common import (
     BadDirectoryCapability,
     BadMetadataResponse,
 )
+
+def url_to_bytes(url):
+    """
+    Serialize a ``DecodedURL`` to an ASCII-only bytes string.  This result is
+    suitable for use as an HTTP request path
+
+    :param DecodedURL url: The URL to encode.
+
+    :return bytes: The encoded URL.
+    """
+    return url.to_uri().to_text().encode("ascii")
+
+
 class StatusTests(AsyncTestCase):
     """
     Tests for ``magic_folder.status.status``.
@@ -631,7 +644,7 @@ class AuthorizationTests(SyncTestCase):
         root = magic_folder_resource(MagicFolderServiceState(), get_auth_token)
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
-        encoded_url = url.to_uri().to_text().encode("ascii")
+        encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
@@ -696,7 +709,7 @@ class AuthorizationTests(SyncTestCase):
 
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
-        encoded_url = url.to_uri().to_text().encode("ascii")
+        encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
@@ -716,10 +729,6 @@ class AuthorizationTests(SyncTestCase):
                 ),
             ),
         )
-
-
-def url_to_bytes(url):
-    return url.to_uri().to_text().encode("ascii")
 
 
 def authorized_get(treq, auth_token, url):
