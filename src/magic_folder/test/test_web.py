@@ -30,6 +30,7 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
+    dictionaries,
     sampled_from,
 )
 
@@ -91,6 +92,7 @@ from .matchers import (
 from .strategies import (
     path_segments,
     folder_names,
+    absolute_paths,
     absolute_paths_utf8,
     tahoe_lafs_dir_capabilities as dircaps,
     tahoe_lafs_chk_capabilities as chkcaps,
@@ -773,12 +775,32 @@ def treq_for_folder_names(auth_token, names):
 
     :return: An object like the ``treq`` module.
     """
+    return treq_for_folders(auth_token, dict.fromkeys(names, {u"directory": None}))
+
+
+def treq_for_folders(auth_token, folders):
+    """
+    Construct a ``treq``-module-alike which is hooked up to a Magic Folder
+    service with Magic Folders like the ones given.
+
+    :param unicode auth_token: The authorization token accepted by the
+        service.
+
+    :param folders: A mapping from Magic Folder names to their configurations.
+        These are the folders which will appear to exist.
+
+    :return: An object like the ``treq`` module.
+    """
     state = MagicFolderServiceState()
-    for name in names:
-        state.add_magic_folder(name, {}, object())
+    for name, config in folders.items():
+        state.add_magic_folder(name, config, object())
 
     root = magic_folder_resource(state, lambda: auth_token)
     return StubTreq(root)
+
+
+def magic_folder_config_for_local_directory(local_directory):
+    return {u"directory": local_directory}
 
 
 class ListMagicFolderTests(SyncTestCase):
@@ -813,14 +835,28 @@ class ListMagicFolderTests(SyncTestCase):
 
     @given(
         tokens(),
-        lists(folder_names(), unique=True),
+        dictionaries(
+            folder_names(),
+            absolute_paths(),
+        ),
     )
-    def test_list_folders(self, auth_token, folder_names):
+    def test_list_folders(self, auth_token, folders):
         """
         A request for **GET /v1/magic-folder** receives a response that is a
         JSON-encoded list of Magic Folders.
+
+        :param dict[unicode, unicode] folders: A mapping from folder names to
+            local filesystem paths where we shall pretend the local filesystem
+            state for those folders resides.
         """
-        treq = treq_for_folder_names(auth_token, folder_names)
+        treq = treq_for_folders(
+            auth_token, {
+                name: magic_folder_config_for_local_directory(path)
+                for (name, path)
+                in folders.items()
+            },
+        )
+
         self.assertThat(
             authorized_request(treq, auth_token, b"GET", self.encoded_url),
             succeeded(
@@ -836,9 +872,9 @@ class ListMagicFolderTests(SyncTestCase):
                         loads,
                         Equals({
                             u"folders": list(
-                                {u"name": name}
-                                for name
-                                in sorted(folder_names)
+                                {u"name": name, u"local-path": path}
+                                for (name, path)
+                                in sorted(folders.items())
                             ),
                         }),
                     )

@@ -702,6 +702,17 @@ class MagicFolderServiceState(object):
         return list(self._folders)
 
 
+    def iter_magic_folder_configs(self):
+        """
+        Iterate over all of the Magic Folder names and configurations.
+
+        :return: An iterator of two-tuples of a unicode name and a Magic
+            Folder configuration.
+        """
+        for (name, (config, service)) in self._folders.items():
+            yield (name, config)
+
+
 @attr.s
 class MagicFolderService(MultiService):
     """

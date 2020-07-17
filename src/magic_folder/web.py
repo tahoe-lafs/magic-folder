@@ -132,9 +132,9 @@ class MagicFolderAPIv1(Resource, object):
         request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
         return json.dumps({
             u"folders": list(
-                {u"name": name}
-                for name
-                in sorted(self._magic_folder_state.list_magic_folder_names())
+                {u"name": name, u"local-path": config[u"directory"]}
+                for (name, config)
+                in sorted(self._magic_folder_state.iter_magic_folder_configs())
             ),
         })
 
