@@ -3,6 +3,7 @@ from __future__ import print_function
 import attr
 import os
 from tempfile import mktemp
+from shutil import rmtree
 
 from hypothesis import (
     given,
@@ -91,6 +92,13 @@ class LocalSnapshotTests(AsyncTestCase):
     def tearDown(self):
         # No need to close the db, as it is in-memory. GC
         # would claim the memory back.
+
+        # delete stash_dir
+        rmtree(self.stash_dir)
+
+        # delete magic_path
+        rmtree(self.magic_path.path)
+
         return super(LocalSnapshotTests, self).tearDown()
 
     def setup_example(self):
