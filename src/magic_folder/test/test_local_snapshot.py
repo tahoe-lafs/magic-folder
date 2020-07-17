@@ -164,6 +164,7 @@ class LocalSnapshotTests(AsyncTestCase):
         files = []
         for (filename, content) in zip(filenames, contents):
             file = self.magic_path.child(filename)
+            print("file name: {}".format(file))
             with file.open("w") as f:
                 f.write(content)
             files.append(file)
