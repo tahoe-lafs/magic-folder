@@ -2299,7 +2299,7 @@ class LocalSnapshotCreator(service.Service):
             # relative to the magic-folder base).
 
             # how else to get the unicode version of this path?
-            return magicpath.path2magic(p.asTextMode().path)
+            return magicpath.path2magic(p.asTextMode(encoding="utf-8").path)
 
         with path.open('rb') as input_stream:
             # XXX: uncommenting the below line causes CI failure
