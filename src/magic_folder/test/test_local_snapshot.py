@@ -154,12 +154,12 @@ class LocalSnapshotTests(AsyncTestCase):
         self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
 
-    @given(lists(path_segments(), unique=True),
+    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
     def test_add_multiple_files(self, filenames, contents):
         files = []
         for (filename, content) in zip(filenames, contents):
-            file = self.magic_path.child(filename.encode("utf-8"))
+            file = self.magic_path.child(filename)
             with file.open("w") as f:
                 f.write(content)
             files.append(file)
