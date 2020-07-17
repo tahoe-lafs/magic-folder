@@ -2291,7 +2291,7 @@ class LocalSnapshotCreator(service.Service):
 
         def mangle_path(p):
             """
-            FIXME returns a unicode string give an FilePath (should be mangled
+            FIXME returns a unicode string given a FilePath (should be mangled
             according to .. whatever rules magic-folder already uses?)
             """
             # XXX why DO we "mangle paths"? Could we just put the
