@@ -163,8 +163,7 @@ class LocalSnapshotTests(AsyncTestCase):
     def test_add_multiple_files(self, filenames, contents):
         files = []
         for (filename, content) in zip(filenames, contents):
-            file = self.magic_path.child(filename)
-            print("file name: {}".format(file))
+            file = self.magic_path.child(filename.encode("utf-8"))
             with file.open("w") as f:
                 f.write(content)
             files.append(file)
