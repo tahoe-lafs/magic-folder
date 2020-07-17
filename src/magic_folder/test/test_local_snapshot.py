@@ -94,6 +94,13 @@ class LocalSnapshotTests(AsyncTestCase):
         # would claim the memory back.
         return super(LocalSnapshotTests, self).tearDown()
 
+    def setup_example(self):
+        """
+        Hypothesis-invoked hook to create per-example state.
+        Reset the database before running each test.
+        """
+        self.db.snapshots = {}
+
     @given(content=binary())
     def test_add_single_file(self, content):
         foo = self.magic_path.child("foo")
@@ -169,10 +176,3 @@ class LocalSnapshotTests(AsyncTestCase):
         )
 
         self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
-
-    def setup_example(self):
-        """
-        Hypothesis-invoked hook to create per-example state.
-        Reset the database before running each test.
-        """
-        self.db.snapshots = {}
