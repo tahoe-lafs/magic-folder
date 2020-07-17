@@ -2303,7 +2303,8 @@ class LocalSnapshotCreator(service.Service):
 
         with path.open('rb') as input_stream:
             relpath_u = path.asTextMode().path
-            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
+            # XXX: uncommenting the below line causes CI failure
+            # SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
             snapshot = yield create_snapshot(
                 name=mangle_path(path),
                 author=self.author,
