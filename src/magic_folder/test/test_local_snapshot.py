@@ -55,7 +55,10 @@ class MemoryMagicFolderDatabase(object):
         )
 
     def get_local_snapshot(self, name, author):
-        meta, content, parents = self.snapshots[name]  # may raise
+        try:
+            meta, content, parents = self.snapshots[name]
+        except Exception:
+            return None
         return LocalSnapshot(
             name=name,
             author=author,

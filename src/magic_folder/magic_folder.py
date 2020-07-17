@@ -2302,18 +2302,25 @@ class LocalSnapshotCreator(service.Service):
             return magicpath.path2magic(p.asTextMode(encoding="utf-8").path)
 
         with path.open('rb') as input_stream:
+            # Query the db to check if there is an existing local
+            # snapshot for the file being added.
+            # If so, we use that as the parent.
+            mangled_name = mangle_path(path)
+            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            if parent_snapshot is None:
+                parents = []
+            else:
+                parents = [parent_snapshot]
             relpath_u = path.asTextMode(encoding="utf-8").path
             SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
             snapshot = yield create_snapshot(
-                name=mangle_path(path),
+                name=mangled_name,
                 author=self.author,
                 data_producer=input_stream,
                 snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
-                # XXX: we should query the db to check if there is
-                # an existing local snapshot or remote snapshot for
-                # the file being added. If so, we should use that
-                # as the parent.
-                parents=[],
+                # XXX: check the db if there is an existing remote
+                # snapshot for the file being added.
+                parents=parents,
             )
 
         # store the local snapshot to the disk
