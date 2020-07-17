@@ -2302,11 +2302,7 @@ class LocalSnapshotCreator(service.Service):
             return magicpath.path2magic(p.asTextMode().path)
 
         with path.open('rb') as input_stream:
-            relpath_u = path.asTextMode().path
-            if not isinstance(relpath_u, unicode):
-                raise ValueError(
-                    "'relpath_u' must be a unicode string"
-                )
+            relpath_u = path.asBytesMode("utf-8").path
             SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
             snapshot = yield create_snapshot(
                 name=mangle_path(path),
