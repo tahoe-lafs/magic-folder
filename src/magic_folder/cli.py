@@ -673,7 +673,8 @@ class MagicFolderServiceState(object):
 
         :return: The ``MagicFolder`` instance corresponding to the given name.
         """
-        return self._folders[name]
+        config, service = self._folders[name]
+        return service
 
 
     def add_magic_folder(self, name, config, service):
