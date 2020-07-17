@@ -30,6 +30,7 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
+    sampled_from,
 )
 
 from testtools import (
@@ -39,6 +40,7 @@ from testtools.matchers import (
     Always,
     AfterPreprocessing,
     ContainsDict,
+    MatchesAny,
     IsInstance,
     Equals,
     raises,
@@ -57,6 +59,8 @@ from twisted.python.filepath import (
 from twisted.web.http import (
     OK,
     UNAUTHORIZED,
+    NOT_IMPLEMENTED,
+    NOT_ALLOWED,
 )
 from twisted.web.resource import (
     Resource,
@@ -731,14 +735,39 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def authorized_get(treq, auth_token, url):
+def authorized_request(treq, auth_token, method, url):
+    """
+    Perform a request of the given url with the given client, request method,
+    and authorization.
+
+    :param treq: A ``treq``-module-alike.
+
+    :param unicode auth_token: The Magic Folder authorization token to
+        present.
+
+    :param bytes method: The HTTP request method to use.
+
+    :param bytes url: The request URL.
+
+    :return: Whatever ``treq.request`` returns.
+    """
     headers = {
         b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
     }
-    return treq.get(
+    return treq.request(
+        method,
         url,
         headers=headers,
     )
+
+
+def treq_for_folder_names(auth_token, names):
+    state = MagicFolderServiceState()
+    for name in names:
+        state.add_magic_folder(name, {}, object())
+
+    root = magic_folder_resource(state, lambda: auth_token)
+    return StubTreq(root)
 
 
 class ListMagicFolderTests(SyncTestCase):
@@ -746,27 +775,43 @@ class ListMagicFolderTests(SyncTestCase):
     Tests for listing Magic Folders using **GET /v1/magic-folder** and
     ``V1MagicFolderAPI``.
     """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+    encoded_url = url_to_bytes(url)
+
     @given(
         tokens(),
-        lists(text(min_size=1), unique=True),
+        sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
+    )
+    def test_method_not_allowed(self, auth_token, method):
+        """
+        A request to **/v1/magic-folder** with a method other than **GET**
+        receives a NOT ALLOWED or NOT IMPLEMENTED response.
+        """
+        treq = treq_for_folder_names(auth_token, [])
+        self.assertThat(
+            authorized_request(treq, auth_token, method, self.encoded_url),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(NOT_ALLOWED),
+                        Equals(NOT_IMPLEMENTED),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        tokens(),
+        lists(folder_names(), unique=True),
     )
     def test_list_folders(self, auth_token, folder_names):
         """
         A request for **GET /v1/magic-folder** receives a response that is a
         JSON-encoded list of Magic Folders.
         """
-        # Create zero or more folders for us to observe in the response.
-        state = MagicFolderServiceState()
-        for name in folder_names:
-            state.add_magic_folder(name, {}, object())
-
-        root = magic_folder_resource(state, lambda: auth_token)
-        treq = StubTreq(root)
-        url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
-        encoded_url = url_to_bytes(url)
-
+        treq = treq_for_folder_names(auth_token, folder_names)
         self.assertThat(
-            authorized_get(treq, auth_token, encoded_url),
+            authorized_request(treq, auth_token, b"GET", self.encoded_url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),

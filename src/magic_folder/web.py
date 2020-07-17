@@ -100,10 +100,10 @@ class BearerTokenAuthorization(Resource, object):
 @attr.s
 class APIv1(Resource, object):
     """
-    The root of the ``/v1`` HTTP API hierarchy.
+    Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar (unicode -> MagicFolder) _get_magic_folder: A function that looks up
-        a magic folder by its nickname.
+    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
+        to serve.
     """
     _magic_folder_state = attr.ib()
 
@@ -114,12 +114,21 @@ class APIv1(Resource, object):
 
 @attr.s
 class MagicFolderAPIv1(Resource, object):
+    """
+    Implement the ``/v1/magic-folder`` HTTP API hierarchy.
+
+    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
+        to serve.
+    """
     _magic_folder_state = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
 
-    def render(self, request):
+    def render_GET(self, request):
+        """
+        Render a list of Magic Folders and some of their details, encoded as JSON.
+        """
         request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
         return json.dumps({
             u"folders": list(
