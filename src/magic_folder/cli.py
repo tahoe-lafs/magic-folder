@@ -654,24 +654,62 @@ class RecordLocation(object):
 @attr.s
 class MagicFolderServiceState(object):
     """
+    Represent the operational state for a group of Magic Folders.
+
+    This is intended to be easy to instantiate.  It was split off
+    ``MagicFolderService`` specifically to make testing easier.
+
     :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} magic_folder_services: The
     """
-    folders = attr.ib(default=attr.Factory(dict))
+    _folders = attr.ib(default=attr.Factory(dict))
 
     def get_magic_folder(self, name):
-        return self.folders[name]
+        """
+        Get the Magic Folder with the given name.
+
+        :param unicode name: The name of the Magic Folder.
+
+        :raise KeyError: If there is no Magic Folder by that name.
+
+        :return: The ``MagicFolder`` instance corresponding to the given name.
+        """
+        return self._folders[name]
 
 
     def add_magic_folder(self, name, config, service):
-        self.folders[name] = (config, service)
+        """
+        Track a new Magic Folder.
+
+        :param unicode name: The name of the new Magic Folder.
+
+        :param dict config: The new Magic Folder's configuration.
+
+        :param service: The ``MagicFolder`` instance representing the new
+            Magic Folder.
+        """
+        if name in self._folders:
+            raise ValueError("Already have a Magic Folder named {!r}".format(name))
+        self._folders[name] = (config, service)
 
 
     def list_magic_folder_names(self):
-        return list(self.folders)
+        """
+        Get the names of all tracked Magic Folders.
+
+        :return [unicode]: The Magic Folder names.
+        """
+        return list(self._folders)
 
 
 @attr.s
 class MagicFolderService(MultiService):
+    """
+    :ivar FilePath tahoe_nodedir: The filesystem path to the Tahoe-LAFS node
+        with which to interact.
+
+    :ivar MagicFolderServiceState _state: The Magic Folder state in use by
+        this service.
+    """
     reactor = attr.ib()
     config = attr.ib()
     webport = attr.ib()
@@ -720,7 +758,7 @@ class MagicFolderService(MultiService):
     @classmethod
     def from_node_directory(cls, reactor, nodedir, webport):
         config = read_config(nodedir, u"client.port")
-        return cls(reactor, config, webport, nodedir)
+        return cls(reactor, config, webport, FilePath(nodedir))
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
@@ -751,7 +789,7 @@ class MagicFolderService(MultiService):
     def startService(self):
         MultiService.startService(self)
 
-        magic_folder_configs = load_magic_folders(self.tahoe_nodedir)
+        magic_folder_configs = load_magic_folders(self.tahoe_nodedir.path)
 
         ds = []
         for (name, mf_config) in magic_folder_configs.items():
