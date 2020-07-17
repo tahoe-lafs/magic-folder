@@ -37,7 +37,7 @@ from magic_folder.magicpath import (
     path2magic,
 )
 from .common import (
-    AsyncTestCase,
+    SyncTestCase,
 )
 from .strategies import (
     path_segments,
@@ -68,7 +68,7 @@ class MemoryMagicFolderDatabase(object):
             parents_local=parents,
         )
 
-class LocalSnapshotTests(AsyncTestCase):
+class LocalSnapshotTests(SyncTestCase):
 
     def setUp(self):
         super(LocalSnapshotTests, self).setUp()
