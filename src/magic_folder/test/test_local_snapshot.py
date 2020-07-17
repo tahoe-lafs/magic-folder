@@ -9,7 +9,6 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
-    text,
     lists,
 )
 
@@ -64,9 +63,6 @@ class MemoryMagicFolderDatabase(object):
             content_path=content,
             parents_local=parents,
         )
-
-    def close(self):
-        snapshots = dict()
 
 class LocalSnapshotTests(AsyncTestCase):
 
