@@ -762,6 +762,17 @@ def authorized_request(treq, auth_token, method, url):
 
 
 def treq_for_folder_names(auth_token, names):
+    """
+    Construct a ``treq``-module-alike which is hooked up to a Magic Folder
+    service with Magic Folders of the given names.
+
+    :param unicode auth_token: The authorization token accepted by the
+        service.
+
+    :param [unicode] names: The names of the Magic Folders which will exist.
+
+    :return: An object like the ``treq`` module.
+    """
     state = MagicFolderServiceState()
     for name in names:
         state.add_magic_folder(name, {}, object())
