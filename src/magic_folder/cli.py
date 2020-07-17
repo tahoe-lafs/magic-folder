@@ -652,12 +652,34 @@ class RecordLocation(object):
 
 
 @attr.s
+class MagicFolderServiceState(object):
+    """
+    :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} magic_folder_services: The
+    """
+    folders = attr.ib(default=attr.Factory(dict))
+
+    def get_magic_folder(self, name):
+        return self.folders[name]
+
+
+    def add_magic_folder(self, name, config, service):
+        self.folders[name] = (config, service)
+
+
+    def list_magic_folder_names(self):
+        return list(self.folders)
+
+
+@attr.s
 class MagicFolderService(MultiService):
     reactor = attr.ib()
     config = attr.ib()
     webport = attr.ib()
-    magic_folder_configs = attr.ib()
-    magic_folder_services = attr.ib(default=attr.Factory(dict))
+    tahoe_nodedir = attr.ib()
+    _state = attr.ib(
+        validator=attr.validators.instance_of(MagicFolderServiceState),
+        default=attr.Factory(MagicFolderServiceState),
+    )
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -674,7 +696,7 @@ class MagicFolderService(MultiService):
         self._listen_endpoint = ListenObserver(web_endpoint)
         web_service = magic_folder_web_service(
             self._listen_endpoint,
-            self._get_magic_folder,
+            self._state,
             self._get_auth_token,
         )
         web_service.setServiceParent(self)
@@ -692,17 +714,13 @@ class MagicFolderService(MultiService):
             "http://{}:{}/".format(host.host, host.port),
         )
 
-    def _get_magic_folder(self, name):
-        return self.magic_folder_services[name]
-
     def _get_auth_token(self):
         return self.config.get_private_config("api_auth_token")
 
     @classmethod
     def from_node_directory(cls, reactor, nodedir, webport):
         config = read_config(nodedir, u"client.port")
-        magic_folders = load_magic_folders(nodedir)
-        return cls(reactor, config, webport, magic_folders)
+        return cls(reactor, config, webport, nodedir)
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
@@ -732,14 +750,17 @@ class MagicFolderService(MultiService):
 
     def startService(self):
         MultiService.startService(self)
+
+        magic_folder_configs = load_magic_folders(self.tahoe_nodedir)
+
         ds = []
-        for (name, mf_config) in self.magic_folder_configs.items():
+        for (name, mf_config) in magic_folder_configs.items():
             mf = MagicFolder.from_config(
                 ClientStandIn(self.tahoe_client, self.config),
                 name,
                 mf_config,
             )
-            self.magic_folder_services[name] = mf
+            self._state.add_magic_folder(name, mf_config, mf)
             mf.setServiceParent(self)
             ds.append(mf.ready())
         # The integration tests look for this message.  You cannot get rid of

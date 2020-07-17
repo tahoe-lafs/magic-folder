@@ -12,6 +12,7 @@ from __future__ import (
 
 from json import (
     dumps,
+    loads,
 )
 
 import attr
@@ -35,7 +36,9 @@ from testtools import (
     ExpectedException,
 )
 from testtools.matchers import (
+    Always,
     AfterPreprocessing,
+    ContainsDict,
     IsInstance,
     Equals,
     raises,
@@ -98,6 +101,9 @@ from .fixtures import (
 
 from .agentutil import (
     FailingAgent,
+)
+from ..cli import (
+    MagicFolderServiceState,
 )
 
 from ..web import (
@@ -621,10 +627,8 @@ class AuthorizationTests(SyncTestCase):
 
         def get_auth_token():
             return good_token
-        def get_magic_folder(name):
-            raise KeyError(name)
 
-        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        root = magic_folder_resource(MagicFolderServiceState(), get_auth_token)
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url.to_uri().to_text().encode("ascii")
@@ -670,8 +674,6 @@ class AuthorizationTests(SyncTestCase):
         """
         def get_auth_token():
             return auth_token
-        def get_magic_folder(name):
-            raise KeyError(name)
 
         # Since we don't want to exercise any real magic-folder application
         # logic we'll just magic up the child resource being requested.
@@ -686,7 +688,11 @@ class AuthorizationTests(SyncTestCase):
             resource.putChild(name.encode("utf-8"), branch)
             branch = resource
 
-        root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)
+        root = magic_folder_resource(
+            MagicFolderServiceState(),
+            get_auth_token,
+            _v1_resource=branch,
+        )
 
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
@@ -707,6 +713,70 @@ class AuthorizationTests(SyncTestCase):
                 matches_response(
                     code_matcher=Equals(OK),
                     body_matcher=Equals(content),
+                ),
+            ),
+        )
+
+
+def url_to_bytes(url):
+    return url.to_uri().to_text().encode("ascii")
+
+
+def authorized_get(treq, auth_token, url):
+    headers = {
+        b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+    }
+    return treq.get(
+        url,
+        headers=headers,
+    )
+
+
+class ListMagicFolderTests(SyncTestCase):
+    """
+    Tests for listing Magic Folders using **GET /v1/magic-folder** and
+    ``V1MagicFolderAPI``.
+    """
+    @given(
+        tokens(),
+        lists(text(min_size=1), unique=True),
+    )
+    def test_list_folders(self, auth_token, folder_names):
+        """
+        A request for **GET /v1/magic-folder** receives a response that is a
+        JSON-encoded list of Magic Folders.
+        """
+        # Create zero or more folders for us to observe in the response.
+        state = MagicFolderServiceState()
+        for name in folder_names:
+            state.add_magic_folder(name, {}, object())
+
+        root = magic_folder_resource(state, lambda: auth_token)
+        treq = StubTreq(root)
+        url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+        encoded_url = url_to_bytes(url)
+
+        self.assertThat(
+            authorized_get(treq, auth_token, encoded_url),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=AfterPreprocessing(
+                        lambda headers: dict(headers.getAllRawHeaders()),
+                        ContainsDict({
+                            u"Content-Type": Equals([u"application/json"]),
+                        }),
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            u"folders": list(
+                                {u"name": name}
+                                for name
+                                in sorted(folder_names)
+                            ),
+                        }),
+                    )
                 ),
             ),
         )
