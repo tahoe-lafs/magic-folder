@@ -2318,8 +2318,8 @@ class LocalSnapshotCreator(service.Service):
                 author=self.author,
                 data_producer=input_stream,
                 snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
-                # XXX: check the db if there is an existing remote
-                # snapshot for the file being added.
+                # XXX: check db whether an existing remote snapshot exists
+                # for the given magicpath
                 parents=parents,
             )
 
