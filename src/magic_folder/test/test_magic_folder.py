@@ -2326,7 +2326,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
             readonly_dircap = n.get_readonly_uri()
 
             self.shouldFail(ValueError, 'does not exist', 'does not exist',
-                           MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(ValueError, 'is not a directory', 'is not a directory',
                             MagicFolder, client, upload_dircap, '', not_a_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
             self.shouldFail(AssertionError, 'bad upload.dircap', 'does not refer to a directory',
