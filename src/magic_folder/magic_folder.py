@@ -2271,9 +2271,11 @@ class LocalSnapshotCreator(service.Service):
 
             for path in paths:
                 if path.isdir():
-                    for (dirpath, dirnames, filenames) in path.walk():
-                        for fname in filenames:
-                            add_if_file(FilePath(os.path.join(dirpath, fname)))
+                    # XXX: traverses symlinks pointing to directories etc. This
+                    # may or may not be what we want.
+                    # see https://github.com/LeastAuthority/magic-folder/issues/201
+                    for absolute_filename in path.walk():
+                        add_if_file(absolute_filename)
                 else:
                     add_if_file(path)
 

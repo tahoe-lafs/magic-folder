@@ -181,3 +181,26 @@ class LocalSnapshotTests(AsyncTestCase):
             stored_content = stored_snapshot._get_synchronous_content()
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
+
+
+    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+           lists(binary(), unique=True))
+    def test_add_directory_with_files(self, filenames, contents):
+        subdir = mktemp(dir=self.magic_path.path)
+        os.mkdir(subdir)
+
+        files = []
+        for (filename, content) in zip(filenames, contents):
+            file = FilePath(subdir).child(filename)
+            with file.open("w") as f:
+                f.write(content)
+            files.append(file)
+
+        self.snapshot_creator.add_files(FilePath(subdir))
+        self.snapshot_creator.startService()
+        self.assertThat(
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
+        )
+
+        self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
