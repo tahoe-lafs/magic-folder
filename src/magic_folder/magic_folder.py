@@ -2302,9 +2302,8 @@ class LocalSnapshotCreator(service.Service):
             return magicpath.path2magic(p.asTextMode(encoding="utf-8").path)
 
         with path.open('rb') as input_stream:
-            # XXX: uncommenting the below line causes CI failure
-            # relpath_u = path.asTextMode().path
-            # SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
+            relpath_u = path.asTextMode(encoding="utf-8").path
+            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
             snapshot = yield create_snapshot(
                 name=mangle_path(path),
                 author=self.author,
