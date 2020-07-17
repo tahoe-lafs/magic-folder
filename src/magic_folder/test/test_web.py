@@ -38,7 +38,6 @@ from testtools import (
     ExpectedException,
 )
 from testtools.matchers import (
-    Always,
     AfterPreprocessing,
     ContainsDict,
     MatchesAny,
