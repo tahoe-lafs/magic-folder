@@ -694,15 +694,6 @@ class MagicFolderServiceState(object):
         self._folders[name] = (config, service)
 
 
-    def list_magic_folder_names(self):
-        """
-        Get the names of all tracked Magic Folders.
-
-        :return [unicode]: The Magic Folder names.
-        """
-        return list(self._folders)
-
-
     def iter_magic_folder_configs(self):
         """
         Iterate over all of the Magic Folder names and configurations.
