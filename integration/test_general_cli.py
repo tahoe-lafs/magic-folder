@@ -1,9 +1,12 @@
 from os import mkdir
-from os.path import join, exists
+from os.path import join
 
 import pytest_twisted
 
 from twisted.internet.error import ProcessTerminated
+from twisted.python.filepath import (
+    FilePath,
+)
 
 import util
 
@@ -65,5 +68,5 @@ def test_daemon_inititialize(request, reactor, temp_dir):
     )
     yield proto.done
 
-    assert exists(join(node_dir, "global.sqlite"))
-    assert exists(join(node_dir, "api_token"))
+    assert FilePath(node_dir).child("global.sqlite").exists()
+    assert FilePath(node_dir).child("api_token").exists()
