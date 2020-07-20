@@ -21,6 +21,7 @@ from testtools.matchers import (
     Equals,
     Always,
     HasLength,
+    MatchesStructure,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -225,3 +226,36 @@ class LocalSnapshotTests(SyncTestCase):
         with ExpectedException(ValueError,
                                "every argument to upload_files must be a FilePath"):
             self.snapshot_creator.add_files(foo.path)
+
+    @given(content1=binary(min_size=1),
+           content2=binary(min_size=1),
+           filename=path_segments().map(lambda p: p.encode("utf-8")),
+    )
+    def test_add_a_file_twice(self, filename, content1, content2):
+        foo = self.magic_path.child(filename)
+        with foo.open("w") as f:
+            f.write(content1)
+
+        self.snapshot_creator.add_files(foo)
+        self.snapshot_creator.startService()
+
+        foo_magicname = path2magic(foo.asTextMode('utf-8').path)
+        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
+
+        with foo.open("w") as f:
+            f.write(content2)
+
+        # it should use the previous localsnapshot as its parent.
+        self.snapshot_creator.add_files(foo)
+        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
+
+        self.assertThat(
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
+        )
+
+        self.assertThat(stored_snapshot2.parents_local[0],
+                        MatchesStructure(
+                            content_path=Equals(stored_snapshot1.content_path)
+                        )
+        )
