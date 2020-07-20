@@ -60,7 +60,7 @@ CREATE TABLE magic_folders
 CREATE TABLE config
 (
     api_endpoint TEXT,                -- Twisted server-string for our HTTP API
-    tahoe_client_url TEXT            -- HTTP URL of our Tahoe-LAFS client
+    tahoe_node_directory TEXT         -- path to our Tahoe-LAFS client state
 );
 """
 
@@ -95,7 +95,7 @@ CREATE TABLE local_snapshots
 ## sure how to do that w/o docs here
 
 
-def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
+def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
@@ -104,8 +104,8 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
     :param unicode api_endpoint: the Twisted server endpoint string
         where we will listen for API requests.
 
-    :param unicode tahoe_client_url: the Twisted client endpoint
-        string where we will contact our Tahoe LAFS client WebUI.
+    :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
+        client uses.
 
     :returns: a GlobalConfigDatabase instance
     """
@@ -140,8 +140,8 @@ def create_global_configuration(basedir, api_endpoint, tahoe_client_url):
             (_global_config_version, )
         )
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_client_url) VALUES (?, ?)",
-            (api_endpoint, tahoe_client_url)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory) VALUES (?, ?)",
+            (api_endpoint, tahoe_node_directory)
         )
 
     config = GlobalConfigDatabase(
@@ -292,14 +292,10 @@ class GlobalConfigDatabase(object):
         """
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT tahoe_client_url FROM config")
-            return cursor.fetchone()[0]
-
-    @tahoe_client_url.setter
-    def tahoe_client_url(self, url):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("UPDATE config SET tahoe_client_url=?", (url, ))
+            cursor.execute("SELECT tahoe_node_directory FROM config")
+            node_dir = FilePath(cursor.fetchone()[0])
+        with node_dir.child("node.url").open("rt") as f:
+            return f.read().strip()
 
     def list_magic_folders(self):
         """
