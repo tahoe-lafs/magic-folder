@@ -144,12 +144,20 @@ The `global.sqlite` database will have the following tables:
 
 - "version" with a single row containing "1"
 - "magic_folders"
-  - columns: `name`, `location`
+  - columns:
+  - `name` is a unique unicode string the user provides to identify this folder
   - `location` is a local path for that folder's configuration
 - "config"
-  - columns: "api_endpoint", "tahoe_client_url"
+  - columns:
   - `api_endpoint` is a Twisted server string description
-  - `tahoe_client_url` is a URL to our Tahoe-LAFS client's Web-UI
+  - `tahoe_node_directory` is the node-directory of our Tahoe-LAFS
+    client
+
+    Note: Ideally, we'd only need the Web-API URI however that can be
+    configured in tahoe to be randomly-assigned on startup and so we
+    should read the URI from `node.url`. There may be other
+    configuration we've neglected (since magic-folder used to be
+    inside Tahoe) so this also allows us to fix that later too.
 
 Each "magic folder" location is a directory containing the
 stash-directory and state for that magic-folder. It will look like
@@ -164,10 +172,10 @@ The `state.sqlite` for each magic-folder shall contain the following
 tables:
 
 - "version" (will always contain 1 row)
-  - column: "version"
+  - column:
   - "version" is an int, currently `1`
 - "config" (will always contain 1 row)
-  - columns: "author_name", "author_private_key", "poll_interval"
+  - columns:
   - "author_name" is a string of unicode
   - "author_private_key" is a 32-byte blob (a NaCl Signing key)
   - "stash_path" is a local path where we stash data awaiting upload
@@ -176,5 +184,4 @@ tables:
   - "magic_directory" is a local path to the synchronized directory
   - "poll_interval" says how often (in seconds) to poll for updates
 - "local_snapshots"
-  - columns: "ID", "name", "metadata", "content_path", "parents_local"
-  - actually, whatever https://github.com/LeastAuthority/magic-folder/issues/197 says
+  - whatever https://github.com/LeastAuthority/magic-folder/issues/197 says
