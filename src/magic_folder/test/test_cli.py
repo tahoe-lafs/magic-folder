@@ -93,10 +93,6 @@ class TestInitialize(SyncTestCase):
         super(TestInitialize, self).setUp()
         self.temp = FilePath(self.mktemp())
 
-    def tearDown(self):
-        super(TestInitialize, self).tearDown()
-        rmtree(self.temp.path, ignore_errors=True)
-
     def test_good(self):
         magic_folder_initialize(self.temp.path, u"tcp:1234", u"http://example.com")
 
