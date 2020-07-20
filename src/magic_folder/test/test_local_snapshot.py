@@ -25,6 +25,9 @@ from testtools.matchers import (
 from testtools.twistedsupport import (
     succeeded,
 )
+from testtools import (
+    ExpectedException,
+)
 
 from magic_folder.magic_folder import (
     LocalSnapshotCreator,
@@ -212,3 +215,13 @@ class LocalSnapshotTests(SyncTestCase):
         )
 
         self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
+
+    @given(content=binary())
+    def test_add_non_filepath(self, content):
+        foo = self.magic_path.child("foo")
+        with foo.open("w") as f:
+            f.write(content)
+
+        with ExpectedException(ValueError,
+                               "every argument to upload_files must be a FilePath"):
+            self.snapshot_creator.add_files(foo.path)
