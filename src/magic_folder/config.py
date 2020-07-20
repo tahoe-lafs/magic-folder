@@ -141,7 +141,7 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
         )
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory) VALUES (?, ?)",
-            (api_endpoint, tahoe_node_directory)
+            (api_endpoint, tahoe_node_directory.path)
         )
 
     config = GlobalConfigDatabase(

@@ -156,7 +156,7 @@ class InitializeOptions(usage.Options):
     optParameters = [
         ("config", "c", None, "A non-existant directory to contain config (default ~/.magic_folder)"),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
-        ("tahoe-url", "t", None, "The HTTP URI for our Tahoe-LAFS client (e.g. \"http://localhost:3456\")"),
+        ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
     ]
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
@@ -172,8 +172,8 @@ class InitializeOptions(usage.Options):
         # required args
         if self['listen-endpoint'] is None:
             raise usage.UsageError("--listen-endpoint / -l is required")
-        if self['tahoe-url'] is None:
-            raise usage.UsageError("--tahoe-url / -t is required")
+        if self['node-directory'] is None:
+            raise usage.UsageError("--node-directory / -n is required")
 
         # validate
         if exists(self['config']):
@@ -185,9 +185,9 @@ def initialize(options):
 
     try:
         rc = yield magic_folder_initialize(
-            options['config'],
+            FilePath(options['config']),
             options['listen-endpoint'],
-            options['tahoe-url'],
+            FilePath(options['node-directory']),
         )
         print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
     except Exception as e:
