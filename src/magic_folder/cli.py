@@ -659,7 +659,8 @@ class MagicFolderServiceState(object):
     This is intended to be easy to instantiate.  It was split off
     ``MagicFolderService`` specifically to make testing easier.
 
-    :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} magic_folder_services: The
+    :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} _folders:
+        The configuration and services for configured magic folders.
     """
     _folders = attr.ib(default=attr.Factory(dict))
 
