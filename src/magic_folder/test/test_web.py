@@ -569,8 +569,12 @@ def magic_folder_uri_hierarchy_from_magic_folder_json(
         collective,
     )
 
+    state = MagicFolderServiceState()
+    for (name, service) in folders.items():
+        state.add_magic_folder(name, {}, service)
+
     api = MagicFolderWebApi(
-        get_magic_folder=lambda name: folders[name.decode("utf-8")],
+        get_magic_folder=state.get_magic_folder,
         get_auth_token=lambda: token,
     )
 
