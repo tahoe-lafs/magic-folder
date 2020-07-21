@@ -2248,6 +2248,8 @@ class LocalSnapshotCreator(service.Service):
 
         Does not handle symbolic links at the moment. See:
         https://github.com/LeastAuthority/magic-folder/issues/201
+
+        :param FilePaths *paths: one or more file paths to be added
         """
         action = ADD_FILES(count=len(paths))
         with action:
