@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import attr
 import os
 from tempfile import mktemp
 from shutil import rmtree
@@ -35,7 +34,6 @@ from magic_folder.magic_folder import (
 )
 from magic_folder.snapshot import (
     create_local_author,
-    LocalSnapshot,
 )
 from magic_folder.magicpath import (
     path2magic,
