@@ -111,9 +111,9 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
     """
     try:
         basedir.makedirs()
-    except OSError:
+    except OSError as e:
         raise ValueError(
-            "'{}' already exists".format(basedir.path)
+            "'{}' already exists: {}".format(basedir.path, e)
         )
 
     # explain what is in this directory
