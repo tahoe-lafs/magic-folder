@@ -118,7 +118,7 @@ class LocalSnapshotTests(SyncTestCase):
         files = []
         for (filename, content) in zip(filenames, contents):
             file = self.magic_path.child(filename)
-            with file.open("w") as f:
+            with file.open("wb") as f:
                 f.write(content)
             files.append(file)
 
@@ -143,7 +143,7 @@ class LocalSnapshotTests(SyncTestCase):
     @given(content=binary())
     def test_add_file_failures(self, content):
         foo = self.magic_path.child("foo")
-        with foo.open("w") as f:
+        with foo.open("wb") as f:
             f.write(content)
 
         self.snapshot_creator.startService()
@@ -165,7 +165,7 @@ class LocalSnapshotTests(SyncTestCase):
 
         # try adding a file outside the magic folder directory
         tmpfile = FilePath(self.mktemp())
-        with tmpfile.open("w") as f:
+        with tmpfile.open("wb") as f:
             f.write(content)
 
         with ExpectedException(ValueError,
@@ -183,7 +183,7 @@ class LocalSnapshotTests(SyncTestCase):
     )
     def test_add_a_file_twice(self, filename, content1, content2):
         foo = self.magic_path.child(filename)
-        with foo.open("w") as f:
+        with foo.open("wb") as f:
             f.write(content1)
 
         self.snapshot_creator.add_file(foo)
@@ -192,7 +192,7 @@ class LocalSnapshotTests(SyncTestCase):
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
 
-        with foo.open("w") as f:
+        with foo.open("wb") as f:
             f.write(content2)
 
         # it should use the previous localsnapshot as its parent.
