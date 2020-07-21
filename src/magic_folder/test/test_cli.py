@@ -92,9 +92,14 @@ class TestInitialize(SyncTestCase):
     def setUp(self):
         super(TestInitialize, self).setUp()
         self.temp = FilePath(self.mktemp())
+        self.node_dir = self.useFixture(NodeDirectory(self.temp.child("node")))
 
     def test_good(self):
-        magic_folder_initialize(self.temp.path, u"tcp:1234", u"http://example.com")
+        magic_folder_initialize(
+            self.temp.child("good"),
+            u"tcp:1234",
+            self.node_dir.path,
+        )
 
 
 class TestMigrate(SyncTestCase):

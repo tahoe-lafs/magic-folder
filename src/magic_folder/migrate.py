@@ -44,17 +44,11 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
         configuration or an exception upon error.
     """
 
-    # Extract interesting Tahoe configuration. To create the global
-    # configuration, all we need is the tahoe WebUI API
-    with tahoe_node_directory.child("node.url").open("r") as f:
-        tahoe_url = f.read().strip()
-
     config = create_global_configuration(
         config_dir,
         listen_endpoint,
-        tahoe_url,
+        tahoe_node_directory,
     )
-
 
     # now that we have the global configuration we find all the
     # configured magic-folders and migrate them.
