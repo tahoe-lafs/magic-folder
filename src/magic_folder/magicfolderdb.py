@@ -4,7 +4,7 @@ import sys
 from collections import namedtuple
 
 from allmydata.util.dbutil import get_db, DBError
-from allmydata.util.eliotutil import (
+from .util.eliotutil import (
     RELPATH,
     VERSION,
     LAST_UPLOADED_URI,
@@ -14,9 +14,18 @@ from allmydata.util.eliotutil import (
     validateSetMembership,
     validateInstanceOf,
 )
+
+from .snapshot import (
+    LocalSnapshot,
+)
+
 from eliot import (
     Field,
     ActionType,
+)
+
+from functools import (
+    wraps,
 )
 
 PathEntry = namedtuple('PathEntry', 'size mtime_ns ctime_ns version last_uploaded_uri '
@@ -51,6 +60,12 @@ UPDATE_ENTRY = ActionType(
     u"Record some metadata about a relative path in the magic-folder.",
 )
 
+STORE_OR_UPDATE_SNAPSHOTS = ActionType(
+    u"magic-folder-db:update-snapshot-entry",
+    [RELPATH],
+    [_INSERT_OR_UPDATE],
+    u"Persist local snapshot object of a relative path in the magic-folder db.",
+)
 
 # magic-folder db schema version 1
 SCHEMA_v1 = """
@@ -69,6 +84,12 @@ CREATE TABLE local_files
  last_uploaded_uri   VARCHAR(256),                -- URI:CHK:...
  last_downloaded_uri VARCHAR(256),                -- URI:CHK:...
  last_downloaded_timestamp TIMESTAMP
+);
+
+CREATE TABLE local_snapshots
+(
+ path               TEXT PRIMARY KEY,             -- UTF-8 relative filepath that the snapshot represents
+ snapshot_blob      BLOB                          -- a JSON blob representing the snapshot instance
 );
 """
 
@@ -97,6 +118,22 @@ class LocalPath(object):
         p.entry = PathEntry(*row[1:])
         return p
 
+# XXX: with_cursor lacks unit tests, see:
+#      https://github.com/LeastAuthority/magic-folder/issues/173
+def with_cursor(f):
+    """
+    Decorate a function so it is automatically passed a cursor with an active
+    transaction as the first positional argument.  If the function returns
+    normally then the transaction will be committed.  Otherwise, the
+    transaction will be rolled back.
+    """
+    @wraps(f)
+    def with_cursor(self, *a, **kw):
+        with self.connection:
+            cursor = self.connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            return f(self, cursor, *a, **kw)
+    return with_cursor
 
 class MagicFolderDB(object):
     VERSION = 1
@@ -202,3 +239,50 @@ class MagicFolderDB(object):
                                      relpath_u))
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
+
+    @with_cursor
+    def store_local_snapshot(self, cursor, snapshot):
+        """
+        Store or update the given Local Snapshot for the
+        given the magicpath of the file (mangled file path).
+
+        :param str snapshot: A LocalSnapshot instance
+        """
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=snapshot.name,
+        )
+        with action:
+            serialized_snapshot = snapshot.to_json()
+            try:
+                cursor.execute("INSERT INTO local_snapshots VALUES (?,?)",
+                               (snapshot.name, serialized_snapshot))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+                cursor.execute("UPDATE local_snapshots"
+                               " SET snapshot_blob=?"
+                               " WHERE path=?",
+                               (serialized_snapshot, snapshot.name))
+                action.add_success_fields(insert_or_update=u"update")
+            self.connection.commit()
+
+    @with_cursor
+    def get_local_snapshot(self, cursor, name, author):
+        """
+        return an instance of LocalSnapshot corresponding to
+        the given name and author. Traversing the parents
+        would give the entire history of local snapshots.
+
+        :param str name: magicpath that represents the relative path of the file.
+
+        :param author: an instance of LocalAuthor
+
+        :returns: An instance of LocalSnapshot for the given magicpath.
+        """
+        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return LocalSnapshot.from_json(row[0], author)

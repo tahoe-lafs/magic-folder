@@ -2,7 +2,8 @@
 # See LICENSE for details.
 
 """
-Tests for the inotify-alike implementation L{allmydata.watchdog}.
+Tests for the Magic Folder platform integration for filesystem change
+notification.
 """
 
 # Note: See https://twistedmatrix.com/trac/ticket/8915 for a proposal
@@ -11,11 +12,15 @@ Tests for the inotify-alike implementation L{allmydata.watchdog}.
 from twisted.internet import defer, reactor
 from twisted.python import filepath, runtime
 
-from allmydata.frontends.magic_folder import get_inotify_module
+from magic_folder.magic_folder import (
+    get_inotify_module,
+)
 from .common import (
     AsyncTestCase,
     skipIf,
 )
+
+# Get the right implementation for this platform.
 inotify = get_inotify_module()
 
 
@@ -30,7 +35,7 @@ class INotifyTests(AsyncTestCase):
         self.dirname.createDirectory()
         self.inotify = inotify.INotify()
         self.inotify.startReading()
-        self.addCleanup(self.inotify.stopReading)
+        self.addCleanup(self.inotify.loseConnection)
         return super(INotifyTests, self).setUp()
 
 

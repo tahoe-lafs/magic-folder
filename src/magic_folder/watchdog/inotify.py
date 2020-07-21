@@ -41,7 +41,8 @@ from eliot import (
 from allmydata.util.pollmixin import PollMixin
 from allmydata.util.assertutil import _assert, precondition
 from allmydata.util import encodingutil
-from allmydata.util.eliotutil import (
+
+from ..util.eliotutil import (
     MAYBE_NOTIFY,
     CALLBACK,
     validateInstanceOf,
@@ -181,6 +182,9 @@ class INotify(PollMixin):
             self._observer.stop()
             self._observer.join()
             self._state = STOPPED
+
+    def loseConnection(self):
+        return self.stopReading()
 
     def wait_until_stopped(self):
         return self.poll(lambda: self._state == STOPPED)

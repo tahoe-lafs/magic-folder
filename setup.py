@@ -56,10 +56,24 @@ install_requires = [
     # WebSocket library for twisted and asyncio
     "autobahn >= 19.5.2",
 
+    "hyperlink",
+
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
-    "tahoe-lafs",
+    #
+    # Additionally, pin Tahoe-LAFS to a specific version we know works.
+    # Magic-Folder uses a lot of private Tahoe-LAFS Python APIs so there's
+    # good reason to expect things to break from release to release.  Pin a
+    # specific version so we can upgrade intentionally when we know it will
+    # work.
+    "tahoe-lafs == 1.14.0",
+
+    # Tahoe-LAFS 1.14.0 happens to be incompatible with cryptography 3.0.
+    # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3349
+    "cryptography < 3.0",
+
+    "treq",
 ]
 
 setup_requires = [
@@ -288,7 +302,6 @@ setup(name="magic_folder",
               "pytest",
               "pytest-twisted",
               "hypothesis >= 3.6.1",
-              "treq",
               "towncrier",
               "testtools",
               "fixtures",
@@ -300,7 +313,7 @@ setup(name="magic_folder",
       setup_requires=setup_requires,
       entry_points = {
           "console_scripts": [
-              "magic-folder = magic_folder.scripts.magic_folder_cli:run",
+              "magic-folder = magic_folder.cli:run",
           ],
       },
       **setup_args

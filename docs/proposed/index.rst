@@ -11,7 +11,7 @@ Most of these files are plain text, should be read from a source tree. This
 index only lists the files that are in .rst format.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    magic-folder/filesystem-integration
    magic-folder/remote-to-local-sync

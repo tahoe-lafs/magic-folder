@@ -1,0 +1,1 @@
+Create LocalSnapshot instances. LocalSnapshots are an intermediate snapshot representation that is used to maintain history even when the user modifies files while offline.

@@ -1,5 +1,22 @@
+# Copyright (c) Least Authority TFA GmbH.
+# See COPYING.* for details.
+
+"""
+The unit test package for Magic Folder.
+
+This also does some test-only related setup.  The expectation is that this
+code will never be loaded under real usage.
+"""
+
+from __future__ import (
+    print_function,
+)
+from sys import (
+    stderr,
+)
 
 from foolscap.logging.incident import IncidentQualifier
+
 class NonQualifier(IncidentQualifier, object):
     def check_event(self, ev):
         return False
@@ -35,7 +52,7 @@ def _configure_hypothesis():
     )
 
     settings.register_profile(
-        "ci",
+        "magic-folder-ci",
         suppress_health_check=[
             # CPU resources available to CI builds typically varies
             # significantly from run to run making it difficult to determine
@@ -49,6 +66,7 @@ def _configure_hypothesis():
     )
 
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
+    print("Loading Hypothesis profile {}".format(profile_name), file=stderr)
     settings.load_profile(profile_name)
 _configure_hypothesis()
 

@@ -66,9 +66,9 @@ detect filesystem changes, we have no mechanism to register a monitor for
 changes to a Tahoe-LAFS directory. Therefore, we must periodically poll
 for changes.
 
-An important constraint on the solution is Tahoe-LAFS' ":doc:`write
-coordination directive<../../write_coordination>`", which prohibits
-concurrent writes by different storage clients to the same mutable object:
+An important constraint on the solution is Tahoe-LAFS' "`write
+coordination directive`_", which prohibits concurrent writes by
+different storage clients to the same mutable object:
 
     Tahoe does not provide locking of mutable files and directories. If
     there is more than one simultaneous attempt to change a mutable file
@@ -78,6 +78,8 @@ concurrent writes by different storage clients to the same mutable object:
     outstanding write or update request for a given file or directory at
     a time.  One convenient way to accomplish this is to make a different
     file or directory for each person or process that wants to write.
+
+.. _write coordination directive: https://tahoe-lafs.readthedocs.io/en/latest/write_coordination.html
 
 Since it is a goal to allow multiple users to write to a Magic Folder,
 if the write coordination directive remains the same as above, then we
@@ -139,12 +141,14 @@ Here is a summary of advantages and disadvantages of each design:
 +-------+--------------------+
 
 
-123456+: All designs have the property that a recursive add-lease operation
-starting from a *collective directory* containing all of the client DMDs,
-will find all of the files and directories used in the Magic Folder
-representation. Therefore the representation is compatible with :doc:`garbage
-collection <../../garbage-collection>`, even when a pre-Magic-Folder client
-does the lease marking.
+123456+: All designs have the property that a recursive add-lease
+operation starting from a *collective directory* containing all of the
+client DMDs, will find all of the files and directories used in the
+Magic Folder representation. Therefore the representation is
+compatible with `garbage collection`_, even when a pre-Magic-Folder
+client does the lease marking.
+
+.. _`garbage collection`: https://tahoe-lafs.readthedocs.io/en/latest/garbage-collection.html
 
 123456+: All designs avoid "breaking" pre-Magic-Folder clients that read
 a directory or file that is part of the representation.
@@ -731,7 +735,9 @@ client downloads a file, it stores the downloaded version's URI and
 the current local timestamp in this record. Since only immutable
 files are used, the URI will be an immutable file URI, which is
 deterministically and uniquely derived from the file contents and
-the Tahoe-LAFS node's :doc:`convergence secret<../../convergence-secret>`.
+the Tahoe-LAFS node's `convergence secret`_.
+
+.. _`convergence secret`: https://tahoe-lafs.readthedocs.io/en/latest/convergence-secret.html
 
 (Note that the last-downloaded record is updated regardless of
 whether the download is an overwrite or a conflict. The rationale
