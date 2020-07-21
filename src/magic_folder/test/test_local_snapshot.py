@@ -112,63 +112,6 @@ class LocalSnapshotTests(SyncTestCase):
         """
         self.db.snapshots = {}
 
-    @given(content=binary())
-    def test_add_single_file(self, content):
-        foo = self.magic_path.child("foo")
-        with foo.open("w") as f:
-            f.write(content)
-
-        self.snapshot_creator.add_files(foo)
-        self.snapshot_creator.startService()
-        self.assertThat(
-            self.snapshot_creator.stopService(),
-            succeeded(Always())
-        )
-
-        # we should have processed one snapshot upload
-
-        self.assertThat(self.db.snapshots, HasLength(1))
-        foo_magicname = path2magic(foo.asTextMode().path)
-        stored_snapshot = self.db.get_local_snapshot(foo_magicname, self.author)
-        stored_content = stored_snapshot._get_synchronous_content()
-        self.assertThat(stored_content, Equals(content))
-        self.assertThat(stored_snapshot.parents_local, HasLength(0))
-        # self.assertThat(stored_snapshot.parents_remote, HasLength(0))
-
-
-    @given(content1=binary(),
-           content2=binary(),
-    )
-    def test_add_two_files(self, content1, content2):
-        file1 = self.magic_path.child("file1")
-        with file1.open("w") as f:
-            f.write(content1)
-        file2 = self.magic_path.child("file2")
-        with file2.open("w") as f:
-            f.write(content2)
-
-        self.snapshot_creator.add_files(file1, file2)
-        self.snapshot_creator.startService()
-        self.assertThat(
-            self.snapshot_creator.stopService(),
-            succeeded(Always())
-        )
-
-        self.assertThat(self.db.snapshots, HasLength(2))
-
-        file1magic = path2magic(file1.asTextMode().path)
-        stored_snapshot = self.db.get_local_snapshot(file1magic, self.author)
-        stored_content = stored_snapshot._get_synchronous_content()
-        self.assertThat(stored_content, Equals(content1))
-        self.assertThat(stored_snapshot.parents_local, HasLength(0))
-
-        file2magic = path2magic(file2.asTextMode().path)
-        stored_snapshot = self.db.get_local_snapshot(file2magic, self.author)
-        stored_content = stored_snapshot._get_synchronous_content()
-        self.assertThat(stored_content, Equals(content2))
-        self.assertThat(stored_snapshot.parents_local, HasLength(0))
-
-
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
     def test_add_multiple_files(self, filenames, contents):
