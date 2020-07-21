@@ -384,7 +384,7 @@ class MagicFolder(service.MultiService):
             magic_path=FilePath(local_dir_config),
             db=database,
             author=local_author,
-            stash_dir=FilePath("/tmp"),  # XXX FIXME
+            stash_dir=FilePath("/tmp"),  # XXX https://github.com/LeastAuthority/magic-folder/issues/189
         )
 
         return cls(
