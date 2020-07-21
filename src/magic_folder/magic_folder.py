@@ -2235,8 +2235,8 @@ class LocalSnapshotCreator(service.Service):
         """
         Don't process queued items anymore.
         """
-        self._service_d.cancel()
         d = self._service_d
+        self._service_d.cancel()
         self._service_d = None
         return d
 
