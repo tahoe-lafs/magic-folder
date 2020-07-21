@@ -2216,6 +2216,7 @@ class LocalSnapshotCreator(service.Service):
         """
         Start a periodic loop that looks for work and does it.
         """
+        service.Service.startService(self)
         self._service_d = self._process_queue()
 
     @inlineCallbacks
@@ -2238,6 +2239,7 @@ class LocalSnapshotCreator(service.Service):
         """
         d = self._service_d
         self._service_d.cancel()
+        service.Service.stopService(self)
         self._service_d = None
         return d
 
