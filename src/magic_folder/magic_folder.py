@@ -2252,14 +2252,15 @@ class LocalSnapshotCreator(service.Service):
 
     def add_files(self, *paths):
         """
-        Add each item in `paths` to our queue. If an item is itself a
-        directory, we add all its children. If the path does not exist
-        below our magic-folder directory, it is an error.
+        Add each FilePath item in `paths` to our queue. If an item is
+        itself a directory, we add all its children. If the path does
+        not exist below our magic-folder directory, it is an error.
 
         Does not handle symbolic links at the moment. See:
         https://github.com/LeastAuthority/magic-folder/issues/201
 
         :param FilePaths *paths: one or more file paths to be added
+
         """
         action = ADD_FILES(count=len(paths))
         with action:
