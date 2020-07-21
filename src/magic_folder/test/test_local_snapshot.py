@@ -40,6 +40,8 @@ from magic_folder.snapshot import (
 from magic_folder.magicpath import (
     path2magic,
 )
+from .. import magicfolderdb
+
 from .common import (
     SyncTestCase,
 )
@@ -47,36 +49,11 @@ from .strategies import (
     path_segments,
 )
 
-@attr.s
-class MemoryMagicFolderDatabase(object):
-
-    snapshots = attr.ib(default=attr.Factory(dict))
-
-    def store_local_snapshot(self, snapshot):
-        self.snapshots[snapshot.name] = (
-            snapshot.metadata,
-            snapshot.content_path,
-            snapshot.parents_local,
-        )
-
-    def get_local_snapshot(self, name, author):
-        try:
-            meta, content, parents = self.snapshots[name]
-        except Exception:
-            return None
-        return LocalSnapshot(
-            name=name,
-            author=author,
-            metadata=meta,
-            content_path=content,
-            parents_local=parents,
-        )
-
 class LocalSnapshotTests(SyncTestCase):
 
     def setUp(self):
         super(LocalSnapshotTests, self).setUp()
-        self.db = MemoryMagicFolderDatabase()
+        self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
 
         self.stash_dir = mktemp()
@@ -110,7 +87,7 @@ class LocalSnapshotTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self.db.snapshots = {}
+        self.db._clear_snapshot_table()
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
@@ -132,7 +109,7 @@ class LocalSnapshotTests(SyncTestCase):
             succeeded(Always())
         )
 
-        self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
+        self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in zip(files, contents):
             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
@@ -186,8 +163,8 @@ class LocalSnapshotTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content1)
 
-        self.snapshot_creator.add_file(foo)
         self.snapshot_creator.startService()
+        self.snapshot_creator.add_file(foo)
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
