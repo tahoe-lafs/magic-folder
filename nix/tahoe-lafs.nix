@@ -16,5 +16,14 @@ let
   tahoe-lafs = python2Packages.callPackage tahoe-lafs-drv {
     inherit nevow eliot;
   };
+  versioned-tahoe-lafs = tahoe-lafs.overrideAttrs (old: {
+    postPatch = ''
+      ${old.postPatch}
+
+      # We got rid of our .git directory so the built-in version computing logic
+      # won't work.
+      echo '__version__ = "${old.version}"' > src/allmydata/_version.py
+    '';
+  });
 in
-  tahoe-lafs
+  versioned-tahoe-lafs
