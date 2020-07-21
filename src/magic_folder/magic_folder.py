@@ -354,7 +354,7 @@ class MagicFolder(service.MultiService):
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
 
-        :param IReactorClock reactor: the reactor to use
+        :param IReactorTime reactor: the reactor to use
 
         :param _Client client_node: The client node the magic-folder is
             attached to.
@@ -400,6 +400,7 @@ class MagicFolder(service.MultiService):
             umask=config["umask"],
             name=name,
             downloader_delay=poll_interval,
+            clock=reactor,
             snapshot_creator=snapshot_creator,
         )
 
