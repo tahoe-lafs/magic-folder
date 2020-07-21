@@ -2292,27 +2292,11 @@ class LocalSnapshotCreator(service.Service):
         :param FilePath path: a single file inside our magic-folder dir
         """
 
-        def mangle_path(p):
-            """
-            returns a unicode string given a FilePath (should be mangled
-            according to .. whatever rules magic-folder already uses?)
-
-            :param FilePath p: file path to be mangled
-
-            :returns unicode: mangled path
-            """
-            # XXX why DO we "mangle paths"? Could we just put the
-            # relative path for the name here instead? (that is,
-            # relative to the magic-folder base).
-
-            # how else to get the unicode version of this path?
-            return magicpath.path2magic(p.asTextMode(encoding="utf-8").path)
-
         with path.open('rb') as input_stream:
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
-            mangled_name = mangle_path(path)
+            mangled_name = magicpath.mangle_path(path)
             parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
             if parent_snapshot is None:
                 parents = []
