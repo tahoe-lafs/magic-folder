@@ -64,6 +64,9 @@ install_requires = [
     "tahoe-lafs",
 
     "treq",
+
+    # find the default location for configuration on different OSes
+    "appdirs",
 ]
 
 setup_requires = [
