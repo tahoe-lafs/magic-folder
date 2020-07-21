@@ -2282,7 +2282,7 @@ class LocalSnapshotCreator(service.Service):
         # add file into the queue
         self.queue.put(path)
 
-    @inlineCallbacks
+    @eliotutil.inline_callbacks
     def _process_item(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
