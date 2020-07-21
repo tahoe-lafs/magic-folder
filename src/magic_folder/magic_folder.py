@@ -2286,10 +2286,6 @@ class LocalSnapshotCreator(service.Service):
 
         :param FilePath path: a single file inside our magic-folder dir
         """
-        if not isinstance(path, FilePath):
-            raise ValueError(
-                "'path' must be a FilePath"
-            )
 
         def mangle_path(p):
             """
