@@ -261,7 +261,7 @@ class MagicFolderWebApi(Resource):
             return NOT_DONE_YET
 
         request.setHeader("content-type", "application/json")
-        nick = request.args.get("name", ["default"])[0]
+        nick = request.args.get("name", ["default"])[0].decode("utf-8")
 
         try:
             magic_folder = self.get_magic_folder(nick)
