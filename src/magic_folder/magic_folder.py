@@ -2291,6 +2291,10 @@ class LocalSnapshotCreator(service.Service):
             """
             returns a unicode string given a FilePath (should be mangled
             according to .. whatever rules magic-folder already uses?)
+
+            :param FilePath p: file path to be mangled
+
+            :returns unicode: mangled path
             """
             # XXX why DO we "mangle paths"? Could we just put the
             # relative path for the name here instead? (that is,
