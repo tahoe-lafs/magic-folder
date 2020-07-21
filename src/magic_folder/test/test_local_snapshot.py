@@ -1,8 +1,6 @@
 from __future__ import print_function
 
 import os
-from tempfile import mktemp
-from shutil import rmtree
 
 from hypothesis import (
     given,
@@ -54,10 +52,10 @@ class LocalSnapshotTests(SyncTestCase):
         self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
 
-        self.stash_dir = mktemp()
+        self.stash_dir = self.mktemp()
         os.mkdir(self.stash_dir)
 
-        magic_path_dirname = mktemp()
+        magic_path_dirname = self.mktemp()
         os.mkdir(magic_path_dirname)
 
         self.magic_path = FilePath(magic_path_dirname)
@@ -67,18 +65,6 @@ class LocalSnapshotTests(SyncTestCase):
             author=self.author,
             stash_dir=FilePath(self.stash_dir),
         )
-
-    def tearDown(self):
-        # No need to close the db, as it is in-memory. GC
-        # would claim the memory back.
-
-        # delete stash_dir
-        rmtree(self.stash_dir)
-
-        # delete magic_path
-        rmtree(self.magic_path.path)
-
-        return super(LocalSnapshotTests, self).tearDown()
 
     def setup_example(self):
         """
