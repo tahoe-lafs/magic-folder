@@ -297,6 +297,18 @@ class GlobalConfigDatabase(object):
         with node_dir.child("node.url").open("rt") as f:
             return f.read().strip()
 
+    @property
+    def tahoe_node_directory(self):
+        """
+        The directory containing or Tahoe-LAFS client's configuration.
+        :returns: FilePath
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT tahoe_node_directory FROM config")
+            node_dir = FilePath(cursor.fetchone()[0])
+        return node_dir
+
     def list_magic_folders(self):
         """
         Return a generator that yields the names of all magic-folders

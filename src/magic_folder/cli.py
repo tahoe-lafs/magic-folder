@@ -45,6 +45,9 @@ from twisted.internet.interfaces import (
 from twisted.internet.endpoints import (
     serverFromString,
 )
+from twisted.internet.task import (
+    react,
+)
 
 from twisted.web.client import (
     Agent,
@@ -129,6 +132,9 @@ from .invite import (
 from .create import (
     magic_folder_create as _create
 )
+from .show_config import (
+    magic_folder_show_config,
+)
 from .initialize import (
     magic_folder_initialize,
 )
@@ -147,6 +153,45 @@ from ._coverage import (
 from .util.observer import ListenObserver
 
 
+_default_config_path = user_config_dir("magic-folder")
+
+
+class ShowConfigOptions(usage.Options):
+    """
+    Dump current configuration as JSON.
+    """
+
+    optParameters = [
+        ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
+    ]
+    description = (
+        "Dump magic-folder configuration as JSON"
+    )
+
+    def postOptions(self):
+        # defaults
+        if self['config'] is None:
+            self['config'] = _default_config_path
+
+        # validate
+        if not FilePath(self['config']).exists():
+            raise usage.UsageError("Directory '{}' doesn't exist".format(self['config']))
+
+
+@inlineCallbacks
+def show_config(options):
+
+    try:
+        rc = yield magic_folder_show_config(
+            FilePath(options['config']),
+        )
+    except Exception as e:
+        print("%s" % str(e), file=options.stderr)
+        returnValue(1)
+
+    returnValue(rc)
+
+
 class InitializeOptions(usage.Options):
     """
     Create and initialize a new Magic Folder daemon directory (which
@@ -155,7 +200,8 @@ class InitializeOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None, "A non-existant directory to contain config (default ~/.magic_folder)"),
+        ("config", "c", None,
+         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
     ]
@@ -168,7 +214,7 @@ class InitializeOptions(usage.Options):
     def postOptions(self):
         # defaults
         if self['config'] is None:
-            self['config'] = expanduser("~/.magic_folder")
+            self['config'] = _default_config_path
 
         # required args
         if self['listen-endpoint'] is None:
@@ -206,7 +252,7 @@ class MigrateOptions(usage.Options):
 
     optParameters = [
         ("config", "c", None,
-         "A non-existant directory to contain config (default {})".format(user_config_dir("magic-folder")),
+         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
         ("author-name", "a", None, "The name for the author to use in each migrated magic-folder"),
@@ -219,7 +265,7 @@ class MigrateOptions(usage.Options):
     def postOptions(self):
         # defaults
         if self['config'] is None:
-            self['config'] = user_config_dir("magic-folder")
+            self['config'] = _default_config_path
 
         # required args
         if self['listen-endpoint'] is None:
@@ -1122,6 +1168,7 @@ class MagicFolderCommand(BaseOptions):
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
+        ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
         ["create", None, CreateOptions, "Create a Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
@@ -1146,7 +1193,7 @@ class MagicFolderCommand(BaseOptions):
     @property
     def node_directory(self):
         if self["node-directory"] is None:
-            if self.subCommand in ["init", "migrate"]:
+            if self.subCommand in ["init", "migrate", "show-config"]:
                 return
             raise usage.UsageError(
                 "Must supply --node-directory (or -n)"
@@ -1202,6 +1249,7 @@ class MagicFolderCommand(BaseOptions):
 subDispatch = {
     "init": initialize,
     "migrate": migrate,
+    "show-config": show_config,
     "create": create,
     "invite": invite,
     "join": join,
@@ -1263,6 +1311,11 @@ def makeService(options):
     return service
 
 
+def main(reactor):
+    options = MagicFolderCommand()
+    options.parseOptions(sys.argv[1:])
+    return do_magic_folder(options)
+
 def run():
     """
     Implement the *magic-folder* console script declared in ``setup.py``.
@@ -1273,6 +1326,18 @@ def run():
     from os import getpid
     to_file(open("magic-folder-cli.{}.eliot".format(getpid()), "w"))
 
+    # for most commands that produce output for users we don't want
+    # the logging etc that 'twist' does .. only doing this for "new"
+    # commands for now
+
+    from twisted.internet.task import react
+
+    options = MagicFolderCommand()
+    options.parseOptions(sys.argv[1:])
+    if options.subCommand in ["init", "migrate", "show-config"]:
+        return react(main)
+
+    # run the same way as originally ported for "other" commands
     console_scripts = importlib_metadata.entry_points()["console_scripts"]
     magic_folder = list(
         script
