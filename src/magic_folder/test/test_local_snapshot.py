@@ -122,8 +122,11 @@ class LocalSnapshotTests(SyncTestCase):
                 f.write(content)
             files.append(file)
 
-        self.snapshot_creator.add_files(*files)
         self.snapshot_creator.startService()
+
+        for file in files:
+            self.snapshot_creator.add_file(file)
+
         self.assertThat(
             self.snapshot_creator.stopService(),
             succeeded(Always())
@@ -137,38 +140,42 @@ class LocalSnapshotTests(SyncTestCase):
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
-
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
-           lists(binary(), unique=True))
-    def test_add_directory_with_files(self, filenames, contents):
-        subdir = mktemp(dir=self.magic_path.path)
-        os.mkdir(subdir)
-
-        files = []
-        for (filename, content) in zip(filenames, contents):
-            file = FilePath(subdir).child(filename)
-            with file.open("w") as f:
-                f.write(content)
-            files.append(file)
-
-        self.snapshot_creator.add_files(FilePath(subdir))
-        self.snapshot_creator.startService()
-        self.assertThat(
-            self.snapshot_creator.stopService(),
-            succeeded(Always())
-        )
-
-        self.assertThat(self.db.snapshots.keys(), HasLength(len(files)))
-
     @given(content=binary())
-    def test_add_non_filepath(self, content):
+    def test_add_file_failures(self, content):
         foo = self.magic_path.child("foo")
         with foo.open("w") as f:
             f.write(content)
 
+        self.snapshot_creator.startService()
+
+        # try adding a string that represents the path
+        with ExpectedException(TypeError,
+                               "argument must be a FilePath"):
+            self.snapshot_creator.add_file(foo.path)
+
+        # try adding a directory
+        tmpdir = FilePath(self.mktemp())
+        bar_dir = self.magic_path.child(tmpdir.basename())
+        bar_dir.makedirs()
+
         with ExpectedException(ValueError,
-                               "every argument to upload_files must be a FilePath"):
-            self.snapshot_creator.add_files(foo.path)
+                               "expected a file"):
+            self.snapshot_creator.add_file(bar_dir)
+
+
+        # try adding a file outside the magic folder directory
+        tmpfile = FilePath(self.mktemp())
+        with tmpfile.open("w") as f:
+            f.write(content)
+
+        with ExpectedException(ValueError,
+                               "The path being added .*"):
+            self.snapshot_creator.add_file(tmpfile)
+
+        self.assertThat(
+            self.snapshot_creator.stopService(),
+            succeeded(Always())
+        )
 
     @given(content1=binary(min_size=1),
            content2=binary(min_size=1),
@@ -179,7 +186,7 @@ class LocalSnapshotTests(SyncTestCase):
         with foo.open("w") as f:
             f.write(content1)
 
-        self.snapshot_creator.add_files(foo)
+        self.snapshot_creator.add_file(foo)
         self.snapshot_creator.startService()
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
@@ -189,7 +196,7 @@ class LocalSnapshotTests(SyncTestCase):
             f.write(content2)
 
         # it should use the previous localsnapshot as its parent.
-        self.snapshot_creator.add_files(foo)
+        self.snapshot_creator.add_file(foo)
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
 
         self.assertThat(

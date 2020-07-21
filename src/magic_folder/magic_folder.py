@@ -928,11 +928,10 @@ SNAPSHOT_CREATOR_PROCESS_ITEM = MessageType(
     u"Local snapshot creator is processing an input.",
 )
 
-ADD_FILES = ActionType(
-    u"magic-folder:local-snapshot-creator:add-files",
-    [_COUNT],
-    [],
-    u"adding a file for local snapshot creation and upload",
+ADD_FILE_FAILURE = MessageType(
+    u"magic-folder:local-snapshot-creator:add-file-failure",
+    [RELPATH],
+    u"file path is not a descendent of the magic folder directory",
 )
 
 PROCESS_FILE_QUEUE = MessageType(
@@ -2250,47 +2249,38 @@ class LocalSnapshotCreator(service.Service):
         self._service_d = None
         return d
 
-    def add_files(self, *paths):
+    def add_file(self, path):
         """
-        Add each FilePath item in `paths` to our queue. If an item is
-        itself a directory, we add all its children. If the path does
-        not exist below our magic-folder directory, it is an error.
+        Add the given path of type FilePath to our queue. If the path
+        does not exist below our magic-folder directory, it is an error.
 
-        Does not handle symbolic links at the moment. See:
-        https://github.com/LeastAuthority/magic-folder/issues/201
+        :param FilePath path: path of the file that needs to be added.
 
-        :param FilePaths *paths: one or more file paths to be added
-
+        :raises: ValueError if the given file is not a descendent of
+                 magic folder path or if the given path is a directory.
+        :raises: TypeError if the input is not a FilePath.
         """
-        action = ADD_FILES(count=len(paths))
-        with action:
-            if not all(isinstance(x, FilePath) for x in paths):
-                raise ValueError(
-                    "every argument to upload_files must be a FilePath"
+        if not isinstance(path, FilePath):
+            raise TypeError(
+                "argument must be a FilePath"
+            )
+
+        try:
+            path.segmentsFrom(self.magic_path)
+        except ValueError:
+            ADD_FILE_FAILURE.log(relpath=path.asTextMode('utf-8').path)
+            raise ValueError(
+                "The path being added '{!r}' is not within '{!r}'".format(
+                    path.path,
+                    self.magic_path.path,
                 )
+            )
 
-            def add_if_file(p):
-                if p.isfile():
-                    try:
-                        p.segmentsFrom(self.magic_path)
-                    except ValueError:
-                        raise ValueError(
-                            "'{}' is not within '{}'".format(
-                                p.path,
-                                self.magic_path.path,
-                            )
-                        )
-                    self.queue.put(p)
+        if path.isdir():
+            raise ValueError("expected a file, {!r} is a directory".format(path))
 
-            for path in paths:
-                if path.isdir():
-                    # XXX: traverses symlinks pointing to directories etc. This
-                    # may or may not be what we want.
-                    # see https://github.com/LeastAuthority/magic-folder/issues/201
-                    for absolute_filename in path.walk():
-                        add_if_file(absolute_filename)
-                else:
-                    add_if_file(path)
+        # add file into the queue
+        self.queue.put(path)
 
     @inlineCallbacks
     def _process_item(self, path):
