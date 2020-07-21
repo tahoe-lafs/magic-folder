@@ -25,9 +25,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install wheel tox
-    - name: Get Tahoe-LAFS v1.14.0
-      run: |
-        pip wheel --wheel-dir ./wheelhouse 'cryptography<3' tahoe-lafs==1.14.0
     - name: Test with tox
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
@@ -60,9 +57,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install wheel tox
-    - name: Get Tahoe-LAFS v1.14.0
-      run: |
-        pip wheel --wheel-dir ./wheelhouse 'cryptography<3' tahoe-lafs==1.14.0
     - name: Test with tox
       run: |
         PIP_FIND_LINKS=./wheelhouse tox -e integration
