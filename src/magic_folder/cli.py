@@ -1330,8 +1330,6 @@ def run():
     # the logging etc that 'twist' does .. only doing this for "new"
     # commands for now
 
-    from twisted.internet.task import react
-
     options = MagicFolderCommand()
     try:
         options.parseOptions(sys.argv[1:])

@@ -1,6 +1,3 @@
-from shutil import (
-    rmtree,
-)
 
 from twisted.internet.interfaces import (
     IStreamServerEndpoint,
@@ -18,9 +15,6 @@ from zope.interface import (
 
 import attr
 
-from testtools import (
-    ExpectedException,
-)
 from testtools.matchers import (
     Equals,
 )
@@ -110,7 +104,6 @@ class TestMigrate(SyncTestCase):
     def setUp(self):
         super(TestMigrate, self).setUp()
         self.temp = FilePath(self.mktemp())
-        from twisted.internet import reactor
         self.magic_path = self.temp.child("magic")
         self.magic_path.makedirs()
         self.node_dir = self.useFixture(NodeDirectory(self.temp.child("node")))

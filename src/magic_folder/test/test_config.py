@@ -1,6 +1,3 @@
-from shutil import (
-    rmtree,
-)
 
 from twisted.python.filepath import (
     FilePath,
@@ -104,7 +101,7 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_database_wrong_version(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         # make the version "0", which will never happen for real
         # because we'll keep incrementing the version from 1
         db_fname = self.temp.child("global.sqlite")
@@ -113,8 +110,7 @@ class TestGlobalConfig(SyncTestCase):
             cursor.execute("UPDATE version SET version=?", (0, ))
 
         with ExpectedException(ConfigurationError):
-            config = load_global_configuration(self.temp)
-
+            load_global_configuration(self.temp)
 
 
 class TestMagicFolderConfig(SyncTestCase):

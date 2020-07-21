@@ -59,7 +59,7 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
         state_dir = config_dir.child(mf_name)
         author = create_local_author(author_name)
 
-        mf = config.create_magic_folder(
+        config.create_magic_folder(
             mf_name,
             FilePath(mf_config[u'directory']),
             state_dir,

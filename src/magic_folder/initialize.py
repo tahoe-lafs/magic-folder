@@ -5,9 +5,6 @@
 Implements the magic-folder init command.
 """
 
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.internet.defer import (
     succeed,
 )

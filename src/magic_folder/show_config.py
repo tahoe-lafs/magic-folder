@@ -9,9 +9,10 @@ from json import (
     dumps,
 )
 
-from twisted.python.filepath import (
-    FilePath,
+from nacl.encoding import (
+    Base32Encoder,
 )
+
 from twisted.internet.defer import (
     succeed,
 )
