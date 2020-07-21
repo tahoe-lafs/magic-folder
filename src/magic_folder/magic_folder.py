@@ -2276,6 +2276,9 @@ class LocalSnapshotCreator(service.Service):
                 )
             )
 
+        # isdir() can fail and can raise an appropriate exception like
+        # FileNotFoundError or PermissionError or other filesystem
+        # exceptions
         if path.isdir():
             raise ValueError("expected a file, {!r} is a directory".format(path))
 
