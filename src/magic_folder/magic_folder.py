@@ -20,7 +20,6 @@ from twisted.application import service
 
 from zope.interface import Interface, Attribute, implementer
 from twisted.internet.defer import (
-    inlineCallbacks,
     DeferredQueue,
     CancelledError,
 )
