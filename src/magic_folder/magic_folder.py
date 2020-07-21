@@ -935,6 +935,12 @@ ADD_FILES = ActionType(
     u"adding a file for local snapshot creation and upload",
 )
 
+PROCESS_FILE_QUEUE = MessageType(
+    u"magic-folder:local-snapshot-creator:process-queue",
+    [RELPATH],
+    u"A Magic-Folder is working through an item queue.",
+)
+
 class QueueMixin(HookMixin):
     """
     A parent class for Uploader and Downloader that handles putting
@@ -2219,7 +2225,7 @@ class LocalSnapshotCreator(service.Service):
         service.Service.startService(self)
         self._service_d = self._process_queue()
 
-    @inlineCallbacks
+    @eliotutil.inline_callbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -2227,11 +2233,12 @@ class LocalSnapshotCreator(service.Service):
         while True:
             try:
                 item = yield self.queue.get()
+                PROCESS_FILE_QUEUE.log(relpath=item.asTextMode('utf-8').path)
                 yield self._process_item(item)
             except CancelledError:
                 break
             except Exception:
-                write_failure(Failure())
+                write_traceback()
 
     def stopService(self):
         """
