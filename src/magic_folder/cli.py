@@ -1333,7 +1333,17 @@ def run():
     from twisted.internet.task import react
 
     options = MagicFolderCommand()
-    options.parseOptions(sys.argv[1:])
+    try:
+        options.parseOptions(sys.argv[1:])
+    except usage.UsageError as e:
+        print("Error: {}".format(e))
+        # if a user just typed "magic-folder" don't make them re-run
+        # with "--help" just to see the sub-commands they were
+        # supposed to use
+        if len(sys.argv) == 1:
+            print(options)
+        return 1
+
     if options.subCommand in ["init", "migrate", "show-config"]:
         return react(main)
 
