@@ -12,7 +12,8 @@ jobs:
           - "2.7"
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out source code
+      uses: actions/checkout@v2
       with:
         # Get enough history for the tags we get next to be meaningful.  0
         # means all history.
@@ -22,7 +23,8 @@ jobs:
 
     # Get MS VC++ 9 aka Visual Studio 2008, required to build Python 2.7
     # extensions (zfec via Tahoe-LAFS).
-    - uses: "crazy-max/ghaction-chocolatey@v1"
+    - name: Install MSVC 9.0 for Python 2.7
+      uses: "crazy-max/ghaction-chocolatey@v1"
       with:
         args: "install vcpython27"
 
@@ -46,13 +48,15 @@ jobs:
         $Env:PIP_FIND_LINKS = "./wheelhouse"
         tox -e py27-coverage
 
-    - uses: "actions/upload-artifact@v1"
+    - name: Upload eliot.log in case of failure
+      uses: "actions/upload-artifact@v1"
       if: "failure()"
       with:
         name: "eliot.log"
         path: "eliot.log"
 
-    - uses: codecov/codecov-action@v1
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v1
       with:
         token: "322d708d-8283-4827-b605-ccf02bfecf70"
         file: "./coverage.xml"
@@ -66,7 +70,8 @@ jobs:
           - "2.7"
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out source code
+      uses: actions/checkout@v2
       with:
         # Get enough history for the tags we get next to be meaningful.  0
         # means all history.
@@ -76,7 +81,8 @@ jobs:
 
     # Get MS VC++ 9 aka Visual Studio 2008, required to build Python 2.7
     # extensions (zfec via Tahoe-LAFS).
-    - uses: "crazy-max/ghaction-chocolatey@v1"
+    - name: Install MSVC 9.0 for Python 2.7
+      uses: "crazy-max/ghaction-chocolatey@v1"
       with:
         args: "install vcpython27"
 
