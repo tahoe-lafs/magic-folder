@@ -26,7 +26,7 @@ from .fixtures import (
     NodeDirectory,
 )
 from .strategies import (
-    path_segments,
+    path_segments_without_dotfiles,
 )
 from ..config import (
     create_global_configuration,
@@ -47,11 +47,11 @@ class TestGlobalConfig(SyncTestCase):
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     @given(
-        path_segments(),
+        path_segments_without_dotfiles(),
     )
     def test_create(self, dirname):
         confdir = self.temp.child(dirname)
-        assume(not confdir.exists())
+        assume(not confdir.exists())  # this fails in some CI; seems to be codec-related?
         create_global_configuration(confdir, u"tcp:1234", self.node_dir)
         # the implicit assertion here is "it didn't fail"
 
