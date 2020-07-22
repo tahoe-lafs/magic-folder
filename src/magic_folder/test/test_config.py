@@ -29,6 +29,9 @@ from .common import (
 from .fixtures import (
     NodeDirectory,
 )
+from .strategies import (
+    path_segments,
+)
 from ..config import (
     create_global_configuration,
     load_global_configuration,
@@ -48,13 +51,9 @@ class TestGlobalConfig(SyncTestCase):
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     @given(
-        text(min_size=1),
+        path_segments(),
     )
-    @seed(182960935277217864406698244197177221910)
     def test_create(self, dirname):
-        assume(u"/" not in dirname)  # makes FilePath sad
-        assume(u"\0" not in dirname)  # os.stat fails
-        assume(u".." != dirname)
         confdir = self.temp.child(dirname)
         assume(not confdir.exists())
         create_global_configuration(confdir, u"tcp:1234", self.node_dir)
