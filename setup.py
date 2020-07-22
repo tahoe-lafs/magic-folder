@@ -61,7 +61,17 @@ install_requires = [
     # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
     # declaration serve, though.  Otherwise we have to be careful to agree on
     # which extras to pull in.
-    "tahoe-lafs",
+    #
+    # Additionally, pin Tahoe-LAFS to a specific version we know works.
+    # Magic-Folder uses a lot of private Tahoe-LAFS Python APIs so there's
+    # good reason to expect things to break from release to release.  Pin a
+    # specific version so we can upgrade intentionally when we know it will
+    # work.
+    "tahoe-lafs == 1.14.0",
+
+    # Tahoe-LAFS 1.14.0 happens to be incompatible with cryptography 3.0.
+    # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3349
+    "cryptography < 3.0",
 
     "treq",
 

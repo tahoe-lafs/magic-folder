@@ -5,10 +5,6 @@
 Hypothesis strategies useful for testing Magic Folder.
 """
 
-from string import (
-    printable,
-)
-
 from os.path import (
     join,
 )
@@ -25,6 +21,7 @@ from hypothesis.strategies import (
     just,
     one_of,
     booleans,
+    characters,
     text,
     lists,
     builds,
@@ -32,7 +29,6 @@ from hypothesis.strategies import (
     integers,
     floats,
     fixed_dictionaries,
-    sampled_from,
 )
 
 from allmydata.util import (
@@ -52,22 +48,30 @@ from ..magic_folder import (
 # filesystem encoding.  Punt on them for now. :(
 #
 # https://github.com/LeastAuthority/magic-folder/issues/38
-DOTLESS_PATH_WHITELIST = printable.decode(
-    "ascii",
-).replace(
-    u"/",
-    u"",
-).replace(
-    u".",
-    u"",
-)
-DOTLESS_SEGMENT_ALPHABET = sampled_from(
-    DOTLESS_PATH_WHITELIST,
+DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
+    blacklist_categories=(
+        # Exclude surrogates.  They're complicated.
+        "Cs",
+        # Exclude non-characters.  I don't know if they can appear in real
+        # filesystems or not.  We might want to let them through if we can
+        # make them work (they don't work as of this comment).
+        "Cn",
+    ),
+    blacklist_characters=(u"\x00", u".", u"/"),
 )
 SEGMENT_ALPHABET = one_of(
-    DOTLESS_SEGMENT_ALPHABET,
+    DOTLESS_SLASHLESS_SEGMENT_ALPHABET,
     just(u"."),
 )
+
+def _normalized(text):
+    # In the future we should generate text using different normalizations and
+    # denormalized.  The user is likely to be able to enter anything they
+    # want, we should know what our behavior is going to be.
+    #
+    # https://github.com/LeastAuthority/magic-folder/issues/36
+    return normalize("NFC", text)
+
 
 def path_segments(alphabet=SEGMENT_ALPHABET):
     """
@@ -81,6 +85,8 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
     ).filter(
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
+    ).map(
+        _normalized,
     )
 
 def path_segments_without_dotfiles(path_segments=path_segments()):
@@ -90,7 +96,7 @@ def path_segments_without_dotfiles(path_segments=path_segments()):
     """
     return builds(
         lambda a, b: a + b,
-        DOTLESS_SEGMENT_ALPHABET,
+        DOTLESS_SLASHLESS_SEGMENT_ALPHABET,
         path_segments,
     )
 
@@ -118,6 +124,16 @@ def absolute_paths(relative_paths=relative_paths()):
     )
 
 
+def absolute_paths_utf8(relative_paths=relative_paths()):
+    """
+    Build byte strings which are valid utf-8 and are usable as absolute
+    filesystem paths.
+    """
+    return relative_paths.map(
+        lambda p: (u"/" + p).encode("utf-8"),
+    )
+
+
 def folder_names():
     """
     Build unicode strings which are usable as magic folder names.
@@ -127,14 +143,6 @@ def folder_names():
     ).map(
         _normalized,
     )
-
-def _normalized(text):
-    # In the future we should generate text using different normalizations and
-    # denormalized.  The user is likely to be able to enter anything they
-    # want, we should know what our behavior is going to be.
-    #
-    # https://github.com/LeastAuthority/magic-folder/issues/36
-    return normalize("NFC", text)
 
 
 def tahoe_lafs_chk_capabilities():
