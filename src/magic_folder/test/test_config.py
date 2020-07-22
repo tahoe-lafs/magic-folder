@@ -6,10 +6,6 @@ from twisted.python.filepath import (
 from hypothesis import (
     given,
     assume,
-    seed,
-)
-from hypothesis.strategies import (
-    text,
 )
 
 from testtools import (
