@@ -28,7 +28,7 @@ from testtools import (
 )
 
 from magic_folder.magic_folder import (
-    LocalSnapshotCreator,
+    LocalSnapshotService,
 )
 from magic_folder.snapshot import (
     create_local_author,
@@ -59,7 +59,7 @@ class LocalSnapshotTests(SyncTestCase):
         os.mkdir(magic_path_dirname)
 
         self.magic_path = FilePath(magic_path_dirname)
-        self.snapshot_creator = LocalSnapshotCreator(
+        self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
             db=self.db,
             author=self.author,
@@ -83,13 +83,13 @@ class LocalSnapshotTests(SyncTestCase):
                 f.write(content)
             files.append(file)
 
-        self.snapshot_creator.startService()
+        self.snapshot_service.startService()
 
         for file in files:
-            self.snapshot_creator.add_file(file)
+            self.snapshot_service.add_file(file)
 
         self.assertThat(
-            self.snapshot_creator.stopService(),
+            self.snapshot_service.stopService(),
             succeeded(Always())
         )
 
@@ -107,12 +107,12 @@ class LocalSnapshotTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content)
 
-        self.snapshot_creator.startService()
+        self.snapshot_service.startService()
 
         # try adding a string that represents the path
         with ExpectedException(TypeError,
                                "argument must be a FilePath"):
-            self.snapshot_creator.add_file(foo.path)
+            self.snapshot_service.add_file(foo.path)
 
         # try adding a directory
         tmpdir = FilePath(self.mktemp())
@@ -121,7 +121,7 @@ class LocalSnapshotTests(SyncTestCase):
 
         with ExpectedException(ValueError,
                                "expected a file"):
-            self.snapshot_creator.add_file(bar_dir)
+            self.snapshot_service.add_file(bar_dir)
 
 
         # try adding a file outside the magic folder directory
@@ -131,10 +131,10 @@ class LocalSnapshotTests(SyncTestCase):
 
         with ExpectedException(ValueError,
                                "The path being added .*"):
-            self.snapshot_creator.add_file(tmpfile)
+            self.snapshot_service.add_file(tmpfile)
 
         self.assertThat(
-            self.snapshot_creator.stopService(),
+            self.snapshot_service.stopService(),
             succeeded(Always())
         )
 
@@ -147,8 +147,8 @@ class LocalSnapshotTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content1)
 
-        self.snapshot_creator.startService()
-        self.snapshot_creator.add_file(foo)
+        self.snapshot_service.startService()
+        self.snapshot_service.add_file(foo)
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
@@ -157,11 +157,11 @@ class LocalSnapshotTests(SyncTestCase):
             f.write(content2)
 
         # it should use the previous localsnapshot as its parent.
-        self.snapshot_creator.add_file(foo)
+        self.snapshot_service.add_file(foo)
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
 
         self.assertThat(
-            self.snapshot_creator.stopService(),
+            self.snapshot_service.stopService(),
             succeeded(Always())
         )
 

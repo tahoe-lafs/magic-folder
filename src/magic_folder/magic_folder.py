@@ -379,7 +379,7 @@ class MagicFolder(service.MultiService):
 
         local_author = create_local_author_from_config(global_config, name)
 
-        snapshot_creator = LocalSnapshotCreator(
+        snapshot_service = LocalSnapshotService(
             magic_path=FilePath(local_dir_config),
             db=database,
             author=local_author,
@@ -400,12 +400,12 @@ class MagicFolder(service.MultiService):
             name=name,
             downloader_delay=poll_interval,
             clock=reactor,
-            snapshot_creator=snapshot_creator,
+            snapshot_service=snapshot_service,
         )
 
     def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60,
-                 snapshot_creator=None):
+                 snapshot_service=None):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
             raise ValueError("'{}' does not exist".format(local_path_u))
@@ -418,9 +418,9 @@ class MagicFolder(service.MultiService):
 
         clock = clock or reactor
 
-        if snapshot_creator is None:
-            raise ValueError("Must supply snapshot_creator=")
-        snapshot_creator.setServiceParent(self)
+        if snapshot_service is None:
+            raise ValueError("Must supply snapshot_service=")
+        snapshot_service.setServiceParent(self)
 
         # for tests
         self._client = client
@@ -2203,7 +2203,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 # XXX: Add some state and methods to track the "status" of the upload process.
 @attr.s
 @implementer(service.IService)
-class LocalSnapshotCreator(service.Service):
+class LocalSnapshotService(service.Service):
     """
     When told about local files (that must exist in `.magic_path` or
     below) we create a LocalSnapshot instance, serialize it and then

@@ -58,7 +58,7 @@ from magic_folder.magic_folder import (
     maybe_upgrade_magic_folders,
     is_new_file,
     _upgrade_magic_folder_config,
-    LocalSnapshotCreator,
+    LocalSnapshotService,
     create_local_author_from_config,
 )
 from ..util import (
@@ -2312,7 +2312,7 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         name = 'default'
         global_config = client.config
         local_author = create_local_author_from_config(global_config, name)
-        snapshot_creator = LocalSnapshotCreator(
+        snapshot_service = LocalSnapshotService(
             magic_path=FilePath(errors_dir),
             db=db,
             author=local_author,
@@ -2325,27 +2325,27 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
             upload_dircap = n.get_uri()
             readonly_dircap = n.get_readonly_uri()
 
-            self.shouldFail(ValueError, 'Must supply snapshot_creator=', 'Must supply snapshot_creator=',
+            self.shouldFail(ValueError, 'Must supply snapshot_service=', 'Must supply snapshot_service=',
                             MagicFolder, client, upload_dircap, '', errors_dir, db, 0o077, name)
             self.shouldFail(ValueError, 'does not exist', 'does not exist',
-                            MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name, snapshot_service=snapshot_service)
             self.shouldFail(ValueError, 'is not a directory', 'is not a directory',
-                            MagicFolder, client, upload_dircap, '', not_a_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, upload_dircap, '', not_a_dir, db, 0o077, name, snapshot_service=snapshot_service)
             self.shouldFail(AssertionError, 'bad upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'bad', '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, 'bad', '', errors_dir, db, 0o077, name, snapshot_service=snapshot_service)
             self.shouldFail(AssertionError, 'non-directory upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'URI:LIT:foo', '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, 'URI:LIT:foo', '', errors_dir, db, 0o077, name, snapshot_service=snapshot_service)
             self.shouldFail(AssertionError, 'readonly upload.dircap', 'is not a writecap to a directory',
-                            MagicFolder, client, readonly_dircap, '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, readonly_dircap, '', errors_dir, db, 0o077, name, snapshot_service=snapshot_service)
             self.shouldFail(AssertionError, 'collective dircap', 'is not a readonly cap to a directory',
-                            MagicFolder, client, upload_dircap, upload_dircap, errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, upload_dircap, upload_dircap, errors_dir, db, 0o077, name, snapshot_service=snapshot_service)
 
             def _not_implemented():
                 raise NotImplementedError("blah")
             from magic_folder import magic_folder
             self.patch(magic_folder, 'get_inotify_module', _not_implemented)
             self.shouldFail(NotImplementedError, 'unsupported', 'blah',
-                            MagicFolder, client, upload_dircap, '', errors_dir, db, 0o077, name, snapshot_creator=snapshot_creator)
+                            MagicFolder, client, upload_dircap, '', errors_dir, db, 0o077, name, snapshot_service=snapshot_service)
         d.addCallback(_check_errors)
         return d.result
 

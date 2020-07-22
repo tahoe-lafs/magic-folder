@@ -52,7 +52,7 @@ from magic_folder.util.eliotutil import (
 from ...magic_folder import (
     MagicFolder,
     load_magic_folders,
-    LocalSnapshotCreator,
+    LocalSnapshotService,
 )
 from ... import cli as magic_folder_cli
 
@@ -285,7 +285,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         name='default'
         local_author = create_local_author_from_config(global_config, name)
 
-        snapshot_creator = LocalSnapshotCreator(
+        snapshot_service = LocalSnapshotService(
             magic_path=FilePath(local_magic_dir),
             db=db,
             author=local_author,
@@ -303,7 +303,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             clock=clock,
             uploader_delay=0.2,
             downloader_delay=0,
-            snapshot_creator=snapshot_creator,
+            snapshot_service=snapshot_service,
         )
 
         magicfolder.setServiceParent(self.get_client(client_num))
