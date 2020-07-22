@@ -4,6 +4,10 @@ Configuration and state database interaction.
 See also docs/config.rst
 """
 
+from __future__ import (
+    unicode_literals,
+)
+
 from os import (
     urandom,
 )
