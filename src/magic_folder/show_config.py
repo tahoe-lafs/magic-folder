@@ -5,6 +5,11 @@
 Implements the magic-folder init command.
 """
 
+from __future__ import (
+    print_function,
+)
+
+import sys
 from json import (
     dumps,
 )
@@ -22,7 +27,7 @@ from .config import (
 )
 
 
-def magic_folder_show_config(config_dir):
+def magic_folder_show_config(config_dir, stdout=None):
     """
     Dump configuration as JSON.
 
@@ -50,5 +55,7 @@ def magic_folder_show_config(config_dir):
         "magic_folders": magic_folders,
     }
 
-    print(dumps(json, indent=4))
+    if stdout is None:
+        stdout = sys.stdout
+    print(dumps(json, indent=4).decode("utf8"), file=stdout)
     return succeed(0)

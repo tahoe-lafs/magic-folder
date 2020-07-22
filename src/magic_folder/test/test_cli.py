@@ -1,3 +1,7 @@
+import json
+from io import (
+    StringIO,
+)
 
 from twisted.internet.interfaces import (
     IStreamServerEndpoint,
@@ -17,6 +21,7 @@ import attr
 
 from testtools.matchers import (
     Equals,
+    ContainsDict,
 )
 from .common import (
     AsyncTestCase,
@@ -36,6 +41,9 @@ from magic_folder.initialize import (
 )
 from magic_folder.migrate import (
     magic_folder_migrate,
+)
+from magic_folder.show_config import (
+    magic_folder_show_config,
 )
 
 
@@ -126,4 +134,44 @@ class TestMigrate(SyncTestCase):
         self.assertThat(
             list(config.list_magic_folders()),
             Equals([u"test-folder"]),
+        )
+
+
+class TestShowConfig(SyncTestCase):
+    """
+    Confirm operation of 'magic-folder show-config' command
+    """
+
+    def setUp(self):
+        super(TestShowConfig, self).setUp()
+        self.temp = FilePath(self.mktemp())
+        self.magic_path = self.temp.child("magic")
+        self.magic_path.makedirs()
+        self.node_dir = self.useFixture(NodeDirectory(self.temp.child("node")))
+        self.node_dir.create_magic_folder(
+            u"test-folder",
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            self.magic_path,
+            60,
+        )
+
+    def test_good(self):
+        magic_folder_initialize(
+            self.temp.child("good"),
+            u"tcp:1234",
+            self.node_dir.path,
+        )
+        stdout = StringIO()
+        magic_folder_show_config(
+            self.temp.child("good"),
+            stdout=stdout,
+        )
+        self.assertThat(
+            json.loads(stdout.getvalue()),
+            ContainsDict({
+                u'api_endpoint': Equals(u'tcp:1234'),
+                u'tahoe_node_directory': Equals(self.node_dir.path.path),
+                u'magic_folders': Equals({}),
+            })
         )
