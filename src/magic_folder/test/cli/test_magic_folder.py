@@ -53,6 +53,7 @@ from ...magic_folder import (
     MagicFolder,
     load_magic_folders,
     LocalSnapshotService,
+    LocalSnapshotCreator,
 )
 from ... import cli as magic_folder_cli
 
@@ -284,12 +285,15 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         global_config = client.config
         name='default'
         local_author = create_local_author_from_config(global_config, name)
-
-        snapshot_service = LocalSnapshotService(
-            magic_path=FilePath(local_magic_dir),
+        snapshot_creator = LocalSnapshotCreator(
             db=db,
             author=local_author,
             stash_dir=FilePath(self.stash_dir),
+        )
+
+        snapshot_service = LocalSnapshotService(
+            magic_path=FilePath(local_magic_dir),
+            snapshot_creator=snapshot_creator,
         )
 
         magicfolder = MagicFolder(

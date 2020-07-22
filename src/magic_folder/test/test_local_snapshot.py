@@ -29,6 +29,7 @@ from testtools import (
 
 from magic_folder.magic_folder import (
     LocalSnapshotService,
+    LocalSnapshotCreator,
 )
 from magic_folder.snapshot import (
     create_local_author,
@@ -59,11 +60,14 @@ class LocalSnapshotTests(SyncTestCase):
         os.mkdir(magic_path_dirname)
 
         self.magic_path = FilePath(magic_path_dirname)
-        self.snapshot_service = LocalSnapshotService(
-            magic_path=self.magic_path,
+        self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,
             author=self.author,
             stash_dir=FilePath(self.stash_dir),
+        )
+        self.snapshot_service = LocalSnapshotService(
+            magic_path=self.magic_path,
+            snapshot_creator=self.snapshot_creator,
         )
 
     def setup_example(self):

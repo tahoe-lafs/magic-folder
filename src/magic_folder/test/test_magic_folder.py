@@ -59,6 +59,7 @@ from magic_folder.magic_folder import (
     is_new_file,
     _upgrade_magic_folder_config,
     LocalSnapshotService,
+    LocalSnapshotCreator,
     create_local_author_from_config,
 )
 from ..util import (
@@ -2312,11 +2313,14 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         name = 'default'
         global_config = client.config
         local_author = create_local_author_from_config(global_config, name)
-        snapshot_service = LocalSnapshotService(
-            magic_path=FilePath(errors_dir),
+        snapshot_creator = LocalSnapshotCreator(
             db=db,
             author=local_author,
-            stash_dir=FilePath("/tmp"),  # XXX FIXME
+            stash_dir=FilePath("/tmp"),
+        )
+        snapshot_service = LocalSnapshotService(
+            magic_path=FilePath(errors_dir),
+            snapshot_creator=snapshot_creator,
         )
 
         d = DeferredContext(client.create_dirnode())

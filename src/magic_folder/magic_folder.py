@@ -378,12 +378,14 @@ class MagicFolder(service.MultiService):
             raise Exception('ERROR: Unable to load magic folder db.')
 
         local_author = create_local_author_from_config(global_config, name)
-
-        snapshot_service = LocalSnapshotService(
-            magic_path=FilePath(local_dir_config),
+        snapshot_creator = LocalSnapshotCreator(
             db=database,
             author=local_author,
-            stash_dir=FilePath("/tmp"),  # XXX https://github.com/LeastAuthority/magic-folder/issues/189
+            stash_dir=FilePath("/tmp"),
+        )
+        snapshot_service = LocalSnapshotService(
+            magic_path=FilePath(local_dir_config),
+            snapshot_creator=snapshot_creator,
         )
 
         return cls(
@@ -2189,6 +2191,49 @@ class Downloader(QueueMixin, WriteFileMixin):
         return d.addActionFinish()
 
 
+@attr.s
+class LocalSnapshotCreator(object):
+    """
+    Class that actually creates a local snapshot and stores it.
+    """
+    db = attr.ib()  # our database
+    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+
+    @eliotutil.inline_callbacks
+    def process_item(self, path):
+        """
+        Convert `path` into a LocalSnapshot and persist it to disk.
+
+        :param FilePath path: a single file inside our magic-folder dir
+        """
+
+        with path.open('rb') as input_stream:
+            # Query the db to check if there is an existing local
+            # snapshot for the file being added.
+            # If so, we use that as the parent.
+            mangled_name = magicpath.mangle_path(path)
+            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            if parent_snapshot is None:
+                parents = []
+            else:
+                parents = [parent_snapshot]
+            relpath_u = path.asTextMode(encoding="utf-8").path
+            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
+            snapshot = yield create_snapshot(
+                name=mangled_name,
+                author=self.author,
+                data_producer=input_stream,
+                snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
+                # XXX: check db whether an existing remote snapshot exists
+                # for the given magicpath
+                parents=parents,
+            )
+
+        # store the local snapshot to the disk
+        self.db.store_local_snapshot(snapshot)
+
+
 # XXX
 # meejah: I think we discussed two queues / services: a "changed
 # file-paths" one, which produces LocalSnapshots and serializes them
@@ -2211,9 +2256,7 @@ class LocalSnapshotService(service.Service):
     """
 
     magic_path = attr.ib()  # FilePath of our magic-folder base
-    db = attr.ib()  # our database
-    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
-    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    snapshot_creator = attr.ib()
     queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -2232,7 +2275,7 @@ class LocalSnapshotService(service.Service):
             try:
                 item = yield self.queue.get()
                 PROCESS_FILE_QUEUE.log(relpath=item.asTextMode('utf-8').path)
-                yield self._process_item(item)
+                yield self.snapshot_creator.process_item(item)
             except CancelledError:
                 break
             except Exception:
@@ -2283,37 +2326,3 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         self.queue.put(path)
-
-    @eliotutil.inline_callbacks
-    def _process_item(self, path):
-        """
-        Convert `path` into a LocalSnapshot and persist it to disk.
-
-        :param FilePath path: a single file inside our magic-folder dir
-        """
-
-        with path.open('rb') as input_stream:
-            # Query the db to check if there is an existing local
-            # snapshot for the file being added.
-            # If so, we use that as the parent.
-            mangled_name = magicpath.mangle_path(path)
-            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
-            if parent_snapshot is None:
-                parents = []
-            else:
-                parents = [parent_snapshot]
-            relpath_u = path.asTextMode(encoding="utf-8").path
-            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
-            snapshot = yield create_snapshot(
-                name=mangled_name,
-                author=self.author,
-                data_producer=input_stream,
-                snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
-                # XXX: check db whether an existing remote snapshot exists
-                # for the given magicpath
-                parents=parents,
-            )
-
-        # store the local snapshot to the disk
-        self.db.store_local_snapshot(snapshot)
-
