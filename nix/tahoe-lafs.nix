@@ -16,5 +16,21 @@ let
   tahoe-lafs = python2Packages.callPackage tahoe-lafs-drv {
     inherit nevow eliot;
   };
+  versioned-tahoe-lafs = tahoe-lafs.overrideAttrs (old: rec {
+    # Upstream is versioned as 1.14.0.dev which is the same as 1.14.0.dev0
+    # which is a "smaller" version than 1.14.0!  The reality is that we've
+    # pinned exactly 1.14.0 so just make that the version.
+    version = "1.14.0";
+    name = "tahoe-lafs-1.14.0";
+    postPatch = ''
+      ${old.postPatch}
+
+      # We got rid of our .git directory so the built-in version computing logic
+      # won't work.  The exact strings we emit here matter because of custom
+      # parsing Tahoe-LAFS applies.
+      echo 'verstr = "${version}"' > src/allmydata/_version.py
+      echo '__version__ = verstr' >> src/allmydata/_version.py
+    '';
+  });
 in
-  tahoe-lafs
+  versioned-tahoe-lafs

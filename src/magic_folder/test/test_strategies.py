@@ -7,6 +7,7 @@ Tests for Hypothesis strategies for the test suite.
 
 from hypothesis import (
     given,
+    assume,
 )
 
 from allmydata.uri import (
@@ -17,6 +18,10 @@ from testtools.matchers import (
     Equals,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
+
 from .common import (
     SyncTestCase,
 )
@@ -24,6 +29,7 @@ from .common import (
 from .strategies import (
     tahoe_lafs_chk_capabilities,
     tahoe_lafs_dir_capabilities,
+    path_segments,
 )
 
 class StrategyTests(SyncTestCase):
@@ -55,3 +61,20 @@ class StrategyTests(SyncTestCase):
             cap_text,
             Equals(serialized),
         )
+
+    @given(path_segments())
+    def test_legal_path_segments(self, name):
+        """
+        Path segments build by ``path_segments`` are legal for use in the
+        filesystem.
+        """
+        # Try to avoid accidentally scribbling all over the filesystem in the
+        # test runner's environment if path_segments() ends up building
+        # unfortunate values (/etc/passwd, /root/.bashrc, etc).
+        assume(u"../" not in name)
+        temp = FilePath(self.mktemp())
+        temp.makedirs()
+
+        # Now ask the platform if this path is alright or not.
+        with temp.child(name).asBytesMode("utf-8").open("w"):
+            pass

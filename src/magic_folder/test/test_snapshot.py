@@ -54,6 +54,7 @@ from .common import (
 )
 from .strategies import (
     magic_folder_filenames,
+    path_segments,
 )
 from magic_folder.snapshot import (
     create_local_author,
@@ -169,8 +170,6 @@ class TestLocalSnapshot(SyncTestCase):
 
     def setUp(self):
         self.alice = create_local_author("alice")
-        self.stash_dir = mktemp()
-        os.mkdir(self.stash_dir)
 
         # create a magicfolder db
         self.tempdb = FilePath(mktemp())
@@ -183,11 +182,23 @@ class TestLocalSnapshot(SyncTestCase):
 
         return super(TestLocalSnapshot, self).setUp()
 
+    def setup_example(self):
+        """
+        Hypothesis-invoked hook to create per-example state.
+        """
+        self.stash_dir = mktemp()
+        os.mkdir(self.stash_dir)
+
     def tearDown(self):
-        rmtree(self.stash_dir)
         self.db.close()
         rmtree(self.tempdb.asBytesMode().path)
         return super(TestLocalSnapshot, self).tearDown()
+
+    def teardown_example(self, token):
+        """
+        Hypothesis-invoked hook to clean up per-example state.
+        """
+        FilePath(self.stash_dir).remove()
 
     @given(
         content=binary(min_size=1),
@@ -344,19 +355,23 @@ class TestLocalSnapshot(SyncTestCase):
         content1=binary(min_size=1),
         content2=binary(min_size=1),
         filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
     )
-    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename):
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, stash_subdir):
         """
         create a new snapshot (this will have no parent snapshots).
         """
         data1 = io.BytesIO(content1)
 
         snapshots = []
+
+        stash_dir = FilePath(self.stash_dir).child(stash_subdir.encode("utf-8"))
+        os.mkdir(stash_dir)
         d = create_snapshot(
             name=filename,
             author=self.alice,
             data_producer=data1,
-            snapshot_stash_dir=self.stash_dir,
+            snapshot_stash_dir=stash_dir,
             parents=[],
         )
         d.addCallback(snapshots.append)
@@ -374,7 +389,7 @@ class TestLocalSnapshot(SyncTestCase):
             name=filename,
             author=self.alice,
             data_producer=data2,
-            snapshot_stash_dir=self.stash_dir,
+            snapshot_stash_dir=stash_dir,
             parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
