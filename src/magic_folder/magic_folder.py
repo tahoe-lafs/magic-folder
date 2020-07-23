@@ -935,9 +935,10 @@ ADD_FILE_FAILURE = MessageType(
     u"file path is not a descendent of the magic folder directory",
 )
 
-PROCESS_FILE_QUEUE = MessageType(
+PROCESS_FILE_QUEUE = ActionType(
     u"magic-folder:local-snapshot-creator:process-queue",
     [RELPATH],
+    [],
     u"A Magic-Folder is working through an item queue.",
 )
 
@@ -2274,9 +2275,9 @@ class LocalSnapshotService(service.Service):
         while True:
             try:
                 (item, d) = yield self.queue.get()
-                PROCESS_FILE_QUEUE.log(relpath=item.asTextMode('utf-8').path)
-                # pretty sure this is not the right way to do it.
-                d.addCallback(lambda _ : self.snapshot_creator.process_item(item))
+                with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
+                    yield self.snapshot_creator.process_item(item)
+                    d.callback(None)
             except CancelledError:
                 break
             except Exception:

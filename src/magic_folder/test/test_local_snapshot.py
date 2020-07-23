@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import attr
 import os
 
 from hypothesis import (
@@ -29,6 +30,10 @@ from testtools import (
     ExpectedException,
 )
 
+from eliot import (
+    Message,
+)
+
 from magic_folder.magic_folder import (
     LocalSnapshotService,
     LocalSnapshotCreator,
@@ -48,6 +53,19 @@ from .strategies import (
     path_segments,
 )
 
+@attr.s
+class MemorySnapshotCreator(object):
+    processed = attr.ib(default=attr.Factory(list))
+
+    def process_item(self, path):
+        Message.log(
+            message_type=u"memory-snapshot-creator:process_item",
+            path=path.asTextMode("utf-8").path,
+        )
+        self.processed.append(path)
+        return defer.succeed(None)
+
+
 class LocalSnapshotTests(SyncTestCase):
 
     def setUp(self):
@@ -62,15 +80,13 @@ class LocalSnapshotTests(SyncTestCase):
         os.mkdir(magic_path_dirname)
 
         self.magic_path = FilePath(magic_path_dirname)
-        self._snapshot_creator = LocalSnapshotCreator(
-            db=self.db,
-            author=self.author,
-            stash_dir=FilePath(self.stash_dir),
-        )
+        self._snapshot_creator = MemorySnapshotCreator()
+
         self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
             snapshot_creator=self._snapshot_creator,
         )
+
 
     def setup_example(self):
         """
@@ -88,24 +104,27 @@ class LocalSnapshotTests(SyncTestCase):
         self.snapshot_service.startService()
         d = self.snapshot_service.add_file(foo)
 
-        # self.assertThat(
-        #     d,
-        #     succeeded(Always()),
-        # )
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        foo_magicname = path2magic(foo.asTextMode().path)
+        self.assertThat(self._snapshot_creator.processed, Equals([foo]))
 
         # we should have processed one snapshot upload
-        def handler(result):
-            print("handler called")
-            self.assertThat(self.db.snapshots, HasLength(1))
+        # def handler(result):
+        #     print("handler called")
+        #     self.assertThat(self.db.snapshots, HasLength(1))
 
-            foo_magicname = path2magic(foo.asTextMode().path)
-            stored_snapshot = self.db.get_local_snapshot(foo_magicname, self.author)
-            stored_content = stored_snapshot._get_synchronous_content()
+        #     foo_magicname = path2magic(foo.asTextMode().path)
+        #     stored_snapshot = self.db.get_local_snapshot(foo_magicname, self.author)
+        #     stored_content = stored_snapshot._get_synchronous_content()
 
-            self.assertThat(stored_content, Equals(content))
-            self.assertThat(stored_snapshot.parents_local, HasLength(0))
+        #     self.assertThat(stored_content, Equals(content))
+        #     self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
-        d.addCallback(handler)
+        # d.addCallback(handler)
 
         
     # @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
