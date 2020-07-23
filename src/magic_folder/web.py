@@ -150,7 +150,8 @@ class MagicFolderAPIv1(Resource, object):
         except ValueError:
             request.setResponseCode(http.BAD_REQUEST)
             return b""
-        else:
+
+        try:
             self._magic_folder_state.add_magic_folder(
                 config[u"name"],
                 # XXX "config" needs to be cleaned up a lot.  How do you get
@@ -158,9 +159,13 @@ class MagicFolderAPIv1(Resource, object):
                 config[u"local-path"],
                 None,
             )
-            request.setResponseCode(http.CREATED)
-            set_content_type(request, u"application/json")
-            return json.dumps(config)
+        except ValueError:
+            request.setResponseCode(http.CONFLICT)
+            return b""
+
+        request.setResponseCode(http.CREATED)
+        set_content_type(request, u"application/json")
+        return json.dumps(config)
 
 
 def set_content_type(request, content_type):

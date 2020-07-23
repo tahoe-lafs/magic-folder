@@ -59,6 +59,7 @@ from twisted.python.filepath import (
 from twisted.web.http import (
     OK,
     CREATED,
+    CONFLICT,
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
@@ -937,6 +938,38 @@ class CreateMagicFolderTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
+                ),
+            ),
+        )
+
+    @given(
+        tokens(),
+        magic_folder_names(),
+        absolute_paths(),
+    )
+    def test_reject_duplicate_magic_folder(self, auth_token, folder_name, folder_location):
+        """
+        A **POST** to **/v1/magic-folder** with a request body containing a magic
+        folder name which already exists receives a CONFLICT response.
+        """
+        state = MagicFolderServiceState()
+        state.add_magic_folder(folder_name, None, None)
+        treq = treq_for_state(auth_token, state)
+        request_body = dumps({
+            u"name": folder_name,
+            u"local-path": folder_location,
+        })
+        self.assertThat(
+            authorized_request(
+                treq,
+                auth_token,
+                b"POST",
+                MAGIC_FOLDER_URL,
+                request_body,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CONFLICT),
                 ),
             ),
         )
