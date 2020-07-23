@@ -433,12 +433,8 @@ class TestRemoteSnapshot(AsyncTestCase):
             self.http_client,
         )
         self.alice = create_local_author("alice")
-        self.stash_dir = mktemp()
-        os.mkdir(self.stash_dir)
-
-    def tearDown(self):
-        rmtree(self.stash_dir)
-        return super(TestRemoteSnapshot, self).tearDown()
+        self.stash_dir = FilePath(mktemp())
+        self.stash_dir.makedirs()  # 'trial' will delete this when done
 
     def _download_content(self, snapshot_cap):
         d = self.tahoe_client.download_capability(snapshot_cap)
