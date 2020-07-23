@@ -2273,9 +2273,10 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                item = yield self.queue.get()
+                (item, d) = yield self.queue.get()
                 PROCESS_FILE_QUEUE.log(relpath=item.asTextMode('utf-8').path)
-                yield self.snapshot_creator.process_item(item)
+                # pretty sure this is not the right way to do it.
+                d.addCallback(lambda _ : self.snapshot_creator.process_item(item))
             except CancelledError:
                 break
             except Exception:
@@ -2325,4 +2326,6 @@ class LocalSnapshotService(service.Service):
             raise ValueError("expected a file, {!r} is a directory".format(path))
 
         # add file into the queue
-        self.queue.put(path)
+        d = defer.Deferred()
+        self.queue.put((path, d))
+        return d
