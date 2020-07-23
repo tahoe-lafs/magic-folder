@@ -13,6 +13,10 @@ from unicodedata import (
     normalize,
 )
 
+from json import (
+    loads,
+)
+
 from base64 import (
     urlsafe_b64encode,
 )
@@ -255,6 +259,14 @@ def queued_items():
         integers(min_value=0),
         integers(min_value=0, max_value=2 ** 31 - 1),
     )
+
+
+def magic_folder_names():
+    """
+    Build unicode strings representing legal Magic Folder names.
+    """
+    return text(min_size=1)
+
 
 def magic_folder_filenames():
     return text(min_size=1)

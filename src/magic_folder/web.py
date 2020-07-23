@@ -129,7 +129,7 @@ class MagicFolderAPIv1(Resource, object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+        set_content_type(request, u"application/json")
         return json.dumps({
             u"folders": list(
                 {u"name": name, u"local-path": config[u"directory"]}
@@ -142,9 +142,36 @@ class MagicFolderAPIv1(Resource, object):
         """
         Create a new Magic Folder from JSON-encoded details in the request body.
         """
-        request.setResponseCode(http.BAD_REQUEST)
-        return b""
+        body = request.content.read()
+        try:
+            config = json.loads(body)
+            if set(config.keys()) != {u"name", u"local-path"}:
+                raise ValueError()
+        except ValueError:
+            request.setResponseCode(http.BAD_REQUEST)
+            return b""
+        else:
+            self._magic_folder_state.add_magic_folder(
+                config[u"name"],
+                # XXX "config" needs to be cleaned up a lot.  How do you get
+                # one except by calling load_magic_folders :/
+                config[u"local-path"],
+                None,
+            )
+            request.setResponseCode(http.CREATED)
+            set_content_type(request, u"application/json")
+            return json.dumps(config)
 
+
+def set_content_type(request, content_type):
+    """
+    Set the **Content-Type** response header to the given value.
+
+    :param IRequest request: The request for which to modify the response.
+
+    :param bytes|unicode content_type: The value for the header.
+    """
+    request.responseHeaders.setRawHeaders(u"content-type", [content_type])
 
 
 class Unauthorized(Resource):

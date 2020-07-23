@@ -43,6 +43,7 @@ from testtools.matchers import (
     IsInstance,
     Equals,
     raises,
+    Always,
 )
 from testtools.twistedsupport import (
     failed,
@@ -57,6 +58,7 @@ from twisted.python.filepath import (
 )
 from twisted.web.http import (
     OK,
+    CREATED,
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
@@ -97,6 +99,7 @@ from .strategies import (
     folder_names,
     absolute_paths,
     absolute_paths_utf8,
+    magic_folder_names,
     tahoe_lafs_dir_capabilities as dircaps,
     tahoe_lafs_chk_capabilities as chkcaps,
     tokens,
@@ -772,6 +775,7 @@ def authorized_request(treq, auth_token, method, url, body=b""):
         method,
         url_to_bytes(url),
         headers=headers,
+        data=body,
     )
 
 
@@ -807,6 +811,22 @@ def treq_for_folders(auth_token, folders):
     for name, config in folders.items():
         state.add_magic_folder(name, config, object())
 
+    return treq_for_state(auth_token, state)
+
+
+def treq_for_state(auth_token, state):
+    """
+    Construct a ``treq``-module-alike which is hooked up to a Magic Folder
+    service using the given state.
+
+    :param unicode auth_token: The authorization token accepted by the
+        service.
+
+    :param MagicFolderServiceState state: The underlying state to share with
+        the Magic Folder service.
+
+    :return: An object like the ``treq`` module.
+    """
     root = magic_folder_resource(state, lambda: auth_token)
     return StubTreq(root)
 
@@ -919,4 +939,49 @@ class CreateMagicFolderTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                 ),
             ),
+        )
+
+    @given(
+        tokens(),
+        magic_folder_names(),
+        absolute_paths(),
+    )
+    def test_create_magic_folder(self, auth_token, folder_name, folder_location):
+        """
+        A **POST** to **/v1/magic-folder** with a request body containing a
+        JSON-encoded object with **name** and **local-path** properties causes
+        a new magic folder to be created with those properties.
+        """
+        state = MagicFolderServiceState()
+        treq = treq_for_state(auth_token, state)
+        request_body = dumps({
+            u"name": folder_name,
+            u"local-path": folder_location,
+        })
+        self.assertThat(
+            authorized_request(
+                treq,
+                auth_token,
+                b"POST",
+                MAGIC_FOLDER_URL,
+                request_body,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                    headers_matcher=match_header(u"content-type", u"application/json"),
+                    body_matcher=AfterPreprocessing(
+                        loads_with_informative_error,
+                        Equals({
+                            u"name": folder_name,
+                            u"local-path": folder_location,
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+        self.assertThat(
+            state.get_magic_folder(folder_name),
+            Always(),
         )
