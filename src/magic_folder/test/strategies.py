@@ -258,3 +258,16 @@ def queued_items():
 
 def magic_folder_filenames():
     return text(min_size=1)
+
+
+def not_json_binary():
+    """
+    Build byte strings which cannot be parsed as JSON.
+    """
+    def is_not_json(t):
+        try:
+            loads(t)
+        except:
+            return True
+        return False
+    return binary().filter(is_not_json)

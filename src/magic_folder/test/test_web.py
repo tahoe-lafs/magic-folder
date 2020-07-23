@@ -32,6 +32,7 @@ from hypothesis.strategies import (
     binary,
     dictionaries,
     sampled_from,
+    one_of,
 )
 
 from testtools import (
@@ -61,6 +62,7 @@ from twisted.web.http import (
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
+    BAD_REQUEST,
 )
 from twisted.web.resource import (
     Resource,
@@ -98,6 +100,7 @@ from .strategies import (
     tokens,
     filenodes,
     queued_items,
+    not_json_binary,
 )
 
 from .fixtures import (
@@ -740,7 +743,9 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def authorized_request(treq, auth_token, method, url):
+MAGIC_FOLDER_URL = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+def authorized_request(treq, auth_token, method, url, body=b""):
     """
     Perform a request of the given url with the given client, request method,
     and authorization.
@@ -752,7 +757,9 @@ def authorized_request(treq, auth_token, method, url):
 
     :param bytes method: The HTTP request method to use.
 
-    :param bytes url: The request URL.
+    :param DecodedURL url: The request URL.
+
+    :param bytes body: The request body to include.
 
     :return: Whatever ``treq.request`` returns.
     """
@@ -761,7 +768,7 @@ def authorized_request(treq, auth_token, method, url):
     }
     return treq.request(
         method,
-        url,
+        url_to_bytes(url),
         headers=headers,
     )
 
@@ -811,12 +818,9 @@ class ListMagicFolderTests(SyncTestCase):
     Tests for listing Magic Folders using **GET /v1/magic-folder** and
     ``V1MagicFolderAPI``.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
-    encoded_url = url_to_bytes(url)
-
     @given(
         tokens(),
-        sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
+        sampled_from([b"PUT", b"PATCH", b"DELETE", b"OPTIONS"]),
     )
     def test_method_not_allowed(self, auth_token, method):
         """
@@ -825,7 +829,7 @@ class ListMagicFolderTests(SyncTestCase):
         """
         treq = treq_for_folder_names(auth_token, [])
         self.assertThat(
-            authorized_request(treq, auth_token, method, self.encoded_url),
+            authorized_request(treq, auth_token, method, MAGIC_FOLDER_URL),
             succeeded(
                 matches_response(
                     code_matcher=MatchesAny(
@@ -861,7 +865,7 @@ class ListMagicFolderTests(SyncTestCase):
         )
 
         self.assertThat(
-            authorized_request(treq, auth_token, b"GET", self.encoded_url),
+            authorized_request(treq, auth_token, b"GET", MAGIC_FOLDER_URL),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
@@ -881,6 +885,41 @@ class ListMagicFolderTests(SyncTestCase):
                             ),
                         }),
                     )
+                ),
+            ),
+        )
+
+
+class CreateMagicFolderTests(SyncTestCase):
+    """
+    Tests for creating magic folders using **POST /v1/magic-folder** and
+    ``V1MagicFolderAPI``.
+    """
+    @given(
+        tokens(),
+        one_of(
+            dictionaries(text(), text()).map(dumps),
+            not_json_binary(),
+        )
+    )
+    def test_incorrect_magic_folder_definition(self, auth_token, request_body):
+        """
+        A **POST** to **/v1/magic-folder** that does not include a JSON-encoded
+        request body sufficiently describing the new magic folder to create
+        receives a **BAD REQUEST** response.
+        """
+        treq = treq_for_folder_names(auth_token, [])
+        self.assertThat(
+            authorized_request(
+                treq,
+                auth_token,
+                b"POST",
+                MAGIC_FOLDER_URL,
+                request_body,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
                 ),
             ),
         )

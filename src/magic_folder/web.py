@@ -138,6 +138,14 @@ class MagicFolderAPIv1(Resource, object):
             ),
         })
 
+    def render_POST(self, request):
+        """
+        Create a new Magic Folder from JSON-encoded details in the request body.
+        """
+        request.setResponseCode(http.BAD_REQUEST)
+        return b""
+
+
 
 class Unauthorized(Resource):
     """
