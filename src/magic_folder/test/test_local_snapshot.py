@@ -66,10 +66,10 @@ class MemorySnapshotCreator(object):
         return defer.succeed(None)
 
 
-class LocalSnapshotTests(SyncTestCase):
+class LocalSnapshotServiceTests(SyncTestCase):
 
     def setUp(self):
-        super(LocalSnapshotTests, self).setUp()
+        super(LocalSnapshotServiceTests, self).setUp()
         self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
 
@@ -93,7 +93,7 @@ class LocalSnapshotTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self.db._clear_snapshot_table()
+        self._snapshot_creator.processed = []
 
     def test_add_single_file(self):
         foo = self.magic_path.child("foo")
@@ -112,93 +112,83 @@ class LocalSnapshotTests(SyncTestCase):
         foo_magicname = path2magic(foo.asTextMode().path)
         self.assertThat(self._snapshot_creator.processed, Equals([foo]))
 
-        # we should have processed one snapshot upload
-        # def handler(result):
-        #     print("handler called")
-        #     self.assertThat(self.db.snapshots, HasLength(1))
 
-        #     foo_magicname = path2magic(foo.asTextMode().path)
-        #     stored_snapshot = self.db.get_local_snapshot(foo_magicname, self.author)
-        #     stored_content = stored_snapshot._get_synchronous_content()
+    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+           lists(binary(), unique=True))
+    def test_add_multiple_files(self, filenames, contents):
+        files = []
+        for (filename, content) in zip(filenames, contents):
+            file = self.magic_path.child(filename)
+            with file.open("wb") as f:
+                f.write(content)
+            files.append(file)
 
-        #     self.assertThat(stored_content, Equals(content))
-        #     self.assertThat(stored_snapshot.parents_local, HasLength(0))
+        self.snapshot_service.startService()
 
-        # d.addCallback(handler)
+        list_d = []
+        for file in files:
+            result_d = self.snapshot_service.add_file(file)
+            list_d.append(result_d)
 
-        
-    # @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
-    #        lists(binary(), unique=True))
-    # def test_add_multiple_files(self, filenames, contents):
-    #     files = []
-    #     for (filename, content) in zip(filenames, contents):
-    #         file = self.magic_path.child(filename)
-    #         with file.open("wb") as f:
-    #             f.write(content)
-    #         files.append(file)
+        d = defer.gatherResults(list_d)
 
-    #     self.snapshot_service.startService()
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
 
-    #     dList = []
-    #     for file in files:
-    #         result_d = yield self.snapshot_service.add_file(file)
-    #         dList.append(result_d)
+        self.assertThat(
+            self.snapshot_service.stopService(),
+            succeeded(Always())
+        )
 
-    #     # make a DeferredList out of dList and check if they are all done.
-    #     d = defer.DeferredList(dList)
+        self.assertThat(
+            len(self._snapshot_creator.processed),
+            Equals(len(files))
+        )
 
-    #     def result_handler(dlist):
-    #         self.assertThat(
-    #             self.snapshot_service.stopService(),
-    #             succeeded(Always())
-    #         )
+        for (infile, snapshot_file) in zip(files, self._snapshot_creator.processed):
+            self.assertThat(
+                infile,
+                Equals(snapshot_file)
+            )
 
-    #         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
-    #         for (file, content) in zip(files, contents):
-    #             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
-    #             stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
-    #             stored_content = stored_snapshot._get_synchronous_content()
-    #             self.assertThat(stored_content, Equals(content))
-    #             self.assertThat(stored_snapshot.parents_local, HasLength(0))
+    @given(content=binary())
+    def test_add_file_failures(self, content):
+        foo = self.magic_path.child("foo")
+        with foo.open("wb") as f:
+            f.write(content)
 
-    #     d.addCallback(result_handler)
+        self.snapshot_service.startService()
 
-    # @given(content=binary())
-    # def test_add_file_failures(self, content):
-    #     foo = self.magic_path.child("foo")
-    #     with foo.open("wb") as f:
-    #         f.write(content)
+        # try adding a string that represents the path
+        with ExpectedException(TypeError,
+                               "argument must be a FilePath"):
+            self.snapshot_service.add_file(foo.path)
 
-    #     self.snapshot_service.startService()
+        # try adding a directory
+        tmpdir = FilePath(self.mktemp())
+        bar_dir = self.magic_path.child(tmpdir.basename())
+        bar_dir.makedirs()
 
-    #     # try adding a string that represents the path
-    #     with ExpectedException(TypeError,
-    #                            "argument must be a FilePath"):
-    #         self.snapshot_service.add_file(foo.path)
-
-    #     # try adding a directory
-    #     tmpdir = FilePath(self.mktemp())
-    #     bar_dir = self.magic_path.child(tmpdir.basename())
-    #     bar_dir.makedirs()
-
-    #     with ExpectedException(ValueError,
-    #                            "expected a file"):
-    #         self.snapshot_service.add_file(bar_dir)
+        with ExpectedException(ValueError,
+                               "expected a file"):
+            self.snapshot_service.add_file(bar_dir)
 
 
-    #     # try adding a file outside the magic folder directory
-    #     tmpfile = FilePath(self.mktemp())
-    #     with tmpfile.open("wb") as f:
-    #         f.write(content)
+        # try adding a file outside the magic folder directory
+        tmpfile = FilePath(self.mktemp())
+        with tmpfile.open("wb") as f:
+            f.write(content)
 
-    #     with ExpectedException(ValueError,
-    #                            "The path being added .*"):
-    #         self.snapshot_service.add_file(tmpfile)
+        with ExpectedException(ValueError,
+                               "The path being added .*"):
+            self.snapshot_service.add_file(tmpfile)
 
-    #     self.assertThat(
-    #         self.snapshot_service.stopService(),
-    #         succeeded(Always())
-    #     )
+        self.assertThat(
+            self.snapshot_service.stopService(),
+            succeeded(Always())
+        )
 
     # @given(content1=binary(min_size=1),
     #        content2=binary(min_size=1),
