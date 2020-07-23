@@ -50,10 +50,12 @@ class TestGlobalConfig(SyncTestCase):
         path_segments_without_dotfiles(),
     )
     def test_create(self, dirname):
-        confdir = self.temp.child(dirname.encode("utf8"))
-        assume(not confdir.exists())
-        create_global_configuration(confdir, u"tcp:1234", self.node_dir)
-        # the implicit assertion here is "it didn't fail"
+        confdir = self.temp.child(dirname)
+        try:
+            create_global_configuration(confdir, u"tcp:1234", self.node_dir)
+            # the implicit assertion here is "it didn't fail"
+        finally:
+            confdir.remove()
 
     def test_create_existing_dir(self):
         self.temp.makedirs()
