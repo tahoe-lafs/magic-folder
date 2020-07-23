@@ -39,7 +39,6 @@ from testtools import (
 )
 from testtools.matchers import (
     AfterPreprocessing,
-    ContainsDict,
     MatchesAny,
     IsInstance,
     Equals,
@@ -90,6 +89,7 @@ from .common_util import (
 )
 from .matchers import (
     matches_response,
+    match_header,
 )
 
 from .strategies import (
@@ -871,12 +871,7 @@ class ListMagicFolderTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
-                    headers_matcher=AfterPreprocessing(
-                        lambda headers: dict(headers.getAllRawHeaders()),
-                        ContainsDict({
-                            u"Content-Type": Equals([u"application/json"]),
-                        }),
-                    ),
+                    headers_matcher=match_header(u"content-type", u"application/json"),
                     body_matcher=AfterPreprocessing(
                         loads_with_informative_error,
                         Equals({

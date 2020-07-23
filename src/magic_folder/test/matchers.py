@@ -11,6 +11,7 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     MatchesAll,
+    ContainsDict,
     Always,
     Equals,
 )
@@ -150,4 +151,26 @@ def matches_response(code_matcher=Always(), headers_matcher=Always(), body_match
             lambda response: content(response),
             succeeded(body_matcher),
         ),
+    )
+
+
+def match_header(name, value):
+    """
+    Match a ``HTTPHeaders`` instance which contains the given name/value pair.
+
+    :param bytes|unicode name: The name in the header to match.
+
+    :param bytes|unicode value: The corresponding value to match.
+
+    :return: A matcher.
+    """
+    return AfterPreprocessing(
+        lambda headers: dict(
+            (k.lower(), v)
+            for (k, v)
+            in headers.getAllRawHeaders()
+        ),
+        ContainsDict({
+            name.lower(): Equals([value]),
+        }),
     )
