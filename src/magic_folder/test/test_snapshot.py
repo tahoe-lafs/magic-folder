@@ -186,19 +186,14 @@ class TestLocalSnapshot(SyncTestCase):
         """
         Hypothesis-invoked hook to create per-example state.
         """
-        self.stash_dir = mktemp()
-        os.mkdir(self.stash_dir)
-
-    def tearDown(self):
-        self.db.close()
-        rmtree(self.tempdb.asBytesMode().path)
-        return super(TestLocalSnapshot, self).tearDown()
+        self.stash_dir = FilePath(mktemp())
+        self.stash_dir.makedirs()
 
     def teardown_example(self, token):
         """
         Hypothesis-invoked hook to clean up per-example state.
         """
-        FilePath(self.stash_dir).remove()
+        self.stash_dir.remove()
 
     @given(
         content=binary(min_size=1),
