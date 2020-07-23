@@ -366,7 +366,7 @@ class TestLocalSnapshot(SyncTestCase):
         snapshots = []
 
         stash_dir = FilePath(self.stash_dir).child(stash_subdir.encode("utf-8"))
-        os.mkdir(stash_dir)
+        stash_dir.makedirs()
         d = create_snapshot(
             name=filename,
             author=self.alice,
