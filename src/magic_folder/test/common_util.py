@@ -3,6 +3,7 @@ from __future__ import print_function
 import os, signal, sys, time
 from random import randrange
 from six.moves import StringIO
+from json import loads
 
 from twisted.internet import reactor, defer
 from twisted.python import failure
@@ -18,6 +19,18 @@ from ..cli import (
     MagicFolderCommand,
     do_magic_folder,
 )
+
+def loads_with_informative_error(bs):
+    """
+    Load JSON objects from a string but raise a better exception than
+    ``json.loads`` when this fails.
+
+    :param bytes bs: The JSON string to parse.
+    """
+    try:
+        return loads(bs)
+    except ValueError:
+        raise ValueError("Could not JSON decode {!r}".format(bs))
 
 def skip_if_cannot_represent_filename(u):
     precondition(isinstance(u, unicode))

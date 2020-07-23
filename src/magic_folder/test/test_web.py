@@ -12,7 +12,6 @@ from __future__ import (
 
 from json import (
     dumps,
-    loads,
 )
 
 import attr
@@ -85,6 +84,9 @@ from allmydata.uri import (
 from .common import (
     SyncTestCase,
     AsyncTestCase,
+)
+from .common_util import (
+    loads_with_informative_error,
 )
 from .matchers import (
     matches_response,
@@ -876,7 +878,7 @@ class ListMagicFolderTests(SyncTestCase):
                         }),
                     ),
                     body_matcher=AfterPreprocessing(
-                        loads,
+                        loads_with_informative_error,
                         Equals({
                             u"folders": list(
                                 {u"name": name, u"local-path": path}
