@@ -128,11 +128,15 @@ class MatchesSameElements(object):
         return Equals(left).match(right)
 
 
-def matches_response(code_matcher=Always(), body_matcher=Always()):
+def matches_response(code_matcher=Always(), headers_matcher=Always(), body_matcher=Always()):
     """
     Match a Treq response object with certain code and body.
 
     :param Matcher code_matcher: A matcher to apply to the response code.
+
+    :param Matcher headers_matcher: A matcher to apply to the response headers
+        (a ``twisted.web.http_headers.Headers`` instance).
+
     :param Matcher body_matcher: A matcher to apply to the response body.
 
     :return: A matcher.
@@ -140,6 +144,7 @@ def matches_response(code_matcher=Always(), body_matcher=Always()):
     return MatchesAll(
         MatchesStructure(
             code=code_matcher,
+            headers=headers_matcher,
         ),
         AfterPreprocessing(
             lambda response: content(response),

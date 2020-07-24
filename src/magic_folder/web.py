@@ -21,11 +21,11 @@ from allmydata.util.hashutil import (
 )
 
 
-def magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=None):
+def magic_folder_resource(magic_folder_state, get_auth_token, _v1_resource=None):
     """
     Create the root resource for the Magic Folder HTTP API.
 
-    :param get_magic_folder: See ``magic_folder_web_service``.
+    :param magic_folder_state: See ``magic_folder_web_service``.
     :param get_auth_token: See ``magic_folder_web_service``.
 
     :param IResource _v1_resource: A resource which will take the place of the
@@ -35,12 +35,12 @@ def magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=None):
     :return IResource: The resource that is the root of the HTTP API.
     """
     if _v1_resource is None:
-        _v1_resource = V1MagicFolderAPI(get_magic_folder)
+        _v1_resource = APIv1(magic_folder_state)
 
     root = Resource()
     root.putChild(
         b"api",
-        MagicFolderWebApi(get_magic_folder, get_auth_token),
+        MagicFolderWebApi(magic_folder_state.get_magic_folder, get_auth_token),
     )
     root.putChild(
         b"v1",
@@ -98,17 +98,45 @@ class BearerTokenAuthorization(Resource, object):
 
 
 @attr.s
-class V1MagicFolderAPI(Resource, object):
+class APIv1(Resource, object):
     """
-    The root of the ``/v1`` HTTP API hierarchy.
+    Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar (unicode -> MagicFolder) _get_magic_folder: A function that looks up
-        a magic folder by its nickname.
+    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
+        to serve.
     """
-    _get_magic_folder = attr.ib()
+    _magic_folder_state = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
+        self.putChild(b"magic-folder", MagicFolderAPIv1(self._magic_folder_state))
+
+
+@attr.s
+class MagicFolderAPIv1(Resource, object):
+    """
+    Implement the ``/v1/magic-folder`` HTTP API hierarchy.
+
+    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
+        to serve.
+    """
+    _magic_folder_state = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        Render a list of Magic Folders and some of their details, encoded as JSON.
+        """
+        request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+        return json.dumps({
+            u"folders": list(
+                {u"name": name, u"local-path": config[u"directory"]}
+                for (name, config)
+                in sorted(self._magic_folder_state.iter_magic_folder_configs())
+            ),
+        })
 
 
 class Unauthorized(Resource):
@@ -130,17 +158,18 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
+def magic_folder_web_service(web_endpoint, magic_folder_state, get_auth_token):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
-    :param get_magic_folder: a callable that returns a MagicFolder given a name
+    :param MagicFolderServiceState magic_folder_state: A reference to the
+        shared magic folder state defining the service.
 
     :param get_auth_token: a callable that returns the current authentication token
 
     :returns: a StreamServerEndpointService instance
     """
-    root = magic_folder_resource(get_magic_folder, get_auth_token)
+    root = magic_folder_resource(magic_folder_state, get_auth_token)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),
@@ -232,7 +261,7 @@ class MagicFolderWebApi(Resource):
             return NOT_DONE_YET
 
         request.setHeader("content-type", "application/json")
-        nick = request.args.get("name", ["default"])[0]
+        nick = request.args.get("name", ["default"])[0].decode("utf-8")
 
         try:
             magic_folder = self.get_magic_folder(nick)

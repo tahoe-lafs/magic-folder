@@ -5,6 +5,7 @@
 Common functions and types used by other modules.
 """
 import os
+from contextlib import contextmanager
 
 from eliot.twisted import (
     inline_callbacks,
@@ -128,3 +129,21 @@ def tahoe_mkdir(nodeurl, treq):
     result = yield readBody(response)
     # emit its write-cap
     returnValue(result)
+
+
+@contextmanager
+def atomic_makedirs(path):
+    """
+    Call `path.makedirs()` but if an errors occurs before this
+    context-manager exits we will delete the directory.
+
+    :param FilePath path: the directory/ies to create
+    """
+    path.makedirs()
+    try:
+        yield path
+    except Exception:
+        # on error, clean up our directory
+        path.remove()
+        # ...and pass on the error
+        raise
