@@ -58,6 +58,10 @@ from .strategies import (
     filenodes,
 )
 
+from .matchers import (
+    contained_by,
+)
+
 ANY_ROOT = DecodedURL.from_text(u"http://example.invalid./")
 
 class TahoeClientTests(SyncTestCase):
@@ -153,12 +157,3 @@ class TahoeClientTests(SyncTestCase):
                 contained_by(self.root._uri.data),
             ),
         )
-
-
-
-
-def contained_by(container):
-    return MatchesPredicate(
-        lambda element: element in container,
-        "%r not found",
-    )

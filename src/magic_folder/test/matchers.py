@@ -11,6 +11,7 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     MatchesAll,
+    MatchesPredicate,
     Always,
     Equals,
 )
@@ -150,4 +151,18 @@ def matches_response(code_matcher=Always(), headers_matcher=Always(), body_match
             lambda response: content(response),
             succeeded(body_matcher),
         ),
+    )
+
+def contained_by(container):
+    """
+    Match an element in the given container.
+
+    :param container: Anything that supports being the right-hand operand to
+        ``in``.
+
+    :return: A matcher.
+    """
+    return MatchesPredicate(
+        lambda element: element in container,
+        "%r not found",
     )
