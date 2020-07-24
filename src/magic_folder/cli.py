@@ -257,8 +257,8 @@ class MigrateOptions(usage.Options):
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
         ("author-name", "a", None, "The name for the author to use in each migrated magic-folder"),
     ]
-    description = (
-        "Create a new magic-folder daemon configuration in the --config "
+    synopsis = (
+        "\n\nCreate a new magic-folder daemon configuration in the --config "
         "path, using values from the --node-directory Tahoe-LAFS node."
     )
 
