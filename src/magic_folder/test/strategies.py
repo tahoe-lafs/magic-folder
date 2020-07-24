@@ -195,15 +195,8 @@ def filenodes():
     Build JSON-compatible descriptions of Tahoe-LAFS filenode metadata.
     """
     return fixed_dictionaries({
-        "ro_uri": tahoe_lafs_chk_capabilities().map(
-            lambda cap_text: cap_from_string(
-                cap_text.encode("ascii"),
-            ).get_readonly(
-            ).to_string(
-            ).decode(
-                "ascii",
-            ),
-        ),
+        # CHK capabilities are only read-only.
+        "ro_uri": tahoe_lafs_chk_capabilities(),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({

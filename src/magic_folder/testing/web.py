@@ -249,7 +249,7 @@ class _FakeTahoeUriHandler(Resource, object):
         # data for it, that's an error.
         if capability not in self.data:
             request.setResponseCode(http.BAD_REQUEST)
-            return u"No data for '{}'".format(capability).decode("ascii")
+            return u"No data for '{}'".format(capability).encode("ascii")
 
         return self.data[capability]
 

@@ -8,6 +8,11 @@ from twisted.internet.defer import (
     returnValue,
 )
 
+from twisted.web.http import (
+    OK,
+    CREATED,
+)
+
 from hyperlink import (
     DecodedURL,
 )
@@ -37,6 +42,41 @@ def _request(http_client, method, url, **kwargs):
         url.to_uri().to_text().encode("ascii"),
         **kwargs
     )
+
+
+@attr.s(frozen=True)
+class TahoeAPIError(Exception):
+    """
+    A Tahoe-LAFS HTTP API returned a failure code.
+    """
+    code = attr.ib()
+    body = attr.ib()
+
+    def __repr__(self):
+        return "<TahoeAPIError code={} body={!r}>".format(
+            self.code,
+            self.body,
+        )
+
+    def __str__(self):
+        return repr(self)
+
+
+@inlineCallbacks
+def _get_content_check_code(acceptable_codes, res):
+    """
+    Check that the given response's code is acceptable and read the response
+    body.
+
+    :raise TahoeAPIError: If the response code is not acceptable.
+
+    :return Deferred[bytes]: If the response code is acceptable, a Deferred
+        which fires with the response body.
+    """
+    body = yield res.content()
+    if res.code not in acceptable_codes:
+        raise TahoeAPIError(res.code, body)
+    returnValue(body)
 
 
 @attr.s
@@ -138,8 +178,12 @@ class TahoeClient(object):
             path=(u"uri",),
             query=[(u"uri", cap.decode("ascii"))],
         )
-        res = yield self.http_client.get(get_uri.to_text())
-        data = yield res.content()
+        res = yield _request(
+            self.http_client,
+            b"GET",
+            get_uri,
+        )
+        data = yield _get_content_check_code({OK}, res)
         returnValue(data)
 
     @inlineCallbacks
@@ -160,6 +204,8 @@ class TahoeClient(object):
             query=[(u"uri", cap.decode("ascii"))],
         )
         res = yield self.http_client.get(get_uri.to_text())
+        if res.code != OK:
+            raise TahoeAPIError(res.code, None)
         yield res.collect(filelike.write)
 
 

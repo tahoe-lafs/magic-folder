@@ -9,6 +9,10 @@ from __future__ import (
     unicode_literals,
 )
 
+from functools import (
+    partial,
+)
+
 from json import (
     loads,
 )
@@ -34,11 +38,13 @@ from hypothesis.strategies import (
 from testtools.matchers import (
     MatchesPredicate,
     AfterPreprocessing,
+    IsInstance,
     Equals,
 )
 
 from testtools.twistedsupport import (
     succeeded,
+    failed,
 )
 
 from twisted.internet.defer import (
@@ -46,6 +52,7 @@ from twisted.internet.defer import (
 )
 
 from ..tahoe_client import (
+    TahoeAPIError,
     create_tahoe_client
 )
 
@@ -60,6 +67,7 @@ from .common import (
 
 from .strategies import (
     filenodes,
+    tahoe_lafs_chk_capabilities,
 )
 
 from .matchers import (
@@ -121,6 +129,30 @@ class TahoeClientTests(SyncTestCase):
             succeeded(Equals(data)),
         )
 
+    def _api_error_test(self, operation):
+        """
+        Assert that ``operation`` fails with ``TahoeAPIError``.
+        """
+        self.assertThat(
+            operation(),
+            failed(
+                AfterPreprocessing(
+                    lambda failure: failure.value,
+                    IsInstance(TahoeAPIError),
+                ),
+            ),
+        )
+
+    @given(tahoe_lafs_chk_capabilities())
+    def test_download_immutable_not_found(self, cap):
+        """
+        ``download_capability`` returns a ``Deferred`` that fails when a
+        non-existant capability is requested.
+        """
+        self._api_error_test(
+            partial(self.tahoe_client.download_capability, cap),
+        )
+
     @given(binary())
     def test_stream_immutable(self, data):
         """
@@ -135,6 +167,17 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(
             output.getvalue(),
             Equals(data),
+        )
+
+    @given(tahoe_lafs_chk_capabilities())
+    def test_stream_immutable_not_found(self, cap):
+        """
+        ``stream_capability`` returns a ``Deferred`` that fails when a
+        non-existant capability is requested.
+        """
+        output = BytesIO()
+        self._api_error_test(
+            partial(self.tahoe_client.stream_capability, cap, output),
         )
 
     @given(
