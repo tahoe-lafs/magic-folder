@@ -10,9 +10,10 @@
 """
 Test-helpers for clients that use the WebUI.
 
-NOTE: this is code copied from Tahoe-LAFS until there is a release
-after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
-this code can be deleted.
+NOTE: This code should be in upstream Tahoe-LAFS.  None of it exists in
+1.14.0.  Some of it has been pushed upstream and will make it into 1.15.0
+without further efforts but other parts have not.  Changes here should always
+be pushed upstream quickly.
 """
 
 from functools import (
