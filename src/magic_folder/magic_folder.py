@@ -2225,7 +2225,7 @@ class LocalSnapshotCreator(object):
                 name=mangled_name,
                 author=self.author,
                 data_producer=input_stream,
-                snapshot_stash_dir=self.stash_dir.path,  # maybe this should accept FilePath instead?
+                snapshot_stash_dir=self.stash_dir,
                 # XXX: check db whether an existing remote snapshot exists
                 # for the given magicpath
                 parents=parents,

@@ -122,19 +122,19 @@ class TestLocalSnapshot(SyncTestCase):
         """
         Hypothesis-invoked hook to create per-example state.
         """
-        self.stash_dir = mktemp()
-        os.mkdir(self.stash_dir)
+        self.stash_dir = FilePath(mktemp())
+        self.stash_dir.makedirs()
 
     def tearDown(self):
         self.db.close()
-        rmtree(self.tempdb.asBytesMode().path)
+        self.tempdb.remove()
         return super(TestLocalSnapshot, self).tearDown()
 
     def teardown_example(self, token):
         """
         Hypothesis-invoked hook to clean up per-example state.
         """
-        FilePath(self.stash_dir).remove()
+        self.stash_dir.remove()
 
     @given(
         content=binary(min_size=1),
@@ -300,9 +300,9 @@ class TestLocalSnapshot(SyncTestCase):
         data1 = io.BytesIO(content1)
 
         snapshots = []
+        stash_dir = self.stash_dir.child(stash_subdir.encode("utf-8"))
+        stash_dir.makedirs()
 
-        stash_dir = join(self.stash_dir, stash_subdir.encode("utf-8"))
-        os.mkdir(stash_dir)
         d = create_snapshot(
             name=filename,
             author=self.alice,

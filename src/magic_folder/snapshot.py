@@ -226,7 +226,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
         data for the content of this Snapshot (it will be read
         immediately).
 
-    :param snapshot_stash_dir: the directory where Snapshot contents
+    :param FilePath snapshot_stash_dir: the directory where Snapshot contents
         are to be stashed.
 
     :param parents: a list of LocalSnapshot instances (may be empty,
@@ -262,7 +262,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     # 1. create a temp-file in our stash area
     temp_file_fd, temp_file_name = mkstemp(
         prefix="snap",
-        dir=snapshot_stash_dir,
+        dir=snapshot_stash_dir.path,
     )
     try:
         # 2. stream data_producer into our temp-file
