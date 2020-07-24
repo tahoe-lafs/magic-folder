@@ -32,6 +32,7 @@ from hypothesis.strategies import (
 )
 
 from testtools.matchers import (
+    MatchesPredicate,
     AfterPreprocessing,
     Equals,
 )
@@ -63,13 +64,19 @@ class TahoeClientTests(SyncTestCase):
     """
     Tests for the client created by ``create_tahoe_client``.
     """
-    def setup_example(self):
+    def setup_client(self):
         """
         Create a fake Tahoe-LAFS web frontend and a client that will talk to it.
         """
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(ANY_ROOT, self.http_client)
+
+    def setup_example(self):
+        """
+        Give every example tested by Hypothesis its own state.
+        """
+        self.setup_client()
 
     @given(binary())
     def test_create_immutable(self, data):
@@ -134,3 +141,24 @@ class TahoeClientTests(SyncTestCase):
                 ),
             ),
         )
+
+    def test_create_mutable_directory(self):
+        """
+        A mutable directory can be created with ``create_mutable_directory``.
+        """
+        self.setup_client()
+        self.assertThat(
+            self.tahoe_client.create_mutable_directory(),
+            succeeded(
+                contained_by(self.root._uri.data),
+            ),
+        )
+
+
+
+
+def contained_by(container):
+    return MatchesPredicate(
+        lambda element: element in container,
+        "%r not found",
+    )

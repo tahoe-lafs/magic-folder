@@ -187,7 +187,8 @@ class _FakeTahoeUriHandler(Resource, object):
         data = request.content.read()
 
         type_to_kind = {
-            "mkdir-immutable": "URI:DIR2-CHK:"
+            "mkdir-immutable": "URI:DIR2-CHK:",
+            "mkdir": "URI:DIR2:",
         }
         kind = type_to_kind[t]
         fresh, cap = self.add_data(kind, data)

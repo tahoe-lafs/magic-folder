@@ -122,7 +122,7 @@ class TahoeClient(object):
             b"POST",
             post_uri,
         )
-        capability_string = response.content()
+        capability_string = yield response.content()
         returnValue(capability_string)
 
     @inlineCallbacks
