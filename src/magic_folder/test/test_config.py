@@ -14,6 +14,7 @@ from testtools.matchers import (
     Equals,
     NotEquals,
     Contains,
+    MatchesStructure,
 )
 
 import sqlite3
@@ -68,8 +69,11 @@ class TestGlobalConfig(SyncTestCase):
         create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         config = load_global_configuration(self.temp)
         self.assertThat(
-            config.api_endpoint,
-            Equals(u"tcp:1234")
+            config,
+            MatchesStructure(
+                api_endpoint=Equals(u"tcp:1234"),
+                tahoe_client_url=Equals(b"http://127.0.0.1:9876/"),
+            )
         )
 
     def test_load_db_no_such_directory(self):
