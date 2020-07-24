@@ -1,8 +1,6 @@
 import io
-import os
 import json
 from tempfile import mktemp
-from shutil import rmtree
 
 from testtools.matchers import (
     Equals,

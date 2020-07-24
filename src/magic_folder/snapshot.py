@@ -21,9 +21,6 @@ from twisted.internet.defer import (
 from twisted.web.client import (
     FileBodyProducer,
 )
-from twisted.python.filepath import (
-    FilePath,
-)
 
 import magic_folder
 
