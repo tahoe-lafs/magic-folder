@@ -20,17 +20,25 @@ from unittest import (
     TestCase,
 )
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     Not,
     Contains,
+    Equals,
 )
 
 from .common import (
     SyncTestCase,
 )
+from ..common import (
+    atomic_makedirs,
+)
 
 from twisted.python.filepath import (
     Permissions,
+    FilePath,
 )
 
 def get_synctestcase():
@@ -130,6 +138,7 @@ def is_sublist(needle, haystack):
             return True
     return False
 
+
 class OtherTests(SyncTestCase):
     """
     Tests for other behaviors that don't obviously fit anywhere better.
@@ -143,4 +152,35 @@ class OtherTests(SyncTestCase):
         self.assertThat(
             modules,
             Not(Contains("allmydata.test")),
+        )
+
+
+class TestAtomicMakedirs(SyncTestCase):
+    """
+    Confirm cleanup behavior for atomic_makedirs context-manager
+    """
+
+    def test_happy(self):
+        """
+        on a normal exit atomic_makedirs creates the dir
+        """
+        temp = FilePath(self.mktemp())
+        with atomic_makedirs(temp):
+            pass
+        self.assertThat(
+            temp.exists(),
+            Equals(True)
+        )
+
+    def test_exception(self):
+        """
+        Upon error atomic_makedirs should erase the directory
+        """
+        temp = FilePath(self.mktemp())
+        with ExpectedException(RuntimeError, "just testing"):
+            with atomic_makedirs(temp):
+                raise RuntimeError("just testing")
+        self.assertThat(
+            temp.exists(),
+            Equals(False)
         )

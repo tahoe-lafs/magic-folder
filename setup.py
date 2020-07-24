@@ -74,6 +74,9 @@ install_requires = [
     "cryptography < 3.0",
 
     "treq",
+
+    # find the default location for configuration on different OSes
+    "appdirs",
 ]
 
 setup_requires = [
