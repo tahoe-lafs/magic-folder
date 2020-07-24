@@ -115,7 +115,7 @@ class TahoeClientTests(SyncTestCase):
         """
         An immutable object can be downloaded with ``download_capability``.
         """
-        cap = self.root.add_data("URI:CHK:", data)
+        ignored, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.download_capability(cap),
             succeeded(Equals(data)),
@@ -126,7 +126,7 @@ class TahoeClientTests(SyncTestCase):
         """
         An immutable object can be downloaded with ``stream_capability``.
         """
-        cap = self.root.add_data("URI:CHK:", data)
+        ignored, cap = self.root.add_data("URI:CHK:", data)
         output = BytesIO()
         self.assertThat(
             self.tahoe_client.stream_capability(cap, output),

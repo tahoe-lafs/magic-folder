@@ -76,13 +76,11 @@ class _FakeTahoeRoot(Resource, object):
         self.putChild(b"uri", self._uri)
 
     def add_data(self, kind, data):
-        fresh, cap = self._uri.add_data(kind, data)
-        return cap
+        return self._uri.add_data(kind, data)
 
     def add_mutable_data(self, kind, data):
-        cap = self._uri.add_mutable_data(kind, data)
         # Adding mutable data always makes a new object.
-        return True, cap
+        return self._uri.add_mutable_data(kind, data)
 
 
 KNOWN_CAPABILITIES = [
@@ -209,7 +207,7 @@ class _FakeTahoeUriHandler(Resource, object):
         """
         if not isinstance(data, bytes):
             raise TypeError("'data' must be bytes")
-        return self._add_new_data(kind, data)
+        return (False, self._add_new_data(kind, data))
 
     def render_PUT(self, request):
         data = request.content.read()
