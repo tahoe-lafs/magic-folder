@@ -5,7 +5,6 @@ from twisted.python.filepath import (
 
 from hypothesis import (
     given,
-    assume,
 )
 
 from testtools import (
