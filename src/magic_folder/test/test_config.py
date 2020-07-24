@@ -54,7 +54,7 @@ class TestGlobalConfig(SyncTestCase):
             create_global_configuration(confdir, u"tcp:1234", self.node_dir)
             # the implicit assertion here is "it didn't fail"
         finally:
-            confdir.remove()
+            confdir.asBytesMode('utf8').remove()
 
     def test_create_existing_dir(self):
         self.temp.makedirs()
