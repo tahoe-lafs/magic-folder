@@ -41,6 +41,12 @@ class TestGlobalConfig(SyncTestCase):
 
     def setUp(self):
         super(TestGlobalConfig, self).setUp()
+        self.setup_tempdir()
+
+    def setup_example(self):
+        self.setup_tempdir()
+
+    def setup_tempdir(self):
         self.temp = FilePath(self.mktemp())
         self.node_dir = FilePath(self.mktemp())
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
@@ -49,12 +55,9 @@ class TestGlobalConfig(SyncTestCase):
         path_segments_without_dotfiles(),
     )
     def test_create(self, dirname):
-        confdir = self.temp.asTextMode().child(dirname)
-        try:
-            create_global_configuration(confdir, u"tcp:1234", self.node_dir)
-            # the implicit assertion here is "it didn't fail"
-        finally:
-            confdir.remove()
+        confdir = self.temp.child(dirname)
+        create_global_configuration(confdir, u"tcp:1234", self.node_dir)
+        # the implicit assertion here is "it didn't fail"
 
     def test_create_existing_dir(self):
         self.temp.makedirs()
