@@ -19,6 +19,26 @@ from treq.client import (
 import attr
 
 
+def _request(http_client, method, url, **kwargs):
+    """
+    Issue a request with the given parameters.
+
+    :param HTTPClient http_client: The HTTP client to use.
+
+    :param bytes method: The HTTP request method.
+
+    :param DecodedURL: The HTTP request path.
+
+    :param **kwargs: Any additional keyword arguments to pass along to
+        ``HTTPClient``.
+    """
+    return http_client.request(
+        method,
+        url.to_uri().to_text().encode("ascii"),
+        **kwargs
+    )
+
+
 @attr.s
 class TahoeClient(object):
     """
@@ -46,9 +66,11 @@ class TahoeClient(object):
             path=(u"uri",),
             query=[(u"t", u"mkdir-immutable")],
         )
-        res = yield self.http_client.post(
-            post_uri.to_text(),
-            json.dumps(directory_data),
+        res = yield _request(
+            self.http_client,
+            b"POST",
+            post_uri,
+            data=json.dumps(directory_data),
         )
         capability_string = yield res.content()
         returnValue(
@@ -65,21 +87,43 @@ class TahoeClient(object):
             IBodyProducer. See
             https://treq.readthedocs.io/en/release-20.3.0/api.html#treq.request
 
-        :returns: a capability-string
+        :return Deferred[bytes]: A Deferred which fires with the capability
+            string for the new immutable object.
         """
-
         put_uri = self.url.replace(
             path=(u"uri",),
             query=[(u"mutable", u"false")],
         )
-        res = yield self.http_client.put(
-            put_uri.to_text(),
+        res = yield _request(
+            self.http_client,
+            b"PUT",
+            put_uri,
             data=producer,
         )
         capability_string = yield res.content()
         returnValue(
             capability_string.strip()
         )
+
+    @inlineCallbacks
+    def create_mutable_directory(self):
+        """
+        Create a new mutable directory in Tahoe.
+
+        :return Deferred[bytes]: The write capability string for the new
+            directory.
+        """
+        post_uri = self.url.replace(
+            path=(u"uri",),
+            query=[(u"t", u"mkdir")],
+        )
+        response = yield _request(
+            self.http_client,
+            b"POST",
+            post_uri,
+        )
+        capability_string = response.content()
+        returnValue(capability_string)
 
     @inlineCallbacks
     def download_capability(self, cap):
@@ -119,22 +163,18 @@ class TahoeClient(object):
         yield res.collect(filelike.write)
 
 
-@inlineCallbacks
 def create_tahoe_client(url, http_client):
     """
     Create a new TahoeClient instance that is speaking to a particular
     Tahoe node.
 
-    :param url: the base URL of the Tahoe instance
+    :param DecodedURL url: the base URL of the Tahoe instance
 
     :param http_client: a Treq HTTP client
 
     :returns: a TahoeClient instance
     """
-
-    client = TahoeClient(
-        url=DecodedURL.from_text(url),
+    return TahoeClient(
+        url=url,
         http_client=http_client,
     )
-    yield  # maybe we want to at least try getting / to see if it's alive?
-    returnValue(client)
