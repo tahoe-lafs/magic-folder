@@ -113,6 +113,10 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
 
     :returns: a GlobalConfigDatabase instance
     """
+    # note that we put *bytes* in .child() calls after this so we
+    # don't convert again..
+    basedir = basedir.asBytesMode("utf8")
+
     try:
         basedir.makedirs()
     except OSError as e:
@@ -121,18 +125,18 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
         )
 
     # explain what is in this directory
-    with basedir.child("README").open("wb") as f:
+    with basedir.child(b"README").open("wb") as f:
         f.write(
             u"This is a Magic Folder daemon configuration\n"
             u"\n"
             u"To find out more you can run a command like:\n"
             u"\n"
             u"    magic-folder --config {} --help\n"
-            u"\n".format(basedir.path).encode("utf8")
+            u"\n".format(basedir.asTextMode("utf8").path).encode("utf8")
         )
 
     # set up the configuration database
-    db_fname = basedir.child("global.sqlite")
+    db_fname = basedir.child(b"global.sqlite")
     connection = sqlite3.connect(db_fname.path)
     with connection:
         cursor = connection.cursor()
@@ -150,7 +154,7 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
 
     config = GlobalConfigDatabase(
         database=connection,
-        api_token_path=basedir.child("api_token"),
+        api_token_path=basedir.child(b"api_token"),
     )
     # make sure we have an API token
     config.rotate_api_token()
