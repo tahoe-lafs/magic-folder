@@ -41,6 +41,10 @@ from testtools.twistedsupport import (
     succeeded,
 )
 
+from twisted.internet.defer import (
+    gatherResults,
+)
+
 from ..tahoe_client import (
     create_tahoe_client
 )
@@ -63,6 +67,14 @@ from .matchers import (
 )
 
 ANY_ROOT = DecodedURL.from_text(u"http://example.invalid./")
+
+
+def directory_children():
+    # A shallow strategy for starters...
+    return dictionaries(
+        text(),
+        filenodes().map(lambda node: ["filenode", node]),
+    )
 
 class TahoeClientTests(SyncTestCase):
     """
@@ -126,11 +138,7 @@ class TahoeClientTests(SyncTestCase):
         )
 
     @given(
-        # A shallow strategy for starters...
-        dictionaries(
-            text(),
-            filenodes().map(lambda node: ["filenode", node]),
-        ),
+        directory_children()
     )
     def test_create_immutable_directory(self, children):
         """
@@ -155,5 +163,23 @@ class TahoeClientTests(SyncTestCase):
             self.tahoe_client.create_mutable_directory(),
             succeeded(
                 contained_by(self.root._uri.data),
+            ),
+        )
+
+    @given(directory_children())
+    def test_mutable_directories_distinct(self, children):
+        """
+        Two mutable directories created with ``create_mutable_directory`` are
+        distinct from one another.
+        """
+        a = self.tahoe_client.create_mutable_directory()
+        b = self.tahoe_client.create_mutable_directory()
+        self.assertThat(
+            gatherResults([a, b]),
+            succeeded(
+                MatchesPredicate(
+                    lambda caps: caps[0] != caps[1],
+                    "Capabilities must be distinct: %r",
+                ),
             ),
         )

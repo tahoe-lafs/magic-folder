@@ -15,6 +15,10 @@ after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
 this code can be deleted.
 """
 
+from functools import (
+    partial,
+)
+
 import hashlib
 
 import attr
@@ -73,6 +77,11 @@ class _FakeTahoeRoot(Resource, object):
     def add_data(self, kind, data):
         fresh, cap = self._uri.add_data(kind, data)
         return cap
+
+    def add_mutable_data(self, kind, data):
+        cap = self._uri.add_mutable_data(kind, data)
+        # Adding mutable data always makes a new object.
+        return True, cap
 
 
 KNOWN_CAPABILITIES = [
@@ -152,11 +161,35 @@ class _FakeTahoeUriHandler(Resource, object):
         capability = next(self.capability_generators[kind])
         return capability
 
+    def _add_new_data(self, kind, data):
+        """
+        Add brand new data to the store.
+
+        :param bytes kind: The kind of capability, represented as the static
+            string prefix on the resulting capability string (eg "URI:DIR2:").
+
+        :param data: The data.  The type varies depending on ``kind``.
+
+        :return bytes: The capability-string for the data.
+        """
+        cap = self._generate_capability(kind)
+        # it should be impossible for this to already be in our data,
+        # but check anyway to be sure
+        if cap in self.data:
+            raise Exception("Internal error; key already exists somehow")
+        self.data[cap] = data
+        return cap
+
     def add_data(self, kind, data):
         """
-        adds some data to our grid
+        Add some immutable data to our grid.
 
-        :returns: a two-tuple: a bool (True if the data is freshly added) and a capability-string
+        If the data exists already, an existing capability is returned.
+        Otherwise, a new capability is returned.
+
+        :return (bool, bytes): The first element is True if the data is
+            freshly added.  The second element is the capability-string for
+            the data.
         """
         if not isinstance(data, bytes):
             raise TypeError("'data' must be bytes")
@@ -165,13 +198,17 @@ class _FakeTahoeUriHandler(Resource, object):
             if self.data[k] == data:
                 return (False, k)
 
-        cap = self._generate_capability(kind)
-        # it should be impossible for this to already be in our data,
-        # but check anyway to be sure
-        if cap in self.data:
-            raise Exception("Internal error; key already exists somehow")
-        self.data[cap] = data
-        return (True, cap)
+        return (True, self._add_new_data(kind, data))
+
+    def add_mutable_data(self, kind, data):
+        """
+        Add some mutable data to our grid.
+
+        :return bytes: The capability-string for the data.
+        """
+        if not isinstance(data, bytes):
+            raise TypeError("'data' must be bytes")
+        return self._add_new_data(kind, data)
 
     def render_PUT(self, request):
         data = request.content.read()
@@ -186,12 +223,12 @@ class _FakeTahoeUriHandler(Resource, object):
         t = request.args[u"t"][0]
         data = request.content.read()
 
-        type_to_kind = {
-            "mkdir-immutable": "URI:DIR2-CHK:",
-            "mkdir": "URI:DIR2:",
+        type_to_handler = {
+            "mkdir-immutable": partial(self.add_data, "URI:DIR2-CHK:"),
+            "mkdir": partial(self.add_mutable_data, "URI:DIR2:"),
         }
-        kind = type_to_kind[t]
-        fresh, cap = self.add_data(kind, data)
+        handler = type_to_handler[t]
+        fresh, cap = handler(data)
         return cap
 
     def render_GET(self, request):
