@@ -18,10 +18,9 @@ from twisted.python.filepath import (
 from twisted.internet import defer
 
 from testtools.matchers import (
+    Not,
     Equals,
     Always,
-    HasLength,
-    MatchesStructure,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -36,13 +35,9 @@ from eliot import (
 
 from magic_folder.magic_folder import (
     LocalSnapshotService,
-    LocalSnapshotCreator,
 )
 from magic_folder.snapshot import (
     create_local_author,
-)
-from magic_folder.magicpath import (
-    path2magic,
 )
 from .. import magicfolderdb
 
@@ -55,14 +50,18 @@ from .strategies import (
 
 @attr.s
 class MemorySnapshotCreator(object):
-    processed = attr.ib(default=attr.Factory(list))
-
+    processed = attr.ib(default=attr.Factory(dict))
     def process_item(self, path):
         Message.log(
             message_type=u"memory-snapshot-creator:process_item",
             path=path.asTextMode("utf-8").path,
         )
-        self.processed.append(path)
+        if path not in self.processed.keys():
+            # record number of parents
+            self.processed[path] = 0
+        else:
+            num_parents = self.processed[path]
+            self.processed[path] = num_parents + 1
         return defer.succeed(None)
 
 
@@ -93,7 +92,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self._snapshot_creator.processed = []
+        self._snapshot_creator.processed = {}
 
     def test_add_single_file(self):
         foo = self.magic_path.child("foo")
@@ -109,9 +108,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        foo_magicname = path2magic(foo.asTextMode().path)
-        self.assertThat(self._snapshot_creator.processed, Equals([foo]))
-
+        self.assertThat(self._snapshot_creator.processed.get(foo), Not(Equals(None)))
+        self.assertThat(self._snapshot_creator.processed.get(foo), Equals(0))
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
@@ -143,15 +141,14 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
 
         self.assertThat(
-            len(self._snapshot_creator.processed),
+            len(self._snapshot_creator.processed.keys()),
             Equals(len(files))
         )
 
-        for (infile, snapshot_file) in zip(files, self._snapshot_creator.processed):
-            self.assertThat(
-                infile,
-                Equals(snapshot_file)
-            )
+        self.assertThat(
+            sorted(self._snapshot_creator.processed.keys()),
+            Equals(sorted(files))
+        )
 
     @given(content=binary())
     def test_add_file_failures(self, content):
@@ -190,35 +187,29 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-    # @given(content1=binary(min_size=1),
-    #        content2=binary(min_size=1),
-    #        filename=path_segments().map(lambda p: p.encode("utf-8")),
-    # )
-    # def test_add_a_file_twice(self, filename, content1, content2):
-    #     foo = self.magic_path.child(filename)
-    #     with foo.open("wb") as f:
-    #         f.write(content1)
+    @given(content1=binary(min_size=1),
+           content2=binary(min_size=1),
+           filename=path_segments().map(lambda p: p.encode("utf-8")),
+    )
+    def test_add_a_file_twice(self, filename, content1, content2):
+        foo = self.magic_path.child(filename)
+        with foo.open("wb") as f:
+            f.write(content1)
 
-    #     self.snapshot_service.startService()
-    #     self.snapshot_service.add_file(foo)
+        self.snapshot_service.startService()
+        self.snapshot_service.add_file(foo)
 
-    #     foo_magicname = path2magic(foo.asTextMode('utf-8').path)
-    #     stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
+        with foo.open("wb") as f:
+            f.write(content2)
 
-    #     with foo.open("wb") as f:
-    #         f.write(content2)
+        # it should use the previous localsnapshot as its parent.
+        self.snapshot_service.add_file(foo)
 
-    #     # it should use the previous localsnapshot as its parent.
-    #     self.snapshot_service.add_file(foo)
-    #     stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
+        self.assertThat(
+            self.snapshot_service.stopService(),
+            succeeded(Always())
+        )
 
-    #     self.assertThat(
-    #         self.snapshot_service.stopService(),
-    #         succeeded(Always())
-    #     )
-
-    #     self.assertThat(stored_snapshot2.parents_local[0],
-    #                     MatchesStructure(
-    #                         content_path=Equals(stored_snapshot1.content_path)
-    #                     )
-    #     )
+        self.assertThat(self._snapshot_creator.processed.get(foo),
+                        Equals(1)
+        )
