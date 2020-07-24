@@ -1,10 +1,5 @@
 import io
-import os
-from os.path import (
-    join,
-)
 from tempfile import mktemp
-from shutil import rmtree
 
 from testtools.matchers import (
     Equals,
