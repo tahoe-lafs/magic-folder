@@ -2219,6 +2219,13 @@ class LocalSnapshotCreator(object):
                 parents = []
             else:
                 parents = [parent_snapshot]
+
+            # need to handle remote-parents when we have remote
+            # snapshots
+
+            # when we handle conflicts we will have to handle multiple
+            # parents here (or, somewhere)
+
             relpath_u = path.asTextMode(encoding="utf-8").path
             SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
             snapshot = yield create_snapshot(
@@ -2226,8 +2233,6 @@ class LocalSnapshotCreator(object):
                 author=self.author,
                 data_producer=input_stream,
                 snapshot_stash_dir=self.stash_dir,
-                # XXX: check db whether an existing remote snapshot exists
-                # for the given magicpath
                 parents=parents,
             )
 
