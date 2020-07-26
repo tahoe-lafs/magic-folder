@@ -2240,18 +2240,6 @@ class LocalSnapshotCreator(object):
         self.db.store_local_snapshot(snapshot)
 
 
-# XXX
-# meejah: I think we discussed two queues / services: a "changed
-# file-paths" one, which produces LocalSnapshots and serializes them
-# and then a second queue that takes LocalSnapshots and uploads them
-# to the grid
-#
-# Given a list of file paths, the LocalSnapshots for these file paths
-# should be created and then persisted into the disk. A way to do that
-# would be to create a queue and push file paths into it with another
-# processing "thread" periodically emptying the queue and creating
-# LocalSnapshots and then writing them into the disk.
-# XXX: Add some state and methods to track the "status" of the upload process.
 @attr.s
 @implementer(service.IService)
 class LocalSnapshotService(service.Service):
