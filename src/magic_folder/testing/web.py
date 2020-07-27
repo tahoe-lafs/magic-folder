@@ -248,7 +248,23 @@ class _FakeTahoeUriHandler(Resource, object):
         # the user gave us a capability; if our Grid doesn't have any
         # data for it, that's an error.
         if capability not in self.data:
-            request.setResponseCode(http.BAD_REQUEST)
+            # Tahoe-LAFS actually has several different behaviors for the
+            # ostensible "not found" case.
+            #
+            # * A request for a CHK cap will receive a GONE response with
+            #   "NoSharesError" (and some other text) in a text/plain body.
+            # * A request for a DIR2 cap will receive an OK response with
+            #   a huge text/html body including "UnrecoverableFileError".
+            # * A request for the child of a DIR2 cap will receive a GONE
+            #   response with "UnrecoverableFileError" (and some other text)
+            #   in a text/plain body.
+            #
+            # Also, all of these are *actually* behind a redirect to
+            # /uri/<CAP>.
+            #
+            # GONE makes the most sense here and I don't want to deal with
+            # redirects so here we go.
+            request.setResponseCode(http.GONE)
             return u"No data for '{}'".format(capability).encode("ascii")
 
         return self.data[capability]
