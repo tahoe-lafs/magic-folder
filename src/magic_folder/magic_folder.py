@@ -923,9 +923,10 @@ REMOTE_DIRECTORY_DELETED = MessageType(
     u"The downloader found a directory has been deleted from the DMD.",
 )
 
-SNAPSHOT_CREATOR_PROCESS_ITEM = MessageType(
+SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
     u"magic-folder:local-snapshot-creator:processing-item",
     [RELPATH],
+    [],
     u"Local snapshot creator is processing an input.",
 )
 
@@ -2228,17 +2229,18 @@ class LocalSnapshotCreator(object):
             # parents here (or, somewhere)
 
             relpath_u = path.asTextMode(encoding="utf-8").path
-            SNAPSHOT_CREATOR_PROCESS_ITEM.log(relpath=relpath_u)
-            snapshot = yield create_snapshot(
-                name=mangled_name,
-                author=self.author,
-                data_producer=input_stream,
-                snapshot_stash_dir=self.stash_dir,
-                parents=parents,
-            )
+            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
+            with action:
+                snapshot = yield create_snapshot(
+                    name=mangled_name,
+                    author=self.author,
+                    data_producer=input_stream,
+                    snapshot_stash_dir=self.stash_dir,
+                    parents=parents,
+                )
 
-        # store the local snapshot to the disk
-        self.db.store_local_snapshot(snapshot)
+                # store the local snapshot to the disk
+                self.db.store_local_snapshot(snapshot)
 
 
 @attr.s
