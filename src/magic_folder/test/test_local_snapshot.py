@@ -123,7 +123,6 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-        self.assertThat(self._snapshot_creator.processed.get(foo), Not(Equals(None)))
         self.assertThat(self._snapshot_creator.processed.get(foo), Equals(0))
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
