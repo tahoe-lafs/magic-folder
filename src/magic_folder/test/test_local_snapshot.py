@@ -9,6 +9,7 @@ from hypothesis import (
 from hypothesis.strategies import (
     binary,
     lists,
+    data,
 )
 
 from twisted.python.filepath import (
@@ -119,15 +120,16 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(self._snapshot_creator.processed[0], Equals(foo))
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
-           lists(binary(), unique=True))
-    def test_add_multiple_files(self, filenames, contents):
+           data())
+    def test_add_multiple_files(self, filenames, data):
         """
         Add a bunch of files one by one and check whether the operation is
         successful.
         """
         files = []
-        for (filename, content) in zip(filenames, contents):
+        for filename in filenames:
             file = self.magic_path.child(filename)
+            content = data.draw(binary())
             with file.open("wb") as f:
                 f.write(content)
             files.append(file)
@@ -234,28 +236,29 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         self.db._clear_snapshot_table()
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
-           lists(binary(), unique=True))
-    def test_create_snapshots(self, filenames, contents):
+           data())
+    def test_create_snapshots(self, filenames, data):
         """
         Create a list of filenames and random content as input and for each
         of the (filename, content) mapping, create and store the snapshot in
         the database.
         """
         files = []
-        for (filename, content) in zip(filenames, contents):
+        for filename in filenames :
             file = self.magic_path.child(filename)
+            content = data.draw(binary())
             with file.open("wb") as f:
                 f.write(content)
-            files.append(file)
+            files.append((file, content))
 
-        for file in files:
+        for (file, _unused) in files:
             self.assertThat(
                 self.snapshot_creator.process_item(file),
                 succeeded(Always())
             )
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
-        for (file, content) in zip(files, contents):
+        for (file, content) in files:
             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
             stored_content = stored_snapshot._get_synchronous_content()
