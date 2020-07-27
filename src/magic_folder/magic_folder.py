@@ -2195,7 +2195,8 @@ class Downloader(QueueMixin, WriteFileMixin):
 @attr.s
 class LocalSnapshotCreator(object):
     """
-    Class that actually creates a local snapshot and stores it.
+    When given the db and the author instance, this class that actually
+    creates a local snapshot and stores it in the database.
     """
     db = attr.ib()  # our database
     author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
