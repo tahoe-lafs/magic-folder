@@ -18,7 +18,6 @@ from twisted.python.filepath import (
 from twisted.internet import defer
 
 from testtools.matchers import (
-    Not,
     Equals,
     Always,
     HasLength,
