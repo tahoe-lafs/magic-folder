@@ -102,6 +102,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self._snapshot_creator.processed = {}
 
     def test_add_single_file(self):
+        """
+        Start the service, add a file and check if the operation succeeded.
+        """
         foo = self.magic_path.child("foo")
         content = u"foo"
         with foo.open("w") as f:
@@ -115,12 +118,21 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always()),
         )
 
+        self.assertThat(
+            self.snapshot_service.stopService(),
+            succeeded(Always())
+        )
+
         self.assertThat(self._snapshot_creator.processed.get(foo), Not(Equals(None)))
         self.assertThat(self._snapshot_creator.processed.get(foo), Equals(0))
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
     def test_add_multiple_files(self, filenames, contents):
+        """
+        Add a bunch of files one by one and check whether the operation is
+        successful.
+        """
         files = []
         for (filename, content) in zip(filenames, contents):
             file = self.magic_path.child(filename)
@@ -159,6 +171,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
     @given(content=binary())
     def test_add_file_failures(self, content):
+        """
+        Test with bad inputs to check failure paths.
+        """
         foo = self.magic_path.child("foo")
         with foo.open("wb") as f:
             f.write(content)
@@ -199,6 +214,10 @@ class LocalSnapshotServiceTests(SyncTestCase):
            filename=path_segments().map(lambda p: p.encode("utf-8")),
     )
     def test_add_a_file_twice(self, filename, content1, content2):
+        """
+        Adding a file twice should create two local snapshots with the first
+        one being the parent of the second.
+        """
         foo = self.magic_path.child(filename)
         with foo.open("wb") as f:
             f.write(content1)
