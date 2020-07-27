@@ -59,20 +59,13 @@ class MemorySnapshotCreator(object):
     """
     A way to test LocalSnapshotService with an in-memory database.
     """
-    processed = attr.ib(default=attr.Factory(dict))
+    processed = attr.ib(default=attr.Factory(list))
     def process_item(self, path):
         Message.log(
             message_type=u"memory-snapshot-creator:process_item",
             path=path.asTextMode("utf-8").path,
         )
-        if path not in self.processed.keys():
-            # record number of parents
-            self.processed[path] = 0
-        else:
-            num_parents = self.processed[path]
-            self.processed[path] = num_parents + 1
-        return defer.succeed(None)
-
+        self.processed.append(path)
 
 class LocalSnapshotServiceTests(SyncTestCase):
 
@@ -99,7 +92,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self._snapshot_creator.processed = {}
+        self._snapshot_creator.processed = []
 
     def test_add_single_file(self):
         """
@@ -123,7 +116,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-        self.assertThat(self._snapshot_creator.processed.get(foo), Equals(0))
+        self.assertThat(self._snapshot_creator.processed, HasLength(1))
+        self.assertThat(self._snapshot_creator.processed[0], Equals(foo))
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            lists(binary(), unique=True))
@@ -159,12 +153,12 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
 
         self.assertThat(
-            len(self._snapshot_creator.processed.keys()),
+            len(self._snapshot_creator.processed),
             Equals(len(files))
         )
 
         self.assertThat(
-            sorted(self._snapshot_creator.processed.keys()),
+            sorted(self._snapshot_creator.processed),
             Equals(sorted(files))
         )
 
@@ -206,37 +200,6 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.stopService(),
             succeeded(Always())
-        )
-
-    @given(content1=binary(min_size=1),
-           content2=binary(min_size=1),
-           filename=path_segments().map(lambda p: p.encode("utf-8")),
-    )
-    def test_add_a_file_twice(self, filename, content1, content2):
-        """
-        Adding a file twice should create two local snapshots with the first
-        one being the parent of the second.
-        """
-        foo = self.magic_path.child(filename)
-        with foo.open("wb") as f:
-            f.write(content1)
-
-        self.snapshot_service.startService()
-        self.snapshot_service.add_file(foo)
-
-        with foo.open("wb") as f:
-            f.write(content2)
-
-        # it should use the previous localsnapshot as its parent.
-        self.snapshot_service.add_file(foo)
-
-        self.assertThat(
-            self.snapshot_service.stopService(),
-            succeeded(Always())
-        )
-
-        self.assertThat(self._snapshot_creator.processed.get(foo),
-                        Equals(1)
         )
 
 class LocalSnapshotCreatorTests(SyncTestCase):
@@ -318,6 +281,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content1)
 
+        # make sure the process_item() succeeds
         self.assertThat(
             self.snapshot_creator.process_item(foo),
             succeeded(Always()),
@@ -330,6 +294,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content2)
 
+        # make sure the second call succeeds as well
         self.assertThat(
             self.snapshot_creator.process_item(foo),
             succeeded(Always()),
