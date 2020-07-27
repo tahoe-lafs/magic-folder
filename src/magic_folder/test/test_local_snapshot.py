@@ -153,11 +153,6 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
 
         self.assertThat(
-            len(self._snapshot_creator.processed),
-            Equals(len(files))
-        )
-
-        self.assertThat(
             sorted(self._snapshot_creator.processed),
             Equals(sorted(files))
         )
