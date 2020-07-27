@@ -94,7 +94,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         with start_action(action_type=u"create-magic-folder", client_num=client_num).context():
             d = DeferredContext(
                 self.do_cli(
-                    "magic-folder", "--debug", "create", "magic:",
+                    "magic-folder", "--debug", "add",
                     client_num=client_num,
                 )
             )
@@ -237,7 +237,8 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         nickname_arg = unicode_to_argv(nickname)
         local_dir_arg = unicode_to_argv(local_dir)
         # the --debug means we get real exceptions on failures
-        d = self.do_cli("magic-folder", "--debug", "create", "magic:", nickname_arg, local_dir_arg)
+        d = self.do_cli("magic-folder", "--debug", "add", local_dir_arg)
+
         def _done(args):
             (rc, stdout, stderr) = args
             self.assertEqual(rc, 0, stdout + stderr)
@@ -1220,25 +1221,16 @@ class CreateMagicFolder(AsyncTestCase):
             "This client already has a magic-folder named 'default'\n"
         )
 
+
 class CreateErrors(AsyncTestCase):
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("create", "--poll-interval=frog", "alias:")
+            parse_cli("add", "--poll-interval=frog", )
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("create", "--poll-interval=-4", "alias:")
+            parse_cli("add", "--poll-interval=-4", "alias:")
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
-
-    def test_alias(self):
-        with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("create", "no-colon")
-        self.assertEqual(str(ctx.exception), "An alias must end with a ':' character.")
-
-    def test_nickname(self):
-        with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("create", "alias:", "nickname")
-        self.assertEqual(str(ctx.exception), "If NICKNAME is specified then LOCAL_DIR must also be specified.")
 
 
 class InviteErrors(AsyncTestCase):
@@ -1246,6 +1238,7 @@ class InviteErrors(AsyncTestCase):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli("invite", "no-colon")
         self.assertEqual(str(ctx.exception), "An alias must end with a ':' character.")
+
 
 class JoinErrors(AsyncTestCase):
     def test_poll_interval(self):

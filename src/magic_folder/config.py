@@ -15,6 +15,10 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from hyperlink import (
+    DecodedURL,
+)
+
 import attr
 
 import sqlite3
@@ -224,6 +228,35 @@ class MagicFolderConfig(object):
             path_raw = cursor.fetchone()[0]
             return FilePath(path_raw)
 
+    @property
+    def magic_path(self):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT magic_directory FROM config");
+            path_raw = cursor.fetchone()[0]
+            return FilePath(path_raw)
+
+    @property
+    def collective_dircap(self):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT collective_dircap FROM config");
+            return cursor.fetchone()[0]
+
+    @property
+    def upload_dircap(self):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT upload_dircap FROM config");
+            return cursor.fetchone()[0]
+
+    @property
+    def poll_interval(self):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT poll_interval FROM config");
+            return int(cursor.fetchone()[0])
+
 
 @attr.s
 class GlobalConfigDatabase(object):
@@ -303,7 +336,7 @@ class GlobalConfigDatabase(object):
             cursor.execute("SELECT tahoe_node_directory FROM config")
             node_dir = FilePath(cursor.fetchone()[0])
         with node_dir.child("node.url").open("rt") as f:
-            return f.read().strip()
+            return DecodedURL.from_text(f.read().strip().decode("utf8"))
 
     @property
     def tahoe_node_directory(self):
@@ -354,6 +387,17 @@ class GlobalConfigDatabase(object):
                 database=connection,
             )
             return config
+
+    def get_default_state_path(self, name):
+        """
+        :param unicode name: the name of a magic-folder (doesn't have to
+            exist yet)
+
+        :returns: a default directory-name to contain the state of a
+            magic-folder. This directory will not exist and will be
+            a sub-directory of the config location.
+        """
+        return self.api_token_path.sibling(name)
 
     def create_magic_folder(self, name, magic_path, state_path, author,
                             collective_dircap, upload_dircap, poll_interval):

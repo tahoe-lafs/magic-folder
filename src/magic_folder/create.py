@@ -30,19 +30,19 @@ from allmydata import uri
 from allmydata.util import fileutil
 from allmydata.util.encodingutil import quote_output
 
+from .snapshot import (
+    create_local_author,
+)
 from .magic_folder import (
     load_magic_folders,
     maybe_upgrade_magic_folders,
 )
-
 from .invite import (
     magic_folder_invite as _invite
 )
-
 from .join import (
     magic_folder_join as _join
 )
-
 from .common import (
     get_node_url,
     tahoe_mkdir,
@@ -83,6 +83,7 @@ def _add_alias(node_directory, alias, cap):
 
     return 0
 
+
 @inlineCallbacks
 def tahoe_create_alias(node_directory, alias, treq):
     # mkdir+add_alias
@@ -100,22 +101,18 @@ def tahoe_create_alias(node_directory, alias, treq):
     returnValue(0)
 
 @inlineCallbacks
-def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_interval, treq):
+def magic_folder_create(config, name, author_name, local_dir, poll_interval, treq):
     """
-    Create a magic-folder with the specified ``name`` (or ``default``
-    if not specified) and optionally invite the client and join with
-    the specified ``nickname`` and the specified ``local_dir``.
+    Create a magic-folder with the specified ``name`` and
+    ``local_dir``.
 
-    :param unicode alias: The alias of the folder to which the invitation is
-        being generated.
-
-    :param unicode nickname: The nickname of the invitee.
+    :param GlobalConfigDatabase config: Our configuration
 
     :param unicode name: The name of the magic-folder.
 
-    :param unicode node_directory: The root of the Tahoe-LAFS node.
+    :param unicode author_name: The name for our author
 
-    :param unicode local_dir: The directory on the filesystem that the user wants
+    :param FilePath local_dir: The directory on the filesystem that the user wants
         to sync between different computers.
 
     :param integer poll_interval: Periodic time interval after which the
@@ -124,33 +121,49 @@ def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_i
     :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
         the queries.
 
-    :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
-        an appropriate exception is raised.
+    :return Deferred: ``None`` or an appropriate exception is raised.
     """
 
-    # make sure we don't already have a magic-folder with this name before we create the alias
-    maybe_upgrade_magic_folders(node_directory)
-    folders = load_magic_folders(node_directory)
-
-    if name in folders:
+    if name in config.list_magic_folders():
         raise Exception("Already have a magic-folder named '{}'".format(name))
 
-    rc = yield tahoe_create_alias(node_directory, alias, treq)
-    if rc != 0:
-        raise Exception("Failed to create alias")
+    # create our author
+    author = create_local_author(author_name)
 
-    if nickname is not None:
-        # inviting itself as a client
-        from twisted.internet import reactor
-        treq = HTTPClient(Agent(reactor))
+    # create an unlinked directory and get the dmd write-cap
+    try:
+        collective_write_cap = yield tahoe_mkdir(config.tahoe_client_url, treq)
+    except BadResponseCode as e:
+        raise RuntimeError(
+            "Error from '{}' while creating mutable directory: {}".format(
+                config.tahoe_client_url,
+                e
+            )
+        )
 
-        try:
-            invite_code = yield _invite(node_directory, alias, nickname, treq)
-        except Exception as e:
-            raise Exception("Failed to invite after create: {}".format(str(e)))
+    try:
+        personal_write_cap = yield tahoe_mkdir(config.tahoe_client_url, treq)
+    except BadResponseCode as e:
+        raise RuntimeError(
+            "Error from '{}' while creating mutable directory: {}".format(
+                config.tahoe_client_url,
+                e
+            )
+        )
 
-        rc = _join(invite_code, node_directory, local_dir, name, poll_interval, nickname)
-        if rc != 0:
-            raise Exception("Failed to join after create")
-
-    returnValue(0)
+    # create our "state" directory for this magic-folder (could be
+    # configurable in the future)
+    state_dir = config.get_default_state_path(name)
+    try:
+        config.create_magic_folder(
+            name,
+            local_dir,
+            state_dir,
+            author,
+            collective_write_cap,
+            personal_write_cap,
+            poll_interval,
+        )
+    except Exception:
+        state_dir.remove()
+        raise

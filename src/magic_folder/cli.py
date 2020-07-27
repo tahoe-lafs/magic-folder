@@ -13,6 +13,10 @@ from collections import (
     defaultdict,
 )
 
+from nacl.encoding import (
+    Base32Encoder,
+)
+
 from appdirs import (
     user_config_dir,
 )
@@ -130,7 +134,7 @@ from .invite import (
 )
 
 from .create import (
-    magic_folder_create as _create
+    magic_folder_create
 )
 from .show_config import (
     magic_folder_show_config,
@@ -140,6 +144,9 @@ from .initialize import (
 )
 from .migrate import (
     magic_folder_migrate,
+)
+from .config import (
+    load_global_configuration,
 )
 
 from .join import (
@@ -309,28 +316,38 @@ def migrate(options):
     returnValue(0)
 
 
-class CreateOptions(usage.Options):
-    nickname = None  # NOTE: *not* the "name of this magic-folder"
+class AddOptions(usage.Options):
     local_dir = None
-    synopsis = "MAGIC_ALIAS: [NICKNAME LOCAL_DIR]"
+    synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
         ("name", "n", "default", "The name of this magic-folder"),
+        ("author-name", "a", None, "Our name for Snapshots authored here"),
     ]
     description = (
-        "Create a new magic-folder. If you specify NICKNAME and "
-        "LOCAL_DIR, this client will also be invited and join "
-        "using the given nickname. A new alias (see 'tahoe list-aliases') "
-        "will be added with the master folder's writecap."
+        "Create a new magic-folder."
     )
 
-    def parseArgs(self, alias, nickname=None, local_dir=None):
-        super(CreateOptions, self).parseArgs()
-        alias = argv_to_unicode(alias)
-        if not alias.endswith(u':'):
-            raise usage.UsageError("An alias must end with a ':' character.")
-        self.alias = alias[:-1]
-        self.nickname = None if nickname is None else argv_to_unicode(nickname)
+    def parseArgs(self, local_dir=None):
+        if local_dir is None:
+            raise usage.UsageError(
+                "Must specify a single argument: the local directory"
+            )
+        self.local_dir = FilePath(local_dir)
+        if not self.local_dir.exists():
+            raise usage.UsageError(
+                "'{}' doesn't exist".format(local_dir)
+            )
+        if not self.local_dir.isdir():
+            raise usage.UsageError(
+                "'{}' isn't a directory".format(local_dir)
+            )
+
+    def postOptions(self):
+        if self['author-name'] is None:
+            raise usage.UsageError(
+                "Must supply --author-name / -a"
+            )
         try:
             if int(self['poll-interval']) <= 0:
                 raise ValueError("should be positive")
@@ -339,33 +356,25 @@ class CreateOptions(usage.Options):
                 "--poll-interval must be a positive integer"
             )
 
-        # Expand the path relative to the current directory of the CLI command, not the node.
-        self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
-
-        if self.nickname and not self.local_dir:
-            raise usage.UsageError("If NICKNAME is specified then LOCAL_DIR must also be specified.")
-
 
 @inlineCallbacks
-def create(options):
-    precondition(isinstance(options.alias, unicode), alias=options.alias)
-    precondition(isinstance(options.nickname, (unicode, NoneType)), nickname=options.nickname)
-    precondition(isinstance(options.local_dir, (unicode, NoneType)), local_dir=options.local_dir)
+def add(options):
+    """
+    Add a new Magic Folder
+    """
 
-    try:
-        from twisted.internet import reactor
-        treq = HTTPClient(Agent(reactor))
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
+    yield magic_folder_create(
+        options.parent.config,
+        options["name"],
+        options["author-name"],
+        options.local_dir,
+        options["poll-interval"],
+        treq,
+    )
+    print("Created magic-folder named '{}'".format(options["name"]))
 
-        name = options['name']
-        nodedir = options.parent.node_directory
-        localdir = options.local_dir
-        rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
-        print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
 
 class ListOptions(usage.Options):
     description = (
@@ -377,39 +386,60 @@ class ListOptions(usage.Options):
 
 
 def list_(options):
-    folders = load_magic_folders(options.parent.node_directory)
-    if options["json"]:
-        _list_json(options, folders)
-        return 0
-    _list_human(options, folders)
-    return 0
-
-
-def _list_json(options, folders):
     """
-    List our magic-folders using JSON
+    List existing magic-folders.
+    """
+    mf_info = _magic_folder_info(options)
+    if options["json"]:
+        print(json.dumps(mf_info, indent=4), file=options.stdout)
+        return
+    return _list_human(mf_info, options.stdout)
+
+
+def _magic_folder_info(options):
+    """
+    Get information about all magic-folders
+
+    :returns: JSON-able dict
     """
     info = dict()
-    for name, details in folders.items():
+    config = options.parent.config
+    for name in config.list_magic_folders():
+        mf = config.get_magic_folder(name)
         info[name] = {
-            u"directory": details["directory"],
+            u"author": {
+                u"name": mf.author.name,
+                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+            },
+            u"stash_path": mf.stash_path.path,
+            u"magic_path": mf.magic_path.path,
+            u"collective_dircap": mf.collective_dircap.encode("ascii"),
+            u"upload_dircap": mf.upload_dircap.encode("ascii"),
+            u"poll_interval": mf.poll_interval,
         }
-    print(json.dumps(info), file=options.stdout)
-    return 0
+    return info
 
 
-def _list_human(options, folders):
+def _list_human(info, stdout):
     """
     List our magic-folders for a human user
     """
-    if folders:
-        print("This client has the following magic-folders:", file=options.stdout)
-        biggest = max([len(nm) for nm in folders.keys()])
-        fmt = "  {:>%d}: {}" % (biggest, )
-        for name, details in folders.items():
-            print(fmt.format(name, details["directory"]), file=options.stdout)
+    if info:
+        print("This client has the following magic-folders:", file=stdout)
+        for name, details in info.items():
+            print("{}:".format(name), file=stdout)
+            print(
+                "    location: {magic_path}\n"
+                "      author: {author[name]} ({author[verify_key]})\n"
+                "   stash-dir: {stash_path}\n"
+                "  collective: {collective_dircap}\n"
+                "    personal: {upload_dircap}\n"
+                "     updates: every {poll_interval}s\n"
+                "".format(**details).rstrip("\n"),
+                file=stdout,
+            )
     else:
-        print("No magic-folders", file=options.stdout)
+        print("No magic-folders", file=stdout)
 
 
 class InviteOptions(usage.Options):
@@ -1215,13 +1245,37 @@ NODEDIR_HELP = (
 
 class BaseOptions(usage.Options):
     optFlags = [
-        ["quiet", "q", "Operate silently."],
         ["version", "V", "Display version numbers."],
-        ["version-and-path", None, "Display version numbers and paths to their locations."],
     ]
     optParameters = [
-        ["node-directory", "n", None, NODEDIR_HELP],
+        ("config", "c", _default_config_path,
+         "The directory containing config (default {})".format(_default_config_path)),
     ]
+
+    _config = None  # lazy-instantiated by .config @property
+
+    @property
+    def _config_path(self):
+        """
+        The FilePath where our config is located
+        """
+        fp = FilePath(self['config'])
+        if not fp.exists():
+            raise usage.UsageError(
+                u"Configuration directory '{}' doesn't exist".format(fp.path)
+            )
+        return fp
+
+    @property
+    def config(self):
+        """
+        a GlobalConfigDatabase instance representing the current
+        configuration location.
+        """
+        if self._config is None:
+            self._config = load_global_configuration(self._config_path)
+        return self._config
+
 
 class MagicFolderCommand(BaseOptions):
     stdin = sys.stdin
@@ -1232,7 +1286,7 @@ class MagicFolderCommand(BaseOptions):
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
-        ["create", None, CreateOptions, "Create a Magic Folder."],
+        ["add", None, AddOptions, "Add a new Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
@@ -1254,29 +1308,6 @@ class MagicFolderCommand(BaseOptions):
     )
 
     @property
-    def node_directory(self):
-        if self["node-directory"] is None:
-            if self.subCommand in ["init", "migrate", "show-config"]:
-                return
-            raise usage.UsageError(
-                "Must supply --node-directory (or -n)"
-            )
-        nd = self["node-directory"]
-        if not os.path.exists(nd):
-            raise usage.UsageError(
-                "'{}' does not exist".format(nd)
-            )
-        if not os.path.isdir(nd):
-            raise usage.UsageError(
-                "'{}' is not a directory".format(nd)
-            )
-        if not os.path.exists(os.path.join(nd, "tahoe.cfg")):
-            raise usage.UsageError(
-                "'{}' doesn't look like a Tahoe directory (no 'tahoe.cfg')".format(nd)
-            )
-        return nd
-
-    @property
     def parent(self):
         return None
 
@@ -1295,8 +1326,8 @@ class MagicFolderCommand(BaseOptions):
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
             raise usage.UsageError("must specify a subcommand")
-        # ensure our node-directory is valid
-        _ = self.node_directory
+        # ensure our configuration is valid
+        _ = self.config
 
     def getSynopsis(self):
         return "Usage: magic-folder [global-options] <subcommand> [subcommand-options]"
@@ -1309,11 +1340,12 @@ class MagicFolderCommand(BaseOptions):
         )
         return t
 
+
 subDispatch = {
     "init": initialize,
     "migrate": migrate,
     "show-config": show_config,
-    "create": create,
+    "add": add,
     "invite": invite,
     "join": join,
     "leave": leave,
@@ -1374,10 +1406,17 @@ def makeService(options):
     return service
 
 
+@inlineCallbacks
 def main(reactor):
     options = MagicFolderCommand()
     options.parseOptions(sys.argv[1:])
-    return do_magic_folder(options)
+    try:
+        r = yield do_magic_folder(options)
+        returnValue(r)
+    except Exception as e:
+        print("Error: {}".format(e))
+        if options['debug']:
+            print(Failure().getTraceback())
 
 def run():
     """
@@ -1405,9 +1444,9 @@ def run():
             print(options)
         return 1
 
+    return react(main)
     if options.subCommand in ["init", "migrate", "show-config"]:
-        return react(main)
-
+        pass
     # run the same way as originally ported for "other" commands
     console_scripts = importlib_metadata.entry_points()["console_scripts"]
     magic_folder = list(
