@@ -292,7 +292,10 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             files.append(file)
 
         for file in files:
-            self.snapshot_creator.process_item(file)
+            self.assertThat(
+                self.snapshot_creator.process_item(file),
+                succeeded(Always())
+            )
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in zip(files, contents):
@@ -315,7 +318,10 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content1)
 
-        self.snapshot_creator.process_item(foo)
+        self.assertThat(
+            self.snapshot_creator.process_item(foo),
+            succeeded(Always()),
+        )
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
@@ -324,7 +330,10 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         with foo.open("wb") as f:
             f.write(content2)
 
-        self.snapshot_creator.process_item(foo)
+        self.assertThat(
+            self.snapshot_creator.process_item(foo),
+            succeeded(Always()),
+        )
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
 
         self.assertThat(
