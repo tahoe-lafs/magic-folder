@@ -112,7 +112,7 @@ class TahoeClient(object):
             post_uri,
             data=json.dumps(directory_data),
         )
-        capability_string = yield res.content()
+        capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(
             capability_string.strip()
         )
@@ -140,7 +140,7 @@ class TahoeClient(object):
             put_uri,
             data=producer,
         )
-        capability_string = yield res.content()
+        capability_string = yield _get_content_check_code({CREATED}, res)
         returnValue(
             capability_string.strip()
         )
@@ -162,7 +162,10 @@ class TahoeClient(object):
             b"POST",
             post_uri,
         )
-        capability_string = yield response.content()
+        # Response code should probably be CREATED but it seems to be OK
+        # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
+        # artifact of the test double.
+        capability_string = yield _get_content_check_code({OK, CREATED}, response)
         returnValue(capability_string)
 
     @inlineCallbacks
