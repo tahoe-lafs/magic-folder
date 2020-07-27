@@ -37,9 +37,6 @@ from allmydata.util import (
 from allmydata.util.progress import (
     PercentProgress,
 )
-from allmydata.uri import (
-    from_string as cap_from_string,
-)
 from ..magic_folder import (
     QueuedItem,
 )
