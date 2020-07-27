@@ -56,6 +56,9 @@ from .strategies import (
 
 @attr.s
 class MemorySnapshotCreator(object):
+    """
+    A way to test LocalSnapshotService with an in-memory database.
+    """
     processed = attr.ib(default=attr.Factory(dict))
     def process_item(self, path):
         Message.log(
