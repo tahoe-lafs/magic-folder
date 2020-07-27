@@ -278,7 +278,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         dbfile = abspath_expanduser_unicode(u"magicfolder_default.sqlite", base=self.get_clientdir(i=client_num))
         db=get_magicfolderdb(dbfile, create_version=(SCHEMA_v1, 1))
         if db is None:
-            self.fail("Unable to create the db: {}".format(str(e)))
+            self.fail("Unable to create the db: {}".format(dbfile))
 
         client = self.get_client(client_num)
         global_config = client.config
