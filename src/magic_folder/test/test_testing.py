@@ -18,6 +18,9 @@ this code can be deleted.
 from twisted.internet.defer import (
     inlineCallbacks,
 )
+from twisted.web.http import (
+    GONE,
+)
 
 from allmydata.uri import (
     from_string,
@@ -136,7 +139,8 @@ class FakeWebTest(TestCase):
 
     def test_download_missing(self):
         """
-        Error if we download a capability that doesn't exist
+        If a capability is requested for which the stored cyphertext cannot be
+        located, **GET /uri?uri=CAP** returns a GONE response code.
         """
 
         http_client = create_tahoe_treq_client()
@@ -149,7 +153,7 @@ class FakeWebTest(TestCase):
             resp,
             succeeded(
                 MatchesStructure(
-                    code=Equals(500)
+                    code=Equals(GONE),
                 )
             )
         )

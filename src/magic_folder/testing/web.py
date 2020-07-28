@@ -10,10 +10,16 @@
 """
 Test-helpers for clients that use the WebUI.
 
-NOTE: this is code copied from Tahoe-LAFS until there is a release
-after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
-this code can be deleted.
+NOTE: This code should be in upstream Tahoe-LAFS.  None of it exists in
+1.14.0.  Some of it has been pushed upstream and will make it into 1.15.0
+without further efforts but other parts have not.  Changes here should always
+be pushed upstream eventually but not so quickly that we have to submit a PR
+to Tahoe-LAFS every few days.
 """
+
+from functools import (
+    partial,
+)
 
 import hashlib
 
@@ -71,8 +77,11 @@ class _FakeTahoeRoot(Resource, object):
         self.putChild(b"uri", self._uri)
 
     def add_data(self, kind, data):
-        fresh, cap = self._uri.add_data(kind, data)
-        return cap
+        return self._uri.add_data(kind, data)
+
+    def add_mutable_data(self, kind, data):
+        # Adding mutable data always makes a new object.
+        return self._uri.add_mutable_data(kind, data)
 
 
 KNOWN_CAPABILITIES = [
@@ -152,11 +161,35 @@ class _FakeTahoeUriHandler(Resource, object):
         capability = next(self.capability_generators[kind])
         return capability
 
+    def _add_new_data(self, kind, data):
+        """
+        Add brand new data to the store.
+
+        :param bytes kind: The kind of capability, represented as the static
+            string prefix on the resulting capability string (eg "URI:DIR2:").
+
+        :param data: The data.  The type varies depending on ``kind``.
+
+        :return bytes: The capability-string for the data.
+        """
+        cap = self._generate_capability(kind)
+        # it should be impossible for this to already be in our data,
+        # but check anyway to be sure
+        if cap in self.data:
+            raise Exception("Internal error; key already exists somehow")
+        self.data[cap] = data
+        return cap
+
     def add_data(self, kind, data):
         """
-        adds some data to our grid
+        Add some immutable data to our grid.
 
-        :returns: a two-tuple: a bool (True if the data is freshly added) and a capability-string
+        If the data exists already, an existing capability is returned.
+        Otherwise, a new capability is returned.
+
+        :return (bool, bytes): The first element is True if the data is
+            freshly added.  The second element is the capability-string for
+            the data.
         """
         if not isinstance(data, bytes):
             raise TypeError("'data' must be bytes")
@@ -165,15 +198,27 @@ class _FakeTahoeUriHandler(Resource, object):
             if self.data[k] == data:
                 return (False, k)
 
-        cap = self._generate_capability(kind)
-        # it should be impossible for this to already be in our data,
-        # but check anyway to be sure
-        if cap in self.data:
-            raise Exception("Internal error; key already exists somehow")
-        self.data[cap] = data
-        return (True, cap)
+        return (True, self._add_new_data(kind, data))
+
+    def add_mutable_data(self, kind, data):
+        """
+        Add some mutable data to our grid.
+
+        :return bytes: The capability-string for the data.
+        """
+        if not isinstance(data, bytes):
+            raise TypeError("'data' must be bytes")
+        return (False, self._add_new_data(kind, data))
 
     def render_PUT(self, request):
+        uri = DecodedURL.from_text(request.uri.decode("utf8"))
+        fmt = "chk"
+        for arg, value in uri.query:
+            if arg == "format":
+                fmt = value.lower()
+        if fmt != "chk":
+            raise NotImplementedError()
+
         data = request.content.read()
         fresh, cap = self.add_data("URI:CHK:", data)
         if fresh:
@@ -186,11 +231,12 @@ class _FakeTahoeUriHandler(Resource, object):
         t = request.args[u"t"][0]
         data = request.content.read()
 
-        type_to_kind = {
-            "mkdir-immutable": "URI:DIR2-CHK:"
+        type_to_handler = {
+            "mkdir-immutable": partial(self.add_data, "URI:DIR2-CHK:"),
+            "mkdir": partial(self.add_mutable_data, "URI:DIR2:"),
         }
-        kind = type_to_kind[t]
-        fresh, cap = self.add_data(kind, data)
+        handler = type_to_handler[t]
+        fresh, cap = handler(data)
         return cap
 
     def render_GET(self, request):
@@ -211,8 +257,24 @@ class _FakeTahoeUriHandler(Resource, object):
         # the user gave us a capability; if our Grid doesn't have any
         # data for it, that's an error.
         if capability not in self.data:
-            request.setResponseCode(http.BAD_REQUEST)
-            return u"No data for '{}'".format(capability).decode("ascii")
+            # Tahoe-LAFS actually has several different behaviors for the
+            # ostensible "not found" case.
+            #
+            # * A request for a CHK cap will receive a GONE response with
+            #   "NoSharesError" (and some other text) in a text/plain body.
+            # * A request for a DIR2 cap will receive an OK response with
+            #   a huge text/html body including "UnrecoverableFileError".
+            # * A request for the child of a DIR2 cap will receive a GONE
+            #   response with "UnrecoverableFileError" (and some other text)
+            #   in a text/plain body.
+            #
+            # Also, all of these are *actually* behind a redirect to
+            # /uri/<CAP>.
+            #
+            # GONE makes the most sense here and I don't want to deal with
+            # redirects so here we go.
+            request.setResponseCode(http.GONE)
+            return u"No data for '{}'".format(capability).encode("ascii")
 
         return self.data[capability]
 
