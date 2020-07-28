@@ -296,7 +296,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         d = self.do_create_magic_folder(0)
         d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
         def get_invite_code(result):
-            self.invite_code = result[1].strip()
+            self.invite_code = result[1].strip().encode("utf8")
         d.addCallback(get_invite_code)
         d.addCallback(lambda ign: self.do_join(0, alice_magic_dir, self.invite_code))
         def get_alice_caps(ign):
@@ -314,7 +314,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         # Alice invites Bob. Bob joins.
         d.addCallback(lambda ign: self.do_invite(0, self.bob_nickname))
         def get_invite_code(result):
-            self.invite_code = result[1].strip()
+            self.invite_code = result[1].strip().encode("utf8")
         d.addCallback(get_invite_code)
         d.addCallback(lambda ign: self.do_join(1, bob_magic_dir, self.invite_code))
         def get_bob_caps(ign):
@@ -861,7 +861,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         # capture the invite code from stdout
-        invite_code = outcome.stdout.strip()
+        invite_code = outcome.stdout.strip().encode("utf8")
 
         # create a directory for Bob
         mf_bob = basedir.child(u"bob")
@@ -872,7 +872,7 @@ class CreateMagicFolder(AsyncTestCase):
                 b"join",
                 b"--name", b"other",
                 b"--author", b"test-dummy",
-                invite_code.encode("utf8"),
+                invite_code,
                 mf_bob.asBytesMode().path,
             ],
         )
@@ -920,7 +920,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         # capture the invite code from stdout
-        invite_code = outcome.stdout.strip()
+        invite_code = outcome.stdout.strip().encode("utf8")
 
         # create a directory for Bob
         mf_bob = basedir.child(u"bob")
@@ -1104,8 +1104,8 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
-                b"magik:",
+                b"add",
+                local_dir.asBytesMode().path,
             ],
         )
 
@@ -1114,11 +1114,10 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # create invite code for alice
+        # create invite code for bob
         outcome = yield cli(
             self.config_dir, [
                 b"invite",
-                b"magik:",
                 b"bob",
             ],
         )
@@ -1129,7 +1128,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         # capture the invite code from stdout
-        invite_code = outcome.stdout.strip()
+        invite_code = outcome.stdout.strip().encode("utf8")
 
         # create a directory for Bob
         mf_bob = basedir.child(u"bob")
@@ -1140,6 +1139,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
+                b"--name", b"other",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1150,11 +1150,12 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # join
+        # join (again)
         outcome = yield cli(
             self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
+                b"--name", b"other",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1166,8 +1167,8 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         self.assertIn(
-            outcome.stderr,
-            "This client already has a magic-folder named 'default'\n"
+            "This client already has a magic-folder named 'other'",
+            outcome.stderr
         )
 
 
