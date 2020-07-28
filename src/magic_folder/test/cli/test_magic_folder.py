@@ -937,9 +937,9 @@ class CreateMagicFolder(AsyncTestCase):
         o.parent = magic_folder_cli.MagicFolderCommand()
 
         try:
-            o.parseOptions(["nickname"])
+            o.parent.parseOptions(["invite", "nickname"])
         except usage.UsageError as e:
-            self.assertIn("Must supply --config", str(e))
+            self.assertIn("doesn't exist", str(e))
         else:
             self.fail("expected UsageError")
 
