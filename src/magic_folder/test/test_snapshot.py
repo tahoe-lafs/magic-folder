@@ -185,9 +185,6 @@ class TestLocalSnapshot(SyncTestCase):
         """
         Hypothesis-invoked hook to create per-example state.
         """
-        self.stash_dir = FilePath(mktemp())
-        self.stash_dir.makedirs()
-
         # create a magicfolder db
         self.db = magicfolderdb.get_magicfolderdb(
             u":memory:",
