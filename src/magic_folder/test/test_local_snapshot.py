@@ -115,7 +115,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([foo]),
+            Equals([to_add]),
         )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
