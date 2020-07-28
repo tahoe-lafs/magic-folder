@@ -1,6 +1,7 @@
 import time
 import shutil
 import json
+from pprint import pprint
 from os import mkdir, unlink, utime
 from os.path import join, exists, getmtime
 from functools import (
@@ -378,12 +379,15 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
 
 def wait_until_uploaded(dbpath, relpath):
+    assert exists(dbpath), "{} does not exist".format(dbpath)
     db = get_magicfolderdb(dbpath)
     for _ in range(20):
         entry = db.get_db_entry("its_a_file")
         if entry is not None and entry.last_uploaded_uri != None:
             return True
         time.sleep(1)
+    print("All db relpaths:")
+    pprint(db.get_all_relpaths())
     return False
 
 
