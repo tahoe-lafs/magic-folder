@@ -381,7 +381,7 @@ def wait_until_uploaded(dbpath, relpath):
     db = get_magicfolderdb(dbpath)
     for _ in range(10):
         entry = db.get_db_entry("its_a_file")
-        if entry.last_uploaded_uri != None:
+        if entry is not None and entry.last_uploaded_uri != None:
             return True
         time.sleep(1)
     return False
