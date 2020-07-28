@@ -126,15 +126,6 @@ class TestRemoteAuthor(AsyncTestCase):
     Tests for RemoteAuthor and the related constructors, ``create_author`` and
     ``create_author_from_json``.
     """
-
-    def setUp(self):
-        """
-        We have Alices's signing+verify key
-        """
-        d = super(TestRemoteAuthor, self).setUp()
-        self.alice = create_local_author("alice")
-        return d
-
     @given(remote_authors())
     def test_json_roundtrip(self, remote_author):
         """
