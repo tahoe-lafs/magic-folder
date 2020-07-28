@@ -176,6 +176,20 @@ def create_author(name, verify_key):
     )
 
 
+class UnknownPropertyError(ValueError):
+    """
+    Creating a RemoteAuthor from a JSON object failed because an unknown
+    property was included in the JSON.
+    """
+
+
+class MissingPropertyError(ValueError):
+    """
+    Creating a RemoteAuthor from a JSON object failed because a required
+    property was missing from the JSON.
+    """
+
+
 def create_author_from_json(data):
     """
     Deserialize a RemoteAuthor.
@@ -192,14 +206,10 @@ def create_author_from_json(data):
     permitted_keys = required_keys = ["name", "verify_key"]
     for k in data.keys():
         if k not in permitted_keys:
-            raise ValueError(
-                u"Unknown RemoteAuthor key '{}'".format(k)
-            )
+            raise UnknownPropertyError(k)
     for k in required_keys:
         if k not in data:
-            raise ValueError(
-                u"RemoteAuthor requires '{}' key".format(k)
-            )
+            raise MissingPropertyError(k)
     verify_key = VerifyKey(data["verify_key"], encoder=Base64Encoder)
     return create_author(data["name"], verify_key)
 

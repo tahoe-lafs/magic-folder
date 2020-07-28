@@ -17,6 +17,10 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from nacl.signing import (
+    VerifyKey,
+)
+
 from hypothesis.strategies import (
     just,
     one_of,
@@ -39,6 +43,10 @@ from allmydata.util.progress import (
 )
 from ..magic_folder import (
     QueuedItem,
+)
+
+from ..snapshot import (
+    RemoteAuthor,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -242,3 +250,23 @@ def queued_items():
 
 def magic_folder_filenames():
     return text(min_size=1)
+
+
+author_names = text
+
+def verify_keys():
+    """
+    Build ``VerifyKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(VerifyKey)
+
+
+def remote_authors(names=author_names(), verify_keys=verify_keys()):
+    """
+    Build ``RemoteAuthor`` instances.
+    """
+    return builds(
+        RemoteAuthor,
+        name=names,
+        verify_key=verify_keys,
+    )
