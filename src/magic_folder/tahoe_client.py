@@ -138,7 +138,7 @@ class TahoeClient(object):
             put_uri,
             data=producer,
         )
-        capability_string = yield _get_content_check_code({CREATED}, res)
+        capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(capability_string)
 
     @inlineCallbacks

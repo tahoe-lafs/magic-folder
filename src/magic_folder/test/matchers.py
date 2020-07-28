@@ -2,6 +2,11 @@
 Testtools-style matchers useful to the Tahoe-LAFS test suite.
 """
 
+import base64
+from nacl.exceptions import (
+    BadSignatureError,
+)
+
 import attr
 
 from testtools.matchers import (
@@ -68,6 +73,32 @@ class MatchesNodePublicKey(object):
         try:
             ed25519.verify_signature(other_public_key, signature, b"")
         except error.BadSignature:
+            return Mismatch("The signature did not verify.")
+
+
+@attr.s
+class MatchesAuthorSignature(object):
+    """
+    Confirm signatures on a RemoteSnapshot
+    """
+    snapshot = attr.ib()  # LocalSnapshot
+    remote_snapshot = attr.ib()
+
+    def match(self, other):
+        # "other" is the RemoteSnapshot's signature
+        public_key = self.snapshot.author.verify_key
+        alleged_sig = base64.b64decode(self.remote_snapshot.signature)
+        signed_data = (
+            u"{content_capability}\n"
+            u"{name}\n"
+        ).format(
+            content_capability=self.remote_snapshot.content_cap,
+            name=self.remote_snapshot.name,
+        ).encode("utf8")
+
+        try:
+            public_key.verify(signed_data, alleged_sig)
+        except BadSignatureError:
             return Mismatch("The signature did not verify.")
 
 
