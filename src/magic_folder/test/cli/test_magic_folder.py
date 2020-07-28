@@ -695,20 +695,20 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
     @defer.inlineCallbacks
-    def test_create_leave_folder(self):
+    def test_add_leave_folder(self):
         """
         Create a magic folder and then leave the folder and check
         whether it was successful.
         """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
-                b"create",
-                b"--name",
-                b"foo",
-                b"magik:",
-                b"test_create_leave_folder",
+                b"add",
+                b"--name", b"foo",
+                b"--author", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -721,8 +721,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
-                b"--name",
-                b"foo",
+                b"--name", b"foo",
+                b"--really-delete-write-capability",
             ],
         )
 
@@ -746,7 +746,7 @@ class CreateMagicFolder(AsyncTestCase):
                 b"--name",
                 b"foo",
                 b"magik:",
-                b"test_create_leave_folder",
+                b"test_add_leave_folder",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -1029,7 +1029,7 @@ class CreateMagicFolder(AsyncTestCase):
         try:
             o.parseOptions(["--config", nodefile, "invite", "nickname"])
         except usage.UsageError as e:
-            self.assertIn("is not a directory", str(e))
+            self.assertIn("Unable to load configuration", str(e))
         else:
             self.fail("expected UsageError")
 
