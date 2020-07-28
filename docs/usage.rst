@@ -26,43 +26,88 @@ configured storage nodes.  The client nodes must all share the same
 storage nodes.  The nodes must be running.
 
 
+Creating a Magic Folder Daemon Configuration
+--------------------------------------------
+
+The "Magic Folder Daemon" is a long-running process that accomplishes
+the task of synchronizing all the "magic folders" that are configured
+in it.
+
+A Magic Folder Daemon needs to have some configuration to start. There
+are two ways to create this: from scratch; or from a "legacy"
+magic-folder (when ``magic-folder`` was a sub-command of ``tahoe``).
+
+No matter the method used, there are some pieces of information
+required and a decision to be made. You need to know:
+
+- the ``node-directory`` of the Tahoe-LAFS client this magic folder daemon shall use.
+
+You need to decide:
+
+- The network endpoint the API will listen on. This is how CLI commands and front-ends communciate to the magic-folder daemon and is expressed as a Twisted "server endpoint string". For example, ``tcp:4321`` to listen globally on port 4321. You may also use Unix Domain sockets on OSes which support that; for example ``unix:/var/run/magic-folder/api-socket``.
+- Where to store the configuration (by default, in an appropriate location for your OS like ``~/.config/magic-folder`` on Debian).
+
+To create a magic folder daemon configuration from scratch:
+
+.. code-block:: console
+
+   $ magic-folder init --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client
+
+This will store configuration in ``~/.config/magic-folder/*`` or
+similar listen on ``localhost`` port ``4321`` for API commands and
+talk to the Tahoe-LAFS client in ``./tahoe-client`` (which must itself
+be running).
+
+To migrate from an existing Tahoe-LAFS-based magic-folder, do:
+
+.. code-block:: console
+
+   $ magic-folder migrate --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client --author-name alice
+
+The main difference is the ``--author-name`` argument. This is
+required when creating signing keys for each configured magic-folder
+that is migrated over.
+
+From now on, we will assume there is a valid magic folder daemon
+configuration in ``./foo``. This is usually provided to all
+sub-commands like so: ``magic-folder --config ./foo <subcommand>``
+
+
 Running a Magic Folder process
 ------------------------------
 
-If you are running a Tahoe-LAFS client off a Tahoe-LAFS node directory
-``alice``, like so:
+Once a magic folder daemon has a configuration location it can be started. It must be running for most of the other magic-folder commands to work as they use the API.
 
 .. code-block:: console
 
-   $ tahoe --node-directory=alice run
+   $ magic-folder --config ./foo run
 
-you can start the corresponding magic folder process like so:
-
-.. code-block:: console
-
-   $ magic-folder --node-directory=alice run --web-port tcp:6000
+Remember that the Tahoe-LAFS node which the daemon uses to upload and
+download items from the Grid must also be running.
 
 
 Creating Magic Folders
 ----------------------
 
-A new magic folder is created using the ``magic-folder create``
-command:
+A new magic folder is added using the ``magic-folder add``
+command.
 
 .. code-block:: console
 
-   $ magic-folder --node-directory=alice create magic: shared-docs /home/alice/Documents/Shared
+   $ magic-folder --config ./foo add --author-name alice-laptop ~/Documents
 
-A magic folder is created with an alias (such as ``magic:`` in the
-above command), a nickname (such as ``shared-docs``), and a local
-directory (such as ``~/Documents/Shared``).  The root capability for
-the new magic folder is assigned the given nickname.
+There are some other options that can be specified. The above will
+create a new magic-folder named ``default`` (we could decide
+differently with ``--name docs`` for example). Any changes we make
+locally will be signed as ``alice-laptop``. Files from other devices
+are downloaded into ``~/Documents`` and any files we add or change in
+that local directory will be uploaded.
 
-If the nickname and local directory are given, the client also invites
-itself to join the folder.  See `Joining a Magic Folder`_ for more
-details about this.
+We can also specify ``--poll-interval`` to control how often the
+daemon will check for updates (by default this is 60 seconds).
 
 See ``magic-folder create --help`` for specific usage details.
+
 
 Listing Magic Folders
 ---------------------
@@ -72,10 +117,17 @@ command:
 
 .. code-block:: console
 
-   $ magic-folder --node-directory=alice list
+   $ magic-folder --config foo list
    This client has the following magic-folders:
-     default: /home/alice/Work/Magic
-       magic: /home/alice/Documents/Shared
+   default:
+       location: /home/alice/Documents
+         author: alice-laptop (KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
+      stash-dir: /home/alice/foo/default/stash
+     collective: URI:DIR2:o6i3qlwv746umshq4l3ktzzjj4:rip3osvz5aq2bwu5qyijaqp4hb6mtwnnicjdpewkz3d45ew35ksq
+       personal: URI:DIR2:r4d3qxahanxsr4ysw466cbwrpe:ba3ze3bsxpkp3npyb6al6okqolqmoipi5sjdmp467mqc5prgxmpa
+        updates: every 60s
+
+**BE WARNED** that the information displayed is secret
 
 
 Inviting Participant Devices

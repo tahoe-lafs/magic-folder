@@ -244,7 +244,10 @@ def initialize(options):
             options['listen-endpoint'],
             FilePath(options['node-directory']),
         )
-        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
+        print(
+            "Created Magic Folder daemon configuration in:\n     {}".format(options['config']),
+            file=options.stdout,
+        )
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
         returnValue(1)
@@ -304,11 +307,14 @@ def migrate(options):
             FilePath(options['node-directory']),
             options['author-name'],
         )
-        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
-        print("\nIt contains the following magic-folders:")
+        print(
+            "Created Magic Folder daemon configuration in:\n     {}".format(options['config']),
+            file=options.stdout,
+        )
+        print("\nIt contains the following magic-folders:", file=options.stdout)
         for name in config.list_magic_folders():
             mf = config.get_magic_folder(name)
-            print("  {}: author={}".format(name, mf.author.name))
+            print("  {}: author={}".format(name, mf.author.name), file=options.stdout)
 
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
@@ -374,7 +380,7 @@ def add(options):
         options["poll-interval"],
         treq,
     )
-    print("Created magic-folder named '{}'".format(options["name"]))
+    print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 
 
 class ListOptions(usage.Options):
@@ -382,7 +388,8 @@ class ListOptions(usage.Options):
         "List all magic-folders this client has joined"
     )
     optFlags = [
-        ("json", "", "Produce JSON output")
+        ("json", "", "Produce JSON output"),
+        ("include-secret-information", "", "Include sensitive secret data too"),
     ]
 
 
@@ -394,7 +401,7 @@ def list_(options):
     if options["json"]:
         print(json.dumps(mf_info, indent=4), file=options.stdout)
         return
-    return _list_human(mf_info, options.stdout)
+    return _list_human(mf_info, options.stdout, options["include-secret-information"])
 
 
 def _magic_folder_info(options):
@@ -410,35 +417,44 @@ def _magic_folder_info(options):
         info[name] = {
             u"author": {
                 u"name": mf.author.name,
-                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
             },
             u"stash_path": mf.stash_path.path,
             u"magic_path": mf.magic_path.path,
-            u"collective_dircap": mf.collective_dircap.encode("ascii"),
-            u"upload_dircap": mf.upload_dircap.encode("ascii"),
             u"poll_interval": mf.poll_interval,
         }
+        if options['include-secret-information']:
+            info[name][u"author"][u"verify_key"] = mf.author.verify_key.encode(Base32Encoder)
+            info[name][u"collective_dircap"] = mf.collective_dircap.encode("ascii")
+            info[name][u"upload_dircap"] = mf.upload_dircap.encode("ascii")
     return info
 
 
-def _list_human(info, stdout):
+def _list_human(info, stdout, include_secrets):
     """
     List our magic-folders for a human user
     """
+    if include_secrets:
+        template = (
+            "    location: {magic_path}\n"
+            "   stash-dir: {stash_path}\n"
+            "      author: {author[name]} ({author[verify_key]})\n"
+            "  collective: {collective_dircap}\n"
+            "    personal: {upload_dircap}\n"
+            "     updates: every {poll_interval}s\n"
+        )
+    else:
+        template = (
+            "    location: {magic_path}\n"
+            "   stash-dir: {stash_path}\n"
+            "      author: {author[name]}\n"
+            "     updates: every {poll_interval}s\n"
+        )
+
     if info:
         print("This client has the following magic-folders:", file=stdout)
         for name, details in info.items():
             print("{}:".format(name), file=stdout)
-            print(
-                "    location: {magic_path}\n"
-                "      author: {author[name]} ({author[verify_key]})\n"
-                "   stash-dir: {stash_path}\n"
-                "  collective: {collective_dircap}\n"
-                "    personal: {upload_dircap}\n"
-                "     updates: every {poll_interval}s\n"
-                "".format(**details).rstrip("\n"),
-                file=stdout,
-            )
+            print(template.format(**details).rstrip("\n"), file=stdout)
     else:
         print("No magic-folders", file=stdout)
 
@@ -478,7 +494,7 @@ def invite(options):
         invite_code = yield _invite(options.parent.node_directory, options.alias, options.nickname, treq)
         print("{}".format(invite_code), file=options.stdout)
     except Exception as e:
-        print("magic-folder: {}".format(str(e)))
+        print("magic-folder: {}".format(str(e)), file=options.stderr)
         returnValue(1)
 
     returnValue(0)
@@ -580,7 +596,7 @@ def leave(options):
     try:
         _leave(options.parent.node_directory, options["name"], existing_folders)
     except Exception as e:
-        print("Warning: {}".format(str(e)))
+        print("Warning: {}".format(str(e)), file=options.stderr)
         return 1
 
     return 0
@@ -813,11 +829,12 @@ class RunOptions(usage.Options):
             raise usage.UsageError("Must specify a listening endpoint with --web-port")
 
 
-def main(options):
+def run(options):
     """
     This is the long-running magic-folders function which performs
     synchronization between local and remote folders.
     """
+    # XXX start logging
     from twisted.internet import  reactor
     service = MagicFolderService.from_node_directory(
         reactor,
@@ -1352,7 +1369,7 @@ subDispatch = {
     "leave": leave,
     "status": status,
     "list": list_,
-    "run": main,
+    "run": run,
 }
 
 
