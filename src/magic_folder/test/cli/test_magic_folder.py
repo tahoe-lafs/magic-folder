@@ -128,7 +128,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, 0, stdout + stderr)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         return d.addActionFinish()
@@ -178,7 +178,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, 0, stdout + stderr)
             self.assertEqual(stdout, "")
             self.assertEqual(stderr, "")
             return (rc, stdout, stderr)
@@ -189,7 +189,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         d = self.do_cli("magic-folder", "leave", client_num=client_num)
         def _done(args):
             (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, 0, stdout + stderr)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         return d
@@ -210,7 +210,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             )
         def _done(args):
             (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0)
+            self.assertEqual(rc, 0, stdout + stderr)
             return (rc, stdout, stderr)
         d.addCallback(_done)
         def test_joined_magic_folder(args):
