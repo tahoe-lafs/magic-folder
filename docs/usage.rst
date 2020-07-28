@@ -182,27 +182,18 @@ using the ``magic-folder leave`` command.
 The only option which can be supplied (but which has a default) is the
 nickname of the magic folder to leave.  Once a device has left a magic
 folder, further changes to files in the folder will not be
-synchronized.  The local directory is not removed.
+synchronized.  The local synchronized directory itself is not
+removed. **All configuration and state for the magic-folder is
+destroyed**.
+
+Note that by default you cannot leave a folder that this device has
+created as it has the only copy of the write-capability which allows
+one to change the list of participants. If you really do want to
+``leave`` such a folder you can indicate this desire and override the
+error with ``--really-delete-write-capability``.
 
 See ``magic-folder leave --help`` for details.
 
-.. _config-file:
-
-Magic Folder configuration file
--------------------------------
-
-The commands documented above manipulate ``magic_folders.yaml`` in the
-Tahoe-LAFS node's private area.  This is a historical artifact
-resulting from the origin of Magic Folder as a part of Tahoe-LAFS
-itself. Configuration can be changed by modifying this file directly.
-
-Tahoe-LAFS also has historical configuration for Magic-Folder in the
-``tahoe.cfg`` configuration file.  This configuration is deprecated.
-In particular, the ``enabled`` boolean in the ``magic_folder`` section
-is ignored by Magic-Folder.  It should be set to false to prevent any
-Magic-Folder functionality included in Tahoe-LAFS from activating.  To
-activate the Magic-Folder configuration for a Tahoe-LAFS node, use
-``magic-folder run``.
 
 
 A quick test

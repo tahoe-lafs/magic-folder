@@ -37,6 +37,10 @@ from twisted.python.filepath import (
     FilePath,
 )
 
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
+
 from .snapshot import (
     LocalAuthor,
 )
@@ -257,6 +261,17 @@ class MagicFolderConfig(object):
             cursor.execute("SELECT poll_interval FROM config");
             return int(cursor.fetchone()[0])
 
+    def is_admin(self):
+        """
+        :returns: True if this device can administer this folder. That is,
+            if the collective capability we have is mutable.
+        """
+        # check if this folder has a writable collective dircap
+        collective_dmd = tahoe_uri_from_string(
+            self.collective_dircap.encode("utf8")
+        )
+        return not collective_dmd.is_readonly()
+
 
 @attr.s
 class GlobalConfigDatabase(object):
@@ -398,6 +413,49 @@ class GlobalConfigDatabase(object):
             a sub-directory of the config location.
         """
         return self.api_token_path.sibling(name)
+
+    def remove_magic_folder(self, name):
+        """
+        Remove and purge all information about a magic-folder. Note that
+        if the collective_dircap is a write-capability it will be
+        impossible to administer that folder any longer.
+
+        :param unicode name: the folder to remove
+
+        :returns: a list of (path, Exception) pairs if any directory cleanup
+            failed (after removing config from the database).
+        """
+        folder_config = self.get_magic_folder(name)
+        cleanup_dirs = [
+            folder_config.stash_path,
+        ]
+        # we remove things from the database first and then give
+        # best-effort attempt to remove stuff from the
+        # filesystem. First confirm we have this folder and its
+        # state-path.
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT location FROM magic_folders WHERE name=?", (name, ))
+            folders = cursor.fetchall()
+            if not folders:
+                raise ValueError(
+                    "No magic-folder named '{}'".format(name)
+                )
+            (state_path, ) = folders[0]
+        cleanup_dirs.append(FilePath(state_path))
+
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("DELETE FROM magic_folders WHERE name=?", (name, ))
+
+        # clean-up directories, in order
+        failed_cleanups = []
+        for clean in cleanup_dirs:
+            try:
+                clean.remove()
+            except Exception as e:
+                failed_cleanups.append((clean.path, e))
+        return failed_cleanups or None
 
     def create_magic_folder(self, name, magic_path, state_path, author,
                             collective_dircap, upload_dircap, poll_interval):

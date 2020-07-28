@@ -421,6 +421,7 @@ def _magic_folder_info(options):
             u"stash_path": mf.stash_path.path,
             u"magic_path": mf.magic_path.path,
             u"poll_interval": mf.poll_interval,
+            u"is_admin": mf.is_admin(),
         }
         if options['include-secret-information']:
             info[name][u"author"][u"verify_key"] = mf.author.verify_key.encode(Base32Encoder)
@@ -441,6 +442,7 @@ def _list_human(info, stdout, include_secrets):
             "  collective: {collective_dircap}\n"
             "    personal: {upload_dircap}\n"
             "     updates: every {poll_interval}s\n"
+            "       admin: {is_admin}\n"
         )
     else:
         template = (
@@ -448,6 +450,7 @@ def _list_human(info, stdout, include_secrets):
             "   stash-dir: {stash_path}\n"
             "      author: {author[name]}\n"
             "     updates: every {poll_interval}s\n"
+            "       admin: {is_admin}\n"
         )
 
     if info:
@@ -545,52 +548,42 @@ def join(options):
 
 class LeaveOptions(usage.Options):
     description = "Remove a magic-folder and forget all state"
+    optFlags = [
+        ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
+    ]
     optParameters = [
         ("name", "n", "default", "Name of magic-folder to leave"),
     ]
 
 
-def _leave(node_directory, name, existing_folders):
-    privdir = os.path.join(node_directory, u"private")
-    db_fname = os.path.join(privdir, u"magicfolder_{}.sqlite".format(name))
-
-    # delete from YAML file and re-write it
-    del existing_folders[name]
-    save_magic_folders(node_directory, existing_folders)
-
-    # delete the database file
-    try:
-        fileutil.remove(db_fname)
-    except Exception as e:
-        raise Exception("unable to remove %s due to %s: %s"
-                        % (quote_local_unicode_path(db_fname),
-                           e.__class__.__name__, str(e)))
-
-    # if this was the last magic-folder, disable them entirely
-    if not existing_folders:
-        parser = SafeConfigParser()
-        parser.read(os.path.join(node_directory, u"tahoe.cfg"))
-        parser.remove_section("magic_folder")
-        with open(os.path.join(node_directory, u"tahoe.cfg"), "w") as f:
-            parser.write(f)
-
-    return 0
-
 def leave(options):
-    existing_folders = load_magic_folders(options.parent.node_directory)
-
-    if not existing_folders:
-        print("No magic-folders at all", file=options.stderr)
-        return 1
-
-    if options["name"] not in existing_folders:
+    try:
+        folder_config = options.parent.config.get_magic_folder(options["name"])
+    except ValueError:
         print("No such magic-folder '{}'".format(options["name"]), file=options.stderr)
         return 1
 
-    try:
-        _leave(options.parent.node_directory, options["name"], existing_folders)
-    except Exception as e:
-        print("Warning: {}".format(str(e)), file=options.stderr)
+    if folder_config.is_admin():
+        if not options["really-delete-write-capability"]:
+            print(
+                "ERROR: magic folder '{}' holds a write capability"
+                ", not deleting.".format(options["name"]),
+                file=options.stderr,
+            )
+            print(
+                "If you really want to delete it, pass --really-delete-write-capability",
+                file=options.stderr,
+            )
+            return 1
+
+    fails = options.parent.config.remove_magic_folder(options["name"])
+    if fails:
+        print(
+            "ERROR: Problems while removing state directories:",
+            file=options.stderr,
+        )
+        for path, error in fails:
+            print("{}: {}".format(path, error), file=options.stderr)
         return 1
 
     return 0
