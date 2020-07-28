@@ -151,7 +151,7 @@ from .config import (
 )
 
 from .join import (
-    magic_folder_join as _join
+    magic_folder_join
 )
 
 from ._coverage import (
@@ -497,7 +497,7 @@ class JoinOptions(usage.Options):
     magic_readonly_cap = ""
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", "default", "Name of the magic-folder"),
+        ("name", "n", "default", "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
 
@@ -511,8 +511,15 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
             )
-        # Expand the path relative to the current directory of the CLI command, not the node.
-        self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
+        self.local_dir = FilePath(local_dir)
+        if not self.local_dir.exists():
+            raise usage.UsageError(
+                "'{}' doesn't exist".format(local_dir)
+            )
+        if not self.local_dir.isdir():
+            raise usage.UsageError(
+                "'{}' isn't a directory".format(local_dir)
+            )
         self.invite_code = to_str(argv_to_unicode(invite_code))
         if self['author'] is None:
             self['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
@@ -526,20 +533,15 @@ def join(options):
     """
     ``magic-folder join`` entrypoint.
     """
-    try:
-        invite_code = options.invite_code
-        node_directory = options.parent.node_directory
-        local_directory = options.local_dir
-        name = options["name"]
-        poll_interval = options["poll-interval"]
-        author = options["author"]
+    return magic_folder_join(
+        options.parent.config,
+        options.invite_code,
+        options.local_dir,
+        options["name"],
+        options["poll-interval"],
+        options["author"],
+    )
 
-        rc = _join(invite_code, node_directory, local_directory, name, poll_interval, author)
-    except Exception as e:
-        print(e, file=options.stderr)
-        return 1
-
-    return rc
 
 class LeaveOptions(usage.Options):
     description = "Remove a magic-folder and forget all state"

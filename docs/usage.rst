@@ -160,14 +160,18 @@ join`` command:
 
 .. code-block:: console
 
-   $ magic-folder -d bob join $INVITECODE /home/bob/Documents/Shared
+   $ magic-folder --config ./foo join $INVITECODE /home/bob/Documents/Shared
 
 The first argument required is an invitation code, as described in
-`Inviting Participant Devices`_ is required.  The second argument
+`Inviting Participant Devices`_.  The second argument
 required is the path to a local directory.  This is the directory to
 which content will be downloaded and from which it will be uploaded.
 
+You must choose a name to identify content from this device with
+``--author-name``.
+
 Further options are documented in ``magic-folder join --help``.
+
 
 Leaving a Magic Folder
 ----------------------
