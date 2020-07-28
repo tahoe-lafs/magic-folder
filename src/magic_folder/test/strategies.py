@@ -243,9 +243,6 @@ def queued_items():
     """
     Build ``QueuedItem`` instances.
     """
-    def an_item(path, progress, size):
-        return (path, progress, size)
-
     return builds(
         QueuedItem,
         relative_paths(),
