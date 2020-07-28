@@ -58,6 +58,9 @@ from .strategies import (
 class MemorySnapshotCreator(object):
     """
     A way to test LocalSnapshotService with an in-memory database.
+
+    :ivar [FilePath] processed: All of the paths passed to ``process_item``,
+        in the order they were passed.
     """
     processed = attr.ib(default=attr.Factory(list))
     def process_item(self, path):
@@ -69,6 +72,9 @@ class MemorySnapshotCreator(object):
 
 class LocalSnapshotServiceTests(SyncTestCase):
 
+    """
+    Tests for ``LocalSnapshotService``.
+    """
     def setUp(self):
         super(LocalSnapshotServiceTests, self).setUp()
         self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
@@ -200,8 +206,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
 class LocalSnapshotCreatorTests(SyncTestCase):
     """
-    Tests for LocalSnapshotCreator that is responsible for
-    creating the local snapshots and storing them in the database.
+    Tests for ``LocalSnapshotCreator``, responsible for creating the local
+    snapshots and storing them in the database.
     """
     def setUp(self):
         # setup db
