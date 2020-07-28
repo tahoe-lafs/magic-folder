@@ -17,6 +17,10 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from nacl.signing import (
+    VerifyKey,
+)
+
 from hypothesis.strategies import (
     just,
     one_of,
@@ -37,11 +41,12 @@ from allmydata.util import (
 from allmydata.util.progress import (
     PercentProgress,
 )
-from allmydata.uri import (
-    from_string as cap_from_string,
-)
 from ..magic_folder import (
     QueuedItem,
+)
+
+from ..snapshot import (
+    RemoteAuthor,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -195,15 +200,8 @@ def filenodes():
     Build JSON-compatible descriptions of Tahoe-LAFS filenode metadata.
     """
     return fixed_dictionaries({
-        "ro_uri": tahoe_lafs_chk_capabilities().map(
-            lambda cap_text: cap_from_string(
-                cap_text.encode("ascii"),
-            ).get_readonly(
-            ).to_string(
-            ).decode(
-                "ascii",
-            ),
-        ),
+        # CHK capabilities are only read-only.
+        "ro_uri": tahoe_lafs_chk_capabilities(),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({
@@ -243,19 +241,32 @@ def queued_items():
     """
     Build ``QueuedItem`` instances.
     """
-    def an_item(path, progress, size, when):
-        item = QueuedItem(path, progress, size)
-        item.set_status('queued', when)
-        return item
-
     return builds(
-        an_item,
+        QueuedItem,
         relative_paths(),
         progresses(),
         integers(min_value=0),
-        integers(min_value=0, max_value=2 ** 31 - 1),
     )
 
 def magic_folder_filenames():
     return text(min_size=1)
 
+
+author_names = text
+
+def verify_keys():
+    """
+    Build ``VerifyKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(VerifyKey)
+
+
+def remote_authors(names=author_names(), verify_keys=verify_keys()):
+    """
+    Build ``RemoteAuthor`` instances.
+    """
+    return builds(
+        RemoteAuthor,
+        name=names,
+        verify_key=verify_keys,
+    )

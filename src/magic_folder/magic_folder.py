@@ -416,17 +416,7 @@ class MagicFolder(service.MultiService):
         self.uploader = Uploader(client, local_path_u, db, upload_dirnode, uploader_delay, clock)
         self.downloader = Downloader(client, local_path_u, db, collective_dirnode,
                                      upload_dirnode.get_readonly_uri(), clock, self.uploader.is_pending, umask,
-                                     self.set_public_status, poll_interval=downloader_delay)
-        self._public_status = (False, ['Magic folder has not yet started'])
-
-    def get_public_status(self):
-        """
-        For the web UI, basically.
-        """
-        return self._public_status
-
-    def set_public_status(self, status, *messages):
-        self._public_status = (status, messages)
+                                     poll_interval=downloader_delay)
 
     def startService(self):
         service.MultiService.startService(self)
@@ -860,19 +850,6 @@ PERFORM_SCAN = ActionType(
     u"Remote storage is being scanned for changes which need to be synchronized.",
 )
 
-_STATUS = Field.for_types(
-    u"status",
-    # Should just be unicode...
-    [unicode, bytes],
-    u"The status of an item in a processing queue.",
-)
-
-QUEUED_ITEM_STATUS_CHANGE = MessageType(
-    u"magic-folder:item:status-change",
-    [RELPATH, _STATUS],
-    u"A queued item changed status.",
-)
-
 _CONFLICT_REASON = Field.for_types(
     u"conflict_reason",
     [unicode, type(None)],
@@ -929,21 +906,13 @@ class QueueMixin(HookMixin):
     """
     A parent class for Uploader and Downloader that handles putting
     IQueuedItem instances into a work queue and processing
-    them. Tracks some history of recent items processed (for the
-    "status" API).
+    them.
 
     Subclasses implement _scan_delay, _perform_scan and _process
 
     :ivar unicode _name: Either "uploader" or "downloader".
 
     :ivar _deque: IQueuedItem instances to process
-
-    :ivar _process_history: the last 20 items we processed
-
-    :ivar _in_progress: current batch of items which are currently
-        being processed; chunks of work are removed from _deque and
-        worked on. As each finishes, it is added to _process_history
-        (with oldest items falling off the end).
     """
 
     def __init__(self, client, local_path_u, db, name, clock):
@@ -972,20 +941,6 @@ class QueueMixin(HookMixin):
         assert self._local_filepath.isdir()
 
         self._deque = deque()
-        # do we also want to bound on "maximum age"?
-        self._process_history = deque(maxlen=20)
-        self._in_progress = []
-
-    def get_status(self):
-        """
-        Returns an iterable of instances that implement IQueuedItem
-        """
-        for item in self._deque:
-            yield item
-        for item in self._in_progress:
-            yield item
-        for item in self._process_history:
-            yield item
 
     def _get_filepath(self, relpath_u):
         return extend_filepath(self._local_filepath, relpath_u.split(u"/"))
@@ -1074,26 +1029,14 @@ class QueueMixin(HookMixin):
         self._deque.clear()
         self._count('objects_queued', -len(to_process))
 
-        # we want to include all these in the next status request, so
-        # we must put them 'somewhere' before the next yield (and it's
-        # not in _process_history because that gets trimmed and we
-        # don't want anything to disappear until after it is
-        # completed)
-        self._in_progress.extend(to_process)
-
         with PROCESS_QUEUE(count=len(to_process)):
             for item in to_process:
-                self._process_history.appendleft(item)
-                self._in_progress.remove(item)
                 try:
                     proc = yield self._process(item)
-                    if not proc:
-                        self._process_history.remove(item)
                     self._call_hook(item, 'item_processed')
                 except:
                     proc = Failure()
                     write_failure(proc)
-                    item.set_status('process-queue failed', self._clock.seconds())
 
                 self._call_hook(proc, 'processed')
 
@@ -1115,20 +1058,6 @@ class IQueuedItem(Interface):
     relpath_u = Attribute("The path this item represents")
     progress = Attribute("A PercentProgress instance")
 
-    def set_status(self, status, current_time=None):
-        """
-        """
-
-    def status_time(self, state):
-        """
-        Get the time of particular state change, or None
-        """
-
-    def status_history(self):
-        """
-        All status changes, sorted latest -> oldest
-        """
-
 
 @implementer(IQueuedItem)
 class QueuedItem(object):
@@ -1137,37 +1066,11 @@ class QueuedItem(object):
     def __init__(self, relpath_u, progress, size):
         self.relpath_u = relpath_u
         self.progress = progress
-        self._status_history = dict()
         self.size = size
-
-    def set_status(self, status, current_time=None):
-        if current_time is None:
-            current_time = time.time()
-        self._status_history[status] = current_time
-        QUEUED_ITEM_STATUS_CHANGE.log(
-            relpath=self.relpath_u,
-            status=status,
-        )
-
-    def status_time(self, state):
-        """
-        Returns None if there's no status-update for 'state', else returns
-        the timestamp when that state was reached.
-        """
-        return self._status_history.get(state, None)
-
-    def status_history(self):
-        """
-        Returns a list of 2-tuples of (state, timestamp) sorted by timestamp
-        """
-        hist = self._status_history.items()
-        hist.sort(lambda a, b: cmp(a[1], b[1]))
-        return hist
 
     def __eq__(self, other):
         return (
             other.relpath_u == self.relpath_u,
-            other.status_history() == self.status_history(),
         )
 
 
@@ -1311,7 +1214,6 @@ class Uploader(QueueMixin):
             progress = PercentProgress()
             action.add_success_fields(ignored=False, already_pending=False, size=pathinfo.size)
             item = UploadItem(relpath_u, progress, pathinfo.size)
-            item.set_status('queued', self._clock.seconds())
             self._deque.append(item)
             self._count('objects_queued')
 
@@ -1382,8 +1284,7 @@ class Uploader(QueueMixin):
 
     def _process(self, item):
         """
-        Possibly upload a single QueuedItem.  If this returns False, the item is
-        removed from _process_history.
+        Possibly upload a single QueuedItem.
         """
         # Uploader
         with PROCESS_ITEM(item=item).context():
@@ -1394,9 +1295,7 @@ class Uploader(QueueMixin):
 
             d = DeferredContext(defer.succeed(False))
             if relpath_u is None:
-                item.set_status('invalid_path', self._clock.seconds())
                 return d.addActionFinish()
-            item.set_status('started', self._clock.seconds())
 
             try:
                 # Take this item out of the pending set before we do any
@@ -1622,12 +1521,9 @@ class Uploader(QueueMixin):
         def _succeeded(res):
             if res:
                 self._count('objects_succeeded')
-            # TODO: maybe we want the status to be 'ignored' if res is False
-            item.set_status('success', self._clock.seconds())
             return res
         def _failed(f):
             self._count('objects_failed')
-            item.set_status('failure', self._clock.seconds())
             return f
         d.addCallbacks(_succeeded, _failed)
         return d.addActionFinish()
@@ -1765,7 +1661,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
     def __init__(self, client, local_path_u, db, collective_dirnode,
                  upload_readonly_dircap, clock, is_upload_pending, umask,
-                 status_reporter, poll_interval=60):
+                 poll_interval=60):
         QueueMixin.__init__(self, client, local_path_u, db, u'downloader', clock)
 
         if not IDirectoryNode.providedBy(collective_dirnode):
@@ -1777,7 +1673,6 @@ class Downloader(QueueMixin, WriteFileMixin):
         self._upload_readonly_dircap = upload_readonly_dircap
         self._is_upload_pending = is_upload_pending
         self._umask = umask
-        self._status_reporter = status_reporter
         self._poll_interval = poll_interval
 
     @eliotutil.inline_callbacks
@@ -1797,10 +1692,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                     self._begin_processing()
                     return
                 except Exception:
-                    self._status_reporter(
-                        False, "Initial scan has failed",
-                        "Last tried at %s" % self.nice_current_time(),
-                    )
                     write_traceback()
                     yield task.deferLater(self._clock, self._scan_delay(), lambda: None)
 
@@ -1938,10 +1829,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                         scan_batch[relpath_u] += [(file_node, metadata)]
                     except KeyError:
                         scan_batch[relpath_u] = [(file_node, metadata)]
-            self._status_reporter(
-                True, 'Magic folder is working',
-                'Last scan: %s' % self.nice_current_time(),
-            )
 
         d.addCallback(scan_listing)
         return d.addActionFinish()
@@ -1982,7 +1869,6 @@ class Downloader(QueueMixin, WriteFileMixin):
                         metadata,
                         file_node.get_size(),
                     )
-                    to_dl.set_status('queued', self._clock.seconds())
                     self._deque.append(to_dl)
                     self._count("objects_queued")
                 else:
@@ -1999,26 +1885,16 @@ class Downloader(QueueMixin, WriteFileMixin):
     def _perform_scan(self):
         try:
             yield self._scan_remote_collective()
-            self._status_reporter(
-                True, 'Magic folder is working',
-                'Last scan: %s' % self.nice_current_time(),
-            )
-        except Exception as e:
+        except Exception:
             write_traceback()
-            self._status_reporter(
-                False, 'Remote scan has failed: %s' % str(e),
-                'Last attempted at %s' % self.nice_current_time(),
-            )
 
     def _process(self, item):
         """
-        Possibly upload a single QueuedItem.  If this returns False, the item is
-        removed from _process_history.
+        Possibly upload a single QueuedItem.
         """
         # Downloader
         now = self._clock.seconds()
 
-        item.set_status('started', now)
         fp = self._get_filepath(item.relpath_u)
         abspath_u = unicode_from_filepath(fp)
         conflict_path_u = self._get_conflicted_filename(abspath_u)
@@ -2050,11 +1926,9 @@ class Downloader(QueueMixin, WriteFileMixin):
                 written_pathinfo,
             )
             self._count('objects_downloaded')
-            item.set_status('success', self._clock.seconds())
             return True
 
         def failed(f):
-            item.set_status('failure', self._clock.seconds())
             self._count('objects_failed')
             return f
 

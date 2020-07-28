@@ -3,16 +3,6 @@ import os.path
 import re
 
 from tempfile import mktemp
-from hypothesis import (
-    given,
-)
-from hypothesis.strategies import (
-    datetimes,
-    dictionaries,
-    lists,
-    tuples,
-    just,
-)
 
 from testtools.content import (
     text_content,
@@ -21,7 +11,6 @@ from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
-    IsInstance,
 )
 
 from eliot import (
@@ -34,9 +23,6 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
-from twisted.python.filepath import (
-    FilePath,
-)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
@@ -55,12 +41,6 @@ from ...magic_folder import (
 )
 from ... import cli as magic_folder_cli
 
-from ...web import (
-    status_for_item,
-)
-from ...status import (
-    Status,
-)
 from ...magicfolderdb import (
     get_magicfolderdb,
     SCHEMA_v1,
@@ -73,16 +53,9 @@ from ..common_util import (
 )
 from ..common import (
     AsyncTestCase,
-    SameProcessStreamEndpointAssigner,
 )
 from ..fixtures import (
     SelfConnectedClient,
-)
-from ..strategies import (
-    folder_names,
-    queued_items,
-    path_segments,
-    filenodes,
 )
 from .common import (
     CLITestMixin,
@@ -144,17 +117,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         args = ("magic-folder", "list",)
         if json:
             args = args + ("--json",)
-        d = self.do_cli(*args, client_num=client_num)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d
-
-    def do_status(self, client_num, name=None):
-        args = ("magic-folder", "status",)
-        if name is not None:
-            args = args + ("--name", name)
         d = self.do_cli(*args, client_num=client_num)
         def _done(args):
             (rc, stdout, stderr) = args
@@ -450,138 +412,6 @@ class ListMagicFolder(AsyncTestCase):
                     },
                 }),
             ),
-        )
-
-
-class StatusMagicFolder(AsyncTestCase):
-    """
-    Tests for ``magic-folder status``.
-    """
-    @defer.inlineCallbacks
-    def test_command_exists(self):
-        """
-        There is a status command at all.
-        """
-        outcome = yield cli(
-            FilePath(self.mktemp()),
-            [b"status", b"--help"],
-        )
-        addOutcomeDetails(self, outcome)
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-
-    @defer.inlineCallbacks
-    def test_command_error(self):
-        """
-        If the status command encounters an error it reports it on stderr and
-        exits with a non-zero code.
-        """
-        outcome = yield cli(
-            # Pass in a fanciful node directory to provoke a predictable
-            # error.
-            FilePath(self.mktemp()),
-            [b"status"],
-        )
-        self.expectThat(
-            outcome.succeeded(),
-            Equals(False),
-        )
-        self.expectThat(
-            outcome.stderr,
-            Contains(b"does not exist"),
-        )
-
-    @defer.inlineCallbacks
-    def test_command_success(self):
-        """
-        If the status command succeeds it reports some information on stdout.
-        """
-        client_fixture = SelfConnectedClient(reactor)
-        yield client_fixture.use_on(self)
-
-        # Create a magic folder so that we can inspect its status.
-        magic_folder = client_fixture.tempdir.child(u"magic-folder")
-        outcome = yield cli(
-            client_fixture.node_directory,
-            [b"create",
-             b"magic-folder-alias:",
-             b"member-alias",
-             magic_folder.asBytesMode().path,
-            ],
-        )
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-
-        assigner = SameProcessStreamEndpointAssigner()
-        assigner.setUp()
-        self.addCleanup(assigner.tearDown)
-        ignored, endpoint_description = assigner.assign(reactor)
-
-        # Start the magic folder service after creating the magic folder so it
-        # will be noticed.
-        magic_folder_service = magic_folder_cli.MagicFolderService.from_node_directory(
-            reactor,
-            client_fixture.node_directory.path,
-            endpoint_description,
-        )
-        magic_folder_service.startService()
-        self.addCleanup(magic_folder_service.stopService)
-
-        outcome = yield cli(
-            client_fixture.node_directory,
-            [b"status"],
-        )
-
-        addOutcomeDetails(self, outcome)
-
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-
-    @given(
-        folder_names(),
-        datetimes(),
-        dictionaries(
-            path_segments(),
-            tuples(just(u"filenode"), filenodes()),
-        ),
-        # Laziness
-        path_segments(),
-        lists(queued_items()),
-        lists(queued_items()),
-    )
-    def test_formatting(
-            self,
-            folder_name,
-            now,
-            local_files,
-            remote_name,
-            upload_items,
-            download_items,
-    ):
-        self.assertThat(
-            magic_folder_cli._format_status(
-                now,
-                Status(
-                    folder_name,
-                    local_files=local_files,
-                    remote_files={remote_name: local_files},
-                    folder_status=list(
-                        status_for_item(kind, item)
-                        for (kind, items) in [
-                                ("upload", upload_items),
-                                ("download", download_items),
-                        ]
-                        for item in items
-                    ),
-                ),
-            ),
-            IsInstance(unicode),
         )
 
 

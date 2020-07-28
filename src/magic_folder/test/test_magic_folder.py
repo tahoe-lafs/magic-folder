@@ -1943,11 +1943,6 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
             what_path = abspath_expanduser_unicode(u"what", base=small_tree_dir)
             fileutil.write(what_path, "say when")
             yield self.fileops.move(small_tree_dir, new_small_tree_dir)
-            upstatus = list(self.magicfolder.uploader.get_status())
-            downstatus = list(self.magicfolder.downloader.get_status())
-
-            self.assertEqual(2, len(upstatus))
-            self.assertEqual(0, len(downstatus))
             yield iterate(self.magicfolder)
 
             # when we add the dir, we queue a scan of it; so we want
@@ -2037,38 +2032,6 @@ class SingleMagicFolderTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Reall
         node, metadata = yield self.magicfolder.downloader._get_collective_latest_file(u'foo')
         self.assertTrue(node is not None, "Failed to find %r in DMD" % (path,))
         self.failUnlessEqual(metadata['version'], 1)
-
-    @inline_callbacks
-    def test_batched_process(self):
-        """
-        status APIs correctly function when there are 2 items queued at
-        once for processing
-        """
-        # setup: get at least two items into the deque
-        path0 = os.path.join(self.local_dir, u'foo')
-        yield self.fileops.write(path0, 'foo\n')
-        path1 = os.path.join(self.local_dir, u'bar')
-        yield self.fileops.write(path1, 'bar\n')
-
-        # get the status before we've processed anything
-        upstatus0 = list(self.magicfolder.uploader.get_status())
-        upstatus1 = []
-
-        def one_item(item):
-            # grab status after we've processed a single item
-            us = list(self.magicfolder.uploader.get_status())
-            upstatus1.extend(us)
-        one_d = self.magicfolder.uploader.set_hook('item_processed')
-        # can't 'yield' here because the hook isn't called until
-        # inside iterate()
-        one_d.addCallbacks(one_item, self.fail)
-
-        yield iterate_uploader(self.magicfolder)
-        yield iterate_uploader(self.magicfolder)  # req'd for windows; not sure why?
-
-        # no matter which part of the queue the items are in, we
-        # should see the same status from the outside
-        self.assertEqual(upstatus0, upstatus1)
 
     @inline_callbacks
     def test_real_notify_failure(self):
