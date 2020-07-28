@@ -2,6 +2,24 @@
 
 .. _snapshots:
 
+Audience
+========
+
+This document is aimed at programmers and advanced users who want to
+explore the inner working of the magic-folder feature that preserves
+file history.
+
+Motivation
+==========
+
+It would be beneficial to maintain different versions of a file that
+uses are sharing with other parties. Another benefit is for better
+detection of conflicts. Even though not a direct motivation, it would
+be nice to get rid of the "root" privileges of the user who creates
+the folder and invites other users.
+
+To address these concerns, Leif Ryge proposed an alternative design on
+which we base our design of snapshots.
 
 Snapshots
 =========
