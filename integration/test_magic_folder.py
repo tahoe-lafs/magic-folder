@@ -360,7 +360,7 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
     # let it upload; poll the database to learn when that has happened.
     uploaded = wait_until_uploaded(
-        join(node_dir, "private", "magicfolder_edmond_magic.sqlite"),
+        join(node_dir, "private", "magicfolder_default.sqlite"),
         "its_a_file",
     )
     assert uploaded, "expected to upload 'its_a_file'"
