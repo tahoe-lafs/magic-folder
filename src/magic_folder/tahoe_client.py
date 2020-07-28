@@ -116,9 +116,7 @@ class TahoeClient(object):
             data=json.dumps(directory_data),
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
-        returnValue(
-            capability_string.strip()
-        )
+        returnValue(capability_string)
 
     @inlineCallbacks
     def create_immutable(self, producer):
@@ -141,9 +139,7 @@ class TahoeClient(object):
             data=producer,
         )
         capability_string = yield _get_content_check_code({CREATED}, res)
-        returnValue(
-            capability_string.strip()
-        )
+        returnValue(capability_string)
 
     @inlineCallbacks
     def create_mutable_directory(self):
