@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
+import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -1355,6 +1356,7 @@ subDispatch = {
 }
 
 
+@inlineCallbacks
 def do_magic_folder(options):
     """
     :returns: a Deferred which fires with the result of doig this
@@ -1365,58 +1367,19 @@ def do_magic_folder(options):
     so.stderr = options.stderr
     f = subDispatch[options.subCommand]
     try:
-        return maybeDeferred(f, so)
+        yield maybeDeferred(f, so)
     except Exception as e:
         print(u"Error: {}".format(e), file=options.stderr)
         if options['debug']:
-            raise
-
-
-class _MagicFolderService(Service):
-    def __init__(self, options):
-        self.options = options
-
-    def startService(self):
-        d = maybeDeferred(do_magic_folder, self.options)
-        d.addBoth(_stop)
-
-def _stop(reason):
-    if isinstance(reason, Failure):
-        print(reason.getTraceback())
-    from twisted.internet import reactor
-    reactor.callWhenRunning(reactor.stop)
-
-# Provide the option parsing helper for the IServiceMaker plugin that lets us
-# have "twist magic_folder ...".
-Options = MagicFolderCommand
-
-# Provide the IService-building helper for the IServiceMaker plugin.
-def makeService(options):
-    """
-    :param MagicFolderCommand options: The parsed options for the comand
-        invocation.
-
-    :return IService: An object providing ``IService`` which performs the
-        magic-folder operation requested by ``options`` when it is started.
-    """
-    service = MultiService()
-    _MagicFolderService(options).setServiceParent(service)
-    if options["coverage"]:
-        coverage_service().setServiceParent(service)
-    return service
-
+            traceback.print_exc(file=options.stderr)
+        raise SystemExit(1)
 
 @inlineCallbacks
 def main(reactor):
     options = MagicFolderCommand()
     options.parseOptions(sys.argv[1:])
-    try:
-        r = yield do_magic_folder(options)
-        returnValue(r)
-    except Exception as e:
-        print("Error: {}".format(e))
-        if options['debug']:
-            print(Failure().getTraceback())
+    yield do_magic_folder(options)
+
 
 def run():
     """

@@ -63,12 +63,11 @@ class ProcessOutcome(object):
         return self.code == 0
 
 @inlineCallbacks
-def cli(node_directory, argv):
+def cli(config_directory, argv):
     """
     Perform an in-process equivalent to the given magic-folder command.
 
-    :param FilePath node_directory: The path to the Tahoe-LAFS node this
-        command will use.
+    :param FilePath config_directory: The path to our configuration
 
     :param list[bytes] argv: The magic-folder arguments which define the
         command to run.  This does not include "magic-folder" itself, just the
@@ -84,8 +83,8 @@ def cli(node_directory, argv):
         try:
             options.parseOptions([
                 b"--debug",
-                b"--node-directory",
-                node_directory.asBytesMode().path,
+                b"--config",
+                config_directory.asBytesMode().path,
             ] + argv)
         except UsageError as e:
             print(e, file=options.stderr)

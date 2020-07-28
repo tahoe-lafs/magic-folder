@@ -21,6 +21,7 @@ from testtools.matchers import (
     Equals,
     AfterPreprocessing,
     IsInstance,
+    Always,
 )
 
 from eliot import (
@@ -53,6 +54,9 @@ from ...magic_folder import (
     load_magic_folders,
 )
 from ... import cli as magic_folder_cli
+from ...config import (
+    create_global_configuration,
+)
 
 from ...web import (
     status_for_item,
@@ -68,6 +72,7 @@ from ..common_util import (
 )
 from ..common import (
     AsyncTestCase,
+    SyncTestCase,
     SameProcessStreamEndpointAssigner,
 )
 from ..fixtures import (
@@ -348,6 +353,8 @@ class ListMagicFolder(AsyncTestCase):
 
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
+        self.config_dir = FilePath(self.mktemp())
+        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory)
 
     @defer.inlineCallbacks
     def test_list_none(self):
@@ -600,6 +607,8 @@ class CreateMagicFolder(AsyncTestCase):
 
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
+        self.config_dir = FilePath(self.mktemp())
+        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory)
 
     @defer.inlineCallbacks
     def test_create_magic_folder(self):
@@ -610,7 +619,7 @@ class CreateMagicFolder(AsyncTestCase):
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"magik:",
                 b"test_create",
@@ -631,7 +640,7 @@ class CreateMagicFolder(AsyncTestCase):
         """
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"m a g i k",
                 b"test_create_error",
@@ -653,29 +662,29 @@ class CreateMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
         outcome = yield cli(
-            self.node_directory, [
-                b"create",
+            self.config_dir, [
+                b"add",
                 b"--name",
                 b"foo",
-                b"magik:",
-                b"test_create_duplicate",
+                b"--author-name", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
 
         self.assertThat(
             outcome.succeeded(),
-            Equals(True),
+            Always(),
         )
 
         outcome = yield cli(
-            self.node_directory, [
-                b"create",
+            self.config_dir, [
+                b"add",
                 b"--name",
                 b"foo",
-                b"magik:",
-                b"test_create_duplicate",
+                b"--author-name", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -698,7 +707,7 @@ class CreateMagicFolder(AsyncTestCase):
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"--name",
                 b"foo",
@@ -714,7 +723,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
                 b"--name",
                 b"foo",
@@ -736,7 +745,7 @@ class CreateMagicFolder(AsyncTestCase):
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"--name",
                 b"foo",
@@ -752,7 +761,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
                 b"--name",
                 b"bar",
@@ -777,7 +786,7 @@ class CreateMagicFolder(AsyncTestCase):
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"--name",
                 b"foo",
@@ -793,7 +802,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
                 b"--name",
                 b"foo",
@@ -806,7 +815,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
                 b"--name",
                 b"foo",
@@ -829,7 +838,7 @@ class CreateMagicFolder(AsyncTestCase):
         an error.
         """
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
                 b"--name",
                 b"foo",
@@ -857,7 +866,7 @@ class CreateMagicFolder(AsyncTestCase):
         local_dir.makedirs()
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"magik:",
             ],
@@ -870,7 +879,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # create invite code for alice
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"invite",
                 b"magik:",
                 b"bob",
@@ -890,7 +899,7 @@ class CreateMagicFolder(AsyncTestCase):
         mf_bob.makedirs()
         # join
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
                 invite_code,
@@ -914,7 +923,7 @@ class CreateMagicFolder(AsyncTestCase):
         basedir = self.tempdir.child(u"magic-folder")
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"magik:",
             ],
@@ -927,7 +936,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # create invite code for bob
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"invite",
                 b"magik:",
                 b"bob",
@@ -948,7 +957,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # join
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
                 invite_code,
@@ -963,7 +972,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # leave
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"leave",
             ],
         )
@@ -975,7 +984,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # join
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
                 invite_code,
@@ -1087,7 +1096,7 @@ class CreateMagicFolder(AsyncTestCase):
         basedir.makedirs()
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"join_author_user:",
             ],
@@ -1098,7 +1107,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
         # create invite code for bob
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"invite",
                 b"join_author_user:",
                 b"bob",
@@ -1122,7 +1131,7 @@ class CreateMagicFolder(AsyncTestCase):
         os.environ["USER"] = "bob_from_user"
         try:
             outcome = yield cli(
-                self.node_directory, [
+                self.config_dir, [
                     b"join",
                     # no --author, so it should come from USER env-var
                     invite_code,
@@ -1154,7 +1163,7 @@ class CreateMagicFolder(AsyncTestCase):
         local_dir.makedirs()
 
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"magik:",
             ],
@@ -1167,7 +1176,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # create invite code for alice
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"invite",
                 b"magik:",
                 b"bob",
@@ -1188,7 +1197,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # join
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
                 invite_code,
@@ -1203,7 +1212,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         # join
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
                 invite_code,
@@ -1222,14 +1231,21 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
 
-class CreateErrors(AsyncTestCase):
+class CreateErrors(SyncTestCase):
+
+    def setUp(self):
+        super(CreateErrors, self).setUp()
+        self.temp = FilePath(self.mktemp())
+        self.temp.makedirs()
+
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("add", "--poll-interval=frog", )
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
-
-        with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("add", "--poll-interval=-4", "alias:")
+            parse_cli(
+                "add",
+                "--author-name", "test",
+                "--poll-interval=frog",
+                self.temp.path
+            )
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
 
