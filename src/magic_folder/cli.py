@@ -546,8 +546,9 @@ def leave(options):
     try:
         folder_config = options.parent.config.get_magic_folder(options["name"])
     except ValueError:
-        print("No such magic-folder '{}'".format(options["name"]), file=options.stderr)
-        return 1
+        raise usage.UsageError(
+            "No such magic-folder '{}'".format(options["name"])
+        )
 
     if folder_config.is_admin():
         if not options["really-delete-write-capability"]:

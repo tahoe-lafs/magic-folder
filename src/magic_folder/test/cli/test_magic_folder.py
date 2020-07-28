@@ -384,7 +384,7 @@ class ListMagicFolder(AsyncTestCase):
         folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.config_dir, [
-                b"create",
+                b"add",
                 b"--name", b"list-some-folder",
                 b"--author", b"alice",
                 folder_path.asBytesMode().path,
@@ -412,10 +412,8 @@ class ListMagicFolder(AsyncTestCase):
         folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
             self.config_dir, [
-                b"create",
+                b"add",
                 b"--name", b"list-some-json-folder",
-                b"magik:",
-                b"test_list_some_json",
                 folder_path.asBytesMode().path,
             ],
         )
@@ -478,56 +476,6 @@ class StatusMagicFolder(AsyncTestCase):
         self.expectThat(
             outcome.stderr,
             Contains(b"does not exist"),
-        )
-
-    @defer.inlineCallbacks
-    def test_command_success(self):
-        """
-        If the status command succeeds it reports some information on stdout.
-        """
-        client_fixture = SelfConnectedClient(reactor)
-        yield client_fixture.use_on(self)
-
-        # Create a magic folder so that we can inspect its status.
-        magic_folder = client_fixture.tempdir.child(u"magic-folder")
-        outcome = yield cli(
-            client_fixture.node_directory,
-            [b"create",
-             b"magic-folder-alias:",
-             b"member-alias",
-             magic_folder.asBytesMode().path,
-            ],
-        )
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-
-        assigner = SameProcessStreamEndpointAssigner()
-        assigner.setUp()
-        self.addCleanup(assigner.tearDown)
-        ignored, endpoint_description = assigner.assign(reactor)
-
-        # Start the magic folder service after creating the magic folder so it
-        # will be noticed.
-        magic_folder_service = magic_folder_cli.MagicFolderService.from_node_directory(
-            reactor,
-            client_fixture.node_directory.path,
-            endpoint_description,
-        )
-        magic_folder_service.startService()
-        self.addCleanup(magic_folder_service.stopService)
-
-        outcome = yield cli(
-            client_fixture.node_directory,
-            [b"status"],
-        )
-
-        addOutcomeDetails(self, outcome)
-
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
         )
 
     @given(
@@ -721,7 +669,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
+                b"add",
                 b"--name", b"foo",
                 magic_folder.asBytesMode().path,
             ],
@@ -760,7 +708,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
+                b"add",
                 b"--name", b"foo",
                 b"--author", b"alice",
                 magic_folder.asBytesMode().path,
@@ -936,7 +884,6 @@ class CreateMagicFolder(AsyncTestCase):
                 mf_bob.asBytesMode().path,
             ],
         )
-
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
