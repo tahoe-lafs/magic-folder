@@ -55,8 +55,7 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
-        $Env:PIP_FIND_LINKS = "./wheelhouse"
-        tox -e py27-coverage
+        PIP_FIND_LINKS=./wheelhouse tox -e py27-coverage
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v1"
@@ -121,5 +120,4 @@ jobs:
     - name: Test with tox
       continue-on-error: true
       run: |
-        $Env:PIP_FIND_LINKS = "./wheelhouse"
-        tox -e integration -- -x
+        PIP_FIND_LINKS=./wheelhouse tox -e integration
