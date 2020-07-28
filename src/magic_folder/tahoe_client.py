@@ -32,7 +32,7 @@ def _request(http_client, method, url, **kwargs):
 
     :param bytes method: The HTTP request method.
 
-    :param DecodedURL: The HTTP request path.
+    :param DecodedURL url: The HTTP request path.
 
     :param **kwargs: Any additional keyword arguments to pass along to
         ``HTTPClient``.
