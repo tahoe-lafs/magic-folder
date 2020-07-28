@@ -11,6 +11,8 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     MatchesAll,
+    MatchesPredicate,
+    ContainsDict,
     Always,
     Equals,
 )
@@ -150,4 +152,35 @@ def matches_response(code_matcher=Always(), headers_matcher=Always(), body_match
             lambda response: content(response),
             succeeded(body_matcher),
         ),
+    )
+
+def contained_by(container):
+    """
+    Match an element in the given container.
+
+    :param container: Anything that supports being the right-hand operand to
+        ``in``.
+
+    :return: A matcher.
+    """
+    return MatchesPredicate(
+        lambda element: element in container,
+        "%r not found",
+    )
+
+
+def header_contains(header_dict):
+    """
+    Match a ``twisted.web.http_headers.HTTPHeaders`` containing at least the
+    given items.
+
+    :param dict[unicode, Matcher] header_dict: A dictionary mapping header
+        names (canonical case) to matchers for the associated values (a list
+        of unicode strings).
+
+    :return: A matcher.
+    """
+    return AfterPreprocessing(
+        lambda headers: dict(headers.getAllRawHeaders()),
+        ContainsDict(header_dict),
     )
