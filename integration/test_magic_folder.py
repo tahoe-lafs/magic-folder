@@ -34,6 +34,9 @@ from treq.client import (
 from magic_folder.magic_folder import (
     load_magic_folders,
 )
+from magic_folder.magicfolderdb import (
+    get_magicfolderdb,
+)
 from magic_folder.cli import (
     MagicFolderCommand,
     do_magic_folder,
