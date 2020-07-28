@@ -131,7 +131,7 @@ from .status import (
 )
 
 from .invite import (
-    magic_folder_invite as _invite
+    magic_folder_invite
 )
 
 from .create import (
@@ -461,10 +461,10 @@ def _list_human(info, stdout, include_secrets):
 
 class InviteOptions(usage.Options):
     nickname = None
-    synopsis = "MAGIC_ALIAS: NICKNAME"
+    synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
     stdin = MixedIO(u"")
     optParameters = [
-        ("name", "n", "default", "The name of this magic-folder"),
+        ("name", "n", "default", "Name of an existing magic-folder"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -472,32 +472,24 @@ class InviteOptions(usage.Options):
         "transmitted securely to the invitee."
     )
 
-    def parseArgs(self, alias, nickname=None):
+    def parseArgs(self, nickname):
         super(InviteOptions, self).parseArgs()
-        alias = argv_to_unicode(alias)
-        if not alias.endswith(u':'):
-            raise usage.UsageError("An alias must end with a ':' character.")
-        self.alias = alias[:-1]
         self.nickname = argv_to_unicode(nickname)
-        aliases = get_aliases(self.parent.node_directory)
-        self.aliases = aliases
+
 
 @inlineCallbacks
 def invite(options):
-    precondition(isinstance(options.alias, unicode), alias=options.alias)
-    precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
-
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
 
-    try:
-        invite_code = yield _invite(options.parent.node_directory, options.alias, options.nickname, treq)
-        print("{}".format(invite_code), file=options.stdout)
-    except Exception as e:
-        print("magic-folder: {}".format(str(e)), file=options.stderr)
-        returnValue(1)
+    invite_code = yield magic_folder_invite(
+        options.parent.config,
+        options['name'],
+        options.nickname,
+        treq,
+    )
+    print(u"{}".format(invite_code), file=options.stdout)
 
-    returnValue(0)
 
 class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"

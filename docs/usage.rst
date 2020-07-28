@@ -106,6 +106,9 @@ that local directory will be uploaded.
 We can also specify ``--poll-interval`` to control how often the
 daemon will check for updates (by default this is 60 seconds).
 
+This device will be the administrator for a magic folder created in
+this manner (that is, only this device can invite new participants).
+
 See ``magic-folder create --help`` for specific usage details.
 
 
@@ -121,13 +124,15 @@ command:
    This client has the following magic-folders:
    default:
        location: /home/alice/Documents
-         author: alice-laptop (KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
       stash-dir: /home/alice/foo/default/stash
-     collective: URI:DIR2:o6i3qlwv746umshq4l3ktzzjj4:rip3osvz5aq2bwu5qyijaqp4hb6mtwnnicjdpewkz3d45ew35ksq
-       personal: URI:DIR2:r4d3qxahanxsr4ysw466cbwrpe:ba3ze3bsxpkp3npyb6al6okqolqmoipi5sjdmp467mqc5prgxmpa
+         author: alice-laptop (KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
         updates: every 60s
 
-**BE WARNED** that the information displayed is secret
+To get JSON output, pass ``--json``.  You can include sensitive secret
+information by passing ``--include-secret-information``. Someone
+who obtains this information can impersonate this device and participate
+as you in the magic folder (if they gain access to the Tahoe-LAFS Grid
+being used).
 
 
 Inviting Participant Devices
@@ -136,18 +141,16 @@ Inviting Participant Devices
 A new participant device is invited to collaborate on a magic folder
 using the ``magic-folder invite`` command:
 
-
 .. code-block:: console
 
-   $ magic-folder --node-directory=alice invite magic: bob
+   $ magic-folder --config ./foo invite --name default bob
 
-An invitation code is created using an alias for an existing magic
-folder (``magic:`` above) and a nickname for the new participant
-device (``bob`` above).  The magic folder alias identifies a
-previously created magic folder.  The nickname is assigned to the
-participant device in the magic folder configuration and grid state.
-Note that only the creator of a magic folder can invite new
-participant devices.
+An invitation code is created using an existing magic folder (``--name
+default`` above) and a nickname for the new participant device
+(``bob`` above). The magic-folder identified must have been created on
+this device.  The nickname is assigned to the participant device in
+the magic folder configuration and grid state.
+
 
 Joining a Magic Folder
 ----------------------
