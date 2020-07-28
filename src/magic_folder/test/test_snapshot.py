@@ -1,5 +1,4 @@
 import io
-import json
 from tempfile import mktemp
 
 from testtools.matchers import (
@@ -25,13 +24,15 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
+    text,
+)
+
+from hyperlink import (
+    DecodedURL,
 )
 
 from twisted.python.filepath import (
     FilePath,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
 )
 
 from allmydata.client import (
@@ -429,31 +430,20 @@ class TestLocalSnapshot(SyncTestCase):
         )
 
 
-class TestRemoteSnapshot(AsyncTestCase):
+class TestRemoteSnapshot(SyncTestCase):
     """
     Test upload and download of LocalSnapshot (creating RemoteSnapshot)
     """
-
-    @inlineCallbacks
-    def setUp(self):
-        super(TestRemoteSnapshot, self).setUp()
+    def setup_example(self):
         self.root = create_fake_tahoe_root()
-        self.http_client = yield create_tahoe_treq_client(self.root)
-        self.tahoe_client = yield create_tahoe_client(
-            u"http://example.com",
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
         self.alice = create_local_author("alice")
         self.stash_dir = FilePath(mktemp())
         self.stash_dir.makedirs()  # 'trial' will delete this when done
-
-    def _download_content(self, snapshot_cap):
-        d = self.tahoe_client.download_capability(snapshot_cap)
-        data = json.loads(d.result)
-        content_cap = data["content"][1]["ro_uri"]
-        # sig = data["content"][1]["metadata"]["magic_folder"]["author_signature"]
-        # XXX is it "testtools-like" to check the signature here too?
-        return self.tahoe_client.download_capability(content_cap)
 
     @given(
         content=binary(min_size=1),
