@@ -67,8 +67,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         GridTestMixin.setUp(self)
         self.alice_nickname = self.unicode_or_fallback(u"Alice\u00F8", u"Alice", io_as_well=True)
         self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
-        self.stash_dir = FilePath(mktemp())
-        self.stash_dir.makedirs()
 
     def do_create_magic_folder(self, client_num):
         with start_action(action_type=u"create-magic-folder", client_num=client_num).context():
