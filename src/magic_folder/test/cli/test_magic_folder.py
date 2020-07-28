@@ -52,8 +52,6 @@ from magic_folder.util.eliotutil import (
 from ...magic_folder import (
     MagicFolder,
     load_magic_folders,
-    LocalSnapshotService,
-    LocalSnapshotCreator,
 )
 from ... import cli as magic_folder_cli
 
@@ -66,9 +64,6 @@ from ...status import (
 from ...magicfolderdb import (
     get_magicfolderdb,
     SCHEMA_v1,
-)
-from ...snapshot import (
-    create_local_author_from_config,
 )
 
 from ..no_network import GridTestMixin
@@ -281,19 +276,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             self.fail("Unable to create the db: {}".format(dbfile))
 
         client = self.get_client(client_num)
-        global_config = client.config
         name='default'
-        local_author = create_local_author_from_config(global_config, name)
-        snapshot_creator = LocalSnapshotCreator(
-            db=db,
-            author=local_author,
-            stash_dir=self.stash_dir,
-        )
-
-        snapshot_service = LocalSnapshotService(
-            magic_path=FilePath(local_magic_dir),
-            snapshot_creator=snapshot_creator,
-        )
 
         magicfolder = MagicFolder(
             client=client,
@@ -306,7 +289,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             clock=clock,
             uploader_delay=0.2,
             downloader_delay=0,
-            snapshot_service=snapshot_service,
         )
 
         magicfolder.setServiceParent(self.get_client(client_num))

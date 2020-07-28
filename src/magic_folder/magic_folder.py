@@ -71,7 +71,6 @@ from . import (
     magicpath,
 )
 from .snapshot import (
-    create_local_author_from_config,
     create_snapshot,
     LocalAuthor,
 )
@@ -377,17 +376,6 @@ class MagicFolder(service.MultiService):
         if database is None:
             raise Exception('ERROR: Unable to load magic folder db.')
 
-        local_author = create_local_author_from_config(global_config, name)
-        snapshot_creator = LocalSnapshotCreator(
-            db=database,
-            author=local_author,
-            stash_dir=FilePath("/tmp"),
-        )
-        snapshot_service = LocalSnapshotService(
-            magic_path=FilePath(local_dir_config),
-            snapshot_creator=snapshot_creator,
-        )
-
         return cls(
             client=client_node,
             upload_dircap=config["upload_dircap"],
@@ -402,12 +390,10 @@ class MagicFolder(service.MultiService):
             name=name,
             downloader_delay=poll_interval,
             clock=reactor,
-            snapshot_service=snapshot_service,
         )
 
     def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
-                 name, uploader_delay=1.0, clock=None, downloader_delay=60,
-                 snapshot_service=None):
+                 name, uploader_delay=1.0, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
             raise ValueError("'{}' does not exist".format(local_path_u))
@@ -419,10 +405,6 @@ class MagicFolder(service.MultiService):
         service.MultiService.__init__(self)
 
         clock = clock or reactor
-
-        if snapshot_service is None:
-            raise ValueError("Must supply snapshot_service=")
-        snapshot_service.setServiceParent(self)
 
         # for tests
         self._client = client
