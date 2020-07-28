@@ -106,11 +106,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         def _done(args):
             (rc, stdout, stderr) = args
             self.assertEqual(rc, 0, stdout + stderr)
-            self.assertIn("Alias 'magic' created", stdout)
             self.assertEqual(stderr, "")
-            aliases = get_aliases(self.get_clientdir(i=client_num))
-            self.assertIn("magic", aliases)
-            self.assertTrue(aliases["magic"].startswith("URI:DIR2:"))
         d.addCallback(_done)
         return d.addActionFinish()
 
@@ -126,7 +122,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
                 self.do_cli(
                     "magic-folder",
                     "invite",
-                    "magic:",
                     nickname_arg,
                     client_num=client_num,
                 )
@@ -1004,27 +999,27 @@ class CreateMagicFolder(AsyncTestCase):
         self.basedir = "cli/MagicFolder/help_synopsis"
         os.makedirs(self.basedir)
 
-        o = magic_folder_cli.CreateOptions()
+        o = magic_folder_cli.AddOptions()
         o.parent = magic_folder_cli.MagicFolderCommand()
         o.parent.getSynopsis()
 
-    def test_no_node_directory(self):
+    def test_no_config_directory(self):
         """
-        Running a command without --node-directory fails
+        Running a command without --config fails
         """
         o = magic_folder_cli.InviteOptions()
         o.parent = magic_folder_cli.MagicFolderCommand()
 
         try:
-            o.parseOptions(["alias:", "nickname"])
+            o.parseOptions(["nickname"])
         except usage.UsageError as e:
-            self.assertIn("Must supply --node-directory", str(e))
+            self.assertIn("Must supply --config", str(e))
         else:
             self.fail("expected UsageError")
 
-    def test_node_directory_is_file(self):
+    def test_config_directory_is_file(self):
         """
-        Using --node-directory with a file is an error
+        Using --config with a file is an error
         """
         o = magic_folder_cli.MagicFolderCommand()
         nodefile = self.mktemp()
@@ -1032,58 +1027,24 @@ class CreateMagicFolder(AsyncTestCase):
             f.write("dummy\n")
 
         try:
-            o.parseOptions(["--node-directory", nodefile, "invite", "alias:", "nickname"])
+            o.parseOptions(["--config", nodefile, "invite", "nickname"])
         except usage.UsageError as e:
             self.assertIn("is not a directory", str(e))
         else:
             self.fail("expected UsageError")
 
-    def test_node_directory_empty(self):
+    def test_config_directory_empty(self):
         """
-        A directory that is empty isn't valid for --node-directory
+        A directory that is empty isn't valid for --config
         """
         o = magic_folder_cli.MagicFolderCommand()
         nodedir = self.mktemp()
         os.mkdir(nodedir)
 
         try:
-            o.parseOptions(["--node-directory", nodedir, "invite", "alias:", "nickname"])
+            o.parseOptions(["--config", nodedir, "invite", "nickname"])
         except usage.UsageError as e:
             self.assertIn("doesn't look like a Tahoe directory", str(e))
-        else:
-            self.fail("expected UsageError")
-
-    def test_create_invite_join_failure(self):
-        """
-        Test the cli input for valid local directory name.
-        """
-        self.basedir = "cli/MagicFolder/create-invite-join-failure"
-        os.makedirs(self.basedir)
-
-        o = magic_folder_cli.CreateOptions()
-        o.parent = magic_folder_cli.MagicFolderCommand()
-        o.parent['node-directory'] = self.basedir
-        try:
-            o.parseArgs("magic:", "Alice", "-foo")
-        except usage.UsageError as e:
-            self.assertIn("cannot start with '-'", str(e))
-        else:
-            self.fail("expected UsageError")
-
-    def test_join_failure(self):
-        """
-        Test the cli input for valid invite code.
-        """
-        self.basedir = "cli/MagicFolder/create-join-failure"
-        os.makedirs(self.basedir)
-
-        o = magic_folder_cli.JoinOptions()
-        o.parent = magic_folder_cli.MagicFolderCommand()
-        o.parent['node-directory'] = self.basedir
-        try:
-            o.parseArgs("URI:invite+URI:code", "-foo")
-        except usage.UsageError as e:
-            self.assertIn("cannot start with '-'", str(e))
         else:
             self.fail("expected UsageError")
 
