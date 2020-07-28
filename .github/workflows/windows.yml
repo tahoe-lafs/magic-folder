@@ -52,6 +52,8 @@ jobs:
 
     - name: Test with tox
       continue-on-error: true
+      env:
+        MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
         $Env:PIP_FIND_LINKS = "./wheelhouse"
         tox -e py27-coverage
