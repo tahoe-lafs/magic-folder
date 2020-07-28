@@ -379,7 +379,7 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
 
 def wait_until_uploaded(dbpath, relpath):
     db = get_magicfolderdb(dbpath)
-    for _ in range(10):
+    for _ in range(20):
         entry = db.get_db_entry("its_a_file")
         if entry is not None and entry.last_uploaded_uri != None:
             return True
