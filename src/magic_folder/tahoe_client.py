@@ -83,8 +83,11 @@ def _get_content_check_code(acceptable_codes, res):
 class TahoeClient(object):
     """
     An object that knows how to call a particular tahoe client's
-    WebAPI. Usually this means a node-directory (to get the base URL)
-    and a treq client (to make HTTP requests).
+    WebAPI.
+
+    :ivar DecodedURL url: The root of the Tahoe-LAFS client node's HTTP API.
+
+    :ivar HTTPClient http_client: The client to use to make HTTP requests.
     """
 
     url = attr.ib(validator=attr.validators.instance_of(DecodedURL))
