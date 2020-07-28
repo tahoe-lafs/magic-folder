@@ -46,10 +46,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install wheel tox
 
-    - name: Get Tahoe-LAFS master
-      run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
-
     - name: Test with tox
       continue-on-error: true
       env:
@@ -112,10 +108,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install wheel tox
-
-    - name: Get Tahoe-LAFS master
-      run: |
-        pip wheel --wheel-dir ./wheelhouse git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
 
     - name: Test with tox
       continue-on-error: true
