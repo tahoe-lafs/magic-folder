@@ -1137,13 +1137,6 @@ class CreateErrors(SyncTestCase):
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
 
 
-class InviteErrors(AsyncTestCase):
-    def test_alias(self):
-        with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("invite", "no-colon")
-        self.assertEqual(str(ctx.exception), "An alias must end with a ':' character.")
-
-
 class JoinErrors(AsyncTestCase):
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
