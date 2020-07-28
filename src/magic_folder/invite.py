@@ -89,17 +89,21 @@ def magic_folder_invite(config, folder_name, invitee_name, treq):
     magic_write_cap = folder_config.collective_dircap
     magic_readonly_cap = uri.from_string(magic_write_cap.encode("utf8")).get_readonly().to_string()
 
-    # tahoe ln CLIENT_READCAP COLLECTIVE_WRITECAP/NICKNAME
-    #from_file = dmd_readonly_cap.decode('utf-8')
-    #to_file = u"{}/{}".format(magic_write_cap.decode('utf-8'), nickname)
+    # similar to:
+    #
+    #   tahoe ln CLIENT_READCAP COLLECTIVE_WRITECAP/NICKNAME
+    #
+    # ...we're adding a sub-directory to the global DMD; the name of
+    # this sub-directory is the invitee's name and it points to the
+    # mutable directory we created for them (which will be included in
+    # the invite code)
 
-    # /uri/<root-cap>/<path>?t=uri&replace=only-files
-    # XXX
     put_url = config.tahoe_client_url.child(u"uri")
     put_url = put_url.child(magic_write_cap.decode("utf8"))
     put_url = put_url.child(invitee_name)
     put_url = put_url.add(u"t", u"uri")
     put_url = put_url.add(u"replace", u"only-files")
+
     resp = yield treq.put(put_url.to_text(), dmd_readonly_cap)
     if resp.code < 200 or resp.code >= 300:
         if resp.code == CONFLICT:
