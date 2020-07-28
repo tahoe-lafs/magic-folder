@@ -22,6 +22,7 @@ from testtools.matchers import (
     AfterPreprocessing,
     IsInstance,
     Always,
+    ContainsDict,
 )
 
 from eliot import (
@@ -88,6 +89,10 @@ from .common import (
     CLITestMixin,
     cli,
 )
+from ..common_util import (
+    run_magic_folder_cli,
+)
+
 
 class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
     def setUp(self):
@@ -96,10 +101,24 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
 
     def do_create_magic_folder(self, client_num):
+        confpath = FilePath(self.get_clientdir(i=client_num)).child("config")
+
+        if not confpath.exists():
+            run_magic_folder_cli(
+                "magic-folder", "init",
+                "--config", confpath.asBytesMode().path,
+                "--listen-endpoint", "tcp:{}".format(4320 + client_num),
+                "--node-directory", self.get_clientdir(i=client_num).encode("utf8"),
+            )
+
+        folder_dir = FilePath(self.basedir).child(u"magicfolder{}".format(client_num))
+        folder_dir.makedirs()
+
         with start_action(action_type=u"create-magic-folder", client_num=client_num).context():
             d = DeferredContext(
                 self.do_cli(
-                    "magic-folder", "--debug", "add",
+                    "magic-folder", "--debug",
+                    "add", folder_dir.asBytesMode().path,
                     client_num=client_num,
                 )
             )
@@ -263,7 +282,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d.result
 
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
-        dbfile = abspath_expanduser_unicode(u"magicfolder_default.sqlite", base=self.get_clientdir(i=client_num))
         magicfolder = MagicFolder(
             client=self.get_client(client_num),
             upload_dircap=upload_dircap,
@@ -363,6 +381,8 @@ class ListMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         folder_path = self.tempdir.child(u"magic-folder")
+        folder_path.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
                 b"add",
@@ -382,10 +402,12 @@ class ListMagicFolder(AsyncTestCase):
             outcome.stdout,
             AfterPreprocessing(
                 json.loads,
-                Equals({
-                    u"list-some-json-folder": {
-                        u"directory": folder_path.path,
-                    },
+                ContainsDict({
+                    u"list-some-json-folder": ContainsDict({
+                        u"magic_path": Equals(folder_path.path),
+                        u"poll_interval": Equals(60),
+                        u"is_admin": Equals(True),
+                    }),
                 }),
             ),
         )
@@ -408,27 +430,6 @@ class StatusMagicFolder(AsyncTestCase):
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
-        )
-
-    @defer.inlineCallbacks
-    def test_command_error(self):
-        """
-        If the status command encounters an error it reports it on stderr and
-        exits with a non-zero code.
-        """
-        outcome = yield cli(
-            # Pass in a fanciful node directory to provoke a predictable
-            # error.
-            FilePath(self.mktemp()),
-            [b"status"],
-        )
-        self.expectThat(
-            outcome.succeeded(),
-            Equals(False),
-        )
-        self.expectThat(
-            outcome.stderr,
-            Contains(b"does not exist"),
         )
 
     @given(

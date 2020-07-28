@@ -2,6 +2,9 @@ from __future__ import (
     print_function,
 )
 
+from os.path import (
+    join,
+)
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -46,10 +49,11 @@ class CLITestMixin(ReallyEqualMixin):
         # client.
         client_num = kwargs.get("client_num", 0)
         client_dir = unicode_to_argv(self.get_clientdir(i=client_num))
-        nodeargs = [ "--node-directory", client_dir ]
         if verb == "magic-folder":
+            nodeargs = ["--config", join(client_dir, "config")]
             return run_magic_folder_cli(verb, nodeargs=nodeargs, *args, **kwargs)
         else:
+            nodeargs = ["--node-directory", client_dir]
             return run_tahoe_cli(verb, nodeargs=nodeargs, *args, **kwargs)
 
 

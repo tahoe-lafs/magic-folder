@@ -816,13 +816,9 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         self.bob_magic_dir = abspath_expanduser_unicode(u"Bob-magic", base=self.basedir)
         self.mkdir_nonascii(self.bob_magic_dir)
 
-        # Alice creates a Magic Folder, invites herself and joins.
+        # Alice creates a Magic Folder
         d = DeferredContext(self.do_create_magic_folder(0))
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code(result):
-            self.invite_code = result[1].strip()
-        d.addCallback(get_invite_code)
-        d.addCallback(lambda ign: self.do_join(0, self.alice_magic_dir, self.invite_code))
+
         def get_alice_caps(ign):
             self.alice_collective_dircap, self.alice_upload_dircap = self.get_caps_from_files(0)
         d.addCallback(get_alice_caps)
