@@ -13,7 +13,8 @@ Test-helpers for clients that use the WebUI.
 NOTE: This code should be in upstream Tahoe-LAFS.  None of it exists in
 1.14.0.  Some of it has been pushed upstream and will make it into 1.15.0
 without further efforts but other parts have not.  Changes here should always
-be pushed upstream quickly.
+be pushed upstream eventually but not so quickly that we have to submit a PR
+to Tahoe-LAFS every few days.
 """
 
 from functools import (
