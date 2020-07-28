@@ -133,10 +133,7 @@ class TahoeClient(object):
         :return Deferred[bytes]: A Deferred which fires with the capability
             string for the new immutable object.
         """
-        put_uri = self.url.replace(
-            path=(u"uri",),
-            query=[(u"mutable", u"false")],
-        )
+        put_uri = self.url.child(u"uri")
         res = yield _request(
             self.http_client,
             b"PUT",

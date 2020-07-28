@@ -210,6 +210,14 @@ class _FakeTahoeUriHandler(Resource, object):
         return (False, self._add_new_data(kind, data))
 
     def render_PUT(self, request):
+        uri = DecodedURL.from_text(request.uri.decode("utf8"))
+        fmt = "chk"
+        for arg, value in uri.query:
+            if arg == "format":
+                fmt = value.lower()
+        if fmt != "chk":
+            raise NotImplementedError()
+
         data = request.content.read()
         fresh, cap = self.add_data("URI:CHK:", data)
         if fresh:
