@@ -1259,7 +1259,12 @@ class BaseOptions(usage.Options):
         configuration location.
         """
         if self._config is None:
-            self._config = load_global_configuration(self._config_path)
+            try:
+                self._config = load_global_configuration(self._config_path)
+            except Exception as e:
+                raise usage.UsageError(
+                    u"Unable to load configuration: {}".format(e)
+                )
         return self._config
 
 

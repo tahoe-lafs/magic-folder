@@ -1044,7 +1044,7 @@ class CreateMagicFolder(AsyncTestCase):
         try:
             o.parseOptions(["--config", nodedir, "invite", "nickname"])
         except usage.UsageError as e:
-            self.assertIn("doesn't look like a Tahoe directory", str(e))
+            self.assertIn("Unable to load configuration", str(e))
         else:
             self.fail("expected UsageError")
 

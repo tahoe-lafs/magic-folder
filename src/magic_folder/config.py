@@ -182,6 +182,10 @@ def load_global_configuration(basedir):
             "'{}' doesn't exist".format(basedir.path)
         )
     db_fname = basedir.child("global.sqlite")
+    if not db_fname.exists():
+        raise Exception(
+            "No configuration; expected '{}'".format(db_fname.path)
+        )
     connection = sqlite3.connect(db_fname.path)
     return GlobalConfigDatabase(
         database=connection,
