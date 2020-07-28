@@ -233,17 +233,11 @@ def queued_items():
     """
     Build ``QueuedItem`` instances.
     """
-    def an_item(path, progress, size, when):
-        item = QueuedItem(path, progress, size)
-        item.set_status('queued', when)
-        return item
-
     return builds(
-        an_item,
+        QueuedItem,
         relative_paths(),
         progresses(),
         integers(min_value=0),
-        integers(min_value=0, max_value=2 ** 31 - 1),
     )
 
 def magic_folder_filenames():
