@@ -40,6 +40,7 @@ from testtools.matchers import (
     AfterPreprocessing,
     IsInstance,
     Equals,
+    Always,
 )
 
 from testtools.twistedsupport import (
@@ -115,6 +116,27 @@ class TahoeClientTests(SyncTestCase):
                     lambda cap: self.root._uri.data[cap],
                     Equals(data),
                 ),
+            ),
+        )
+
+    @given(binary())
+    def test_recreate_immutable(self, data):
+        """
+        If the data given to ``create_immutable`` already exists,
+        ``create_immutable`` returns the cap of the existing data (which is
+        the same as the cap of the new data).
+        """
+        def create_it():
+            return self.tahoe_client.create_immutable(data)
+        caps = []
+        self.assertThat(
+            create_it().addCallback(caps.append),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            create_it(),
+            succeeded(
+                Equals(caps[0]),
             ),
         )
 
