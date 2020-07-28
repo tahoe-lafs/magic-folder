@@ -78,12 +78,6 @@ class LocalSnapshotServiceTests(SyncTestCase):
     """
     def setUp(self):
         super(LocalSnapshotServiceTests, self).setUp()
-        self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
-        self.author = create_local_author("alice")
-
-        self.stash_dir = FilePath(self.mktemp())
-        self.stash_dir.makedirs()
-
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
 
