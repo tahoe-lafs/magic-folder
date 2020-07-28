@@ -281,55 +281,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         magicfolder.ready()
         return magicfolder
 
-    def setup_alice_and_bob(self, alice_clock=reactor, bob_clock=reactor):
-        self.set_up_grid(num_clients=2, oneshare=True)
-
-        self.alice_magicfolder = None
-        self.bob_magicfolder = None
-
-        alice_magic_dir = abspath_expanduser_unicode(u"Alice-magic", base=self.basedir)
-        self.mkdir_nonascii(alice_magic_dir)
-        bob_magic_dir = abspath_expanduser_unicode(u"Bob-magic", base=self.basedir)
-        self.mkdir_nonascii(bob_magic_dir)
-
-        # Alice creates a Magic Folder, invites herself and joins.
-        d = self.do_create_magic_folder(0)
-        d.addCallback(lambda ign: self.do_invite(0, self.alice_nickname))
-        def get_invite_code(result):
-            self.invite_code = result[1].strip().encode("utf8")
-        d.addCallback(get_invite_code)
-        d.addCallback(lambda ign: self.do_join(0, alice_magic_dir, self.invite_code))
-        def get_alice_caps(ign):
-            self.alice_collective_dircap, self.alice_upload_dircap = self.get_caps_from_files(0)
-        d.addCallback(get_alice_caps)
-        d.addCallback(lambda ign: self.check_joined_config(0, self.alice_upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, alice_magic_dir))
-        def get_Alice_magicfolder(result):
-            self.alice_magicfolder = self.init_magicfolder(0, self.alice_upload_dircap,
-                                                           self.alice_collective_dircap,
-                                                           alice_magic_dir, alice_clock)
-            return result
-        d.addCallback(get_Alice_magicfolder)
-
-        # Alice invites Bob. Bob joins.
-        d.addCallback(lambda ign: self.do_invite(0, self.bob_nickname))
-        def get_invite_code(result):
-            self.invite_code = result[1].strip().encode("utf8")
-        d.addCallback(get_invite_code)
-        d.addCallback(lambda ign: self.do_join(1, bob_magic_dir, self.invite_code))
-        def get_bob_caps(ign):
-            self.bob_collective_dircap, self.bob_upload_dircap = self.get_caps_from_files(1)
-        d.addCallback(get_bob_caps)
-        d.addCallback(lambda ign: self.check_joined_config(1, self.bob_upload_dircap))
-        d.addCallback(lambda ign: self.check_config(1, bob_magic_dir))
-        def get_Bob_magicfolder(result):
-            self.bob_magicfolder = self.init_magicfolder(1, self.bob_upload_dircap,
-                                                         self.bob_collective_dircap,
-                                                         bob_magic_dir, bob_clock)
-            return result
-        d.addCallback(get_Bob_magicfolder)
-        return d
-
 
 class ListMagicFolder(AsyncTestCase):
     """
