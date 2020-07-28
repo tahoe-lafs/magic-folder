@@ -122,6 +122,56 @@ class TestLocalAuthor(SyncTestCase):
         )
 
 
+class TestRemoteAuthor(SyncTestCase):
+    """
+    Tests for RemoteAuthor and the related constructors, ``create_author`` and
+    ``create_author_from_json``.
+    """
+    @given(remote_authors())
+    def test_json_roundtrip(self, remote_author):
+        """
+        create_author_from_json . RemoteAuthor.to_json = id
+        """
+        self.assertThat(
+            create_author_from_json(remote_author.to_json()),
+            Equals(remote_author),
+        )
+
+    @given(remote_authors())
+    def test_from_json_missing_property(self, author):
+        """
+        If the JSON input to create_author_from_json is missing any of the
+        properties emitted by RemoteAuthor.to_json then it raises
+        ``ValueError``.
+        """
+        js = author.to_json()
+        missing = js.popitem()[0]
+        with ExpectedException(MissingPropertyError, missing):
+            create_author_from_json(js)
+
+    @given(remote_authors(), text(), text())
+    def test_author_serialize_extra_data(self, remote_author, extra_key, extra_value):
+        """
+        If the JSON input to create_author_from_json has any extra properties
+        beyond those emitted by RemoteAuthor.to_json then it raises
+        ``ValueError``.
+        """
+        js = remote_author.to_json()
+        assume(extra_key not in js)
+        js[extra_key] = extra_value
+        with ExpectedException(UnknownPropertyError):
+            create_author_from_json(js)
+
+    @given(author_names())
+    def test_author_create_wrong_key(self, name):
+        """
+        create_author raises TypeError if passed a value for verify_key which is
+        not an instance of VerifyKey.
+        """
+        with ExpectedException(TypeError, ".*not a VerifyKey.*"):
+            create_author(name, "not a VerifyKey")
+
+
 class TestLocalSnapshot(SyncTestCase):
     """
     Test functionality of LocalSnapshot, the representation of non-uploaded
@@ -367,56 +417,6 @@ class TestLocalSnapshot(SyncTestCase):
                 parents_local=HasLength(0),
             )
         )
-
-
-class TestRemoteAuthor(SyncTestCase):
-    """
-    Tests for RemoteAuthor and the related constructors, ``create_author`` and
-    ``create_author_from_json``.
-    """
-    @given(remote_authors())
-    def test_json_roundtrip(self, remote_author):
-        """
-        create_author_from_json . RemoteAuthor.to_json = id
-        """
-        self.assertThat(
-            create_author_from_json(remote_author.to_json()),
-            Equals(remote_author),
-        )
-
-    @given(remote_authors())
-    def test_from_json_missing_property(self, author):
-        """
-        If the JSON input to create_author_from_json is missing any of the
-        properties emitted by RemoteAuthor.to_json then it raises
-        ``ValueError``.
-        """
-        js = author.to_json()
-        missing = js.popitem()[0]
-        with ExpectedException(MissingPropertyError, missing):
-            create_author_from_json(js)
-
-    @given(remote_authors(), text(), text())
-    def test_author_serialize_extra_data(self, remote_author, extra_key, extra_value):
-        """
-        If the JSON input to create_author_from_json has any extra properties
-        beyond those emitted by RemoteAuthor.to_json then it raises
-        ``ValueError``.
-        """
-        js = remote_author.to_json()
-        assume(extra_key not in js)
-        js[extra_key] = extra_value
-        with ExpectedException(UnknownPropertyError):
-            create_author_from_json(js)
-
-    @given(author_names())
-    def test_author_create_wrong_key(self, name):
-        """
-        create_author raises TypeError if passed a value for verify_key which is
-        not an instance of VerifyKey.
-        """
-        with ExpectedException(TypeError, ".*not a VerifyKey.*"):
-            create_author(name, "not a VerifyKey")
 
 
 class TestRemoteSnapshot(SyncTestCase):
