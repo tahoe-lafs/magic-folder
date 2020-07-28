@@ -50,8 +50,8 @@ jobs:
       continue-on-error: true
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
-      run: |
-        PIP_FIND_LINKS=./wheelhouse tox -e py27-coverage
+        PIP_FIND_LINKS=./wheelhouse
+      run: tox -e py27-coverage
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v1"
@@ -111,8 +111,9 @@ jobs:
 
     - name: Test with tox
       continue-on-error: true
-      run: |
-        PIP_FIND_LINKS=./wheelhouse tox -e integration
+      env:
+        PIP_FIND_LINKS=./wheelhouse
+      run: tox -e integration
 
     - uses: codecov/codecov-action@v1
       with:
