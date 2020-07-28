@@ -382,6 +382,8 @@ class ListMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         folder_path = self.tempdir.child(u"magic-folder")
+        folder_path.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
                 b"add",
