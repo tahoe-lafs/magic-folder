@@ -386,7 +386,7 @@ class ListMagicFolder(AsyncTestCase):
             self.config_dir, [
                 b"create",
                 b"--name", b"list-some-folder",
-                b"--author-name", b"alice",
+                b"--author", b"alice",
                 folder_path.asBytesMode().path,
             ],
         )
@@ -607,46 +607,25 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
     @defer.inlineCallbacks
-    def test_create_magic_folder(self):
+    def test_add_magic_folder(self):
         """
         Create a new magic folder with a nickname and local directory so
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
-                b"create",
-                b"magik:",
-                b"test_create",
+                b"add",
+                b"--author", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
-
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
-        )
-
-    @defer.inlineCallbacks
-    def test_create_error(self):
-        """
-        Try to create a magic folder with an invalid nickname and check if
-        this results in an error.
-        """
-        magic_folder = self.tempdir.child(u"magic-folder")
-        outcome = yield cli(
-            self.config_dir, [
-                b"create",
-                b"m a g i k",
-                b"test_create_error",
-                magic_folder.asBytesMode().path,
-            ]
-        )
-
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(False),
         )
 
     @defer.inlineCallbacks
@@ -663,9 +642,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
-                b"--name",
-                b"foo",
-                b"--author-name", b"test",
+                b"--name", b"foo",
+                b"--author", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -678,9 +656,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
-                b"--name",
-                b"foo",
-                b"--author-name", b"test",
+                b"--name", b"foo",
+                b"--author", b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -740,13 +717,12 @@ class CreateMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
                 b"create",
-                b"--name",
-                b"foo",
-                b"magik:",
-                b"test_add_leave_folder",
+                b"--name", b"foo",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -759,8 +735,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
-                b"--name",
-                b"bar",
+                b"--name", b"bar",
             ],
         )
 
@@ -781,11 +756,13 @@ class CreateMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
         outcome = yield cli(
             self.config_dir, [
                 b"create",
                 b"--name", b"foo",
-                b"--author-name", b"alice",
+                b"--author", b"alice",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -798,8 +775,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
-                b"--name",
-                b"foo",
+                b"--name", b"foo",
+                b"--really-delete-write-capability",
             ],
         )
 
@@ -811,8 +788,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
-                b"--name",
-                b"foo",
+                b"--name", b"foo",
             ],
         )
 
@@ -821,7 +797,7 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(False),
         )
         self.assertIn(
-            "No magic-folders at all",
+            "No such magic-folder 'foo'",
             outcome.stderr
         )
 
@@ -834,8 +810,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
-                b"--name",
-                b"foo",
+                b"--name", b"foo",
             ],
         )
 
@@ -844,12 +819,12 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(False),
         )
         self.assertIn(
-            "No magic-folders at all",
+            "No such magic-folder 'foo'",
             outcome.stderr
         )
 
     @defer.inlineCallbacks
-    def test_create_invite_join(self):
+    def test_add_invite_join(self):
         """
         Create a magic folder and create an invite code. We create a
         second magic-folder instance and use the code to join.
@@ -862,7 +837,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
-                b"--author-name", b"alice",
+                b"--author", b"alice",
                 local_dir.asBytesMode().path,
             ],
         )
@@ -916,11 +891,13 @@ class CreateMagicFolder(AsyncTestCase):
         """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
+        basedir.makedirs()
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
-                b"magik:",
+                b"add",
+                b"--author", b"test",
+                basedir.asBytesMode().path,
             ],
         )
 
@@ -933,7 +910,6 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"invite",
-                b"magik:",
                 b"bob",
             ],
         )
@@ -955,6 +931,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
+                b"--name", b"bob-folder",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -969,6 +946,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"leave",
+                b"--name", b"bob-folder",
             ],
         )
 
@@ -977,11 +955,12 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # join
+        # join (again)
         outcome = yield cli(
             self.config_dir, [
                 b"join",
                 b"--author", b"test-dummy",
+                b"--name", b"bob-folder",
                 invite_code,
                 mf_bob.asBytesMode().path,
             ],
@@ -1058,8 +1037,8 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
-                b"join_author_user:",
+                b"add",
+                basedir.asBytesMode().path,
             ],
         )
         self.assertThat(
@@ -1070,7 +1049,6 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"invite",
-                b"join_author_user:",
                 b"bob",
             ],
         )
@@ -1080,7 +1058,7 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
         # capture the invite code from stdout
-        invite_code = outcome.stdout.strip()
+        invite_code = outcome.stdout.strip().encode("utf8")
 
         # create a directory for Bob
         mf_bob = basedir.child(u"bob")
@@ -1095,6 +1073,7 @@ class CreateMagicFolder(AsyncTestCase):
                 self.config_dir, [
                     b"join",
                     # no --author, so it should come from USER env-var
+                    b"--name", b"other",
                     invite_code,
                     mf_bob.asBytesMode().path,
                 ],
@@ -1203,7 +1182,7 @@ class CreateErrors(SyncTestCase):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--author-name", "test",
+                "--author", "test",
                 "--poll-interval=frog",
                 self.temp.path
             )

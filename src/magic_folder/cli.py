@@ -247,7 +247,7 @@ class MigrateOptions(usage.Options):
          "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
-        ("author-name", "a", None, "The name for the author to use in each migrated magic-folder"),
+        ("author", "A", None, "The name for the author to use in each migrated magic-folder"),
     ]
     synopsis = (
         "\n\nCreate a new magic-folder daemon configuration in the --config "
@@ -310,7 +310,7 @@ class AddOptions(usage.Options):
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
         ("name", "n", "default", "The name of this magic-folder"),
-        ("author-name", "a", None, "Our name for Snapshots authored here"),
+        ("author", "A", None, "Our name for Snapshots authored here"),
     ]
     description = (
         "Create a new magic-folder."
@@ -332,10 +332,7 @@ class AddOptions(usage.Options):
             )
 
     def postOptions(self):
-        if self['author-name'] is None:
-            raise usage.UsageError(
-                "Must supply --author-name / -a"
-            )
+        _fill_author_from_environment(self)
         try:
             if int(self['poll-interval']) <= 0:
                 raise ValueError("should be positive")
@@ -356,7 +353,7 @@ def add(options):
     yield magic_folder_create(
         options.parent.config,
         options["name"],
-        options["author-name"],
+        options["author"],
         options.local_dir,
         options["poll-interval"],
         treq,
@@ -505,12 +502,7 @@ class JoinOptions(usage.Options):
                 "'{}' isn't a directory".format(local_dir)
             )
         self.invite_code = to_str(argv_to_unicode(invite_code))
-        if self['author'] is None:
-            self['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
-            if self['author'] is None:
-                raise usage.UsageError(
-                    "--author not provided and no USERNAME environment-variable"
-                )
+        _fill_author_from_environment(self)
 
 
 def join(options):
@@ -525,6 +517,19 @@ def join(options):
         options["poll-interval"],
         options["author"],
     )
+
+
+def _fill_author_from_environment(options):
+    """
+    Internal helper. Fills in an `author` option from the environment
+    if it is not already set.
+    """
+    if options['author'] is None:
+        options['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
+        if options['author'] is None:
+            raise usage.UsageError(
+                "--author not provided and no USERNAME environment-variable"
+            )
 
 
 class LeaveOptions(usage.Options):
