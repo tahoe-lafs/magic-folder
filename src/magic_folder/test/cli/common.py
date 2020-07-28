@@ -91,6 +91,8 @@ def cli(config_directory, argv):
             result = 1
         else:
             result = yield do_magic_folder(options)
+            if result is None:
+                result = 0
     except SystemExit as e:
         result = e.code
 

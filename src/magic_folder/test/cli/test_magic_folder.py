@@ -866,7 +866,7 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield cli(
             self.config_dir, [
-                b"create",
+                b"add",
                 b"--author-name", b"alice",
                 local_dir.asBytesMode().path,
             ],
@@ -877,11 +877,10 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        # create invite code for alice
+        # create invite code for bob
         outcome = yield cli(
             self.config_dir, [
                 b"invite",
-                b"magik:",
                 b"bob",
             ],
         )
@@ -901,8 +900,9 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"join",
+                b"--name", b"other",
                 b"--author", b"test-dummy",
-                invite_code,
+                invite_code.encode("utf8"),
                 mf_bob.asBytesMode().path,
             ],
         )
