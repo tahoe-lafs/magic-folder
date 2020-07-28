@@ -46,6 +46,7 @@ from .join import (
 from .common import (
     get_node_url,
     tahoe_mkdir,
+    BadResponseCode,
 )
 
 # Until there is a web API, we replicate add_alias.

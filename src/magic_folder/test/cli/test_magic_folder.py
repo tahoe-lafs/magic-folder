@@ -363,7 +363,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this.
         """
         outcome = yield cli(
-            self.node_directory,
+            self.config_dir,
             [b"list"],
         )
         self.assertThat(outcome.stdout, Contains(u"No magic-folders"))
@@ -375,7 +375,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this in JSON format if given ``--json``.
         """
         outcome = yield cli(
-            self.node_directory,
+            self.config_dir,
             [b"list", b"--json"],
         )
         self.assertThat(outcome.stdout, AfterPreprocessing(json.loads, Equals({})))
@@ -389,11 +389,10 @@ class ListMagicFolder(AsyncTestCase):
         # Get a magic folder.
         folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"--name", b"list-some-folder",
-                b"magik:",
-                b"test_list_some",
+                b"--author-name", b"alice",
                 folder_path.asBytesMode().path,
             ],
         )
@@ -403,7 +402,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         outcome = yield cli(
-            self.node_directory,
+            self.config_dir,
             [b"list"],
         )
         self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
@@ -418,7 +417,7 @@ class ListMagicFolder(AsyncTestCase):
         # Get a magic folder.
         folder_path = self.tempdir.child(u"magic-folder")
         outcome = yield cli(
-            self.node_directory, [
+            self.config_dir, [
                 b"create",
                 b"--name", b"list-some-json-folder",
                 b"magik:",
@@ -431,7 +430,7 @@ class ListMagicFolder(AsyncTestCase):
             Equals(True),
         )
         outcome = yield cli(
-            self.node_directory,
+            self.config_dir,
             [b"list", b"--json"],
         )
         self.expectThat(
@@ -606,9 +605,12 @@ class CreateMagicFolder(AsyncTestCase):
         yield self.client_fixture.use_on(self)
 
         self.tempdir = self.client_fixture.tempdir
-        self.node_directory = self.client_fixture.node_directory
         self.config_dir = FilePath(self.mktemp())
-        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory)
+        create_global_configuration(
+            self.config_dir,
+            u"tcp:4321",
+            self.client_fixture.node_directory,
+        )
 
     @defer.inlineCallbacks
     def test_create_magic_folder(self):
@@ -788,10 +790,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"create",
-                b"--name",
-                b"foo",
-                b"magik:",
-                b"test_create_leave_folder",
+                b"--name", b"foo",
+                b"--author-name", b"alice",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -857,8 +857,8 @@ class CreateMagicFolder(AsyncTestCase):
     @defer.inlineCallbacks
     def test_create_invite_join(self):
         """
-        Create a magic folder, create an invite code and use the
-        code to join.
+        Create a magic folder and create an invite code. We create a
+        second magic-folder instance and use the code to join.
         """
         # Get a magic folder.
         basedir = self.tempdir.child(u"magic-folder")
@@ -868,7 +868,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"create",
-                b"magik:",
+                b"--author-name", b"alice",
+                local_dir.asBytesMode().path,
             ],
         )
 
