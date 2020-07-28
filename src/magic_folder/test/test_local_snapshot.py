@@ -63,6 +63,7 @@ class MemorySnapshotCreator(object):
         in the order they were passed.
     """
     processed = attr.ib(default=attr.Factory(list))
+
     def process_item(self, path):
         Message.log(
             message_type=u"memory-snapshot-creator:process_item",
@@ -70,8 +71,8 @@ class MemorySnapshotCreator(object):
         )
         self.processed.append(path)
 
-class LocalSnapshotServiceTests(SyncTestCase):
 
+class LocalSnapshotServiceTests(SyncTestCase):
     """
     Tests for ``LocalSnapshotService``.
     """
