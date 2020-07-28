@@ -12,14 +12,6 @@ from hyperlink import (
     DecodedURL,
 )
 
-from treq.client import (
-    HTTPClient,
-)
-
-from twisted.web.client import (
-    Agent,
-)
-
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -32,16 +24,6 @@ from allmydata.util.encodingutil import quote_output
 
 from .snapshot import (
     create_local_author,
-)
-from .magic_folder import (
-    load_magic_folders,
-    maybe_upgrade_magic_folders,
-)
-from .invite import (
-    magic_folder_invite as _invite
-)
-from .join import (
-    magic_folder_join as _join
 )
 from .common import (
     get_node_url,

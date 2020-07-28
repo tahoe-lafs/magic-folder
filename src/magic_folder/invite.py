@@ -5,41 +5,22 @@
 Implements the magic-folder invite command.
 """
 
-import re
-import json
-
-from allmydata.scripts.common import (
-    get_aliases,
-    get_alias,
-    DEFAULT_ALIAS,
-    escape_path,
-)
 from allmydata.scripts.common_http import format_http_error
 
 from allmydata import uri
-from allmydata.util.encodingutil import to_str
 
 from twisted.internet.defer import (
     returnValue,
     inlineCallbacks
 )
-
-from hyperlink import (
-    DecodedURL,
+from twisted.python import (
+    usage,
 )
-
-from twisted.web.client import (
-    readBody,
-)
-
 from twisted.web.http import (
-    OK,
     CONFLICT,
 )
 
 from .common import (
-    bad_response,
-    get_node_url,
     tahoe_mkdir,
     INVITE_SEPARATOR,
 )

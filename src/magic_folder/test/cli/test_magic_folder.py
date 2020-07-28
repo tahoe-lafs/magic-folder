@@ -239,7 +239,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         self.assertIn(local_dir_utf8, mf_yaml)
 
     def create_invite_join_magic_folder(self, nickname, local_dir):
-        nickname_arg = unicode_to_argv(nickname)
         local_dir_arg = unicode_to_argv(local_dir)
         # the --debug means we get real exceptions on failures
         d = self.do_cli("magic-folder", "--debug", "add", local_dir_arg)

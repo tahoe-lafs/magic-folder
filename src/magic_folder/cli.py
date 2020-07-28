@@ -6,9 +6,7 @@ import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
-from types import NoneType
 from datetime import datetime
-from ConfigParser import SafeConfigParser
 import json
 from collections import (
     defaultdict,
@@ -63,11 +61,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.application.service import (
-    Service,
     MultiService,
 )
 from twisted.internet.task import (
@@ -96,23 +90,15 @@ from allmydata.interfaces import (
 from allmydata.uri import (
     from_string,
 )
-from allmydata.util.assertutil import precondition
 from allmydata.util import (
     base32,
 )
 from allmydata.util.encodingutil import (
-    argv_to_abspath,
     argv_to_unicode,
     to_str,
-    quote_local_unicode_path,
 )
-from allmydata.util import fileutil
 from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
-from allmydata.util.encodingutil import quote_output
 
-from allmydata.scripts.common import (
-    get_aliases,
-)
 from allmydata.client import (
     read_config,
 )
@@ -120,7 +106,6 @@ from allmydata.client import (
 from .magic_folder import (
     MagicFolder,
     load_magic_folders,
-    save_magic_folders,
 )
 from .web import (
     magic_folder_web_service,
@@ -152,10 +137,6 @@ from .config import (
 
 from .join import (
     magic_folder_join
-)
-
-from ._coverage import (
-    coverage_service,
 )
 
 from .util.observer import ListenObserver

@@ -4,24 +4,14 @@
 """
 Implements the magic-folder join command.
 """
-import os
 
 from twisted.python import usage
-
-from allmydata.client import read_config
-
-from .magic_folder import (
-    load_magic_folders,
-    maybe_upgrade_magic_folders,
-    save_magic_folders,
-)
 
 from .common import (
     INVITE_SEPARATOR
 )
 from .snapshot import (
     create_local_author,
-    write_local_author,
 )
 
 
