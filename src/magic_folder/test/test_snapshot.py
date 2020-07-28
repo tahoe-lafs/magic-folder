@@ -8,6 +8,7 @@ from testtools.matchers import (
     AfterPreprocessing,
     Always,
     HasLength,
+    Not,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -173,27 +174,29 @@ class TestRemoteAuthor(AsyncTestCase):
 
 class TestLocalSnapshot(SyncTestCase):
     """
-    Test functionality of LocalSnapshot, the in-memory version of Snapshots.
+    Test functionality of LocalSnapshot, the representation of non-uploaded
+    snapshots.
     """
-
     def setUp(self):
+        super(TestLocalSnapshot, self).setUp()
         self.alice = create_local_author("alice")
 
-        # create a magicfolder db
-        self.tempdb = FilePath(mktemp())
-        self.tempdb.makedirs()
-        dbfile = self.tempdb.child(u"test_snapshot.sqlite").asBytesMode().path
-        self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
-
-        self.failUnless(self.db, "unable to create magicfolderdb from {}".format(dbfile))
-        self.failUnlessEqual(self.db.VERSION, 1)
-
-        return super(TestLocalSnapshot, self).setUp()
-
     def setup_example(self):
-        """
-        Hypothesis-invoked hook to create per-example state.
-        """
+        # create a magicfolder db
+        self.db = magicfolderdb.get_magicfolderdb(
+            u":memory:",
+            create_version=(magicfolderdb.SCHEMA_v1, 1),
+        )
+
+        self.assertThat(
+            self.db,
+            Not(Equals(None)),
+            "unable to create magicfolderdb",
+        )
+        self.assertThat(
+            self.db.VERSION,
+            Equals(1),
+        )
         self.stash_dir = FilePath(mktemp())
         self.stash_dir.makedirs()
 
