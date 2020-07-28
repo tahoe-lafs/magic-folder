@@ -14,6 +14,9 @@ from tempfile import mkstemp
 
 import attr
 
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -264,17 +267,24 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
 
 @attr.s
 class LocalSnapshot(object):
+    """
+    :ivar FilePath content_path: The filesystem path to our stashed contents.
+
+    :ivar [LocalSnapshot] parents_local: The parents of this snapshot that are
+        only known to exist locally.
+
+    :ivar [bytes] parents_remote: The capability strings of snapshots that are
+        known to exist remotely.
+    """
     name = attr.ib()
     author = attr.ib()
     metadata = attr.ib()
-    content_path = attr.ib()  # full filesystem path to our stashed contents
-    parents_local = attr.ib()  # LocalSnapshot instances
-    parents_remote = attr.ib(default=attr.Factory(list))  # capability-strings
-
-    # once we do uploads / downloads and have RemoteSnapshots, we will
-    # also have those kind of parents too:
-    # parents_remote = attr.ib()
-    # ..and need to add methods here to count and async get parents
+    content_path = attr.ib(validator=attr.validators.instance_of(FilePath))
+    parents_local = attr.ib(validator=attr.validators.instance_of(list))
+    parents_remote = attr.ib(
+        default=attr.Factory(list),
+        validator=attr.validators.instance_of(list),
+    )
 
     def get_content_producer(self):
         """
@@ -282,17 +292,7 @@ class LocalSnapshot(object):
             on-disc content. Raises an error if we already have a
             capability. Note that this data will have been stashed previously.
         """
-        return FileBodyProducer(
-            open(self.content_path, "rb")
-        )
-
-    def _get_synchronous_content(self):
-        """
-        For testing only.
-        :returns: the content immediately
-        """
-        with open(self.content_path, "rb") as f:
-            return f.read()
+        return FileBodyProducer(self.content_path.open("rb"))
 
     def to_json(self):
         """
@@ -306,7 +306,7 @@ class LocalSnapshot(object):
             serialized = {
                 'name' : local_snapshot.name,
                 'metadata' : local_snapshot.metadata,
-                'content_path' : local_snapshot.content_path,
+                'content_path' : local_snapshot.content_path.path,
                 'parents_local' : [ _serialized_dict(parent) for parent in local_snapshot.parents_local ]
             }
 
@@ -319,7 +319,8 @@ class LocalSnapshot(object):
     @classmethod
     def from_json(cls, serialized, author):
         """
-        Creates a LocalSnapshot from a JSON serialized string that represents the LocalSnapshot.
+        Creates a LocalSnapshot from a JSON serialized string that represents the
+        LocalSnapshot.
 
         :param str serialized: the JSON string that represents the LocalSnapshot
 
@@ -336,7 +337,7 @@ class LocalSnapshot(object):
                 name=name,
                 author=author,
                 metadata=snapshot_dict["metadata"],
-                content_path=snapshot_dict["content_path"],
+                content_path=FilePath(snapshot_dict["content_path"]),
                 parents_local=[ deserialize_dict(parent, author) for parent in snapshot_dict["parents_local"] ],
             )
 
@@ -549,7 +550,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                 "ctime": now,
                 "mtime": now,
             },
-            content_path=temp_file_name,
+            content_path=FilePath(temp_file_name),
             parents_local=parents_local,
             parents_remote=parents_remote,
         )

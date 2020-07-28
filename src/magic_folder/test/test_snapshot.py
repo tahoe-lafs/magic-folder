@@ -221,25 +221,14 @@ class TestLocalSnapshot(SyncTestCase):
             parents=[],
         )
 
-        def get_data(snap):
-            """
-            So, what we really want to do here is to call
-            snap.get_content_producer() and pull all the data out of
-            that ... but we can't, because testtools can't work with
-            a real reactor (and the only work-around I know of is
-            the _SynchronousBodyProducer from treq, but we don't want
-            to use that inside Snapshot because "in the real case"
-            we don't want it to produce all the data synchronously)
-            ...
-            so, instead, we cheat a little with a test-only method
-            """
-            return snap._get_synchronous_content()
-
         self.assertThat(
             d,
             succeeded(
-                AfterPreprocessing(get_data, Equals(content))
-            )
+                AfterPreprocessing(
+                    lambda snapshot: snapshot.content_path.getContent(),
+                    Equals(content),
+                ),
+            ),
         )
 
     @given(
