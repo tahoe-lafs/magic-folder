@@ -81,34 +81,30 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
 
-        self._snapshot_creator = MemorySnapshotCreator()
-
-        self.snapshot_service = LocalSnapshotService(
-            magic_path=self.magic_path,
-            snapshot_creator=self._snapshot_creator,
-        )
-
     def setup_example(self):
         """
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self._snapshot_creator.processed = []
+        self.snapshot_creator = MemorySnapshotCreator()
+        self.snapshot_service = LocalSnapshotService(
+            magic_path=self.magic_path,
+            snapshot_creator=self.snapshot_creator,
+        )
 
-    def test_add_single_file(self):
+
+    @given(path_segments(), binary())
+    def test_add_single_file(self, name, content):
         """
         Start the service, add a file and check if the operation succeeded.
         """
-        foo = self.magic_path.child("foo")
-        content = u"foo"
-        with foo.open("w") as f:
-            f.write(content)
+        to_add = self.magic_path.child(name)
+        to_add.setContent(content)
 
         self.snapshot_service.startService()
-        d = self.snapshot_service.add_file(foo)
 
         self.assertThat(
-            d,
+            self.snapshot_service.add_file(to_add),
             succeeded(Always()),
         )
 
@@ -117,8 +113,10 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-        self.assertThat(self._snapshot_creator.processed, HasLength(1))
-        self.assertThat(self._snapshot_creator.processed[0], Equals(foo))
+        self.assertThat(
+            self.snapshot_creator.processed,
+            Equals([foo]),
+        )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            data())
@@ -155,7 +153,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
 
         self.assertThat(
-            sorted(self._snapshot_creator.processed),
+            sorted(self.snapshot_creator.processed),
             Equals(sorted(files))
         )
 
