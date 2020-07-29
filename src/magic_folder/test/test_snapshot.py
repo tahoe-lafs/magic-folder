@@ -51,7 +51,6 @@ from .fixtures import (
 )
 from .common import (
     SyncTestCase,
-    AsyncTestCase,
 )
 from .strategies import (
     magic_folder_filenames,
@@ -122,7 +121,7 @@ class TestLocalAuthor(SyncTestCase):
         )
 
 
-class TestRemoteAuthor(AsyncTestCase):
+class TestRemoteAuthor(SyncTestCase):
     """
     Tests for RemoteAuthor and the related constructors, ``create_author`` and
     ``create_author_from_json``.
@@ -182,6 +181,9 @@ class TestLocalSnapshot(SyncTestCase):
         self.alice = create_local_author("alice")
 
     def setup_example(self):
+        """
+        Hypothesis-invoked hook to create per-example state.
+        """
         # create a magicfolder db
         self.db = magicfolderdb.get_magicfolderdb(
             u":memory:",
@@ -359,9 +361,9 @@ class TestLocalSnapshot(SyncTestCase):
         data1 = io.BytesIO(content1)
 
         snapshots = []
-
         stash_dir = self.stash_dir.child(stash_subdir.encode("utf-8"))
         stash_dir.makedirs()
+
         d = create_snapshot(
             name=filename,
             author=self.alice,

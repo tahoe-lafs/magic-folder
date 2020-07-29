@@ -1,5 +1,7 @@
+import os
+import attr
 import six
-import sys, os
+import sys
 import os.path
 from errno import EEXIST
 from collections import deque
@@ -17,6 +19,10 @@ from twisted.python import runtime
 from twisted.application import service
 
 from zope.interface import Interface, Attribute, implementer
+from twisted.internet.defer import (
+    DeferredQueue,
+    CancelledError,
+)
 
 from eliot import (
     Field,
@@ -63,6 +69,10 @@ from allmydata.immutable.upload import FileName, Data
 from . import (
     magicfolderdb,
     magicpath,
+)
+from .snapshot import (
+    create_snapshot,
+    LocalAuthor,
 )
 
 if six.PY3:
@@ -337,23 +347,34 @@ def save_magic_folders(node_directory, folders):
 class MagicFolder(service.MultiService):
 
     @classmethod
-    def from_config(cls, client_node, name, config):
+    def from_config(cls, reactor, client_node, name, config, global_config):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
+
+        :param IReactorTime reactor: the reactor to use
 
         :param _Client client_node: The client node the magic-folder is
             attached to.
 
         :param dict config: Magic-folder configuration like that in the list
             returned by ``load_magic_folders``.
+
+        :param _Config global_config: the main Tahoe config
         """
-        db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
         local_dir_config = config['directory']
         try:
             poll_interval = int(config["poll_interval"])
         except ValueError:
             raise ValueError("'poll_interval' option must be an int")
+
+        db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
+        database = magicfolderdb.get_magicfolderdb(
+            abspath_expanduser_unicode(db_filename),
+            create_version=(magicfolderdb.SCHEMA_v1, 1)
+        )
+        if database is None:
+            raise Exception('ERROR: Unable to load magic folder db.')
 
         return cls(
             client=client_node,
@@ -364,13 +385,14 @@ class MagicFolder(service.MultiService):
                 local_dir_config,
                 base=client_node.config.get_config_path(),
             ),
-            dbfile=abspath_expanduser_unicode(db_filename),
+            db=database,
             umask=config["umask"],
             name=name,
             downloader_delay=poll_interval,
+            clock=reactor,
         )
 
-    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, dbfile, umask,
+    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
@@ -383,9 +405,6 @@ class MagicFolder(service.MultiService):
         service.MultiService.__init__(self)
 
         clock = clock or reactor
-        db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
-        if db is None:
-            raise Exception('ERROR: Unable to load magic folder db.')
 
         # for tests
         self._client = client
@@ -861,6 +880,26 @@ REMOTE_DIRECTORY_DELETED = MessageType(
     u"magic-folder:remote-directory-deleted",
     [],
     u"The downloader found a directory has been deleted from the DMD.",
+)
+
+SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
+    u"magic-folder:local-snapshot-creator:processing-item",
+    [RELPATH],
+    [],
+    u"Local snapshot creator is processing an input.",
+)
+
+ADD_FILE_FAILURE = MessageType(
+    u"magic-folder:local-snapshot-creator:add-file-failure",
+    [RELPATH],
+    u"file path is not a descendent of the magic folder directory",
+)
+
+PROCESS_FILE_QUEUE = ActionType(
+    u"magic-folder:local-snapshot-creator:process-queue",
+    [RELPATH],
+    [],
+    u"A Magic-Folder is working through an item queue.",
 )
 
 class QueueMixin(HookMixin):
@@ -1640,7 +1679,7 @@ class Downloader(QueueMixin, WriteFileMixin):
     def start_downloading(self):
         action = START_DOWNLOADING(**self._log_fields)
         with action:
-            ALL_FILES.log(files=self._db.get_all_relpaths())
+            ALL_FILES.log(files=list(self._db.get_all_relpaths()))
 
             while True:
                 try:
@@ -2008,3 +2047,144 @@ class Downloader(QueueMixin, WriteFileMixin):
             return False
         d.addErrback(trap_conflicts)
         return d.addActionFinish()
+
+
+@attr.s
+class LocalSnapshotCreator(object):
+    """
+    When given the db and the author instance, this class that actually
+    creates a local snapshot and stores it in the database.
+    """
+    db = attr.ib()  # our database
+    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+
+    @eliotutil.inline_callbacks
+    def process_item(self, path):
+        """
+        Convert `path` into a LocalSnapshot and persist it to disk.
+
+        :param FilePath path: a single file inside our magic-folder dir
+        """
+
+        with path.open('rb') as input_stream:
+            # Query the db to check if there is an existing local
+            # snapshot for the file being added.
+            # If so, we use that as the parent.
+            mangled_name = magicpath.mangle_path(path)
+            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            if parent_snapshot is None:
+                parents = []
+            else:
+                parents = [parent_snapshot]
+
+            # need to handle remote-parents when we have remote
+            # snapshots
+
+            # when we handle conflicts we will have to handle multiple
+            # parents here (or, somewhere)
+
+            relpath_u = path.asTextMode(encoding="utf-8").path
+            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
+            with action:
+                snapshot = yield create_snapshot(
+                    name=mangled_name,
+                    author=self.author,
+                    data_producer=input_stream,
+                    snapshot_stash_dir=self.stash_dir,
+                    parents=parents,
+                )
+
+                # store the local snapshot to the disk
+                self.db.store_local_snapshot(snapshot)
+
+
+@attr.s
+@implementer(service.IService)
+class LocalSnapshotService(service.Service):
+    """
+    When told about local files (that must exist in `.magic_path` or
+    below) we create a LocalSnapshot instance, serialize it and then
+    pass the instance forward to the SnapshotUploader.
+    """
+    _magic_path = attr.ib(
+        converter=lambda fp: fp.asBytesMode("utf-8"),
+        validator=attr.validators.instance_of(FilePath),
+    )
+    _snapshot_creator = attr.ib()
+    _queue = attr.ib(default=attr.Factory(DeferredQueue))
+
+    def startService(self):
+        """
+        Start a periodic loop that looks for work and does it.
+        """
+        service.Service.startService(self)
+        self._service_d = self._process_queue()
+
+    @eliotutil.inline_callbacks
+    def _process_queue(self):
+        """
+        Wait for a single item from the queue and process it, forever.
+        """
+        while True:
+            try:
+                (item, d) = yield self._queue.get()
+                with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
+                    yield self._snapshot_creator.process_item(item)
+                    d.callback(None)
+            except CancelledError:
+                break
+            except Exception:
+                write_traceback()
+
+    def stopService(self):
+        """
+        Don't process queued items anymore.
+        """
+        d = self._service_d
+        self._service_d.cancel()
+        service.Service.stopService(self)
+        self._service_d = None
+        return d
+
+    def add_file(self, path):
+        """
+        Add the given path of type FilePath to our queue. If the path
+        does not exist below our magic-folder directory, it is an error.
+
+        :param FilePath path: path of the file that needs to be added.
+
+        :raises: ValueError if the given file is not a descendent of
+                 magic folder path or if the given path is a directory.
+        :raises: TypeError if the input is not a FilePath.
+        """
+        if not isinstance(path, FilePath):
+            raise TypeError(
+                "argument must be a FilePath"
+            )
+        bytespath = path.asBytesMode("utf-8")
+        textpath = path.asTextMode("utf-8")
+
+        try:
+            bytespath.segmentsFrom(self._magic_path)
+        except ValueError:
+            ADD_FILE_FAILURE.log(relpath=textpath.path)
+            raise ValueError(
+                "The path being added '{!r}' is not within '{!r}'".format(
+                    bytespath.path,
+                    self._magic_path.path,
+                )
+            )
+
+        # isdir() can fail and can raise an appropriate exception like
+        # FileNotFoundError or PermissionError or other filesystem
+        # exceptions
+        if bytespath.isdir():
+            raise ValueError(
+                "expected a file, {!r} is a directory".format(bytespath.path),
+            )
+
+        # add file into the queue
+        d = defer.Deferred()
+        self._queue.put((bytespath, d))
+        return d
