@@ -2273,30 +2273,36 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         name = 'default'
 
         d = DeferredContext(client.create_dirnode())
+        @defer.inlineCallbacks
         def _check_errors(n):
             self.failUnless(IDirectoryNode.providedBy(n))
-            upload_dircap = n.get_uri()
-            readonly_dircap = n.get_readonly_uri()
+            upload_dirnode = client.create_node_from_uri(n.get_uri())
+            readonly_dirnode = client.create_node_from_uri(n.get_readonly_uri())
 
-            self.shouldFail(ValueError, 'does not exist', 'does not exist',
-                            MagicFolder, client, upload_dircap, '', doesnotexist, db, 0o077, name)
-            self.shouldFail(ValueError, 'is not a directory', 'is not a directory',
-                            MagicFolder, client, upload_dircap, '', not_a_dir, db, 0o077, name)
-            self.shouldFail(AssertionError, 'bad upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'bad', '', errors_dir, db, 0o077, name)
-            self.shouldFail(AssertionError, 'non-directory upload.dircap', 'does not refer to a directory',
-                            MagicFolder, client, 'URI:LIT:foo', '', errors_dir, db, 0o077, name)
-            self.shouldFail(AssertionError, 'readonly upload.dircap', 'is not a writecap to a directory',
-                            MagicFolder, client, readonly_dircap, '', errors_dir, db, 0o077, name)
-            self.shouldFail(AssertionError, 'collective dircap', 'is not a readonly cap to a directory',
-                            MagicFolder, client, upload_dircap, upload_dircap, errors_dir, db, 0o077, name)
+            yield self.shouldFail(
+                ValueError, 'does not exist', 'does not exist',
+                MagicFolder, client, upload_dirnode, readonly_dirnode, doesnotexist, db, 0o077, name)
+            yield self.shouldFail(
+                ValueError, 'is not a directory', 'is not a directory',
+                MagicFolder, client, upload_dirnode, readonly_dirnode, not_a_dir, db, 0o077, name)
 
             def _not_implemented():
                 raise NotImplementedError("blah")
             from magic_folder import magic_folder
             self.patch(magic_folder, 'get_inotify_module', _not_implemented)
-            self.shouldFail(NotImplementedError, 'unsupported', 'blah',
-                            MagicFolder, client, upload_dircap, '', errors_dir, db, 0o077, name)
+            yield self.shouldFail(
+                NotImplementedError,
+                'unsupported',
+                'blah',
+                MagicFolder,
+                client,
+                upload_dirnode,
+                readonly_dirnode,
+                errors_dir,
+                db,
+                0o077,
+                name,
+            )
         d.addCallback(_check_errors)
         return d.result
 

@@ -74,6 +74,9 @@ from .snapshot import (
     create_snapshot,
     LocalAuthor,
 )
+from .participants import (
+    participants_from_collective,
+)
 
 if six.PY3:
     long = int
@@ -376,10 +379,14 @@ class MagicFolder(service.MultiService):
         if database is None:
             raise Exception('ERROR: Unable to load magic folder db.')
 
+        upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
+        collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
+        participants = participants_from_collective(collective_dirnode, upload_dirnode)
+
         return cls(
             client=client_node,
-            upload_dircap=config["upload_dircap"],
-            collective_dircap=config["collective_dircap"],
+            upload_dirnode=upload_dirnode,
+            participants=participants,
             # XXX surely a better way for this local_path_u business
             local_path_u=abspath_expanduser_unicode(
                 local_dir_config,
@@ -392,7 +399,7 @@ class MagicFolder(service.MultiService):
             clock=reactor,
         )
 
-    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
+    def __init__(self, client, upload_dirnode, participants, local_path_u, db, umask,
                  name, uploader_delay=1.0, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
@@ -410,11 +417,8 @@ class MagicFolder(service.MultiService):
         self._client = client
         self._db = db
 
-        upload_dirnode = self._client.create_node_from_uri(upload_dircap)
-        collective_dirnode = self._client.create_node_from_uri(collective_dircap)
-
         self.uploader = Uploader(client, local_path_u, db, upload_dirnode, uploader_delay, clock)
-        self.downloader = Downloader(client, local_path_u, db, collective_dirnode,
+        self.downloader = Downloader(client, local_path_u, db, participants,
                                      upload_dirnode.get_readonly_uri(), clock, self.uploader.is_pending, umask,
                                      poll_interval=downloader_delay)
 
@@ -495,9 +499,7 @@ SCAN_REMOTE_COLLECTIVE = ActionType(
 
 _DMDS = Field(
     u"dmds",
-    # The children of the collective directory are the participant DMDs.  The
-    # keys in this dict give us the aliases of the participants.
-    lambda collective_directory_listing: collective_directory_listing.keys(),
+    lambda participants: list(participant.name for participant in participants),
     u"The (D)istributed (M)utable (D)irectories belonging to each participant are being scanned for changes.",
 )
 
@@ -1113,9 +1115,9 @@ class Uploader(QueueMixin):
         self.is_ready = False
 
         if not IDirectoryNode.providedBy(upload_dirnode):
-            raise AssertionError("'upload_dircap' does not refer to a directory")
+            raise AssertionError("'upload_dircap' {!r} does not refer to a directory".format(upload_dirnode))
         if upload_dirnode.is_unknown() or upload_dirnode.is_readonly():
-            raise AssertionError("'upload_dircap' is not a writecap to a directory")
+            raise AssertionError("'upload_dircap' {!r} is not a writecap to a directory".format(upload_dirnode))
 
         self._upload_dirnode = upload_dirnode
         self._inotify = get_inotify_module()
@@ -1659,17 +1661,12 @@ class DownloadItem(QueuedItem):
 
 class Downloader(QueueMixin, WriteFileMixin):
 
-    def __init__(self, client, local_path_u, db, collective_dirnode,
+    def __init__(self, client, local_path_u, db, participants,
                  upload_readonly_dircap, clock, is_upload_pending, umask,
                  poll_interval=60):
         QueueMixin.__init__(self, client, local_path_u, db, u'downloader', clock)
 
-        if not IDirectoryNode.providedBy(collective_dirnode):
-            raise AssertionError("'collective_dircap' does not refer to a directory")
-        if collective_dirnode.is_unknown() or not collective_dirnode.is_readonly():
-            raise AssertionError("'collective_dircap' is not a readonly cap to a directory")
-
-        self._collective_dirnode = collective_dirnode
+        self._participants = participants
         self._upload_readonly_dircap = upload_readonly_dircap
         self._is_upload_pending = is_upload_pending
         self._umask = umask
@@ -1739,14 +1736,15 @@ class Downloader(QueueMixin, WriteFileMixin):
             name=filename,
         )
         with action.context():
-            collective_dirmap_d = DeferredContext(self._collective_dirnode.list())
+            collective_dirmap_d = DeferredContext(self._participants.list())
         def scan_collective(result):
             COLLECTIVE_SCAN.log(dmds=result)
             list_of_deferreds = []
-            for dir_name in result:
-                # XXX make sure it's a directory
+            for participant in result:
                 d = DeferredContext(defer.succeed(None))
-                d.addCallback(lambda x, dir_name=dir_name: result[dir_name][0].get_child_and_metadata(filename))
+                d.addCallback(
+                    lambda ignored: participant.get_latest_file(filename),
+                )
                 list_of_deferreds.append(d)
             deferList = defer.DeferredList(list_of_deferreds, consumeErrors=True)
             return deferList
@@ -1759,11 +1757,11 @@ class Downloader(QueueMixin, WriteFileMixin):
                 if success:
                     Message.log(
                         message_type=u"magic-folder:downloader:get-latest-file:version",
-                        version=result[1]['version'],
+                        version=result.version,
                     )
-                    if node is None or result[1]['version'] > max_version:
-                        node, metadata = result
-                        max_version = result[1]['version']
+                    if node is None or result.version > max_version:
+                        node, metadata = result.node, result.metadata
+                        max_version = result.version
                 else:
                     Message.log(
                         message_type="magic-folder:downloader:get-latest-file:failed",
@@ -1772,7 +1770,7 @@ class Downloader(QueueMixin, WriteFileMixin):
         collective_dirmap_d.addCallback(highest_version)
         return collective_dirmap_d.addActionFinish()
 
-    def _scan_remote_dmd(self, nickname, dirnode, scan_batch):
+    def _scan_remote_dmd(self, participant, scan_batch):
         """
         Read the contents of a single DMD into the given batch.
 
@@ -1792,11 +1790,13 @@ class Downloader(QueueMixin, WriteFileMixin):
         :return Deferred: A ``Deferred`` which fires when the scan is
             complete.
         """
-        with SCAN_REMOTE_DMD(nickname=nickname).context():
-            d = DeferredContext(dirnode.list())
+        with SCAN_REMOTE_DMD(nickname=participant.name).context():
+            d = DeferredContext(participant.list())
         def scan_listing(listing_map):
-            for encoded_relpath_u, (file_node, metadata) in listing_map.iteritems():
-                relpath_u = magicpath.magic2path(encoded_relpath_u)
+            for relpath_u, folderfile in listing_map.items():
+                file_node = folderfile.node
+                metadata = folderfile.metadata
+
                 local_dbentry = self._get_local_latest(relpath_u)
 
                 # XXX FIXME this is *awefully* similar to
@@ -1837,14 +1837,17 @@ class Downloader(QueueMixin, WriteFileMixin):
     def _scan_remote_collective(self, scan_self=False):
         precondition(not self._deque, "Items in _deque invalidate should_download logic")
         scan_batch = {}  # path -> [(filenode, metadata)]
-        d = DeferredContext(self._collective_dirnode.list())
-        def scan_collective(dirmap):
+        d = DeferredContext(self._participants.list())
+        def scan_collective(participants):
             d2 = DeferredContext(defer.succeed(None))
-            for dir_name in dirmap:
-                (dirnode, metadata) = dirmap[dir_name]
-                if scan_self or dirnode.get_readonly_uri() != self._upload_readonly_dircap:
-                    d2.addCallback(lambda ign, dir_name=dir_name, dirnode=dirnode:
-                                   self._scan_remote_dmd(dir_name, dirnode, scan_batch))
+            for participant in participants:
+                if scan_self or not participant.is_self:
+                    d2.addCallback(
+                        lambda ignored: self._scan_remote_dmd(
+                            participant,
+                            scan_batch,
+                        ),
+                    )
                     # XXX what should we do to make this failure more visible to users?
                     d2.addErrback(write_failure)
             return d2.result

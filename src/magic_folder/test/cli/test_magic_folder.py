@@ -33,6 +33,9 @@ from magic_folder.util.eliotutil import (
     log_call_deferred,
 )
 
+from ...participants import (
+    participants_from_collective,
+)
 from ...magic_folder import (
     MagicFolder,
     load_magic_folders,
@@ -236,10 +239,14 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         client = self.get_client(client_num)
         name='default'
 
+        upload_dirnode = client.create_node_from_uri(upload_dircap)
+        collective_dirnode = client.create_node_from_uri(collective_dircap)
+        participants = participants_from_collective(collective_dirnode, upload_dirnode)
+
         magicfolder = MagicFolder(
             client=client,
-            upload_dircap=upload_dircap,
-            collective_dircap=collective_dircap,
+            upload_dirnode=upload_dirnode,
+            participants=participants,
             local_path_u=local_magic_dir,
             db=db,
             umask=0o077,
