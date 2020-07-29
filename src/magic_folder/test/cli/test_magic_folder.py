@@ -23,6 +23,9 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
+from twisted.python.filepath import (
+    FilePath,
+)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
@@ -42,6 +45,7 @@ from ...magic_folder import (
 from ... import cli as magic_folder_cli
 from ...config import (
     create_global_configuration,
+    load_global_configuration,
 )
 
 from ..no_network import GridTestMixin
@@ -202,15 +206,11 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d.addActionFinish()
 
     def get_caps_from_files(self, client_num):
-        folders = load_magic_folders(self.get_clientdir(i=client_num))
-        mf = folders["default"]
-        return mf['collective_dircap'], mf['upload_dircap']
-
-    @log_call
-    def check_config(self, client_num, local_dir):
-        mf_yaml = fileutil.read(os.path.join(self.get_clientdir(i=client_num), "private", "magic_folders.yaml"))
-        local_dir_utf8 = local_dir.encode('utf-8')
-        self.assertIn(local_dir_utf8, mf_yaml)
+        config = load_global_configuration(
+            FilePath(self.get_clientdir(i=client_num)).child("config")
+        )
+        folder_config = config.get_magic_folder("default")
+        return folder_config.collective_dircap, folder_config.upload_dircap
 
     def create_invite_join_magic_folder(self, nickname, local_dir):
         local_dir_arg = unicode_to_argv(local_dir)
@@ -227,7 +227,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             self.upload_dirnode     = client.create_node_from_uri(self.upload_dircap)
         d.addCallback(_done)
         d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, local_dir))
+##        d.addCallback(lambda ign: self.check_config(0, local_dir))
         return d
 
     # XXX should probably just be "tearDown"...
@@ -242,12 +242,15 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d.result
 
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
+        dbfile = FilePath(self.get_clientdir(i=client_num)).child("legacy_state.sqlite")
+        collective = uri.from_string(collective_dircap)
+
         magicfolder = MagicFolder(
             client=self.get_client(client_num),
             upload_dircap=upload_dircap,
-            collective_dircap=collective_dircap,
+            collective_dircap=collective.get_readonly().to_string(),
             local_path_u=local_magic_dir,
-            dbfile=dbfile,
+            dbfile=dbfile.path,
             umask=0o077,
             name='default',
             clock=clock,

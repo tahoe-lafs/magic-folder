@@ -823,7 +823,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.alice_collective_dircap, self.alice_upload_dircap = self.get_caps_from_files(0)
         d.addCallback(get_alice_caps)
         d.addCallback(lambda ign: self.check_joined_config(0, self.alice_upload_dircap))
-        d.addCallback(lambda ign: self.check_config(0, self.alice_magic_dir))
+##        d.addCallback(lambda ign: self.check_config(0, self.alice_magic_dir))
         def get_Alice_magicfolder(result):
             self.alice_magicfolder = self.init_magicfolder(0, self.alice_upload_dircap,
                                                            self.alice_collective_dircap,
@@ -847,7 +847,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
             self.bob_collective_dircap, self.bob_upload_dircap = self.get_caps_from_files(1)
         d.addCallback(get_bob_caps)
         d.addCallback(lambda ign: self.check_joined_config(1, self.bob_upload_dircap))
-        d.addCallback(lambda ign: self.check_config(1, self.bob_magic_dir))
+##        d.addCallback(lambda ign: self.check_config(1, self.bob_magic_dir))
         def get_Bob_magicfolder(result):
             self.bob_magicfolder = self.init_magicfolder(1, self.bob_upload_dircap,
                                                          self.bob_collective_dircap,
