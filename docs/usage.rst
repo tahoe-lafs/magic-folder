@@ -35,17 +35,20 @@ in it.
 
 A Magic Folder Daemon needs to have some configuration to start. There
 are two ways to create this: from scratch; or from a "legacy"
-magic-folder (when ``magic-folder`` was a sub-command of ``tahoe``).
+magic-folder (when ``magic-folder`` was a sub-command of ``tahoe`` in
+version 1.14.0 and earlier).
 
 No matter the method used, there are some pieces of information
-required and a decision to be made. You need to know:
+required and two decisions to be made. You need to know:
 
 - the ``node-directory`` of the Tahoe-LAFS client this magic folder daemon shall use.
 
 You need to decide:
 
 - The network endpoint the API will listen on. This is how CLI commands and front-ends communciate to the magic-folder daemon and is expressed as a Twisted "server endpoint string". For example, ``tcp:4321`` to listen globally on port 4321. You may also use Unix Domain sockets on OSes which support that; for example ``unix:/var/run/magic-folder/api-socket``.
-- Where to store the configuration (by default, in an appropriate location for your OS like ``~/.config/magic-folder`` on Debian).
+- If you wish to specify where to store the configuration. By default
+  it will be in an appropriate location for your OS (like
+  ``~/.config/magic-folder`` on Debian).
 
 To create a magic folder daemon configuration from scratch:
 
@@ -54,29 +57,35 @@ To create a magic folder daemon configuration from scratch:
    $ magic-folder init --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client
 
 This will store configuration in ``~/.config/magic-folder/*`` or
-similar listen on ``localhost`` port ``4321`` for API commands and
+similar; listen on ``localhost`` port ``4321`` for API commands; and
 talk to the Tahoe-LAFS client in ``./tahoe-client`` (which must itself
 be running).
 
-To migrate from an existing Tahoe-LAFS-based magic-folder, do:
+To create a magic folder daemon configuration by migrating an existing
+Tahoe-LAFS-based magic-folder, do:
 
 .. code-block:: console
 
-   $ magic-folder migrate --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client --author-name alice
+   $ magic-folder migrate --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client --author alice
 
-The main difference is the ``--author-name`` argument. This is
-required when creating signing keys for each configured magic-folder
-that is migrated over.
+The main difference is the ``--author`` argument. This is required
+when creating signing keys for each configured magic-folder that is
+migrated over to the new daemon. Note that the Tahoe-LAFS
+configuration (``./foo`` in the example) will be left alone.
 
 From now on, we will assume there is a valid magic folder daemon
 configuration in ``./foo``. This is usually provided to all
-sub-commands like so: ``magic-folder --config ./foo <subcommand>``
+sub-commands like so: ``magic-folder --config ./foo
+<subcommand>``. The default location is used if ``--config`` is not
+specified.
 
 
 Running a Magic Folder process
 ------------------------------
 
-Once a magic folder daemon has a configuration location it can be started. It must be running for most of the other magic-folder commands to work as they use the API.
+Our magic folder daemon has a configuration location so now it can be
+started. It must be running for most of the other magic-folder
+commands to work as they use the API.
 
 .. code-block:: console
 
@@ -94,14 +103,16 @@ command.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo add --author-name alice-laptop ~/Documents
+   $ magic-folder --config ./foo add --author alice-laptop ~/Documents
 
 There are some other options that can be specified. The above will
 create a new magic-folder named ``default`` (we could decide
 differently with ``--name docs`` for example). Any changes we make
 locally will be signed as ``alice-laptop``. Files from other devices
 are downloaded into ``~/Documents`` and any files we add or change in
-that local directory will be uploaded.
+that local directory will be uploaded. Note that deleting a file in
+``~/Documents`` will record a new "deleted" version in Tahoe Grid and
+not actually remove data from it.
 
 We can also specify ``--poll-interval`` to control how often the
 daemon will check for updates (by default this is 60 seconds).
@@ -120,7 +131,7 @@ command:
 
 .. code-block:: console
 
-   $ magic-folder --config foo list
+   $ magic-folder --config ./foo list
    This client has the following magic-folders:
    default:
        location: /home/alice/Documents
@@ -129,17 +140,20 @@ command:
         updates: every 60s
 
 To get JSON output, pass ``--json``.  You can include sensitive secret
-information by passing ``--include-secret-information``. Someone
-who obtains this information can impersonate this device and participate
-as you in the magic folder (if they gain access to the Tahoe-LAFS Grid
-being used).
+information by passing ``--include-secret-information`` flag. Someone
+who obtains this information can impersonate this device and
+participate as it in the magic folder (if they also gain access to the
+Tahoe-LAFS Grid being used).
 
 
 Inviting Participant Devices
 ----------------------------
 
 A new participant device is invited to collaborate on a magic folder
-using the ``magic-folder invite`` command:
+using the ``magic-folder invite`` command. This produces an "invite
+code" which **contains secret information**. It must be shared in a
+secure way; anyone viewing the "invite code" can impersonate the
+invitee (if they also have access to the Tahoe Grid).
 
 .. code-block:: console
 
@@ -150,6 +164,25 @@ default`` above) and a nickname for the new participant device
 (``bob`` above). The magic-folder identified must have been created on
 this device.  The nickname is assigned to the participant device in
 the magic folder configuration and grid state.
+
+**Technical details**: A new mutable directory is created in the Tahoe
+LAFS grid, producing a write-capability. This is "attenuated" to a
+read-capability. This read-capability is written into the "collective
+Distributed Mutable Diractory (DMD)" with the invitee's name; this
+allows other magic-folder participants to notice this new participant
+when they next download it.
+
+The invite-code includes the write-capability for the participant's
+"personal DMD"; this is where updates produced by the invitee will be
+written. Notice that the administrator of the magic-folder (the one
+device holding the write-capability for the "collective DMD") could
+retain the invitee's "personal DMD" write-capbility and use it to
+impersonate that participant.  **The invite-code MUST be communicated
+securely to the invitee**.
+
+Another part of the invite-code is a read-capability for the
+"collective DMD" allowing the new participant to learn of all other
+participants.
 
 
 Joining a Magic Folder
@@ -168,7 +201,7 @@ required is the path to a local directory.  This is the directory to
 which content will be downloaded and from which it will be uploaded.
 
 You must choose a name to identify content from this device with
-``--author-name``.
+``--author``.
 
 Further options are documented in ``magic-folder join --help``.
 
@@ -205,24 +238,30 @@ corresponding magic folders with them, like so:
 
 .. code-block:: console
 
-   $ ALICE_NODE=../grid/alice
-   $ ALICE_FOLDER=../local/alice
+   $ export ALICE_NODE=./grid/alice
+   $ export ALICE_FOLDER=./alice-sync-dir
+   $ export ALICE_MAGIC=./grid/alice-magic
 
-   $ mkdir -p $FOLDER_PATH
-   $ magic-folder --node-directory=$ALICE_NODE create magic: alice $FOLDER_PATH
-   $ magic-folder --node-directory=$ALICE_NODE invite magic: bob >invitecode
+   $ export BOB_NODE=./grid/bob
+   $ export BOB_FOLDER=./bob-sync-dir
+   $ export BOB_MAGIC=./grid/bob-magic
+
+   # create magic-folder daemons and run them for alice+bob
+   $ mkdir -p $ALICE_FOLDER
+   $ mkdir -p $BOB_FOLDER
+   $ magic-folder init --node-directory $ALICE_NODE --listen-endpoint tcp:4000:interface=localhost --config $ALICE_MAGIC
+   $ magic-folder init --node-directory $BOB_NODE --listen-endpoint tcp:4001:interface=localhost --config $BOB_MAGIC
+   $ daemonize magic-folder --config $ALICE_MAGIC run
+   $ daemonize magic-folder --config $BOB_MAGIC run
+
+   # alice creates a magic-folder and invites bob
+   $ magic-folder --config $ALICE_MAGIC create alice $ALICE_FOLDER
+   $ magic-folder --config $ALICE_MAGIC invite bob >invitecode
    $ export INVITECODE=$(cat invitecode)
-
-   $ BOB_NODE=../grid/bob
-   $ BOB_FOLDER=../local/bob
-
-   $ magic-folder -n $BOB_NODE join "$INVITECODE" $BOB_FOLDER
-
-   $ daemonize magic-folder --node-directory=$ALICE_NODE run
-   $ deemonize magic-folder --node-directory=$BOB_NODE run
+   $ magic-folder --config $BOB_MAGIC join "$INVITECODE" $BOB_FOLDER
 
 You can now experiment with creating files and directories in
-``../local/alice`` and ``../local/bob``.  Any changes in one should be
+``./alice-magic`` and ``./bob-magic``.  Any changes in one should be
 propagated to the other directory.
 
 Note that when a file is deleted, the corresponding file in the other
