@@ -65,6 +65,9 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      quote_filepath, quote_local_unicode_path, FilenameEncodingError
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
+from allmydata.node import (
+    MissingConfigEntry,
+)
 
 from . import (
     magicfolderdb,
@@ -73,6 +76,7 @@ from . import (
 from .snapshot import (
     create_snapshot,
     LocalAuthor,
+    create_local_author_from_config,
 )
 
 if six.PY3:
@@ -2216,7 +2220,7 @@ class UploadService(service.Service):
 
         # XXX: This would potentially change once the config PR is merged in.
         try:
-            local_author = create_local_author_from_config(self.config, folder_name)
+            local_author = create_local_author_from_config(self.config, self.folder_name)
         except RuntimeError:
             # XXX
             pass
@@ -2241,10 +2245,17 @@ class UploadService(service.Service):
         snapshot_service.setServiceParent(self)
 
         # do a looping call that polls the db for LocalSnapshots.
-        self.upload_loop = task.loopingCall(self._upload_localsnapshots)
+        self._service_d = self._upload_local_snapshots()
 
     def stopService(self):
-        pass
+        """
+        Stop the uploader service.
+        """
+        d = self._service_d
+        self._service_d.cancel()
+        service.Service.stopService(self)
+        self._service_d = None
+        return d
 
     def _upload_localsnapshots(self):
         """
