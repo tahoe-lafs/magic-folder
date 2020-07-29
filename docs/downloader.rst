@@ -27,7 +27,8 @@ by an immutable directory and contains:
 - ``content``: (optional) a read-only link to the actual content of
   this Snapshot. If there is no such link, this is a deletion
   snapshot.
-- ``metadata``: information about the Snapshot, a capability pointing to a JSON dict containing:
+- ``metadata``: information about the Snapshot, a capability pointing
+  to a JSON-serialized dict containing:
   - ``snapshot_version``: 1 currently
   - ``name``: the name of this snapshop (a mangled relative path)
   - ``author``: a dict containing:
