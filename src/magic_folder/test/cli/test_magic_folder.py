@@ -283,7 +283,7 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
         dbfile = FilePath(self.get_clientdir(i=client_num)).child("legacy_state.sqlite")
         collective = uri.from_string(collective_dircap)
-        db = get_magicfolderdb(dbfile, create_version=(SCHEMA_v1, 1))
+        db = get_magicfolderdb(dbfile.path, create_version=(SCHEMA_v1, 1))
         if db is None:
             self.fail("Unable to create the db: {}".format(dbfile))
 
@@ -878,7 +878,6 @@ class CreateMagicFolder(AsyncTestCase):
             self.fail("expected UsageError")
 
     @defer.inlineCallbacks
-    @skipIf(sys.platform != "linux2")
     def test_join_author_user(self):
         """
         The CLI will use USER from the environment
