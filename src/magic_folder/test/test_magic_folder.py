@@ -840,7 +840,7 @@ class MagicFolderAliceBobTestMixin(MagicFolderCLITestMixin, ShouldFailMixin, Rea
         # Alice invites Bob. Bob joins.
         d.addCallback(lambda ign: self.do_invite(0, self.bob_nickname))
         def get_invite_code(result):
-            self.invite_code = result[1].strip()
+            self.invite_code = result[1].strip().encode("utf8")
         d.addCallback(get_invite_code)
         d.addCallback(lambda ign: self.do_join(1, self.bob_magic_dir, self.invite_code))
         def get_bob_caps(ign):

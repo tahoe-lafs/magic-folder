@@ -139,6 +139,16 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         return d
 
     def do_join(self, client_num, local_dir, invite_code):
+        confpath = FilePath(self.get_clientdir(i=client_num)).child("config")
+
+        if not confpath.exists():
+            run_magic_folder_cli(
+                "magic-folder", "init",
+                "--config", confpath.asBytesMode().path,
+                "--listen-endpoint", "tcp:{}".format(4320 + client_num),
+                "--node-directory", self.get_clientdir(i=client_num).encode("utf8"),
+            )
+
         action = start_action(
             action_type=u"join-magic-folder",
             client_num=client_num,

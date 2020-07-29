@@ -188,7 +188,6 @@ class TahoeClient(object):
                 (u"replace", u"false"),
             ],
         )
-        print("PUT", post_uri)
         response = yield _request(
             self.http_client,
             b"PUT",
