@@ -2,6 +2,9 @@ import json
 import os.path
 import re
 
+from testtools import (
+    skipIf,
+)
 from testtools.content import (
     text_content,
 )
@@ -870,6 +873,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.fail("expected UsageError")
 
     @defer.inlineCallbacks
+    @skipIf(sys.platform != "linux2", "depends on environment usually found in Linux")
     def test_join_author_user(self):
         """
         The CLI will use USER from the environment
@@ -908,23 +912,15 @@ class CreateMagicFolder(AsyncTestCase):
 
         # join
         # we don't pass --author so should get author from $USER
-        olduser = os.environ.get("USER", None)
-        os.environ["USER"] = "bob_from_user"
-        try:
-            outcome = yield cli(
-                self.config_dir, [
-                    b"join",
-                    # no --author, so it should come from USER env-var
-                    b"--name", b"other",
-                    invite_code,
-                    mf_bob.asBytesMode().path,
-                ],
-            )
-        finally:
-            if olduser is None:
-                del os.environ["USER"]
-            else:
-                os.environ["USER"] = olduser
+        outcome = yield cli(
+            self.config_dir, [
+                b"join",
+                # no --author, so it should come from USER env-var
+                b"--name", b"other",
+                invite_code,
+                mf_bob.asBytesMode().path,
+            ],
+        )
 
         self.assertThat(
             outcome.succeeded(),
