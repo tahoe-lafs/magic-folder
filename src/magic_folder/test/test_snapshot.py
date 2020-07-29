@@ -51,7 +51,6 @@ from .fixtures import (
 )
 from .common import (
     SyncTestCase,
-    AsyncTestCase,
 )
 from .strategies import (
     magic_folder_filenames,

@@ -2,8 +2,6 @@ import json
 import os.path
 import re
 
-from tempfile import mktemp
-
 from testtools.content import (
     text_content,
 )
