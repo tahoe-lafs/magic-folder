@@ -135,6 +135,7 @@ def with_cursor(f):
             return f(self, cursor, *a, **kw)
     return with_cursor
 
+
 class MagicFolderDB(object):
     VERSION = 1
 
@@ -145,6 +146,16 @@ class MagicFolderDB(object):
 
     def close(self):
         self.connection.close()
+
+    # for use in tests
+    def _clear(self, table):
+        """
+        delete all the rows in a specified table.
+
+        :param unicode table: table that needs to be cleared
+        """
+        c = self.cursor
+        c.execute("DELETE FROM {}".format(table))
 
     def get_db_entry(self, relpath_u):
         """
@@ -204,14 +215,22 @@ class MagicFolderDB(object):
             in rows
         )
 
+    def _get_all_relpaths_from(self, tablename):
+        """
+        :param unicode tablename: table name to fetch the relpaths from.
+
+        :returns: A set of all the relpaths in the given table.
+        """
+        self.cursor.execute("SELECT path FROM {}".format(tablename))
+        rows = self.cursor.fetchall()
+        return set([r[0] for r in rows])
+
     def get_all_relpaths(self):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        self.cursor.execute("SELECT path FROM local_files")
-        rows = self.cursor.fetchall()
-        return set([r[0] for r in rows])
+        return self._get_all_relpaths_from("local_files")
 
     def did_upload_version(self, relpath_u, version, last_uploaded_uri, last_downloaded_uri, last_downloaded_timestamp, pathinfo):
         action = UPDATE_ENTRY(
@@ -286,3 +305,14 @@ class MagicFolderDB(object):
             return None
         else:
             return LocalSnapshot.from_json(row[0], author)
+
+    def get_all_localsnapshot_paths(self):
+        """
+        Retrieve a set of all relpaths of files that have had an entry in magic folder db
+        (i.e. that have been downloaded at least once).
+        """
+        return self._get_all_relpaths_from("local_snapshots")
+
+    def _clear_snapshot_table(self):
+        return self._clear("local_snapshots")
+

@@ -776,9 +776,11 @@ class MagicFolderService(MultiService):
         ds = []
         for (name, mf_config) in magic_folder_configs.items():
             mf = MagicFolder.from_config(
+                self.reactor,
                 ClientStandIn(self.tahoe_client, self.config),
                 name,
                 mf_config,
+                self.config,
             )
             self._state.add_magic_folder(name, mf_config, mf)
             mf.setServiceParent(self)

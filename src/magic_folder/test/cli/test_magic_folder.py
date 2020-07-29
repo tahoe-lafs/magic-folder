@@ -51,6 +51,11 @@ from ...config import (
     load_global_configuration,
 )
 
+from ...magicfolderdb import (
+    get_magicfolderdb,
+    SCHEMA_v1,
+)
+
 from ..no_network import GridTestMixin
 from ..common_util import (
     parse_cli,
@@ -278,15 +283,21 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
     def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
         dbfile = FilePath(self.get_clientdir(i=client_num)).child("legacy_state.sqlite")
         collective = uri.from_string(collective_dircap)
+        db = get_magicfolderdb(dbfile, create_version=(SCHEMA_v1, 1))
+        if db is None:
+            self.fail("Unable to create the db: {}".format(dbfile))
+
+        client = self.get_client(client_num)
+        name='default'
 
         magicfolder = MagicFolder(
-            client=self.get_client(client_num),
+            client=client,
             upload_dircap=upload_dircap,
             collective_dircap=collective.get_readonly().to_string(),
             local_path_u=local_magic_dir,
-            dbfile=dbfile.path,
+            db=db,
             umask=0o077,
-            name='default',
+            name=name,
             clock=clock,
             uploader_delay=0.2,
             downloader_delay=0,
