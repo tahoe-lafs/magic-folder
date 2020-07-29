@@ -2188,3 +2188,78 @@ class LocalSnapshotService(service.Service):
         d = defer.Deferred()
         self._queue.put((bytespath, d))
         return d
+
+@attr.s
+@implementer(service.IService)
+class UploadService(service.Service):
+    """
+    A service that periodically polls the disc database for local snapshots
+    and commit them into the grid.
+    """
+
+    # - expose a function that takes a file and gives back a remote snapshot URI.
+    # - The service periodically polls the database for LocalSnapshots and commits
+    #   them into the grid.
+    # - at startup, always checks the database for local snapshots and commits them.
+
+    magic_path = attr.ib()
+    db = attr.ib()
+    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
+    config = attr.ib() # Tahoe Config instance (created via `allmydata.client.read_config`)
+    clock = attr.ib()
+
+    def startService(self):
+
+        # starts LocalSnapshotService
+        # make itself the parent of LocalSnapshotService.
+
+        # XXX: This would potentially change once the config PR is merged in.
+        try:
+            local_author = create_local_author_from_config(self.config, folder_name)
+        except RuntimeError:
+            # XXX
+            pass
+        except EnvironmentError:
+            # XXX: file does not exist
+            pass
+        except MissingConfigEntry:
+            # configuration is missing
+            pass
+
+        snapshot_creator = LocalSnapshotCreator(
+            db=self.db,
+            author=local_author,
+            stash_dir=self.stash_dir,
+        )
+
+        snapshot_service = LocalSnapshotService(
+            magic_path=self._magic_path,
+            snapshot_creator=snapshot_creator,
+        )
+
+        snapshot_service.setServiceParent(self)
+
+        # do a looping call that polls the db for LocalSnapshots.
+        self.upload_loop = task.loopingCall(self._upload_localsnapshots)
+
+    def stopService(self):
+        pass
+
+    def _upload_localsnapshots(self):
+        """
+        Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
+        format to LocalSnapshot objects and commit them into the grid.
+        """
+        localsnapshot_relpaths = self.db.get_all_relpaths()
+
+        # XXX: processing this table should be atomic. i.e. While the upload is
+        # in progress, a new snapshot can be created on a file we already uploaded
+        # but not removed from the db and if it gets removed from the table later,
+        # the new snapshot gets lost. i.e.
+        # in the db context:
+        #  - get_local_snapshot(name, author)
+        #  - write_snapshot_to_tahoe(snapshot, author_key, tahoe_client)
+        #  - if that succeeds, delete the local snapshot from db.
+        #  - store the resulting remote snapshot (capability) in a remote snapshots table.
+        #    This table will always point to the latest remote snapshot cap.
