@@ -216,7 +216,7 @@ def create_author_from_json(data):
     return create_author(data["name"], verify_key)
 
 
-def sign_snapshot(local_author, snapshot, content_capability):
+def sign_snapshot(local_author, snapshot, content_capability, metadata_capability):
     """
     Signs the given snapshot with provided author
 
@@ -224,27 +224,31 @@ def sign_snapshot(local_author, snapshot, content_capability):
 
     :param LocalSnapshot snapshot: snapshot to sign
 
-    :param str content_capability: the Tahoe immutable
+    :param bytes content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
+
+    :param bytes metadata capability: the Tahoe immutable
+        capability-string of the metadata (which is serialized JSON)
 
     :returns: bytes representing the signature (or exception on
         error).
     """
     # XXX See
     # https://github.com/LeastAuthority/magic-folder/issues/190 as
-    # this is likely insufficient (and hasn't been looked at by our
-    # cryptograhphers yet).
+    # this hasn't been looked at by our cryptograhphers yet).
     data_to_sign = (
         u"{content_capability}\n"
+        u"{metadata_capability}\n"
         u"{name}\n"
     ).format(
         content_capability=content_capability,
+        metadata_capability=metadata_capability,
         name=snapshot.name,
     )
     return local_author.signing_key.sign(data_to_sign.encode("utf8"))
 
 
-def verify_snapshot_signature(remote_author, alleged_signature, content_capability, snapshot_name):
+def verify_snapshot_signature(remote_author, alleged_signature, content_capability, metadata_capability, snapshot_name):
     """
     Verify the given snapshot.
 
@@ -253,9 +257,11 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = (
         u"{content_capability}\n"
+        u"{metadata_capability}\n"
         u"{name}\n"
     ).format(
         content_capability=content_capability,
+        metadata_capability=metadata_capability,
         name=snapshot_name,
     )
     return remote_author.verify_key.verify(
@@ -420,15 +426,16 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         snapshot_json = yield tahoe_client.download_capability(snapshot_cap)
         snapshot = json.loads(snapshot_json)[1]["children"]
 
-        # create SnapshotAuthor
-        author_cap = snapshot["author"][1]["ro_uri"]
-        author_json = yield tahoe_client.download_capability(author_cap)
-        snapshot_author = json.loads(author_json)
+        # NB: once we communicate authors + public-keys some other
+        # way, we could iterate all our known authors and attempt to
+        # verify a signature against the snapshot + metdata
+        # capabilities at this point .. that might be better anyway?
+        # (A key advantage is not even trying to deserialize anything
+        # that's not verified by a signature).
+        metadata_cap = snapshot["metadata"]["filenode"]["ro_uri"]
 
-        author = create_author_from_json(snapshot_author)
-
-        verify_key = VerifyKey(snapshot_author["verify_key"], Base64Encoder)
-        metadata = snapshot["content"][1]["metadata"]["magic_folder"]
+        metadata_json = yield tahoe_client.download_capability(metadata_cap)
+        metadata = json.loads(snapshot_json)
 
         if "snapshot_version" not in metadata:
             raise Exception(
@@ -445,9 +452,14 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         name = metadata["name"]
         content_cap = snapshot["content"][1]["ro_uri"]
 
+        # create SnapshotAuthor
+        author = create_author_from_json(
+            json.loads(metadata["author"])
+        )
+
         # verify the signature
         signature = base64.b64decode(metadata["author_signature"])
-        verify_snapshot_signature(author, signature, content_cap, name)
+        verify_snapshot_signature(author, signature, content_cap, metadata_cap, name)
 
         # find all parents
         parents = [k for k in snapshot.keys() if k.startswith('parent')]
@@ -456,10 +468,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         returnValue(
             RemoteSnapshot(
                 name=name,
-                author=create_author(
-                    name=snapshot_author["name"],
-                    verify_key=verify_key,
-                ),
+                author=author,
                 metadata=metadata,
                 content_cap=content_cap,
                 parents_raw=parent_caps,
@@ -679,15 +688,20 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
 
-    # sign the snapshot (which can only happen after we have the content-capability)
-    author_signature = sign_snapshot(author_key, snapshot, content_cap)
-    author_signature_base64 = base64.b64encode(author_signature.signature)
-    author_data = snapshot.author.to_remote_author().to_json()
-
-    author_cap = yield tahoe_client.create_immutable(
-        json.dumps(author_data)
+    # create our metadata
+    snapshot_metadata = {
+        "snapshot_version": SNAPSHOT_VERSION,
+        "name": snapshot.name,
+        "author": snapshot.author.to_remote_author().to_json(),
+    }
+    metadata_cap = yield tahoe_client.create_immutable(
+        json.dumps(snapshot_metadata)
     )
-    # print("author_cap: {}".format(author_cap))
+
+    # sign the snapshot (which can only happen after we have the
+    # content-capability and metadata-capability)
+    author_signature = sign_snapshot(author_key, snapshot, content_cap, metadata_cap)
+    author_signature_base64 = base64.b64encode(author_signature.signature)
 
     # create the actual snapshot: an immutable directory with
     # some children:
@@ -696,22 +710,25 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # - "parent0" -> RO cap to a Snapshot
     # - "parentN" -> RO cap to a Snapshot
 
-    # XXX actually, should we make the parent pointers a sub-dir,
-    # maybe? that might just be extra complexity for no gain, but
-    # "parents/0", "parents/1" aesthetically seems a bit nicer.
-
-
-    content_metadata = {
-        "snapshot_version": SNAPSHOT_VERSION,
-        "name": snapshot.name,
-        "author_signature": author_signature_base64,
-    }
     data = {
-        "content": format_snapshot_filenode(content_cap, content_metadata),
-        "author": format_author_filenode(author_cap),
+        "content": [
+            "filenode", {
+                "ro_uri": content_cap,
+            },
+        ],
+        "metadata": [
+            "filenode", {
+                "ro_uri": metadata_cap,
+                "metadata": {
+                    "magic_folder": {
+                        "author_signature": author_signature_base64,
+                    },
+                },
+            },
+        ],
     }
 
-    # XXX 'parents_remote1 are just Tahoe capability-strings for now
+    # XXX 'parents_remote' are just Tahoe capability-strings for now
     for idx, parent_cap in enumerate(parents_raw):
         data[u"parent{}".format(idx)] = format_dirnode(parent_cap)
 
@@ -723,15 +740,12 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # failure, we'll try again.
     returnValue(
         RemoteSnapshot(
-            # XXX: we are copying over the name from LocalSnapshot, it is not
-            # stored on tahoe at the moment. This means, when we read back a snapshot
-            # we cannot create a RemoteSnapshot object from a cap string.
             name=snapshot.name,
             author=create_author(  # remove signing_key, doesn't make sense on remote snapshots
                 name=snapshot.author.name,
                 verify_key=snapshot.author.verify_key,
             ),
-            metadata=content_metadata,  # XXX not authenticated by signature...
+            metadata=snapshot_metadata,
             parents_raw=parents_raw,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't ork yet)
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
