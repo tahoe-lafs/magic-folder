@@ -127,11 +127,10 @@ class LocalSnapshotServiceTests(SyncTestCase):
         """
         files = []
         for filename in filenames:
-            file = self.magic_path.child(filename)
+            to_add = self.magic_path.child(filename)
             content = data.draw(binary())
-            with file.open("wb") as f:
-                f.write(content)
-            files.append(file)
+            to_add.asBytesMode("utf-8").setContent(content)
+            files.append(to_add)
 
         self.snapshot_service.startService()
 
@@ -157,21 +156,20 @@ class LocalSnapshotServiceTests(SyncTestCase):
             Equals(sorted(files))
         )
 
-    @given(content=binary())
-    def test_add_file_failures(self, content):
+    @given(path_segments(), binary())
+    def test_add_file_failures(self, name, content):
         """
         Test with bad inputs to check failure paths.
         """
-        foo = self.magic_path.child("foo")
-        with foo.open("wb") as f:
-            f.write(content)
+        to_add = self.magic_path.child(name)
+        to_add.asBytesMode("utf-8").setContent(content)
 
         self.snapshot_service.startService()
 
         # try adding a string that represents the path
         with ExpectedException(TypeError,
                                "argument must be a FilePath"):
-            self.snapshot_service.add_file(foo.path)
+            self.snapshot_service.add_file(to_add.path)
 
         # try adding a directory
         tmpdir = FilePath(self.mktemp())
@@ -246,8 +244,8 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         for filename in filenames :
             file = self.magic_path.child(filename)
             content = data.draw(binary())
-            with file.open("wb") as f:
-                f.write(content)
+            file.asBytesMode("utf-8").setContent(content)
+
             files.append((file, content))
 
         for (file, _unused) in files:
@@ -274,8 +272,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         should refer to the existing snapshot as a parent.
         """
         foo = self.magic_path.child(filename)
-        with foo.open("wb") as f:
-            f.write(content1)
+        foo.asBytesMode("utf-8").setContent(content1)
 
         # make sure the process_item() succeeds
         self.assertThat(
@@ -287,8 +284,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
 
         # now modify the file with some new content.
-        with foo.open("wb") as f:
-            f.write(content2)
+        foo.asBytesMode("utf-8").setContent(content2)
 
         # make sure the second call succeeds as well
         self.assertThat(
