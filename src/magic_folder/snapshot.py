@@ -432,10 +432,11 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # capabilities at this point .. that might be better anyway?
         # (A key advantage is not even trying to deserialize anything
         # that's not verified by a signature).
-        metadata_cap = snapshot["metadata"]["filenode"]["ro_uri"]
+        metadata_cap = snapshot["metadata"][1]["ro_uri"]
+        author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
 
         metadata_json = yield tahoe_client.download_capability(metadata_cap)
-        metadata = json.loads(snapshot_json)
+        metadata = json.loads(metadata_json)
 
         if "snapshot_version" not in metadata:
             raise Exception(
@@ -453,12 +454,10 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         content_cap = snapshot["content"][1]["ro_uri"]
 
         # create SnapshotAuthor
-        author = create_author_from_json(
-            json.loads(metadata["author"])
-        )
+        author = create_author_from_json(metadata["author"])
 
         # verify the signature
-        signature = base64.b64decode(metadata["author_signature"])
+        signature = base64.b64decode(author_signature)
         verify_snapshot_signature(author, signature, content_cap, metadata_cap, name)
 
         # find all parents
