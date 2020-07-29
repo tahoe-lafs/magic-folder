@@ -26,18 +26,17 @@ by an immutable directory and contains:
 
 - ``content``: (optional) a read-only link to the actual content of
   this Snapshot. If there is no such link, this is a deletion
-  snapshot. In its metadata is a ``magic_folder`` key which is a dict
-  containing:
+  snapshot.
+- ``metadata``: information about the Snapshot, a capability pointing to a JSON dict containing:
   - ``snapshot_version``: 1 currently
   - ``name``: the name of this snapshop (a mangled relative path)
-  - ``author_signature``: base64-encoded signature (optional)
-  (XXX maybe we want a separate capability pointer to the metadata
-  because if the content is missing, we don't haev anywhere to put the
-  signature for deletion snapshots)
-- ``author``: a read-only link to author information, which is JSON
-  which deserializes to a dict containing:
-  - ``name``: the name this device is assigned
-  - ``verify_key``: base64-encoded public-key of the device
+  - ``author``: a dict containing:
+    - ``name``: arbitrary name
+    - ``verify_key``: base64-encoded public key of the author
+  - additionally, in the metadata for this metadata-capability is a
+    ``magic_folder`` dict with the following keys:
+    - ``author_signature``: base64-encoded signature which signs the
+      content-capability, metadata-capability and name
 - ``parent0..parentN``: any number of parents, each a read-only link
   to another Snapshot. With no parent, this is the first version of a
   file. Otherwise, it is a modification. If there are two or more
