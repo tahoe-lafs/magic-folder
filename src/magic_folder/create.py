@@ -4,30 +4,15 @@
 """
 Implements the magic-folder create command.
 """
-import codecs
-import os
-
-
-from hyperlink import (
-    DecodedURL,
-)
 
 from twisted.internet.defer import (
     inlineCallbacks,
-    returnValue,
 )
-
-from allmydata.scripts.common import get_aliases
-from allmydata import uri
-from allmydata.util import fileutil
-from allmydata.util.encodingutil import quote_output
 
 from .snapshot import (
     create_local_author,
 )
 from .common import (
-    get_node_url,
-    tahoe_mkdir,
     BadResponseCode,
 )
 from .tahoe_client import (

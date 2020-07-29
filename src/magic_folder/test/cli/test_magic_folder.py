@@ -12,12 +12,8 @@ from testtools.matchers import (
     Always,
     ContainsDict,
 )
-from testtools import (
-    skipIf,
-)
 
 from eliot import (
-    log_call,
     start_action,
 )
 from eliot.twisted import (
@@ -31,9 +27,6 @@ from twisted.python.filepath import (
 )
 
 from allmydata.util.assertutil import precondition
-from allmydata.util import fileutil
-from allmydata.scripts.common import get_aliases
-from allmydata.util.fileutil import abspath_expanduser_unicode
 from allmydata.util.encodingutil import unicode_to_argv
 from allmydata import uri
 
@@ -43,7 +36,6 @@ from magic_folder.util.eliotutil import (
 
 from ...magic_folder import (
     MagicFolder,
-    load_magic_folders,
 )
 from ... import cli as magic_folder_cli
 from ...config import (

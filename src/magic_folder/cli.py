@@ -6,8 +6,6 @@ import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
-from types import NoneType
-from ConfigParser import SafeConfigParser
 import json
 from collections import (
     defaultdict,
@@ -98,8 +96,6 @@ from allmydata.util.encodingutil import (
     argv_to_unicode,
     to_str,
 )
-from allmydata.util import fileutil
-from allmydata.util.encodingutil import quote_output
 
 from allmydata.client import (
     read_config,
