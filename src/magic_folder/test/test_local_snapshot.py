@@ -260,7 +260,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         for (file, content) in files:
             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
-            stored_content = stored_snapshot._get_synchronous_content()
+            stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
 
