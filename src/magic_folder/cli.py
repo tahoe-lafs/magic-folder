@@ -6,7 +6,8 @@ import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
-from datetime import datetime
+from types import NoneType
+from ConfigParser import SafeConfigParser
 import json
 from collections import (
     defaultdict,
@@ -97,7 +98,8 @@ from allmydata.util.encodingutil import (
     argv_to_unicode,
     to_str,
 )
-from allmydata.util.abbreviate import abbreviate_space, abbreviate_time
+from allmydata.util import fileutil
+from allmydata.util.encodingutil import quote_output
 
 from allmydata.client import (
     read_config,
@@ -109,10 +111,6 @@ from .magic_folder import (
 )
 from .web import (
     magic_folder_web_service,
-)
-
-from .status import (
-    status as _status,
 )
 
 from .invite import (
@@ -574,221 +572,6 @@ def leave(options):
         return 1
 
     return 0
-
-
-class StatusOptions(usage.Options):
-    synopsis = ""
-    stdin = MixedIO(u"")
-    optParameters = [
-        ("name", "n", "default", "Name for the magic-folder to show status"),
-    ]
-
-
-def _item_status(item, now, longest):
-    paddedname = (' ' * (longest - len(item['path']))) + item['path']
-    if 'failure_at' in item:
-        ts = datetime.fromtimestamp(item['started_at'])
-        prog = 'Failed %s (%s)' % (abbreviate_time(now - ts), ts)
-    elif item['percent_done'] < 100.0:
-        if 'started_at' not in item:
-            prog = 'not yet started'
-        else:
-            so_far = now - datetime.fromtimestamp(item['started_at'])
-            if so_far.seconds > 0.0:
-                rate = item['percent_done'] / so_far.seconds
-                if rate != 0:
-                    time_left = (100.0 - item['percent_done']) / rate
-                    prog = '%2.1f%% done, around %s left' % (
-                        item['percent_done'],
-                        abbreviate_time(time_left),
-                    )
-                else:
-                    time_left = None
-                    prog = '%2.1f%% done' % (item['percent_done'],)
-            else:
-                prog = 'just started'
-    else:
-        prog = ''
-        for verb in ['finished', 'started', 'queued']:
-            keyname = verb + '_at'
-            if keyname in item:
-                when = datetime.fromtimestamp(item[keyname])
-                prog = '%s %s' % (verb, abbreviate_time(now - when))
-                break
-
-    return "  %s: %s" % (paddedname, prog)
-
-
-@inline_callbacks
-def status(options):
-    """
-    ``magic-folder status`` entry-point.
-
-    :param StatusOptions options: Values for configurable status parameters.
-
-    :return Deferred: A ``Deferred`` which fires with an exit status for the
-        process when the status operation has completed.
-    """
-    nodedir = options.parent.node_directory
-    stdout, stderr = options.stdout, options.stderr
-
-    # Create a client without persistent connections to simplify testing.
-    # Connections will typically be to localhost anyway so there isn't
-    # much performance difference.
-    from twisted.internet import reactor
-    treq = HTTPClient(Agent(reactor))
-
-    name = options["name"].decode("utf-8")
-    try:
-        status_obj = yield _status(
-            name,
-            FilePath(nodedir),
-            treq,
-        )
-    except Exception as e:
-        print(e, file=stderr)
-        returnValue(1)
-    else:
-        print(_format_status(datetime.now(), status_obj), file=stdout)
-        returnValue(0)
-
-
-def _format_status(now, status_obj):
-    """
-    Format a ``Status`` as a unicode string.
-
-    :param datetime now: A time to use as current.
-
-    :param Status status_obj: The object to use to fill the string with
-        details.
-
-    :return unicode: Text roughly describing ``status_obj`` to a person.
-    """
-    return u"""
-Magic-folder status for '{folder_name}':
-
-Local files:
-{local_files}
-
-Remote files:
-{remote_files}
-
-{magic_folder_status}
-""".format(
-    folder_name=status_obj.folder_name,
-    local_files=u"\n".join(list(
-        _format_local_files(now, status_obj.local_files)
-    )),
-    remote_files=u"\n".join(list(
-        _format_remote_files(now, status_obj.remote_files)
-    )),
-    magic_folder_status=u"\n".join(list(
-        _format_magic_folder_status(now, status_obj.folder_status)
-    )),
-)
-
-
-def _format_local_files(now, local_files):
-    """
-    Format some local files as unicode strings.
-
-    :param datetime now: A time to use as current.
-
-    :param dict local_files: A mapping from filenames to filenodes.  See
-        ``_format_file_line`` for details of filenodes.
-
-    :return: A generator of unicode strings describing the files.
-    """
-    for (name, child) in local_files.items():
-        yield _format_file_line(now, name, child)
-
-
-def _format_file_line(now, name, child):
-    """
-    Format one Tahoe-LAFS filenode as a unicode string.
-
-    :param datetime now: A time to use as current.
-    :param unicode name: The name of the file.
-
-    :param child: Metadata describing the file.  The format is like the format
-        of a filenode inside a dirnode's **children**.  See the Tahoe-LAFS Web
-        API frontend documentation for details.
-
-    :return unicode: Text roughly describing the filenode to a person.
-    """
-    captype, meta = child
-    if captype != 'filenode':
-        return u"%20s: error, should be a filecap (not %s)" % (name, captype)
-
-    status = 'good'
-    size = meta['size']
-    created = datetime.fromtimestamp(meta['metadata']['tahoe']['linkcrtime'])
-    version = meta['metadata']['version']
-    nice_size = abbreviate_space(size)
-    nice_created = abbreviate_time(now - created)
-    return u"  %s (%s): %s, version=%s, created %s" % (
-        name,
-        nice_size,
-        status,
-        version,
-        nice_created,
-    )
-
-
-def _format_remote_files(now, remote_files):
-    """
-    Format some files from peer DMDs as unicode strings.
-
-    :param datetime now: A time to use as current.
-
-    :param dict remote_files: A mapping from DMD names to dictionaries.  The
-        inner dictionaries are like those which may be passed to
-        ``_format_local_files``.
-
-    :return: A generator of unicode strings describing the files.
-    """
-    for (name, children) in remote_files.items():
-        yield u"  %s's remote:" % name
-        for text in _format_local_files(now, children):
-            yield text
-
-
-def _format_magic_folder_status(now, magic_data):
-    """
-    Format details about magic folder activities as a unicode string.
-
-    :param datetime now: A time to use as current.
-
-    :param list[dict] magic_data: Activity to include in the result.  The
-        elements are formatted like the result of
-        ``magic_folder.web.status_for_item``.
-
-    :return: A generator of unicode strings describing the activities.
-    """
-    if len(magic_data):
-        uploads = [item for item in magic_data if item['kind'] == 'upload']
-        downloads = [item for item in magic_data if item['kind'] == 'download']
-        longest = max([len(item['path']) for item in magic_data])
-
-        # maybe gate this with --show-completed option or something?
-        uploads = [item for item in uploads if item['status'] != 'success']
-        downloads = [item for item in downloads if item['status'] != 'success']
-
-        if len(uploads):
-            yield u""
-            yield u"Uploads:"
-            for item in uploads:
-                yield _item_status(item, now, longest)
-
-        if len(downloads):
-            yield u""
-            yield u"Downloads:"
-            for item in downloads:
-                yield _item_status(item, now, longest)
-
-        for item in magic_data:
-            if item['status'] == 'failure':
-                yield u"Failed: {}".format(item)
 
 
 class RunOptions(usage.Options):
@@ -1287,7 +1070,6 @@ class MagicFolderCommand(BaseOptions):
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
-        ["status", None, StatusOptions, "Display status of uploads/downloads."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders synchronization process."],
     ]
@@ -1347,7 +1129,6 @@ subDispatch = {
     "invite": invite,
     "join": join,
     "leave": leave,
-    "status": status,
     "list": list_,
     "run": run,
 }

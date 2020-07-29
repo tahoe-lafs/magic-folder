@@ -2,17 +2,6 @@ import json
 import os.path
 import re
 
-from hypothesis import (
-    given,
-)
-from hypothesis.strategies import (
-    datetimes,
-    dictionaries,
-    lists,
-    tuples,
-    just,
-)
-
 from testtools.content import (
     text_content,
 )
@@ -20,7 +9,6 @@ from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
-    IsInstance,
     Always,
     ContainsDict,
 )
@@ -35,9 +23,6 @@ from eliot.twisted import (
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
-from twisted.python.filepath import (
-    FilePath,
-)
 
 from allmydata.util.assertutil import precondition
 from allmydata.util import fileutil
@@ -59,13 +44,6 @@ from ...config import (
     create_global_configuration,
 )
 
-from ...web import (
-    status_for_item,
-)
-from ...status import (
-    Status,
-)
-
 from ..no_network import GridTestMixin
 from ..common_util import (
     parse_cli,
@@ -74,16 +52,9 @@ from ..common_util import (
 from ..common import (
     AsyncTestCase,
     SyncTestCase,
-    SameProcessStreamEndpointAssigner,
 )
 from ..fixtures import (
     SelfConnectedClient,
-)
-from ..strategies import (
-    folder_names,
-    queued_items,
-    path_segments,
-    filenodes,
 )
 from .common import (
     CLITestMixin,
@@ -156,17 +127,6 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         args = ("magic-folder", "list",)
         if json:
             args = args + ("--json",)
-        d = self.do_cli(*args, client_num=client_num)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d
-
-    def do_status(self, client_num, name=None):
-        args = ("magic-folder", "status",)
-        if name is not None:
-            args = args + ("--name", name)
         d = self.do_cli(*args, client_num=client_num)
         def _done(args):
             (rc, stdout, stderr) = args
@@ -410,67 +370,6 @@ class ListMagicFolder(AsyncTestCase):
                     }),
                 }),
             ),
-        )
-
-
-class StatusMagicFolder(AsyncTestCase):
-    """
-    Tests for ``magic-folder status``.
-    """
-    @defer.inlineCallbacks
-    def test_command_exists(self):
-        """
-        There is a status command at all.
-        """
-        outcome = yield cli(
-            FilePath(self.mktemp()),
-            [b"status", b"--help"],
-        )
-        addOutcomeDetails(self, outcome)
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-
-    @given(
-        folder_names(),
-        datetimes(),
-        dictionaries(
-            path_segments(),
-            tuples(just(u"filenode"), filenodes()),
-        ),
-        # Laziness
-        path_segments(),
-        lists(queued_items()),
-        lists(queued_items()),
-    )
-    def test_formatting(
-            self,
-            folder_name,
-            now,
-            local_files,
-            remote_name,
-            upload_items,
-            download_items,
-    ):
-        self.assertThat(
-            magic_folder_cli._format_status(
-                now,
-                Status(
-                    folder_name,
-                    local_files=local_files,
-                    remote_files={remote_name: local_files},
-                    folder_status=list(
-                        status_for_item(kind, item)
-                        for (kind, items) in [
-                                ("upload", upload_items),
-                                ("download", download_items),
-                        ]
-                        for item in items
-                    ),
-                ),
-            ),
-            IsInstance(unicode),
         )
 
 

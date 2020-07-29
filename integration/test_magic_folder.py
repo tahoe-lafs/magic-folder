@@ -1,6 +1,7 @@
 import time
 import shutil
 import json
+from pprint import pprint
 from os import mkdir, unlink, utime
 from os.path import join, exists, getmtime
 from functools import (
@@ -34,6 +35,9 @@ from treq.client import (
 from magic_folder.magic_folder import (
     load_magic_folders,
 )
+from magic_folder.magicfolderdb import (
+    get_magicfolderdb,
+)
 from magic_folder.cli import (
     MagicFolderCommand,
     do_magic_folder,
@@ -47,10 +51,6 @@ from .util import (
     await_file_contents,
     await_files_exist,
     await_file_vanishes,
-)
-
-from magic_folder.status import (
-    status,
 )
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
@@ -358,26 +358,11 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
     with open(join(magic_folder, "its_a_file"), "w") as f:
         f.write("edmond wrote this")
 
-    # fixme, do status-update attempts in a loop below
-    time.sleep(5)
-
-    # let it upload; poll the HTTP magic-folder status API until it is
-    # uploaded
-    uploaded = False
-    for _ in range(10):
-        try:
-            treq = HTTPClient(Agent(reactor))
-            mf = yield status(unicode('default', 'utf-8'),
-                              FilePath(edmond.node_directory),
-                              treq)
-            if mf.folder_status[0]['status'] == u'success' and \
-               mf.local_files.get(u'its_a_file', None) is not None:
-                uploaded = True
-                break
-        except Exception:
-            write_traceback()
-            time.sleep(1)
-
+    # let it upload; poll the database to learn when that has happened.
+    uploaded = wait_until_uploaded(
+        join(node_dir, "private", "magicfolder_default.sqlite"),
+        "its_a_file",
+    )
     assert uploaded, "expected to upload 'its_a_file'"
 
     # re-starting edmond right now would previously have triggered the 2880 bug
@@ -391,6 +376,19 @@ def test_edmond_uploads_then_restarts(reactor, request, temp_dir, introducer_fur
         assert exists(join(magic_folder, "its_a_file"))
         assert not exists(join(magic_folder, "its_a_file.backup"))
         time.sleep(1)
+
+
+def wait_until_uploaded(dbpath, relpath):
+    assert exists(dbpath), "{} does not exist".format(dbpath)
+    db = get_magicfolderdb(dbpath)
+    for _ in range(20):
+        entry = db.get_db_entry("its_a_file")
+        if entry is not None and entry.last_uploaded_uri != None:
+            return True
+        time.sleep(1)
+    print("All db relpaths:")
+    pprint(db.get_all_relpaths())
+    return False
 
 
 @pytest_twisted.inlineCallbacks
