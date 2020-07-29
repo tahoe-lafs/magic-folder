@@ -12,6 +12,9 @@ from testtools.matchers import (
     Always,
     ContainsDict,
 )
+from testtools import (
+    skipIf,
+)
 
 from eliot import (
     log_call,
@@ -93,7 +96,9 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             d = DeferredContext(
                 self.do_cli(
                     "magic-folder", "--debug",
-                    "add", folder_dir.asBytesMode().path,
+                    "add",
+                    b"--author", b"test",
+                    folder_dir.asBytesMode().path,
                     client_num=client_num,
                 )
             )
@@ -238,7 +243,12 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
         def _done_init(args):
             (rc, stdout, stderr) = args
             self.assertEqual(rc, 0, stdout + stderr)
-            return self.do_cli("magic-folder", "--config", config.asBytesMode().path, "--debug", "add", local_dir_arg)
+            return self.do_cli(
+                b"magic-folder",
+                b"--config", config.asBytesMode().path,
+                b"--debug",
+                b"--author", b"test",
+                b"add", local_dir_arg)
         d.addCallback(_done_init)
 
         def _done_add(args):
@@ -373,6 +383,7 @@ class ListMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
+                b"--author", b"test",
                 b"--name", b"list-some-json-folder",
                 folder_path.asBytesMode().path,
             ],
@@ -550,6 +561,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
+                b"--author", b"test",
                 b"--name", b"foo",
                 magic_folder.asBytesMode().path,
             ],
@@ -855,6 +867,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.fail("expected UsageError")
 
     @defer.inlineCallbacks
+    @skipIf(sys.platform != "linux2")
     def test_join_author_user(self):
         """
         The CLI will use USER from the environment
@@ -932,6 +945,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
+                b"--author", b"test",
                 local_dir.asBytesMode().path,
             ],
         )
