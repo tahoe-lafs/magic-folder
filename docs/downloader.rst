@@ -14,12 +14,12 @@ We do not describe the synchronization of the list of participants in
 a magic-folder. This list will consist of at least:
 
 - an arbitrary ``name`` for each participant
-- a directory read-capability for each participant ("participant DMD")
+- a directory read-capability for each participant ("personal DMD")
   - in this directory is a flattened representation of every file in
     the Magic Folder (similar to the Tahoe 1.14.0 design) with each
     entry pointing to a Snapshot. That is, there are no
     sub-directories to recurse into, all files are listed by
-    downloading just the "participant DMD" capability.
+    downloading just the "personal DMD" capability of that participant.
 
 "A Snapshot" is a single version of a single file. It is represented
 by an immutable directory and contains:
