@@ -2107,10 +2107,12 @@ class LocalSnapshotService(service.Service):
     below) we create a LocalSnapshot instance, serialize it and then
     pass the instance forward to the SnapshotUploader.
     """
-
-    magic_path = attr.ib()  # FilePath of our magic-folder base
-    snapshot_creator = attr.ib()
-    queue = attr.ib(default=attr.Factory(DeferredQueue))
+    _magic_path = attr.ib(
+        converter=lambda fp: fp.asBytesMode("utf-8"),
+        validator=attr.validators.instance_of(FilePath),
+    )
+    _snapshot_creator = attr.ib()
+    _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
         """
@@ -2126,9 +2128,9 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                (item, d) = yield self.queue.get()
+                (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self.snapshot_creator.process_item(item)
+                    yield self._snapshot_creator.process_item(item)
                     d.callback(None)
             except CancelledError:
                 break
@@ -2160,25 +2162,29 @@ class LocalSnapshotService(service.Service):
             raise TypeError(
                 "argument must be a FilePath"
             )
+        bytespath = path.asBytesMode("utf-8")
+        textpath = path.asTextMode("utf-8")
 
         try:
-            path.segmentsFrom(self.magic_path)
+            bytespath.segmentsFrom(self._magic_path)
         except ValueError:
-            ADD_FILE_FAILURE.log(relpath=path.asTextMode('utf-8').path)
+            ADD_FILE_FAILURE.log(relpath=textpath.path)
             raise ValueError(
                 "The path being added '{!r}' is not within '{!r}'".format(
-                    path.path,
-                    self.magic_path.path,
+                    bytespath.path,
+                    self._magic_path.path,
                 )
             )
 
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if path.isdir():
-            raise ValueError("expected a file, {!r} is a directory".format(path))
+        if bytespath.isdir():
+            raise ValueError(
+                "expected a file, {!r} is a directory".format(bytespath.path),
+            )
 
         # add file into the queue
         d = defer.Deferred()
-        self.queue.put((path, d))
+        self._queue.put((bytespath, d))
         return d

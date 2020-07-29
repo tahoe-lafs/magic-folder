@@ -99,7 +99,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Start the service, add a file and check if the operation succeeded.
         """
         to_add = self.magic_path.child(name)
-        to_add.setContent(content)
+        to_add.asBytesMode("utf-8").setContent(content)
 
         self.snapshot_service.startService()
 
@@ -115,7 +115,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([to_add]),
+            Equals([to_add.asBytesMode("utf-8")]),
         )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
