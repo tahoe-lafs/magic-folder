@@ -224,10 +224,24 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
 
     def create_invite_join_magic_folder(self, nickname, local_dir):
         local_dir_arg = unicode_to_argv(local_dir)
-        # the --debug means we get real exceptions on failures
-        d = self.do_cli("magic-folder", "--debug", "add", local_dir_arg)
+        client_path = FilePath(self.get_clientdir())
+        config = client_path.child("config")
 
-        def _done(args):
+        # the --debug means we get real exceptions on failures
+        d = self.do_cli(
+            "magic-folder", "--debug", "init",
+            "--config", config.asBytesMode().path,
+            "--listen-endpoint", "tcp:4319",
+            "--node-directory", client_path.asBytesMode().path,
+        )
+
+        def _done_init(args):
+            (rc, stdout, stderr) = args
+            self.assertEqual(rc, 0, stdout + stderr)
+            return self.do_cli("magic-folder", "--config", config.asBytesMode().path, "--debug", "add", local_dir_arg)
+        d.addCallback(_done_init)
+
+        def _done_add(args):
             (rc, stdout, stderr) = args
             self.assertEqual(rc, 0, stdout + stderr)
 
@@ -235,9 +249,9 @@ class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
             self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
             self.collective_dirnode = client.create_node_from_uri(self.collective_dircap)
             self.upload_dirnode     = client.create_node_from_uri(self.upload_dircap)
-        d.addCallback(_done)
+        d.addCallback(_done_add)
+
         d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-##        d.addCallback(lambda ign: self.check_config(0, local_dir))
         return d
 
     # XXX should probably just be "tearDown"...
