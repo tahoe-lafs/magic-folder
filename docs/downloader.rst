@@ -151,7 +151,7 @@ strategy of merging the contents would mean updating the existing file
 I believe the above accurately describes what Tahoe 1.14.0
 magic-folder does.
 
-This doesn't meant it's the best "API" for conflict resolution (nor
+This doesn't mean it's the best "API" for conflict resolution (nor
 does it need to remain the only one). We could, for example, add an
 HTTP API and CLI command that explicitly say "take mine" or "take
 theirs" or "take this new thing I crafted".
