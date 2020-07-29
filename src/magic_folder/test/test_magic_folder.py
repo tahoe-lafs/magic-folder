@@ -75,6 +75,7 @@ from .common import (
     SyncTestCase,
     AsyncTestCase,
     skipIf,
+    skip,
 )
 from .cli.test_magic_folder import MagicFolderCLITestMixin
 
@@ -2242,7 +2243,8 @@ class MockTestAliceBob(MagicFolderAliceBobTestMixin, AsyncTestCase):
         return super(MockTestAliceBob, self).setUp()
 
 
-@skipIf(support_missing, support_message)
+#@skipIf(support_missing, support_message)
+@skip("Very tied to no-network-grid and tahoe internals")
 class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
     """This can run on any platform, and even if twisted.internet.inotify can't be imported."""
     inject_inotify = True
@@ -2391,7 +2393,8 @@ class MockTest(SingleMagicFolderTestMixin, AsyncTestCase):
         return d.result
 
 
-@skipIf(support_missing, support_message)
+#@skipIf(support_missing, support_message)
+@skip("Very tied to no-network-grid and tahoe internals")
 class RealTest(SingleMagicFolderTestMixin, AsyncTestCase):
     """This is skipped unless both Twisted and the platform support inotify."""
     inject_inotify = False
