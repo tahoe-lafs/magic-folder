@@ -350,8 +350,8 @@ def add(options):
     treq = HTTPClient(Agent(reactor))
     yield magic_folder_create(
         options.parent.config,
-        options["name"],
-        options["author"],
+        argv_to_unicode(options["name"]),
+        argv_to_unicode(options["author"]),
         options.local_dir,
         options["poll-interval"],
         treq,

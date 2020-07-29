@@ -164,6 +164,43 @@ class TahoeClient(object):
         capability_string = yield _get_content_check_code({OK, CREATED}, response)
         returnValue(capability_string)
 
+
+    @inlineCallbacks
+    def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap):
+        """
+        Adds an entry to a mutable directory
+
+        :param bytes mutable_cap: the capability-string of a mutable
+            to add an entry into
+
+        :param unicode path_name: the name of the entry (i.e. the path
+            segment)
+
+        :param bytes entry_cap: the capability of the entry (could be
+            any sort of capability).
+
+        :return Deferred[None]: or exception on error
+        """
+        post_uri = self.url.replace(
+            path=(u"uri", mutable_cap.decode("utf8"), path_name),
+            query=[
+                (u"t", u"uri"),
+                (u"replace", u"false"),
+            ],
+        )
+        print("PUT", post_uri)
+        response = yield _request(
+            self.http_client,
+            b"PUT",
+            post_uri,
+            data=entry_cap,
+        )
+        # Response code should probably be CREATED but it seems to be OK
+        # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
+        # artifact of the test double.
+        capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        returnValue(capability_string)
+
     @inlineCallbacks
     def download_capability(self, cap):
         """

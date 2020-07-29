@@ -249,14 +249,14 @@ class MagicFolderConfig(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT collective_dircap FROM config");
-            return cursor.fetchone()[0]
+            return cursor.fetchone()[0].encode("utf8")
 
     @property
     def upload_dircap(self):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT upload_dircap FROM config");
-            return cursor.fetchone()[0]
+            return cursor.fetchone()[0].encode("utf8")
 
     @property
     def poll_interval(self):

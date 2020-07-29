@@ -107,6 +107,9 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
     :return Deferred: ``None`` or an appropriate exception is raised.
     """
 
+    # XXX probably want to pass this in, instead of "treq"?
+    tahoe_client = create_tahoe_client(config.tahoe_client_url, treq)
+
     if name in config.list_magic_folders():
         raise Exception("Already have a magic-folder named '{}'".format(name))
 
@@ -115,7 +118,7 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
 
     # create an unlinked directory and get the dmd write-cap
     try:
-        collective_write_cap = yield tahoe_mkdir(config.tahoe_client_url, treq)
+        collective_write_cap = yield tahoe_client.create_mutable_directory()
     except BadResponseCode as e:
         raise RuntimeError(
             "Error from '{}' while creating mutable directory: {}".format(
@@ -125,7 +128,7 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
         )
 
     try:
-        personal_write_cap = yield tahoe_mkdir(config.tahoe_client_url, treq)
+        personal_write_cap = yield tahoe_client.create_mutable_directory()
     except BadResponseCode as e:
         raise RuntimeError(
             "Error from '{}' while creating mutable directory: {}".format(
@@ -133,6 +136,22 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
                 e
             )
         )
+
+    # add ourselves to the collective
+    try:
+        yield tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap=collective_write_cap,
+            path_name=author_name,
+            entry_cap=personal_write_cap,
+        )
+    except BadResponseCode as e:
+        raise RuntimeError(
+            "Error adding '{}' to collective directory: {}".format(
+                author_name,
+                e
+            )
+        )
+
 
     # create our "state" directory for this magic-folder (could be
     # configurable in the future)
