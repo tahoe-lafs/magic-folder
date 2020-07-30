@@ -363,7 +363,7 @@ class MagicFolderDB(object):
         if not row:
             return None
         else:
-            return LocalSnapshot.from_json(row[0], author)
+            return row[0]
 
     @with_cursor
     def store_remote_snapshot(self, cursor, path, snapshot_cap):

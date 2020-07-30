@@ -22,7 +22,6 @@ from zope.interface import Interface, Attribute, implementer
 from twisted.internet.defer import (
     DeferredQueue,
     CancelledError,
-    returnValue,
 )
 
 from eliot import (
