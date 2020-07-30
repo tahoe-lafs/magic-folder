@@ -1702,6 +1702,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                     self._begin_processing()
                     return
                 except Exception:
+                    raise
                     write_traceback()
                     yield task.deferLater(self._clock, self._scan_delay(), lambda: None)
 
@@ -1754,9 +1755,12 @@ class Downloader(QueueMixin, WriteFileMixin):
             COLLECTIVE_SCAN.log(dmds=result)
             list_of_deferreds = []
             for participant in result:
-                d = DeferredContext(defer.succeed(None))
+                d = DeferredContext(defer.succeed(participant))
                 d.addCallback(
-                    lambda ignored: _get_latest_file(participant, filename),
+                    lambda participant: _get_latest_file(
+                        participant,
+                        filename,
+                    ),
                 )
                 list_of_deferreds.append(d)
             deferList = defer.DeferredList(list_of_deferreds, consumeErrors=True)
