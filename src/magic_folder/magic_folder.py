@@ -1659,6 +1659,19 @@ class DownloadItem(QueuedItem):
         self.metadata = metadata
 
 
+def _get_latest_file(participant, filename):
+    """
+    Get this participant's latest version of a file in this magic folder.
+
+    :param unicode path: The relative path to the file to retrieve.
+
+    :return Deferred[_FolderFile]: The requested file.
+    """
+    d = participant.list()
+    d.addCallback(lambda children: children[filename])
+    return d
+
+
 class Downloader(QueueMixin, WriteFileMixin):
 
     def __init__(self, client, local_path_u, db, participants,
@@ -1743,7 +1756,7 @@ class Downloader(QueueMixin, WriteFileMixin):
             for participant in result:
                 d = DeferredContext(defer.succeed(None))
                 d.addCallback(
-                    lambda ignored: participant.get_latest_file(filename),
+                    lambda ignored: _get_latest_file(participant, filename),
                 )
                 list_of_deferreds.append(d)
             deferList = defer.DeferredList(list_of_deferreds, consumeErrors=True)
