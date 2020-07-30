@@ -67,6 +67,13 @@ STORE_OR_UPDATE_SNAPSHOTS = ActionType(
     u"Persist local snapshot object of a relative path in the magic-folder db.",
 )
 
+DELETE_SNAPSHOTS = ActionType(
+    u"magic-folder-db:delete-local-snapshot-entry",
+    [RELPATH],
+    [],
+    u"Delete the row corresponding to the given path from the local snapshot table.",
+)
+
 # magic-folder db schema version 1
 SCHEMA_v1 = """
 CREATE TABLE version
@@ -316,3 +323,18 @@ class MagicFolderDB(object):
     def _clear_snapshot_table(self):
         return self._clear("local_snapshots")
 
+    @with_cursor
+    def delete_local_snapshot(self, cursor, name):
+        """
+        Delete the row corresponding to the given ''name''.
+
+        :param str name: magicpath that represents the relative path of the file.
+        """
+        action = DELETE_SNAPSHOTS(
+            relpath=name,
+        )
+        with action:
+            cursor.execute("DELETE FROM local_snapshots"
+                           " WHERE path=?",
+                           (name,))
+            self.connection.commit()

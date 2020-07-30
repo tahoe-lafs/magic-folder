@@ -2220,7 +2220,7 @@ class UploadService(service.Service):
 
         # XXX: This would potentially change once the config PR is merged in.
         try:
-            local_author = create_local_author_from_config(self.config, self.folder_name)
+            self.local_author = create_local_author_from_config(self.config, self.folder_name)
         except RuntimeError:
             # XXX
             pass
@@ -2257,20 +2257,52 @@ class UploadService(service.Service):
         self._service_d = None
         return d
 
-    def _upload_localsnapshots(self):
+    @eliotutil.inline_callbacks
+    def _upload_localsnapshots(self, tahoe_client):
         """
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
-        """
-        localsnapshot_relpaths = self.db.get_all_relpaths()
 
-        # XXX: processing this table should be atomic. i.e. While the upload is
-        # in progress, a new snapshot can be created on a file we already uploaded
-        # but not removed from the db and if it gets removed from the table later,
-        # the new snapshot gets lost. i.e.
-        # in the db context:
-        #  - get_local_snapshot(name, author)
-        #  - write_snapshot_to_tahoe(snapshot, author_key, tahoe_client)
-        #  - if that succeeds, delete the local snapshot from db.
-        #  - store the resulting remote snapshot (capability) in a remote snapshots table.
-        #    This table will always point to the latest remote snapshot cap.
+        :param tahoe_client: a TahoeClient instance
+        """
+
+        while True:
+            # get the mangled paths for the LocalSnapshot objects in the db
+            localsnapshot_relpaths = self.db.get_all_relpaths()
+
+            # XXX: processing this table should be atomic. i.e. While the upload is
+            # in progress, a new snapshot can be created on a file we already uploaded
+            # but not removed from the db and if it gets removed from the table later,
+            # the new snapshot gets lost. i.e.
+            # in the db context:
+            #  - get_local_snapshot(name, author) for each name in the table
+            #  - write_snapshot_to_tahoe(snapshot, author_key, tahoe_client)
+            #  - if that succeeds, delete the local snapshot from db.
+            #  - store the resulting remote snapshot (capability) in a remote snapshots table.
+            #    This table will always point to the latest remote snapshot cap.
+            for relpath in localsnapshot_relpaths:
+                # deserialize into LocalSnapshot and copy them into the queue
+                localsnapshot = self.db.get_local_snapshot(relpath, self.local_author)
+                self._queue.put(localsnapshot)
+
+            # now upload each item in the queue
+            snapshot = yield self._queue.get(localsnapshot)
+            try:
+                remote_snapshot = yield write_snapshot_to_tahoe(
+                    snapshot,
+                    signing_key,
+                    tahoe_client,
+                )
+            except NoServersError:
+                # Unable to reach Tahoe storage nodes because of
+                # network errors or because the tahoe storage nodes
+                # are offline.
+                self._queue.put(localsnapshot)
+                continue
+            except Exception:
+                # all other exceptions, pass on upstream
+                raise
+
+            # At this point, remote snapshot creation successful for
+            # the given relpath. Remove the LocalSnapshot from the db.
+            self.db.delete_local_snapshot(relpath)
