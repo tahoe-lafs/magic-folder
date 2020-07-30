@@ -61,6 +61,25 @@ class IParticipants(Interface):
         """
 
 
+def participant_from_dmd(name, dirnode, is_self):
+    """
+    Create an ``IParticipant`` provider backed by the DMD at the given
+    location.
+
+    :param unicode name: The nickname of this participant.
+
+    :param IDirectoryNode dirnode: The Tahoe-LAFS directory node that holds
+        this participant's state.
+
+    :param bool is_self: ``True`` if we know this participant represents
+        ourself in the magic folder, ``False`` otherwise.
+
+    :return IParticipant: A participant object for accessing this
+        participant's state.
+    """
+    return _CollectiveDirnodeParticipant(name, dirnode, is_self)
+
+
 def participants_from_collective(collective_dirnode, upload_dirnode):
     """
     Get an ``IParticipants`` provider that reads participants from the given
@@ -118,7 +137,7 @@ class _CollectiveDirnodeParticipants(object):
     def list(self):
         result = yield self._collective_dirnode.list()
         returnValue(list(
-            _CollectiveDirnodeParticipant(
+            participant_from_dmd(
                 name,
                 dirobj,
                 self._is_self(dirobj),
@@ -131,6 +150,7 @@ class _CollectiveDirnodeParticipants(object):
         return dirobj.get_readonly_uri() == self._upload_dirnode.get_readonly_uri()
 
 
+@implementer(IParticipant)
 @attr.s(frozen=True)
 class _CollectiveDirnodeParticipant(object):
     name = attr.ib(validator=attr.validators.instance_of(unicode))
