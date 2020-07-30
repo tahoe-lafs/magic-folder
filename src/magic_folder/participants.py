@@ -87,7 +87,7 @@ def participants_from_collective(collective_dirnode, upload_dirnode):
 
 
 @implementer(IParticipants)
-@attr.s
+@attr.s(frozen=True)
 class _CollectiveDirnodeParticipants(object):
     _collective_dirnode = attr.ib()
     _upload_dirnode = attr.ib()
@@ -140,7 +140,7 @@ class _CollectiveDirnodeParticipants(object):
         return dirobj.get_readonly_uri() == self._upload_dirnode.get_readonly_uri()
 
 
-@attr.s
+@attr.s(frozen=True)
 class _CollectiveDirnodeParticipant(object):
     name = attr.ib(validator=attr.validators.instance_of(unicode))
     dirobj = attr.ib()
