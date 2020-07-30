@@ -98,6 +98,12 @@ CREATE TABLE local_snapshots
  path               TEXT PRIMARY KEY,             -- UTF-8 relative filepath that the snapshot represents
  snapshot_blob      BLOB                          -- a JSON blob representing the snapshot instance
 );
+
+CREATE TABLE remote_snapshots
+(
+ path               TEXT PRIMARY KEY,             -- UTF-8 relative filepath that the snapshot represents
+ snapshot_cap       TEXT                          -- Tahoe capability that represents the remote snapshot
+);
 """
 
 
@@ -272,7 +278,7 @@ class MagicFolderDB(object):
         Store or update the given Local Snapshot for the
         given the magicpath of the file (mangled file path).
 
-        :param str snapshot: A LocalSnapshot instance
+        :param LocalSnapshot snapshot: A LocalSnapshot instance
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=snapshot.name,
@@ -337,4 +343,51 @@ class MagicFolderDB(object):
             cursor.execute("DELETE FROM local_snapshots"
                            " WHERE path=?",
                            (name,))
+            self.connection.commit()
+
+    @with_cursor
+    def get_remote_snapshot_cap(self, cursor, name):
+        """
+        return the cap that represents the latest remote snapshot that
+        the client has recorded in the db.
+
+        :param str name: magicpath that represents the relative path of the file.
+
+        :returns: An unicode string that represents the RemoteSnapshot cap.
+        """
+        # XXX: eliot logging
+        cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return LocalSnapshot.from_json(row[0], author)
+
+    @with_cursor
+    def store_remote_snapshot(self, cursor, path, snapshot_cap):
+        """
+        Store or update the given remote snapshot cap for the
+        given the magicpath of the file (mangled file path).
+
+        :param unicode path: mangled path corresponding to the relpath of their
+            file in a particular folder.
+        :param unicode snapshot_cap: A Tahoe-LAFS dir cap corresponding to the
+            RemoteSnapshot for the file.
+        """
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            try:
+                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+                               (path, snapshot_cap))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+                cursor.execute("UPDATE remote_snapshots"
+                               " SET snapshot_cap=?"
+                               " WHERE path=?",
+                               (snapshot_cap, path))
+                action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
