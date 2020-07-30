@@ -1759,7 +1759,7 @@ class Downloader(QueueMixin, WriteFileMixin):
                 d.addCallback(
                     lambda participant: _get_latest_file(
                         participant,
-                        filename,
+                        magicpath.magic2path(filename),
                     ),
                 )
                 list_of_deferreds.append(d)
