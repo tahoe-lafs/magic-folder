@@ -123,6 +123,10 @@ from .invite import (
     magic_folder_invite as _invite
 )
 
+from .list import (
+    magic_folder_list
+)
+
 from .create import (
     magic_folder_create as _create
 )
@@ -370,13 +374,28 @@ class ListOptions(usage.Options):
     ]
 
 
+
+@inlineCallbacks
 def list_(options):
-    folders = load_magic_folders(options.parent.node_directory)
-    if options["json"]:
-        _list_json(options, folders)
-        return 0
-    _list_human(options, folders)
-    return 0
+
+    try:
+        response = yield magic_folder_list(options)
+        print("response:{}".format(response))
+    except Exception as e:
+        # raise
+        # print("%s" % str(e), file=options.stderr)
+        returnValue(1)
+        # return 1
+
+    returnValue(0)
+    # return 0
+
+    # folders = load_magic_folders(options.parent.node_directory)
+    # if options["json"]:
+    #     _list_json(options, folders)
+    #     return 0
+    # _list_human(options, folders)
+    # return 0
 
 
 def _list_json(options, folders):
