@@ -2238,7 +2238,7 @@ class UploadService(service.Service):
 
         snapshot_creator = LocalSnapshotCreator(
             db=self.db,
-            author=local_author,
+            author=self.local_author,
             stash_dir=self.stash_dir,
         )
 
@@ -2273,7 +2273,7 @@ class UploadService(service.Service):
 
         while True:
             # get the mangled paths for the LocalSnapshot objects in the db
-            localsnapshot_relpaths = self.db.get_all_relpaths()
+            localsnapshot_relpaths = self.db.get_all_localsnapshot_paths()
 
             # XXX: processing this table should be atomic. i.e. While the upload is
             # in progress, a new snapshot can be created on a file we already uploaded
@@ -2295,7 +2295,7 @@ class UploadService(service.Service):
             try:
                 remote_snapshot = yield write_snapshot_to_tahoe(
                     snapshot,
-                    signing_key,
+                    self.local_author,
                     tahoe_client,
                 )
             except NoServersError:
@@ -2311,3 +2311,6 @@ class UploadService(service.Service):
             # At this point, remote snapshot creation successful for
             # the given relpath. Remove the LocalSnapshot from the db.
             self.db.delete_local_snapshot(relpath)
+
+            # store the remote snapshot capability in the db.
+            self.db.store_remote_snapshot(relpath, remote_snapshot)
