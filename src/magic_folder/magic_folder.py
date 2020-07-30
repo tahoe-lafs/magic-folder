@@ -22,6 +22,7 @@ from zope.interface import Interface, Attribute, implementer
 from twisted.internet.defer import (
     DeferredQueue,
     CancelledError,
+    returnValue,
 )
 
 from eliot import (
@@ -49,7 +50,10 @@ from .util.eliotutil import (
     INOTIFY_EVENTS,
     validateSetMembership,
 )
-from allmydata.interfaces import IDirectoryNode
+from allmydata.interfaces import (
+    IDirectoryNode,
+    NoServersError,
+)
 from allmydata.util import log
 from allmydata.util.fileutil import (
     precondition_abspath,
@@ -77,6 +81,7 @@ from .snapshot import (
     create_snapshot,
     LocalAuthor,
     create_local_author_from_config,
+    write_snapshot_to_tahoe,
 )
 
 if six.PY3:
