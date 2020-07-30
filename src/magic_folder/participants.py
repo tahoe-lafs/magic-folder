@@ -39,15 +39,6 @@ class IParticipant(Interface):
     """
     is_self = Attribute("``True`` if this participant is us, ``False`` otherwise.")
 
-    def get_latest_file(path):
-        """
-        Get this participant's latest version of a file in this magic folder.
-
-        :param unicode path: The relative path to the file to retrieve.
-
-        :return Deferred[_FolderFile]: The requested file.
-        """
-
     def list():
         """
         Get all of the files this participant has uploaded to this magic folder.
@@ -145,11 +136,6 @@ class _CollectiveDirnodeParticipant(object):
     name = attr.ib(validator=attr.validators.instance_of(unicode))
     dirobj = attr.ib()
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
-
-    def get_latest_file(self, filename):
-        d = self.dirobj.get_child_and_metadata(filename)
-        d.addCallback(partial(apply, _FolderFile))
-        return d
 
     def list(self):
         d = self.dirobj.list()
