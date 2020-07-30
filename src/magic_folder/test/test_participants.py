@@ -5,8 +5,6 @@
 Tests for ``magic_folder.participants``.
 """
 
-import attr
-
 from json import (
     dumps,
 )
@@ -19,7 +17,6 @@ from testtools import (
     ExpectedException,
 )
 from testtools.matchers import (
-    Always,
     Equals,
     IsInstance,
     AllMatch,
@@ -38,7 +35,6 @@ from hypothesis import (
 from hypothesis.strategies import (
     booleans,
     integers,
-    lists,
     tuples,
     dictionaries,
     sampled_from,
@@ -114,13 +110,8 @@ class CollectiveParticipantsTests(SyncTestCase):
         * has an unknown URI type
         * is not read-write
         """
-        http_client = create_tahoe_treq_client()
-        tahoe_client = TahoeClient(
-            DecodedURL.from_text(u"http://example.invalid./"),
-            http_client,
-        )
         collective_dirnode = Node(
-            tahoe_client,
+            None,
             CHKFileURI(b"", b"", 0, 0, 0),
         )
         with ExpectedException(TypeError, "Upload dirnode was.*"):
@@ -144,11 +135,6 @@ class CollectiveParticipantsTests(SyncTestCase):
         * has an unknown URI type
         * is not read-only
         """
-        http_client = create_tahoe_treq_client()
-        tahoe_client = TahoeClient(
-            DecodedURL.from_text(u"http://example.invalid./"),
-            http_client,
-        )
         upload_dirnode = Node(
             None,
             DirectoryURI(),

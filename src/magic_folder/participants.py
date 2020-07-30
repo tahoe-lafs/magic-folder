@@ -11,10 +11,6 @@ from zope.interface import (
     implementer,
 )
 
-from functools import (
-    partial,
-)
-
 import attr
 
 from twisted.internet.defer import (

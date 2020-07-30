@@ -708,7 +708,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "author_signature": author_signature_base64,
     }
     data = {
-        "content": format_content_filenode(content_cap, content_metadata),
+        "content": format_snapshot_filenode(content_cap, content_metadata),
         "author": format_author_filenode(author_cap),
     }
 
