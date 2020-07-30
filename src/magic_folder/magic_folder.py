@@ -2211,7 +2211,7 @@ class UploadService(service.Service):
     stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
     config = attr.ib() # Tahoe Config instance (created via `allmydata.client.read_config`)
-    clock = attr.ib()
+    _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
 
