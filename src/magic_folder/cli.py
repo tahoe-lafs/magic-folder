@@ -110,6 +110,10 @@ from .invite import (
     magic_folder_invite
 )
 
+from .list import (
+    magic_folder_list
+)
+
 from .create import (
     magic_folder_create
 )
@@ -352,6 +356,8 @@ class ListOptions(usage.Options):
     ]
 
 
+
+@inlineCallbacks
 def list_(options):
     """
     List existing magic-folders.
