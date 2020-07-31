@@ -67,4 +67,11 @@ class UploaderServiceTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
+        # - start Uploader Service
+        # - create a file with random name and random contents
+        # - create author
+        # - create a local snapshot
+        # - push LocalSnapshot object into the SnapshotStore.
+        # - this should be picked up by the Uploader Service and should
+        #   result in a snapshot cap.
         pass
