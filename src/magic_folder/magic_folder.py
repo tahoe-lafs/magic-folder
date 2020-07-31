@@ -2106,6 +2106,29 @@ class LocalSnapshotCreator(object):
                 # store the local snapshot to the disk
                 self.db.store_local_snapshot(snapshot)
 
+    def get_item(self, path):
+        """
+        Given a mangled path, get the LocalSnapshot corresponding to that path.
+        """
+        return self.db.get_local_snapshot(relpath, self.author)
+
+    def get_all_item_paths(self):
+        """
+        get all the paths of the LocalSnapshots stored in the local_snapshots table.
+        """
+        return self.db.get_all_localsnapshot_paths()
+
+    def remove_localsnapshot(self, path):
+        """
+        remove the row corresponding to the given path from the local_snapshots table
+        """
+        self.db.delete_local_snapshot(path)
+
+    def store_remote_snapshot(relpath, snapshot_cap):
+        """
+        store the remote snapshot capability in the db.
+        """
+        self.db.store_remote_snapshot(relpath, snapshot_cap)
 
 @attr.s
 @implementer(service.IService)
