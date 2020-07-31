@@ -68,9 +68,6 @@ from allmydata.util.encodingutil import listdir_filepath, to_filepath, \
      quote_filepath, quote_local_unicode_path, FilenameEncodingError
 from allmydata.util.time_format import format_time
 from allmydata.immutable.upload import FileName, Data
-from allmydata.node import (
-    MissingConfigEntry,
-)
 
 from . import (
     magicfolderdb,
@@ -79,7 +76,6 @@ from . import (
 from .snapshot import (
     create_snapshot,
     LocalAuthor,
-    create_local_author_from_config,
     write_snapshot_to_tahoe,
 )
 
@@ -2110,7 +2106,7 @@ class SnapshotStore(object):
         """
         Given a mangled path, get the LocalSnapshot corresponding to that path.
         """
-        return self.db.get_local_snapshot(relpath, self.author)
+        return self.db.get_local_snapshot(path, self.author)
 
     def get_all_item_paths(self):
         """
@@ -2124,7 +2120,7 @@ class SnapshotStore(object):
         """
         self.db.delete_local_snapshot(path)
 
-    def store_remote_snapshot(relpath, snapshot_cap):
+    def store_remote_snapshot(self, relpath, snapshot_cap):
         """
         store the remote snapshot capability in the db.
         """
@@ -2233,9 +2229,7 @@ class UploaderService(service.Service):
     #   them into the grid.
     # - at startup, always checks the database for local snapshots and commits them.
 
-    magic_path = attr.ib()
-    _snapshot_creator = attr.ib()
-    db = attr.ib()
+    snapshot_creator = attr.ib()
 
     def startService(self):
 
