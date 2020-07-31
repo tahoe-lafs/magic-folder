@@ -2222,9 +2222,9 @@ class LocalSnapshotService(service.Service):
 
 @attr.s
 @implementer(service.IService)
-class UploadService(service.Service):
+class UploaderService(service.Service):
     """
-    A service that periodically polls the disc database for local snapshots
+    A service that periodically polls the database for local snapshots
     and commit them into the grid.
     """
 
@@ -2234,43 +2234,12 @@ class UploadService(service.Service):
     # - at startup, always checks the database for local snapshots and commits them.
 
     magic_path = attr.ib()
+    _snapshot_creator = attr.ib()
     db = attr.ib()
-    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
-    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
-    config = attr.ib() # Tahoe Config instance (created via `allmydata.client.read_config`)
-    _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
 
-        # starts LocalSnapshotService
-        # make itself the parent of LocalSnapshotService.
-
-        # XXX: This would potentially change once the config PR is merged in.
-        try:
-            self.local_author = create_local_author_from_config(self.config, self.folder_name)
-        except RuntimeError:
-            # XXX
-            pass
-        except EnvironmentError:
-            # XXX: file does not exist
-            pass
-        except MissingConfigEntry:
-            # configuration is missing
-            pass
-
-        snapshot_creator = LocalSnapshotCreator(
-            db=self.db,
-            author=self.local_author,
-            stash_dir=self.stash_dir,
-        )
-
-        snapshot_service = LocalSnapshotService(
-            magic_path=self._magic_path,
-            snapshot_creator=snapshot_creator,
-        )
-
-        snapshot_service.setServiceParent(self)
-
+        service.Service.startService(self)
         # do a looping call that polls the db for LocalSnapshots.
         self._service_d = self._upload_local_snapshots()
 
@@ -2295,44 +2264,38 @@ class UploadService(service.Service):
 
         while True:
             # get the mangled paths for the LocalSnapshot objects in the db
-            localsnapshot_relpaths = self.db.get_all_localsnapshot_paths()
+            localsnapshot_relpaths = self._snapshot_creator.get_all_item_paths()
 
             # XXX: processing this table should be atomic. i.e. While the upload is
             # in progress, a new snapshot can be created on a file we already uploaded
             # but not removed from the db and if it gets removed from the table later,
-            # the new snapshot gets lost. i.e.
-            # in the db context:
-            #  - get_local_snapshot(name, author) for each name in the table
-            #  - write_snapshot_to_tahoe(snapshot, author_key, tahoe_client)
-            #  - if that succeeds, delete the local snapshot from db.
-            #  - store the resulting remote snapshot (capability) in a remote snapshots table.
-            #    This table will always point to the latest remote snapshot cap.
+            # the new snapshot gets lost. Perhaps this can be solved by storing each
+            # LocalSnapshot in its own row than storing everything in a blob?
+            # https://github.com/LeastAuthority/magic-folder/issues/197
             for relpath in localsnapshot_relpaths:
-                # deserialize into LocalSnapshot and copy them into the queue
-                localsnapshot = self.db.get_local_snapshot(relpath, self.local_author)
-                self._queue.put(localsnapshot)
+                # deserialize into LocalSnapshot
+                snapshot = self._snapshot_creator.get_local_snapshot(relpath)
 
-            # now upload each item in the queue
-            snapshot = yield self._queue.get(localsnapshot)
-            try:
-                remote_snapshot = yield write_snapshot_to_tahoe(
-                    snapshot,
-                    self.local_author,
-                    tahoe_client,
-                )
-            except NoServersError:
-                # Unable to reach Tahoe storage nodes because of
-                # network errors or because the tahoe storage nodes
-                # are offline.
-                self._queue.put(localsnapshot)
-                continue
-            except Exception:
-                # all other exceptions, pass on upstream
-                raise
+                # now upload each item in the queue
+                try:
+                    remote_snapshot = yield write_snapshot_to_tahoe(
+                        snapshot,
+                        self.local_author,
+                        tahoe_client,
+                    )
+                except NoServersError:
+                    # Unable to reach Tahoe storage nodes because of
+                    # network errors or because the tahoe storage nodes
+                    # are offline. Retry?
+                    # XXX: Perhaps implement exponential backoff for retry?
+                    continue
+                except Exception:
+                    # all other exceptions, pass on upstream
+                    raise
 
-            # At this point, remote snapshot creation successful for
-            # the given relpath. Remove the LocalSnapshot from the db.
-            self.db.delete_local_snapshot(relpath)
+                # At this point, remote snapshot creation successful for
+                # the given relpath. Remove the LocalSnapshot from the db.
+                self._snapshot_creator.remove_localsnapshot(relpath)
 
-            # store the remote snapshot capability in the db.
-            self.db.store_remote_snapshot(relpath, remote_snapshot)
+                # store the remote snapshot capability in the db.
+                self._snapshot_creator.store_remote_snapshot(relpath, remote_snapshot)
