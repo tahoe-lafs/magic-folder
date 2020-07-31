@@ -37,7 +37,7 @@ from eliot import (
 
 from magic_folder.magic_folder import (
     LocalSnapshotService,
-    LocalSnapshotCreator,
+    SnapshotStore,
 )
 from magic_folder.snapshot import (
     create_local_author,
@@ -59,14 +59,14 @@ class MemorySnapshotCreator(object):
     """
     A way to test LocalSnapshotService with an in-memory database.
 
-    :ivar [FilePath] processed: All of the paths passed to ``process_item``,
+    :ivar [FilePath] processed: All of the paths passed to ``store_local_snapshot``,
         in the order they were passed.
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def process_item(self, path):
+    def store_local_snapshot(self, path):
         Message.log(
-            message_type=u"memory-snapshot-creator:process_item",
+            message_type=u"memory-snapshot-creator:store-local-snapshot",
             path=path.asTextMode("utf-8").path,
         )
         self.processed.append(path)
@@ -195,9 +195,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-class LocalSnapshotCreatorTests(SyncTestCase):
+class SnapshotStoreTests(SyncTestCase):
     """
-    Tests for ``LocalSnapshotCreator``, responsible for creating the local
+    Tests for ``SnapshotStore``, responsible for creating the local
     snapshots and storing them in the database.
     """
     def setUp(self):
@@ -205,8 +205,8 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         # create author
         # setup stashdir
         # setup magicpath dir (the base directory for a particular magic folder)
-        # instantiate LocalSnapshotCreator
-        super(LocalSnapshotCreatorTests, self).setUp()
+        # instantiate SnapshotStore
+        super(SnapshotStoreTests, self).setUp()
         self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
 
@@ -217,7 +217,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         os.mkdir(magic_path_dirname)
         self.magic_path = FilePath(magic_path_dirname)
 
-        self.snapshot_creator = LocalSnapshotCreator(
+        self.snapshot_creator = SnapshotStore(
             db=self.db,
             author=self.author,
             stash_dir=FilePath(self.stash_dir),
@@ -250,7 +250,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         for (file, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.process_item(file),
+                self.snapshot_creator.store_local_snapshot(file),
                 succeeded(Always())
             )
 
@@ -274,9 +274,9 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         foo = self.magic_path.child(filename)
         foo.asBytesMode("utf-8").setContent(content1)
 
-        # make sure the process_item() succeeds
+        # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.process_item(foo),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
 
@@ -288,7 +288,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the second call succeeds as well
         self.assertThat(
-            self.snapshot_creator.process_item(foo),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)

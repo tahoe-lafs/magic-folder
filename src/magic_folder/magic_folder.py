@@ -2058,7 +2058,7 @@ class Downloader(QueueMixin, WriteFileMixin):
 
 
 @attr.s
-class LocalSnapshotCreator(object):
+class SnapshotStore(object):
     """
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
@@ -2068,7 +2068,7 @@ class LocalSnapshotCreator(object):
     stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @eliotutil.inline_callbacks
-    def process_item(self, path):
+    def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
 
@@ -2161,7 +2161,7 @@ class LocalSnapshotService(service.Service):
             try:
                 (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.process_item(item)
+                    yield self._snapshot_creator.store_local_snapshot(item)
                     d.callback(None)
             except CancelledError:
                 break
