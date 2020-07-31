@@ -377,17 +377,13 @@ class ListOptions(usage.Options):
 
 @inlineCallbacks
 def list_(options):
-
     try:
-        response = yield magic_folder_list(options)
+        response = yield magic_folder_list(options.parent.node_directory)
         print("response:{}".format(response))
     except Exception as e:
-        # raise
-        # print("%s" % str(e), file=options.stderr)
+        print("%s" % str(e), file=options.stderr)
         returnValue(1)
-        # return 1
 
-    returnValue(0)
     # return 0
 
     # folders = load_magic_folders(options.parent.node_directory)
@@ -396,6 +392,8 @@ def list_(options):
     #     return 0
     # _list_human(options, folders)
     # return 0
+
+    returnValue(0)
 
 
 def _list_json(options, folders):
