@@ -6,6 +6,10 @@ from twisted.python.filepath import (
 from hypothesis import (
     given,
 )
+from hypothesis.strategies import (
+    one_of,
+    just,
+)
 
 from testtools import (
     ExpectedException,
@@ -15,6 +19,10 @@ from testtools.matchers import (
     NotEquals,
     Contains,
     MatchesStructure,
+)
+
+from hyperlink import (
+    URL,
 )
 
 import sqlite3
@@ -27,8 +35,11 @@ from .fixtures import (
 )
 from .strategies import (
     path_segments_without_dotfiles,
+    port_numbers,
+    interfaces,
 )
 from ..config import (
+    endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
     ConfigurationError,
@@ -149,6 +160,46 @@ class TestGlobalConfig(SyncTestCase):
 
         with ExpectedException(ConfigurationError):
             load_global_configuration(self.temp)
+
+
+class EndpointDescriptionConverterTests(SyncTestCase):
+    """
+    Tests for ``endpoint_description_to_http_api_root``.
+    """
+    @given(port_numbers(), one_of(just(None), interfaces()))
+    def test_tcp(self, port_number, interface):
+        """
+        A TCP endpoint can be converted to an **http** URL.
+        """
+        return self._tcpish_test(u"tcp", u"http", port_number, interface)
+
+    @given(port_numbers(), one_of(just(None), interfaces()))
+    def test_ssl(self, port_number, interface):
+        """
+        An SSL endpoint can be converted to an **https** URL.
+        """
+        return self._tcpish_test(u"ssl", u"https", port_number, interface)
+
+    def _tcpish_test(self, endpoint_type, url_scheme, port_number, interface):
+        """
+        Assert that a sufficiently TCP-like endpoint string can be parsed into an
+        HTTP or HTTPS URL.
+        """
+        endpoint = u"{}:{}{}".format(
+            endpoint_type,
+            port_number,
+            u"" if interface is None else u":interface={}".format(interface),
+        )
+        self.assertThat(
+            endpoint_description_to_http_api_root(endpoint),
+            Equals(
+                URL(
+                    scheme=url_scheme,
+                    host=u"127.0.0.1" if interface in (None, u"0.0.0.0") else interface,
+                    port=port_number,
+                ).get_decoded_url(),
+            ),
+        )
 
 
 class TestMagicFolderConfig(SyncTestCase):

@@ -24,6 +24,7 @@ from nacl.signing import (
 from hypothesis.strategies import (
     just,
     one_of,
+    sampled_from,
     booleans,
     characters,
     text,
@@ -270,3 +271,25 @@ def remote_authors(names=author_names(), verify_keys=verify_keys()):
         name=names,
         verify_key=verify_keys,
     )
+
+
+def port_numbers():
+    """
+    Build ``int`` port numbers in a valid range for TCP.
+    """
+    return integers(min_value=1, max_value=2 ** 16 - 1)
+
+
+def interfaces():
+    """
+    Build ``unicode`` strings that might represent an interface string in a
+    Twisted string endpoint description.
+    """
+    return sampled_from([
+        u"127.0.0.1",
+        u"10.0.0.1",
+        u"0.0.0.0",
+        # Pick an uncommon address from the documentation range
+        # https://en.wikipedia.org/wiki/Reserved_IP_addresses
+        u"192.0.2.123",
+    ])
