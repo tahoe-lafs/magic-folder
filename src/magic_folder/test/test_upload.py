@@ -9,7 +9,9 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
-
+from hyperlink import (
+    DecodedURL,
+)
 from ..magic_folder import (
     UploaderService,
 )
@@ -22,6 +24,13 @@ from .strategies import (
 )
 from eliot import (
     Message,
+)
+from magic_folder.testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
+from magic_folder.tahoe_client import (
+    create_tahoe_client,
 )
 
 @attr.s
@@ -55,9 +64,16 @@ class UploaderServiceTests(SyncTestCase):
         """
         per-example state that is invoked by hypothesis.
         """
+        self.root = create_fake_tahoe_root()
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com"),
+            self.http_client,
+        )
         self.snapshot_creator = MemorySnapshotStore()
         self.uploader_service = UploaderService(
             snapshot_creator=self.snapshot_creator,
+            tahoe_client=self.tahoe_client,
         )
 
     @given(path_segments(), binary())
@@ -74,4 +90,5 @@ class UploaderServiceTests(SyncTestCase):
         # - push LocalSnapshot object into the SnapshotStore.
         # - this should be picked up by the Uploader Service and should
         #   result in a snapshot cap.
+        self.uploader_service.startService()
         pass

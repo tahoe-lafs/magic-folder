@@ -2229,13 +2229,14 @@ class UploaderService(service.Service):
     #   them into the grid.
     # - at startup, always checks the database for local snapshots and commits them.
 
-    snapshot_creator = attr.ib()
+    _snapshot_creator = attr.ib()
+    tahoe_client = attr.ib()
 
     def startService(self):
 
         service.Service.startService(self)
         # do a looping call that polls the db for LocalSnapshots.
-        self._service_d = self._upload_local_snapshots()
+        self._service_d = self._upload_local_snapshots(self.tahoe_client)
 
     def stopService(self):
         """
@@ -2248,7 +2249,7 @@ class UploaderService(service.Service):
         return d
 
     @eliotutil.inline_callbacks
-    def _upload_localsnapshots(self, tahoe_client):
+    def _upload_local_snapshots(self, tahoe_client):
         """
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
