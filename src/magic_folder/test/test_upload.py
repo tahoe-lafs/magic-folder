@@ -1,5 +1,14 @@
+import io
 import attr
+from tempfile import mktemp
 
+from testtools.matchers import (
+    Equals,
+    AfterPreprocessing,
+)
+from testtools.twistedsupport import (
+    succeeded,
+)
 from hypothesis import (
     given,
 )
@@ -14,6 +23,10 @@ from hyperlink import (
 )
 from ..magic_folder import (
     UploaderService,
+)
+from magic_folder.snapshot import (
+    create_local_author,
+    create_snapshot,
 )
 
 from .common import (
@@ -46,10 +59,35 @@ class MemorySnapshotStore(object):
 
     def store_local_snapshot(self, path):
         Message.log(
-            message_type=u"memory-snapshot-creator:store-local-snapshot",
+            message_type=u"memory-snapshot-store:store-local-snapshot",
             path=path.asTextMode("utf-8").path,
         )
         self.local_processed.append(path)
+
+    def get_all_item_paths(self):
+        return map(
+            lambda snapshot: snapshot.content_path,
+            self.local_processed,
+        )
+
+    def get_local_snapshot(self, path, _unused):
+        for snapshot in self.local_processed:
+            if snapshot.content_path is path:
+                return snapshot
+        return None
+
+    def remove_localsnapshot(self, path):
+        for snapshot in self.local_processed:
+            if snapshot.content_path is path:
+                self.local_processed.remove(snapshot)
+
+    def store_remote_snapshot(self, path, cap):
+        self.remote_processed.append((path, cap))
+
+    def get_remote_snapshot_cap(self, path):
+        for (p, cap) in self.remote_processed:
+            if p is path:
+                return cap
 
 class UploaderServiceTests(SyncTestCase):
     """
@@ -59,6 +97,9 @@ class UploaderServiceTests(SyncTestCase):
         super(UploaderServiceTests, self).setUp()
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
+        self.author = create_local_author("alice")
+        self.stash_dir = FilePath(mktemp())
+        self.stash_dir.makedirs()
 
     def setup_example(self):
         """
@@ -70,9 +111,10 @@ class UploaderServiceTests(SyncTestCase):
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
-        self.snapshot_creator = MemorySnapshotStore()
+        self.snapshot_store = MemorySnapshotStore()
         self.uploader_service = UploaderService(
-            snapshot_creator=self.snapshot_creator,
+            snapshot_creator=self.snapshot_store,
+            local_author = self.author,
             tahoe_client=self.tahoe_client,
         )
 
@@ -83,12 +125,31 @@ class UploaderServiceTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-        # - start Uploader Service
-        # - create a file with random name and random contents
-        # - create author
-        # - create a local snapshot
-        # - push LocalSnapshot object into the SnapshotStore.
-        # - this should be picked up by the Uploader Service and should
-        #   result in a snapshot cap.
+
+        # start Uploader Service
         self.uploader_service.startService()
-        pass
+
+        # create a local snapshot
+        data = io.BytesIO(content)
+
+        d = create_snapshot(
+            name=name,
+            author=self.author,
+            data_producer=data,
+            snapshot_stash_dir=self.stash_dir,
+            parents=[],
+        )
+
+        # push LocalSnapshot object into the SnapshotStore.
+        d.addCallback(self.snapshot_store.local_processed.append)
+
+        self.uploader_service.stopService()
+
+        # this should be picked up by the Uploader Service and should
+        # result in a snapshot cap.
+
+        remote_cap = self.snapshot_store.get_remote_snapshot_cap(name)
+        self.assertThat(
+            remote_cap,
+            Equals("URI"),
+        )

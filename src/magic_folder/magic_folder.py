@@ -2230,6 +2230,7 @@ class UploaderService(service.Service):
     # - at startup, always checks the database for local snapshots and commits them.
 
     _snapshot_creator = attr.ib()
+    local_author = attr.ib()
     tahoe_client = attr.ib()
 
     def startService(self):
@@ -2269,7 +2270,7 @@ class UploaderService(service.Service):
             # https://github.com/LeastAuthority/magic-folder/issues/197
             for relpath in localsnapshot_relpaths:
                 # deserialize into LocalSnapshot
-                snapshot = self._snapshot_creator.get_local_snapshot(relpath)
+                snapshot = self._snapshot_creator.get_local_snapshot(relpath, self.local_author)
 
                 # now upload each item in the queue
                 try:
