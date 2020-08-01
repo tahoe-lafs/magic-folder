@@ -4,10 +4,6 @@ from tempfile import mktemp
 
 from testtools.matchers import (
     Equals,
-    AfterPreprocessing,
-)
-from testtools.twistedsupport import (
-    succeeded,
 )
 from hypothesis import (
     given,
