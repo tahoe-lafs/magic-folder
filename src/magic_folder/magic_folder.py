@@ -2223,12 +2223,6 @@ class UploaderService(service.Service):
     A service that periodically polls the database for local snapshots
     and commit them into the grid.
     """
-
-    # - expose a function that takes a file and gives back a remote snapshot URI.
-    # - The service periodically polls the database for LocalSnapshots and commits
-    #   them into the grid.
-    # - at startup, always checks the database for local snapshots and commits them.
-
     _snapshot_store = attr.ib()
     local_author = attr.ib()
     tahoe_client = attr.ib()
