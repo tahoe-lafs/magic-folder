@@ -48,6 +48,16 @@ def get_magic_folder_api_token_from_node_dir(node_directory):
     return config.get_private_config("api_auth_token")
 
 
+def get_magic_folder_api_base_url_config_dir(config_directory):
+    """
+    :param str config_directory: a Magic Folder configuration directory.
+
+    :returns: base URL for the given Magic Folder instance.
+    """
+    cfg = load_global_configuration(FilePath(config_directory))
+    return endpoint_description_to_http_api_root(cfg.api_endpoint)
+
+
 def get_magic_folder_api_token_from_config_dir(config_directory):
     """
     Get token stored in magic folder config directory.
