@@ -24,12 +24,11 @@ from allmydata.client import read_config
 
 def get_magic_folder_api_base_url_from_node_dir(node_directory):
     """
-    Get HTTP base URL.
+    Get HTTP base URL stored in ``node_directory/magic-folder.url``.
 
     :param str node_directory: A Tahoe node directory.
 
-    :returns: base URL for Magic Folder HTTP API, stored in
-        ``node_directory/magic-folder.url``.
+    :returns: base URL for Magic Folder HTTP API.
     """
     magic_folder_url_file = os.path.join(node_directory, u"magic-folder.url")
     with open(magic_folder_url_file, "r") as f:
@@ -54,6 +53,9 @@ def get_magic_folder_api_base_url_config_dir(config_directory):
 
     :returns: base URL for the given Magic Folder instance.
     """
+    from twisted.python.filepath import FilePath
+    from .config import load_global_configuration
+
     cfg = load_global_configuration(FilePath(config_directory))
     return endpoint_description_to_http_api_root(cfg.api_endpoint)
 
@@ -71,8 +73,8 @@ def get_magic_folder_api_token_from_config_dir(config_directory):
     from twisted.python.filepath import FilePath
     from .config import load_global_configuration
 
-    path = FilePath(config_directory)
-    return load_global_configuration(path).api_token
+    cfg = load_global_configuration(FilePath(config_directory))
+    return cfg.api_token
 
 
 @inlineCallbacks
