@@ -377,48 +377,42 @@ class ListOptions(usage.Options):
 
 @inlineCallbacks
 def list_(options):
+    """
+    Handler for ```magic-folder list```.
+    """
     try:
-        response = yield magic_folder_list(options.parent.node_directory)
-        print("response:{}".format(response))
+        folders = yield magic_folder_list(options.parent.node_directory)
+        if options["json"]:
+            _list_json(options, folders)
+        else:
+            _list_human(options, folders)
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
         returnValue(1)
-
-    # return 0
-
-    # folders = load_magic_folders(options.parent.node_directory)
-    # if options["json"]:
-    #     _list_json(options, folders)
-    #     return 0
-    # _list_human(options, folders)
-    # return 0
 
     returnValue(0)
 
 
 def _list_json(options, folders):
     """
-    List our magic-folders using JSON
+    List our magic-folders using JSON.
     """
-    info = dict()
-    for name, details in folders.items():
-        info[name] = {
-            u"directory": details["directory"],
-        }
-    print(json.dumps(info), file=options.stdout)
-    return 0
+    print("{}".format(folders), file=options.stdout)
 
 
 def _list_human(options, folders):
     """
-    List our magic-folders for a human user
+    List our magic-folders for a human user.
     """
+    folders = json.loads(folders).get("folders")
     if folders:
         print("This client has the following magic-folders:", file=options.stdout)
-        biggest = max([len(nm) for nm in folders.keys()])
-        fmt = "  {:>%d}: {}" % (biggest, )
-        for name, details in folders.items():
-            print(fmt.format(name, details["directory"]), file=options.stdout)
+        biggest = max([len(folder.get("name")) for folder in folders])
+        fmt  = "  {:>%d}: {}" % (biggest, )
+        for folder in folders:
+            name = folder.get("name")
+            local_path = folder.get("local-path")
+            print(fmt.format(name, local_path), file=options.stdout)
     else:
         print("No magic-folders", file=options.stdout)
 
