@@ -398,7 +398,7 @@ def _magic_folder_info(options):
 
 def _list_human(info, stdout, include_secrets):
     """
-    List our magic-folders for a human user
+    List our magic-folders for a human user.
     """
     if include_secrets:
         template = (
