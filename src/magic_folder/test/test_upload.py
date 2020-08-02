@@ -109,7 +109,7 @@ class UploaderServiceTests(SyncTestCase):
         )
         self.snapshot_store = MemorySnapshotStore()
         self.uploader_service = UploaderService(
-            snapshot_creator=self.snapshot_store,
+            snapshot_store=self.snapshot_store,
             local_author = self.author,
             tahoe_client=self.tahoe_client,
         )

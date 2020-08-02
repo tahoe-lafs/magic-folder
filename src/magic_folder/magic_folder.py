@@ -2229,7 +2229,7 @@ class UploaderService(service.Service):
     #   them into the grid.
     # - at startup, always checks the database for local snapshots and commits them.
 
-    _snapshot_creator = attr.ib()
+    _snapshot_store = attr.ib()
     local_author = attr.ib()
     tahoe_client = attr.ib()
 
@@ -2260,7 +2260,7 @@ class UploaderService(service.Service):
 
         while True:
             # get the mangled paths for the LocalSnapshot objects in the db
-            localsnapshot_relpaths = self._snapshot_creator.get_all_item_paths()
+            localsnapshot_relpaths = self._snapshot_store.get_all_item_paths()
 
             # XXX: processing this table should be atomic. i.e. While the upload is
             # in progress, a new snapshot can be created on a file we already uploaded
@@ -2270,7 +2270,7 @@ class UploaderService(service.Service):
             # https://github.com/LeastAuthority/magic-folder/issues/197
             for relpath in localsnapshot_relpaths:
                 # deserialize into LocalSnapshot
-                snapshot = self._snapshot_creator.get_local_snapshot(relpath, self.local_author)
+                snapshot = self._snapshot_store.get_local_snapshot(relpath, self.local_author)
 
                 # now upload each item in the queue
                 try:
@@ -2291,7 +2291,7 @@ class UploaderService(service.Service):
 
                 # At this point, remote snapshot creation successful for
                 # the given relpath. Remove the LocalSnapshot from the db.
-                self._snapshot_creator.remove_localsnapshot(relpath)
+                self._snapshot_store.remove_localsnapshot(relpath)
 
                 # store the remote snapshot capability in the db.
-                self._snapshot_creator.store_remote_snapshot(relpath, remote_snapshot)
+                self._snapshot_store.store_remote_snapshot(relpath, remote_snapshot)
