@@ -8,9 +8,6 @@ import base64
 import pytest_twisted
 
 from twisted.internet.error import ProcessTerminated
-from twisted.python.filepath import (
-    FilePath,
-)
 
 import util
 
@@ -34,7 +31,7 @@ def test_web_port_required(request, reactor, temp_dir, introducer_furl):
 
     # run "magic-folder run" without --web-port which should error
     proto = util._CollectOutputProtocol()
-    proc = util._magic_folder_runner(
+    util._magic_folder_runner(
         proto, reactor, request,
         [
             "--node-directory", node_dir,
@@ -67,7 +64,7 @@ def test_daemon_inititialize(request, reactor, temp_dir):
         f.write('http://localhost:1234/')
 
     proto = util._CollectOutputProtocol()
-    proc = util._magic_folder_runner(
+    util._magic_folder_runner(
         proto, reactor, request,
         [
             "init",
@@ -79,7 +76,7 @@ def test_daemon_inititialize(request, reactor, temp_dir):
     yield proto.done
 
     proto = util._CollectOutputProtocol()
-    proc = util._magic_folder_runner(
+    util._magic_folder_runner(
         proto, reactor, request,
         [
             "show-config",
