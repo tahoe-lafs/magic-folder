@@ -56,29 +56,31 @@ class MemorySnapshotStore(object):
     local_processed = attr.ib(default=attr.Factory(list))
     remote_processed = attr.ib(default=attr.Factory(list))
 
-    def store_local_snapshot(self, path):
+    def store_local_snapshot(self, snapshot):
         Message.log(
             message_type=u"memory-snapshot-store:store-local-snapshot",
-            path=path.asTextMode("utf-8").path,
+            path=snapshot.name,
         )
-        self.local_processed.append(path)
+        name = snapshot.name
+        self.local_processed.append((name, snapshot))
 
     def get_all_item_paths(self):
         return map(
-            lambda snapshot: snapshot.content_path,
+            lambda name_snapshot_pair: name_snapshot_pair[0],
             self.local_processed,
         )
 
     def get_local_snapshot(self, path, _unused):
-        for snapshot in self.local_processed:
-            if snapshot.content_path is path:
+        for (name, snapshot) in self.local_processed:
+            if name is path:
                 return snapshot
         return None
 
     def remove_localsnapshot(self, path):
-        for snapshot in self.local_processed:
-            if snapshot.content_path is path:
-                self.local_processed.remove(snapshot)
+        for p in self.local_processed:
+            (name, snapshot) = p
+            if name is path:
+                self.local_processed.remove(p)
 
     def store_remote_snapshot(self, path, cap):
         self.remote_processed.append((path, cap))
@@ -138,13 +140,7 @@ class UploaderServiceTests(SyncTestCase):
         )
 
         # push LocalSnapshot object into the SnapshotStore.
-        d.addCallback(self.snapshot_store.local_processed.append)
-
-        # XXX: I am certainly not doing this right, there must be
-        # better ways to copy a value out of the callback!
-        def extract_relpath(_unused):
-            self.relpath = self.snapshot_store.local_processed[0].content_path
-        d.addCallback(extract_relpath)
+        d.addCallback(self.snapshot_store.store_local_snapshot)
 
         # start Uploader Service
         self.uploader_service.startService()
@@ -152,7 +148,7 @@ class UploaderServiceTests(SyncTestCase):
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         d.addCallback(lambda _unused:
-                      self.snapshot_store.get_remote_snapshot_cap(self.relpath))
+                      self.snapshot_store.get_remote_snapshot_cap(name))
 
         # test whether we got a capability
         self.assertThat(
