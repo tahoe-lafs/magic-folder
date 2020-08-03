@@ -16,6 +16,7 @@ from twisted.web.client import (
     Agent,
     readBody,
 )
+from twisted.web import http
 
 from hyperlink import  DecodedURL
 from treq.client import HTTPClient
@@ -92,13 +93,13 @@ def magic_folder_list(node_directory, config_directory=None):
     if config_directory:
         base_url = get_magic_folder_api_base_url_config_dir(config_directory)
         api_token = get_magic_folder_api_token_from_config_dir(config_directory)
+        api_url = base_url.child(u'v1').child(u'magic-folder')
     else:
         base_url = get_magic_folder_api_base_url_from_node_dir(node_directory)
         api_token = get_magic_folder_api_token_from_node_dir(node_directory)
-
-    api_url = DecodedURL.from_text(
-        unicode(base_url, 'utf-8')
-    ).child(u'v1').child(u'magic-folder')
+        api_url = DecodedURL.from_text(
+            unicode(base_url, 'utf-8')
+        ).child(u'v1').child(u'magic-folder')
 
     headers = {
         b"Authorization": u"Bearer {}".format(api_token).encode("ascii"),
@@ -108,6 +109,13 @@ def magic_folder_list(node_directory, config_directory=None):
         api_url.to_uri().to_text().encode('ascii'),
         headers=headers,
     )
+
+    if response.code != http.OK:
+        message = http.RESPONSES.get(response.code, b"Unknown Status")
+        raise Exception(
+            "Magic Folder API call received error response: {} ({})".format(
+                response.code, message)
+        )
 
     result = yield readBody(response)
 
