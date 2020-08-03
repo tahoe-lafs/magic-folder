@@ -1,45 +1,26 @@
 from __future__ import print_function
 
 import os, sys, time
-import stat, shutil, json
-import mock
+import stat, shutil
 from os.path import join, exists, isdir
 from errno import ENOENT
 
-from twisted.internet import defer, task, reactor
+from twisted.internet import defer, reactor
 from twisted.python.runtime import platform
 from twisted.python.filepath import FilePath
-
-from testtools.matchers import (
-    Not,
-    Is,
-    ContainsDict,
-    Equals,
-)
 
 from eliot import (
     Message,
     start_action,
-    log_call,
-)
-from eliot.twisted import DeferredContext
-
-from allmydata.interfaces import (
-    IDirectoryNode,
-    NoSharesError,
 )
 from allmydata.util.assertutil import precondition
 
-from allmydata.util import fileutil, configutil, yamlutil
-from allmydata.util.encodingutil import get_filesystem_encoding, to_filepath
+from allmydata.util import configutil, yamlutil
+from allmydata.util.encodingutil import to_filepath
 from allmydata.util.consumer import download_to_data
 
 from allmydata.util.fileutil import get_pathinfo
 from allmydata.util.fileutil import abspath_expanduser_unicode
-from allmydata.immutable.upload import Data
-from allmydata.mutable.common import (
-        UnrecoverableFileError,
-)
 
 from eliot.twisted import (
     inline_callbacks,
@@ -50,12 +31,10 @@ from magic_folder.util.eliotutil import (
 )
 
 from magic_folder.magic_folder import (
-    MagicFolder,
     ConfigurationError,
     get_inotify_module,
     load_magic_folders,
     maybe_upgrade_magic_folders,
-    is_new_file,
     _upgrade_magic_folder_config,
 )
 from ..util import (
@@ -67,16 +46,9 @@ from .. import (
     magicpath,
 )
 
-from .no_network import GridTestMixin
-from .common_util import ReallyEqualMixin
 from .common import (
-    ShouldFailMixin,
     SyncTestCase,
-    AsyncTestCase,
-    skipIf,
 )
-from .cli.test_magic_folder import MagicFolderCLITestMixin
-
 _debug = False
 
 try:
