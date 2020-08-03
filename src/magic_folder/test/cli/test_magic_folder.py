@@ -42,9 +42,6 @@ from ..fixtures import (
 from .common import (
     cli,
 )
-from ..common_util import (
-    run_magic_folder_cli,
-)
 
 
 class ListMagicFolder(AsyncTestCase):
