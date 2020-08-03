@@ -50,7 +50,7 @@ def get_magic_folder_api_token_from_node_dir(node_directory):
     return config.get_private_config("api_auth_token")
 
 
-def get_magic_folder_api_base_url_config_dir(config_directory):
+def get_magic_folder_api_base_url_from_config_dir(config_directory):
     """
     :param str config_directory: a Magic Folder configuration directory.
 
@@ -91,7 +91,7 @@ def magic_folder_list(node_directory, config_directory=None):
     :return: JSON response from `GET /v1/magic-folder`.
     """
     if config_directory:
-        base_url = get_magic_folder_api_base_url_config_dir(config_directory)
+        base_url = get_magic_folder_api_base_url_from_config_dir(config_directory)
         api_token = get_magic_folder_api_token_from_config_dir(config_directory)
         api_url = base_url.child(u'v1').child(u'magic-folder')
     else:
