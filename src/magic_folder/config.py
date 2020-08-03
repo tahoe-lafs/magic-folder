@@ -25,6 +25,10 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from functools import (
+    wraps,
+)
+
 import attr
 
 import sqlite3
@@ -196,6 +200,24 @@ def load_global_configuration(basedir):
     )
 
 
+# XXX: with_cursor lacks unit tests, see:
+#      https://github.com/LeastAuthority/magic-folder/issues/173
+def with_cursor(f):
+    """
+    Decorate a function so it is automatically passed a cursor with an active
+    transaction as the first positional argument.  If the function returns
+    normally then the transaction will be committed.  Otherwise, the
+    transaction will be rolled back.
+    """
+    @wraps(f)
+    def with_cursor(self, *a, **kw):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            return f(self, cursor, *a, **kw)
+    return with_cursor
+
+
 @attr.s
 class MagicFolderConfig(object):
     """
@@ -204,40 +226,37 @@ class MagicFolderConfig(object):
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
 
-    def __attrs_post_init__(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            cursor.execute("SELECT version FROM version");
-            dbversion = cursor.fetchone()[0]
-            if dbversion != _magicfolder_config_version:
-                raise ConfigurationError(
-                    "Magic Folder '{}' has unknown configuration database "
-                    "version (wanted {}, got {})".format(
-                        self.name,
-                        _magicfolder_config_version,
-                        dbversion,
-                    )
+    @with_cursor
+    def __attrs_post_init__(self, cursor):
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        cursor.execute("SELECT version FROM version");
+        dbversion = cursor.fetchone()[0]
+        if dbversion != _magicfolder_config_version:
+            raise ConfigurationError(
+                "Magic Folder '{}' has unknown configuration database "
+                "version (wanted {}, got {})".format(
+                    self.name,
+                    _magicfolder_config_version,
+                    dbversion,
                 )
-
-    @property
-    def author(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT author_name, author_private_key FROM config");
-            name, keydata = cursor.fetchone()
-            return LocalAuthor(
-                name=name,
-                signing_key=SigningKey(keydata, encoder=Base32Encoder),
             )
 
     @property
-    def stash_path(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT stash_path FROM config");
-            path_raw = cursor.fetchone()[0]
-            return FilePath(path_raw)
+    @with_cursor
+    def author(self, cursor):
+        cursor.execute("SELECT author_name, author_private_key FROM config");
+        name, keydata = cursor.fetchone()
+        return LocalAuthor(
+            name=name,
+            signing_key=SigningKey(keydata, encoder=Base32Encoder),
+        )
+
+    @property
+    @with_cursor
+    def stash_path(self, cursor):
+        cursor.execute("SELECT stash_path FROM config");
+        path_raw = cursor.fetchone()[0]
+        return FilePath(path_raw)
 
 
 @attr.s
