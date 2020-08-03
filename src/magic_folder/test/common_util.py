@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import os, signal, sys, time
+import os, signal, time
 from random import randrange
 from six.moves import StringIO
 
@@ -8,7 +8,6 @@ from twisted.internet import reactor, defer
 from twisted.python import failure
 from twisted.trial import unittest
 
-from allmydata.util import fileutil, log
 from allmydata.util.assertutil import precondition
 from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encoding,
                                          get_io_encoding)
@@ -35,50 +34,6 @@ def skip_if_cannot_represent_argv(u):
         u.encode(get_io_encoding())
     except UnicodeEncodeError:
         raise unittest.SkipTest("A non-ASCII argv could not be encoded on this platform.")
-
-def run_magic_folder_cli(verb, *args, **kwargs):
-    precondition(not [True for arg in args if not isinstance(arg, str)],
-                 "arguments to do_cli must be strs -- convert using unicode_to_argv", args=args)
-    nodeargs = kwargs.get("nodeargs", [])
-    argv = nodeargs + list(args)
-    stdin = kwargs.get("stdin", "")
-    stdout = StringIO()
-    stderr = StringIO()
-    d = defer.succeed(argv)
-
-    o = parse_cli(*argv)
-    o.stdin = StringIO(stdin)
-    o.stdout = stdout
-    o.stderr = stderr
-    d.addCallback(lambda ign: do_magic_folder(o))
-    def _done(rc):
-        return 0, stdout.getvalue(), stderr.getvalue()
-    def _err(f):
-        f.trap(SystemExit)
-        return f.value.code, stdout.getvalue(), stderr.getvalue()
-    d.addCallbacks(_done, _err)
-    return d
-
-def run_tahoe_cli(verb, *args, **kwargs):
-    precondition(not [True for arg in args if not isinstance(arg, str)],
-                 "arguments to do_cli must be strs -- convert using unicode_to_argv", args=args)
-    nodeargs = kwargs.get("nodeargs", [])
-    argv = nodeargs + [verb] + list(args)
-    stdin = kwargs.get("stdin", "")
-    stdout = StringIO()
-    stderr = StringIO()
-    d = defer.succeed(argv)
-    d.addCallback(runner.parse_or_exit_with_explanation, stdout=stdout)
-    d.addCallback(runner.dispatch,
-                  stdin=StringIO(stdin),
-                  stdout=stdout, stderr=stderr)
-    def _done(rc):
-        return 0, stdout.getvalue(), stderr.getvalue()
-    def _err(f):
-        f.trap(SystemExit)
-        return f.value.code, stdout.getvalue(), stderr.getvalue()
-    d.addCallbacks(_done, _err)
-    return d
 
 def parse_cli(*argv):
     # This parses the CLI options (synchronously), and returns the Options
@@ -111,45 +66,6 @@ def flip_one_bit(s, offset=0, size=None):
     result = s[:i] + chr(ord(s[i])^(0x01<<randrange(0, 8))) + s[i+1:]
     assert result != s, "Internal error -- flip_one_bit() produced the same string as its input: %s == %s" % (result, s)
     return result
-
-
-class ReallyEqualMixin(object):
-    def failUnlessReallyEqual(self, a, b, msg=None):
-        self.assertEqual(a, b, msg)
-        self.assertEqual(type(a), type(b), "a :: %r, b :: %r, %r" % (a, b, msg))
-
-
-class NonASCIIPathMixin(object):
-    def mkdir_nonascii(self, dirpath):
-        # Kludge to work around the fact that buildbot can't remove a directory tree that has
-        # any non-ASCII directory names on Windows. (#1472)
-        if sys.platform == "win32":
-            def _cleanup():
-                try:
-                    fileutil.rm_dir(dirpath)
-                finally:
-                    if os.path.exists(dirpath):
-                        msg = ("We were unable to delete a non-ASCII directory %r created by the test. "
-                               "This is liable to cause failures on future builds." % (dirpath,))
-                        print(msg)
-                        log.err(msg)
-            self.addCleanup(_cleanup)
-        os.mkdir(dirpath)
-
-    def unicode_or_fallback(self, unicode_name, fallback_name, io_as_well=False):
-        if not unicode_platform():
-            try:
-                unicode_name.encode(get_filesystem_encoding())
-            except UnicodeEncodeError:
-                return fallback_name
-
-        if io_as_well:
-            try:
-                unicode_name.encode(get_io_encoding())
-            except UnicodeEncodeError:
-                return fallback_name
-
-        return unicode_name
 
 
 class SignalMixin(object):

@@ -5,7 +5,7 @@ import stat, shutil
 from os.path import join, exists, isdir
 from errno import ENOENT
 
-from twisted.internet import defer, reactor
+from twisted.internet import reactor
 from twisted.python.runtime import platform
 from twisted.python.filepath import FilePath
 
@@ -13,11 +13,9 @@ from eliot import (
     Message,
     start_action,
 )
-from allmydata.util.assertutil import precondition
 
 from allmydata.util import configutil, yamlutil
 from allmydata.util.encodingutil import to_filepath
-from allmydata.util.consumer import download_to_data
 
 from allmydata.util.fileutil import get_pathinfo
 from allmydata.util.fileutil import abspath_expanduser_unicode
@@ -32,7 +30,6 @@ from magic_folder.util.eliotutil import (
 
 from magic_folder.magic_folder import (
     ConfigurationError,
-    get_inotify_module,
     load_magic_folders,
     maybe_upgrade_magic_folders,
     _upgrade_magic_folder_config,
@@ -43,25 +40,12 @@ from ..util import (
 
 from .. import (
     magicfolderdb,
-    magicpath,
 )
 
 from .common import (
     SyncTestCase,
 )
 _debug = False
-
-try:
-    get_inotify_module()
-except NotImplementedError:
-    support_missing = True
-    support_message = (
-        "Magic Folder support can only be tested for-real on an OS that "
-        "supports inotify or equivalent."
-    )
-else:
-    support_missing = False
-    support_message = None
 
 if platform.isMacOSX():
     def modified_mtime_barrier(path):
@@ -569,19 +553,6 @@ class MagicFolderDbTests(SyncTestCase):
             in self.db.get_direct_children(u"the_target_directory")
         )
         self.assertEqual(expected_paths, actual_paths)
-
-
-def iterate_downloader(magic):
-    return magic.downloader._processing_iteration()
-
-
-def iterate_uploader(magic):
-    return magic.uploader._processing_iteration()
-
-@inline_callbacks
-def iterate(magic):
-    yield iterate_uploader(magic)
-    yield iterate_downloader(magic)
 
 
 @inline_callbacks
