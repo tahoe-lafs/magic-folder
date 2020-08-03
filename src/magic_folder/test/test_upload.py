@@ -154,10 +154,11 @@ class UploaderServiceTests(SyncTestCase):
         d.addCallback(lambda _unused:
                       self.snapshot_store.get_remote_snapshot_cap(self.relpath))
 
+        # test whether we got a capability
         self.assertThat(
             d,
             succeeded(
-                StartsWith("URI:CHK"),
+                StartsWith("URI:CHK:"),
             ),
         )
 
