@@ -900,6 +900,13 @@ UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS = ActionType(
     u"Uploader service is uploading a local snapshot",
 )
 
+NO_NETWORK = MessageType(
+    u"magic-folder:uploader-service:no-network",
+    [],
+    u"Uploader service is unable to commit the LocalSnapshot since network is down.",
+)
+
+
 ADD_FILE_FAILURE = MessageType(
     u"magic-folder:local-snapshot-creator:add-file-failure",
     [RELPATH],
@@ -2303,6 +2310,7 @@ class UploaderService(service.Service):
                     # network errors or because the tahoe storage nodes
                     # are offline. Retry?
                     # XXX: Perhaps implement exponential backoff for retry?
+                    NO_NETWORK.log()
                     continue
                 except Exception:
                     # all other exceptions, pass on upstream
