@@ -5,6 +5,9 @@ from tempfile import mktemp
 from testtools.matchers import (
     StartsWith,
 )
+from testtools.twistedsupport import (
+    succeeded,
+)
 from hypothesis import (
     given,
 )
@@ -136,23 +139,26 @@ class UploaderServiceTests(SyncTestCase):
 
         # push LocalSnapshot object into the SnapshotStore.
         d.addCallback(self.snapshot_store.local_processed.append)
-        def assign(_unused):
-            self.relpath = self.snapshot_store.local_processed[0].content_path
 
-        d.addCallback(assign)
+        # XXX: I am certainly not doing this right, there must be
+        # better ways to copy a value out of the callback!
+        def extract_relpath(_unused):
+            self.relpath = self.snapshot_store.local_processed[0].content_path
+        d.addCallback(extract_relpath)
 
         # start Uploader Service
         self.uploader_service.startService()
 
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
-        def get_remote_cap(_unused):
-            self.remote_cap = self.snapshot_store.get_remote_snapshot_cap(self.relpath)
+        d.addCallback(lambda _unused:
+                      self.snapshot_store.get_remote_snapshot_cap(self.relpath))
 
-        d.addCallback(get_remote_cap)
         self.assertThat(
-            self.remote_cap,
-            StartsWith("URI:CHK:"),
+            d,
+            succeeded(
+                StartsWith("URI:CHK"),
+            ),
         )
 
         self.uploader_service.stopService()
