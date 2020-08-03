@@ -21,6 +21,8 @@ from hyperlink import  DecodedURL
 from treq.client import HTTPClient
 from allmydata.client import read_config
 
+from .config import endpoint_description_to_http_api_root
+
 
 def get_magic_folder_api_base_url_from_node_dir(node_directory):
     """
