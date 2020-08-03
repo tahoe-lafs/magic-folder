@@ -2306,6 +2306,6 @@ class UploaderService(service.Service):
                     continue
                 except Exception as e:
                     # all other exceptions, pass on upstream
-                    print("{}".format(str(e)))
-                    raise
+                    proc = Failure()
+                    write_failure(proc)
 
