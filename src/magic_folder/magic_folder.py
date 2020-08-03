@@ -43,7 +43,6 @@ from allmydata.util.fileutil import (
 from allmydata.util.encodingutil import to_filepath
 
 from . import (
-    magicfolderdb,
     magicpath,
 )
 from .snapshot import (
@@ -294,12 +293,7 @@ class MagicFolder(service.MultiService):
             raise ValueError("'poll_interval' option must be an int")
 
         db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
-        database = magicfolderdb.get_magicfolderdb(
-            abspath_expanduser_unicode(db_filename),
-            create_version=(magicfolderdb.SCHEMA_v1, 1)
-        )
-        if database is None:
-            raise Exception('ERROR: Unable to load magic folder db.')
+        database = None
 
         return cls(
             client=client_node,
@@ -417,12 +411,6 @@ REMOTE_URI = Field.for_types(
     u"The filecap of a path found in a peer DMD.",
 )
 
-REMOTE_DMD_ENTRY = MessageType(
-    u"magic-folder:remote-dmd-entry",
-    [RELPATH, magicfolderdb.PATHENTRY, REMOTE_VERSION, REMOTE_URI],
-    u"A single entry found by scanning a peer DMD.",
-)
-
 ADD_TO_DOWNLOAD_QUEUE = MessageType(
     u"magic-folder:add-to-download-queue",
     [RELPATH],
@@ -505,12 +493,6 @@ PROCESS_DIRECTORY = ActionType(
     [],
     [CREATED_DIRECTORY],
     u"An item being processed was a directory.",
-)
-
-DIRECTORY_PATHENTRY = MessageType(
-    u"magic-folder:directory-dbentry",
-    [magicfolderdb.PATHENTRY],
-    u"Local database state relating to an item possibly being uploaded.",
 )
 
 NOT_NEW_DIRECTORY = MessageType(
