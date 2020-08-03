@@ -78,21 +78,25 @@ def get_magic_folder_api_token_from_config_dir(config_directory):
 
 
 @inlineCallbacks
-def magic_folder_list(node_directory):
+def magic_folder_list(node_directory, config_directory=None):
     """
     List folders associated with a node.
 
-    :param options: TODO
+    :param node_directory: a Tahoe node directory.
+    :param config_directory: a Magic Folder configuration directory.
 
     :return: JSON response from `GET /v1/magic-folder`.
     """
-    base_url = get_magic_folder_api_base_url_from_node_dir(node_directory)
+    if config_directory:
+        base_url = get_magic_folder_api_base_url_config_dir(config_directory)
+        api_token = get_magic_folder_api_token_from_config_dir(config_directory)
+    else:
+        base_url = get_magic_folder_api_base_url_from_node_dir(node_directory)
+        api_token = get_magic_folder_api_token_from_node_dir(node_directory)
 
     api_url = DecodedURL.from_text(
         unicode(base_url, 'utf-8')
     ).child(u'v1').child(u'magic-folder')
-
-    api_token = get_magic_folder_api_token_from_node_dir(node_directory)
 
     headers = {
         b"Authorization": u"Bearer {}".format(api_token).encode("ascii"),
