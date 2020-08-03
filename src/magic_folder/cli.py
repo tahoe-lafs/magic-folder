@@ -354,8 +354,9 @@ class ListOptions(usage.Options):
         ("json", "", "Produce JSON output"),
         ("include-secret-information", "", "Include sensitive secret data too"),
     ]
-
-
+    optParameters = [
+        ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
+    ]
 
 @inlineCallbacks
 def list_(options):
