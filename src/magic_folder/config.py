@@ -108,10 +108,8 @@ CREATE TABLE config
 
 CREATE TABLE local_snapshots
 (
-    id TEXT PRIMARY KEY,         -- identifier (hash of .. stuff)
-    name TEXT,                   -- the (mangled) name in UTF8
-    metadata TEXT,               -- arbitrary JSON metadata in UTF8
-    content_path TEXT            -- where the content is sitting (path, UTF8)
+    path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
+    snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
 );
 """
 ## XXX "parents_local" should be IDs of other local_snapshots, not
