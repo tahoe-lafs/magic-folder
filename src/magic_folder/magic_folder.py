@@ -2239,6 +2239,7 @@ class UploaderService(service.Service):
 
         service.Service.startService(self)
 
+        # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = task.LoopingCall(
             self._upload_local_snapshots,
             self.tahoe_client,
@@ -2246,18 +2247,11 @@ class UploaderService(service.Service):
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(1, now=True)
 
-        # do a looping call that polls the db for LocalSnapshots.
-        # self._service_d = self._upload_local_snapshots(self.tahoe_client)
-
     def stopService(self):
         """
         Stop the uploader service.
         """
-        # d = self._service_d
-        #self._service_d.cancel()
         service.Service.stopService(self)
-        #self._service_d = None
-        #return d
         d = self._processing
         self._processing_loop.stop()
         self._processing = None
