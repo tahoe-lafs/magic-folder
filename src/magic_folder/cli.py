@@ -372,8 +372,9 @@ class ListOptions(usage.Options):
     optFlags = [
         ("json", "", "Produce JSON output")
     ]
-
-
+    optParameters = [
+        ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
+    ]
 
 @inlineCallbacks
 def list_(options):
@@ -381,7 +382,7 @@ def list_(options):
     Handler for ```magic-folder list```.
     """
     try:
-        folders = yield magic_folder_list(options.parent.node_directory)
+        folders = yield magic_folder_list(options.parent.node_directory, options['config'])
         if options["json"]:
             _list_json(options, folders)
         else:
@@ -392,13 +393,11 @@ def list_(options):
 
     returnValue(0)
 
-
 def _list_json(options, folders):
     """
     List our magic-folders using JSON.
     """
     print("{}".format(folders), file=options.stdout)
-
 
 def _list_human(options, folders):
     """
