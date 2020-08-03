@@ -1,9 +1,11 @@
 import io
 import attr
+import time
 from tempfile import mktemp
 
 from testtools.matchers import (
     Equals,
+    StartsWith,
 )
 from hypothesis import (
     given,
@@ -24,7 +26,7 @@ from magic_folder.snapshot import (
     create_local_author,
     create_snapshot,
 )
-
+from twisted.internet import reactor
 from .common import (
     SyncTestCase,
 )
@@ -81,9 +83,9 @@ class MemorySnapshotStore(object):
         self.remote_processed.append((path, cap))
 
     def get_remote_snapshot_cap(self, path):
-        for (p, cap) in self.remote_processed:
+        for (p, remote_snapshot) in self.remote_processed:
             if p is path:
-                return cap
+                return remote_snapshot.content_cap
 
 class UploaderServiceTests(SyncTestCase):
     """
@@ -112,6 +114,7 @@ class UploaderServiceTests(SyncTestCase):
             snapshot_store=self.snapshot_store,
             local_author = self.author,
             tahoe_client=self.tahoe_client,
+            clock=reactor,
         )
 
     @given(path_segments(), binary())
@@ -121,9 +124,6 @@ class UploaderServiceTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-
-        # start Uploader Service
-        self.uploader_service.startService()
 
         # create a local snapshot
         data = io.BytesIO(content)
@@ -138,14 +138,23 @@ class UploaderServiceTests(SyncTestCase):
 
         # push LocalSnapshot object into the SnapshotStore.
         d.addCallback(self.snapshot_store.local_processed.append)
+        def assign(_unused):
+            self.relpath = self.snapshot_store.local_processed[0].content_path
 
-        self.uploader_service.stopService()
+        d.addCallback(assign)
+
+        # start Uploader Service
+        self.uploader_service.startService()
 
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
+        def get_remote_cap(_unused):
+            self.remote_cap = self.snapshot_store.get_remote_snapshot_cap(self.relpath)
 
-        remote_cap = self.snapshot_store.get_remote_snapshot_cap(name)
+        d.addCallback(get_remote_cap)
         self.assertThat(
-            remote_cap,
-            Equals("URI"),
+            self.remote_cap,
+            StartsWith("URI:CHK:"),
         )
+
+        self.uploader_service.stopService()

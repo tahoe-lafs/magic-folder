@@ -2226,22 +2226,37 @@ class UploaderService(service.Service):
     _snapshot_store = attr.ib()
     local_author = attr.ib()
     tahoe_client = attr.ib()
+    _clock = attr.ib()
 
     def startService(self):
 
         service.Service.startService(self)
+
+        self._processing_loop = task.LoopingCall(
+            self._upload_local_snapshots,
+            self.tahoe_client,
+        )
+        self._processing_loop.clock = self._clock
+        self._processing = self._processing_loop.start(1, now=True)
+
         # do a looping call that polls the db for LocalSnapshots.
-        self._service_d = self._upload_local_snapshots(self.tahoe_client)
+        # self._service_d = self._upload_local_snapshots(self.tahoe_client)
 
     def stopService(self):
         """
         Stop the uploader service.
         """
-        d = self._service_d
-        self._service_d.cancel()
+        # d = self._service_d
+        #self._service_d.cancel()
         service.Service.stopService(self)
-        self._service_d = None
+        #self._service_d = None
+        #return d
+        d = self._processing
+        self._processing_loop.stop()
+        self._processing = None
+        self._processing_loop = None
         return d
+
 
     @eliotutil.inline_callbacks
     def _upload_local_snapshots(self, tahoe_client):
@@ -2252,40 +2267,42 @@ class UploaderService(service.Service):
         :param tahoe_client: a TahoeClient instance
         """
 
-        while True:
-            # get the mangled paths for the LocalSnapshot objects in the db
-            localsnapshot_relpaths = self._snapshot_store.get_all_item_paths()
+        # get the mangled paths for the LocalSnapshot objects in the db
+        localsnapshot_relpaths = self._snapshot_store.get_all_item_paths()
 
-            # XXX: processing this table should be atomic. i.e. While the upload is
-            # in progress, a new snapshot can be created on a file we already uploaded
-            # but not removed from the db and if it gets removed from the table later,
-            # the new snapshot gets lost. Perhaps this can be solved by storing each
-            # LocalSnapshot in its own row than storing everything in a blob?
-            # https://github.com/LeastAuthority/magic-folder/issues/197
-            for relpath in localsnapshot_relpaths:
-                # deserialize into LocalSnapshot
-                snapshot = self._snapshot_store.get_local_snapshot(relpath, self.local_author)
+        # XXX: processing this table should be atomic. i.e. While the upload is
+        # in progress, a new snapshot can be created on a file we already uploaded
+        # but not removed from the db and if it gets removed from the table later,
+        # the new snapshot gets lost. Perhaps this can be solved by storing each
+        # LocalSnapshot in its own row than storing everything in a blob?
+        # https://github.com/LeastAuthority/magic-folder/issues/197
+        for relpath in localsnapshot_relpaths:
+            # deserialize into LocalSnapshot
+            snapshot = self._snapshot_store.get_local_snapshot(relpath, self.local_author)
 
-                # now upload each item in the queue
-                try:
-                    remote_snapshot = yield write_snapshot_to_tahoe(
-                        snapshot,
-                        self.local_author,
-                        tahoe_client,
-                    )
-                except NoServersError:
-                    # Unable to reach Tahoe storage nodes because of
-                    # network errors or because the tahoe storage nodes
-                    # are offline. Retry?
-                    # XXX: Perhaps implement exponential backoff for retry?
-                    continue
-                except Exception:
-                    # all other exceptions, pass on upstream
-                    raise
+            # now upload each item in the queue
+            try:
+                remote_snapshot = yield write_snapshot_to_tahoe(
+                    snapshot,
+                    self.local_author,
+                    tahoe_client,
+                )
 
                 # At this point, remote snapshot creation successful for
                 # the given relpath. Remove the LocalSnapshot from the db.
-                self._snapshot_store.remove_localsnapshot(relpath)
+                yield self._snapshot_store.remove_localsnapshot(relpath)
 
                 # store the remote snapshot capability in the db.
-                self._snapshot_store.store_remote_snapshot(relpath, remote_snapshot)
+                yield self._snapshot_store.store_remote_snapshot(relpath, remote_snapshot)
+
+            except NoServersError:
+                # Unable to reach Tahoe storage nodes because of
+                # network errors or because the tahoe storage nodes
+                # are offline. Retry?
+                # XXX: Perhaps implement exponential backoff for retry?
+                continue
+            except Exception as e:
+                # all other exceptions, pass on upstream
+                print("{}".format(str(e)))
+                raise
+
