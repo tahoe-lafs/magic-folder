@@ -1,10 +1,8 @@
 import io
 import attr
-import time
 from tempfile import mktemp
 
 from testtools.matchers import (
-    Equals,
     StartsWith,
 )
 from hypothesis import (
