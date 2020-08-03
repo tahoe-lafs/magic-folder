@@ -893,6 +893,13 @@ SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
     u"Local snapshot creator is processing an input.",
 )
 
+UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS = ActionType(
+    u"magic-folder:uploader-service:upload-local-snapshot",
+    [RELPATH],
+    [],
+    u"Uploader service is uploading a local snapshot",
+)
+
 ADD_FILE_FAILURE = MessageType(
     u"magic-folder:local-snapshot-creator:add-file-failure",
     [RELPATH],
@@ -2277,32 +2284,34 @@ class UploaderService(service.Service):
         # LocalSnapshot in its own row than storing everything in a blob?
         # https://github.com/LeastAuthority/magic-folder/issues/197
         for relpath in localsnapshot_relpaths:
-            # deserialize into LocalSnapshot
-            snapshot = self._snapshot_store.get_local_snapshot(relpath, self.local_author)
+            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath.asTextMode(encoding="utf-8").path)
+            with action:
+                # deserialize into LocalSnapshot
+                snapshot = self._snapshot_store.get_local_snapshot(relpath, self.local_author)
 
-            # now upload each item in the queue
-            try:
-                remote_snapshot = yield write_snapshot_to_tahoe(
-                    snapshot,
-                    self.local_author,
-                    tahoe_client,
-                )
+                # now upload each item in the queue
+                try:
+                    remote_snapshot = yield write_snapshot_to_tahoe(
+                        snapshot,
+                        self.local_author,
+                        tahoe_client,
+                    )
 
-                # At this point, remote snapshot creation successful for
-                # the given relpath. Remove the LocalSnapshot from the db.
-                yield self._snapshot_store.remove_localsnapshot(relpath)
+                    # At this point, remote snapshot creation successful for
+                    # the given relpath. Remove the LocalSnapshot from the db.
+                    yield self._snapshot_store.remove_localsnapshot(relpath)
 
-                # store the remote snapshot capability in the db.
-                yield self._snapshot_store.store_remote_snapshot(relpath, remote_snapshot)
+                    # store the remote snapshot capability in the db.
+                    yield self._snapshot_store.store_remote_snapshot(relpath, remote_snapshot)
 
-            except NoServersError:
-                # Unable to reach Tahoe storage nodes because of
-                # network errors or because the tahoe storage nodes
-                # are offline. Retry?
-                # XXX: Perhaps implement exponential backoff for retry?
-                continue
-            except Exception as e:
-                # all other exceptions, pass on upstream
-                print("{}".format(str(e)))
-                raise
+                except NoServersError:
+                    # Unable to reach Tahoe storage nodes because of
+                    # network errors or because the tahoe storage nodes
+                    # are offline. Retry?
+                    # XXX: Perhaps implement exponential backoff for retry?
+                    continue
+                except Exception as e:
+                    # all other exceptions, pass on upstream
+                    print("{}".format(str(e)))
+                    raise
 
