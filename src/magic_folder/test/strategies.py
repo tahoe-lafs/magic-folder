@@ -42,10 +42,6 @@ from allmydata.util import (
 from allmydata.util.progress import (
     PercentProgress,
 )
-from ..magic_folder import (
-    QueuedItem,
-)
-
 from ..snapshot import (
     RemoteAuthor,
 )
@@ -237,17 +233,6 @@ def progresses():
         integers(min_value=0),
     )
 
-
-def queued_items():
-    """
-    Build ``QueuedItem`` instances.
-    """
-    return builds(
-        QueuedItem,
-        relative_paths(),
-        progresses(),
-        integers(min_value=0),
-    )
 
 def magic_folder_filenames():
     return text(min_size=1)
