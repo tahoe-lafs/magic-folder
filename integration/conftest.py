@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import sys
 import shutil
 from time import sleep
 from os import mkdir, listdir
@@ -13,15 +12,12 @@ from foolscap.furl import (
 )
 
 from eliot import (
-    Message,
     to_file,
     log_call,
-    start_action,
 )
 
 from twisted.python.procutils import which
 from twisted.internet.error import (
-    ProcessExitedAlready,
     ProcessTerminated,
 )
 
@@ -36,7 +32,6 @@ from util import (
     _cleanup_tahoe_process,
     _tahoe_runner,
     TahoeProcess,
-    _command,
     _pair_magic_folder,
     _generate_invite,
     MagicFolderEnabledNode,
