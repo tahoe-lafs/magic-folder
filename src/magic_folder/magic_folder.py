@@ -106,57 +106,6 @@ def is_new_file(pathinfo, db_entry):
             (db_entry.size, db_entry.ctime_ns, db_entry.mtime_ns))
 
 
-def _upgrade_magic_folder_config(basedir):
-    """
-    Helper that upgrades from single-magic-folder-only configs to
-    multiple magic-folder configuration style (in YAML)
-    """
-    config_fname = os.path.join(basedir, "tahoe.cfg")
-    config = configutil.get_config(config_fname)
-
-    collective_fname = os.path.join(basedir, "private", "collective_dircap")
-    upload_fname = os.path.join(basedir, "private", "magic_folder_dircap")
-    magic_folders = {
-        u"default": {
-            u"directory": config.get("magic_folder", "local.directory").decode("utf-8"),
-            u"collective_dircap": fileutil.read(collective_fname),
-            u"upload_dircap": fileutil.read(upload_fname),
-            u"poll_interval": int(config.get("magic_folder", "poll_interval")),
-        },
-    }
-    fileutil.move_into_place(
-        source=os.path.join(basedir, "private", "magicfolderdb.sqlite"),
-        dest=os.path.join(basedir, "private", "magicfolder_default.sqlite"),
-    )
-    save_magic_folders(basedir, magic_folders)
-    config.remove_option("magic_folder", "local.directory")
-    config.remove_option("magic_folder", "poll_interval")
-    configutil.write_config(os.path.join(basedir, 'tahoe.cfg'), config)
-    fileutil.remove_if_possible(collective_fname)
-    fileutil.remove_if_possible(upload_fname)
-
-
-def maybe_upgrade_magic_folders(node_directory):
-    """
-    If the given node directory is not already using the new-style
-    magic-folder config it will be upgraded to do so. (This should
-    only be done if the user is running a command that needs to modify
-    the config)
-    """
-    yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
-    if os.path.exists(yaml_fname):
-        # we already have new-style magic folders
-        return
-
-    config_fname = os.path.join(node_directory, "tahoe.cfg")
-    config = configutil.get_config(config_fname)
-
-    # we have no YAML config; if we have config in tahoe.cfg then we
-    # can upgrade it to the YAML-based configuration
-    if config.has_option("magic_folder", "local.directory"):
-        _upgrade_magic_folder_config(node_directory)
-
-
 def load_magic_folders(node_directory):
     """
     Loads existing magic-folder configuration and returns it as a dict

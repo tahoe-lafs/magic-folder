@@ -12,7 +12,6 @@ from allmydata.client import read_config
 
 from .magic_folder import (
     load_magic_folders,
-    maybe_upgrade_magic_folders,
     save_magic_folders,
 )
 
@@ -52,7 +51,6 @@ def magic_folder_join(invite_code, node_directory, local_dir, name, poll_interva
         raise usage.UsageError("Invalid invite code.")
     magic_readonly_cap, dmd_write_cap = fields
 
-    maybe_upgrade_magic_folders(node_directory)
     existing_folders = load_magic_folders(node_directory)
 
     if name in existing_folders:
