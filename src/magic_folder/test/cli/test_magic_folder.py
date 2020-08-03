@@ -1,7 +1,6 @@
 import sys
 import json
 import os.path
-import re
 
 from testtools import (
     skipIf,
@@ -17,12 +16,6 @@ from testtools.matchers import (
     ContainsDict,
 )
 
-from eliot import (
-    start_action,
-)
-from eliot.twisted import (
-    DeferredContext,
-)
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
@@ -30,32 +23,14 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from allmydata.util.assertutil import precondition
-from allmydata.util.encodingutil import unicode_to_argv
-from allmydata import uri
-
-from magic_folder.util.eliotutil import (
-    log_call_deferred,
-)
-
-from ...magic_folder import (
-    MagicFolder,
-)
 from ... import cli as magic_folder_cli
 from ...config import (
     create_global_configuration,
     load_global_configuration,
 )
 
-from ...magicfolderdb import (
-    get_magicfolderdb,
-    SCHEMA_v1,
-)
-
-from ..no_network import GridTestMixin
 from ..common_util import (
     parse_cli,
-    NonASCIIPathMixin,
 )
 from ..common import (
     AsyncTestCase,
@@ -65,243 +40,11 @@ from ..fixtures import (
     SelfConnectedClient,
 )
 from .common import (
-    CLITestMixin,
     cli,
 )
 from ..common_util import (
     run_magic_folder_cli,
 )
-
-
-class MagicFolderCLITestMixin(CLITestMixin, GridTestMixin, NonASCIIPathMixin):
-    def setUp(self):
-        GridTestMixin.setUp(self)
-        self.alice_nickname = self.unicode_or_fallback(u"Alice\u00F8", u"Alice", io_as_well=True)
-        self.bob_nickname = self.unicode_or_fallback(u"Bob\u00F8", u"Bob", io_as_well=True)
-
-    def do_create_magic_folder(self, client_num):
-        confpath = FilePath(self.get_clientdir(i=client_num)).child("config")
-
-        if not confpath.exists():
-            run_magic_folder_cli(
-                "magic-folder", "init",
-                "--config", confpath.asBytesMode().path,
-                "--listen-endpoint", "tcp:{}".format(4320 + client_num),
-                "--node-directory", self.get_clientdir(i=client_num).encode("utf8"),
-            )
-
-        folder_dir = FilePath(self.basedir).child(u"magicfolder{}".format(client_num))
-        folder_dir.makedirs()
-
-        with start_action(action_type=u"create-magic-folder", client_num=client_num).context():
-            d = DeferredContext(
-                self.do_cli(
-                    "magic-folder", "--debug",
-                    "add",
-                    b"--author", b"test",
-                    folder_dir.asBytesMode().path,
-                    client_num=client_num,
-                )
-            )
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            self.assertEqual(stderr, "")
-        d.addCallback(_done)
-        return d.addActionFinish()
-
-    def do_invite(self, client_num, nickname):
-        nickname_arg = unicode_to_argv(nickname)
-        action = start_action(
-            action_type=u"invite-to-magic-folder",
-            client_num=client_num,
-            nickname=nickname,
-        )
-        with action.context():
-            d = DeferredContext(
-                self.do_cli(
-                    "magic-folder",
-                    "invite",
-                    nickname_arg,
-                    client_num=client_num,
-                )
-            )
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d.addActionFinish()
-
-    def do_list(self, client_num, json=False):
-        args = ("magic-folder", "list",)
-        if json:
-            args = args + ("--json",)
-        d = self.do_cli(*args, client_num=client_num)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d
-
-    def do_join(self, client_num, local_dir, invite_code):
-        confpath = FilePath(self.get_clientdir(i=client_num)).child("config")
-
-        if not confpath.exists():
-            run_magic_folder_cli(
-                "magic-folder", "init",
-                "--config", confpath.asBytesMode().path,
-                "--listen-endpoint", "tcp:{}".format(4320 + client_num),
-                "--node-directory", self.get_clientdir(i=client_num).encode("utf8"),
-            )
-
-        action = start_action(
-            action_type=u"join-magic-folder",
-            client_num=client_num,
-            local_dir=local_dir,
-            invite_code=invite_code,
-        )
-        with action.context():
-            precondition(isinstance(local_dir, unicode), local_dir=local_dir)
-            precondition(isinstance(invite_code, str), invite_code=invite_code)
-            local_dir_arg = unicode_to_argv(local_dir)
-            d = DeferredContext(
-                self.do_cli(
-                    "magic-folder",
-                    "join",
-                    "--author", "test-dummy",
-                    invite_code,
-                    local_dir_arg,
-                    client_num=client_num,
-                )
-            )
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            self.assertEqual(stdout, "")
-            self.assertEqual(stderr, "")
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d.addActionFinish()
-
-    def do_leave(self, client_num):
-        d = self.do_cli("magic-folder", "leave", client_num=client_num)
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        return d
-
-    def check_joined_config(self, client_num, upload_dircap):
-        """Tests that our collective directory has the readonly cap of
-        our upload directory.
-        """
-        action = start_action(action_type=u"check-joined-config")
-        with action.context():
-            collective_readonly_cap = self.get_caps_from_files(client_num)[0]
-            d = DeferredContext(
-                self.do_cli(
-                    "ls", "--json",
-                    collective_readonly_cap,
-                    client_num=client_num,
-                )
-            )
-        def _done(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            return (rc, stdout, stderr)
-        d.addCallback(_done)
-        def test_joined_magic_folder(args):
-            (rc, stdout, stderr) = args
-            readonly_cap = unicode(uri.from_string(upload_dircap).get_readonly().to_string(), 'utf-8')
-            s = re.search(readonly_cap, stdout)
-            self.assertTrue(s is not None)
-            return None
-        d.addCallback(test_joined_magic_folder)
-        return d.addActionFinish()
-
-    def get_caps_from_files(self, client_num):
-        config = load_global_configuration(
-            FilePath(self.get_clientdir(i=client_num)).child("config")
-        )
-        folder_config = config.get_magic_folder("default")
-        return folder_config.collective_dircap, folder_config.upload_dircap
-
-    def create_invite_join_magic_folder(self, nickname, local_dir):
-        local_dir_arg = unicode_to_argv(local_dir)
-        client_path = FilePath(self.get_clientdir())
-        config = client_path.child("config")
-
-        # the --debug means we get real exceptions on failures
-        d = self.do_cli(
-            "magic-folder", "--debug", "init",
-            "--config", config.asBytesMode().path,
-            "--listen-endpoint", "tcp:4319",
-            "--node-directory", client_path.asBytesMode().path,
-        )
-
-        def _done_init(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-            return self.do_cli(
-                b"magic-folder",
-                b"--config", config.asBytesMode().path,
-                b"--debug",
-                b"--author", b"test",
-                b"add", local_dir_arg)
-        d.addCallback(_done_init)
-
-        def _done_add(args):
-            (rc, stdout, stderr) = args
-            self.assertEqual(rc, 0, stdout + stderr)
-
-            client = self.get_client()
-            self.collective_dircap, self.upload_dircap = self.get_caps_from_files(0)
-            self.collective_dirnode = client.create_node_from_uri(self.collective_dircap)
-            self.upload_dirnode     = client.create_node_from_uri(self.upload_dircap)
-        d.addCallback(_done_add)
-
-        d.addCallback(lambda ign: self.check_joined_config(0, self.upload_dircap))
-        return d
-
-    # XXX should probably just be "tearDown"...
-    @log_call_deferred(action_type=u"test:cli:magic-folder:cleanup")
-    def cleanup(self, res):
-        d = DeferredContext(defer.succeed(None))
-        def _clean(ign):
-            return self.magicfolder.disownServiceParent()
-
-        d.addCallback(_clean)
-        d.addCallback(lambda ign: res)
-        return d.result
-
-    def init_magicfolder(self, client_num, upload_dircap, collective_dircap, local_magic_dir, clock):
-        dbfile = FilePath(self.get_clientdir(i=client_num)).child("legacy_state.sqlite")
-        collective = uri.from_string(collective_dircap)
-        db = get_magicfolderdb(dbfile.path, create_version=(SCHEMA_v1, 1))
-        if db is None:
-            self.fail("Unable to create the db: {}".format(dbfile))
-
-        client = self.get_client(client_num)
-        name='default'
-
-        magicfolder = MagicFolder(
-            client=client,
-            upload_dircap=upload_dircap,
-            collective_dircap=collective.get_readonly().to_string(),
-            local_path_u=local_magic_dir,
-            db=db,
-            umask=0o077,
-            name=name,
-            clock=clock,
-            uploader_delay=0.2,
-            downloader_delay=0,
-        )
-
-        magicfolder.setServiceParent(self.get_client(client_num))
-        magicfolder.ready()
-        return magicfolder
 
 
 class ListMagicFolder(AsyncTestCase):

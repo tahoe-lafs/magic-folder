@@ -71,7 +71,6 @@ from allmydata.storage.mutable import MutableShareFile
 from allmydata.util import hashutil, log, iputil
 from allmydata.util.assertutil import precondition
 from allmydata.util.consumer import download_to_data
-from allmydata.immutable.upload import Uploader
 from allmydata.client import (
     config_from_string,
 )
@@ -657,7 +656,11 @@ class LoggingServiceParent(service.MultiService):
         return log.msg(*args, **kwargs)
 
 
-TEST_DATA="\x02"*(Uploader.URI_LIT_SIZE_THRESHOLD+1)
+# The maximum data size for a literal cap, from the Tahoe-LAFS LIT URI docs.
+LITERAL_LIMIT = 55
+
+# Some data that won't result in a literal cap.
+TEST_DATA = "\x02" * (LITERAL_LIMIT + 1)
 
 class ShouldFailMixin(object):
     def shouldFail(self, expected_failure, which, substring,

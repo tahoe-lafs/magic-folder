@@ -8,6 +8,16 @@ from __future__ import (
     unicode_literals,
 )
 
+__all__ = [
+    "ConfigurationError",
+    "MagicFolderConfig",
+    "GlobalConfigDatabase",
+
+    "endpoint_description_to_http_api_root",
+    "create_global_configuration",
+    "load_global_configuration",
+]
+
 from os import (
     urandom,
 )
@@ -46,6 +56,11 @@ from .snapshot import (
 )
 from .common import (
     atomic_makedirs,
+)
+
+# Export this here since GlobalConfigDatabase is what it's for.
+from ._endpoint_parser import (
+    endpoint_description_to_http_api_root,
 )
 
 
