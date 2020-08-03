@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os, signal, time
 from random import randrange
-from six.moves import StringIO
 
 from twisted.internet import reactor, defer
 from twisted.python import failure
@@ -11,11 +10,9 @@ from twisted.trial import unittest
 from allmydata.util.assertutil import precondition
 from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encoding,
                                          get_io_encoding)
-from allmydata.scripts import runner
 
 from ..cli import (
     MagicFolderCommand,
-    do_magic_folder,
 )
 
 def skip_if_cannot_represent_filename(u):
