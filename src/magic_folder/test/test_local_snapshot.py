@@ -201,21 +201,13 @@ class LocalSnapshotCreatorTests(SyncTestCase):
     snapshots and storing them in the database.
     """
     def setUp(self):
-        # setup db
-        # create author
-        # setup stashdir
-        # setup magicpath dir (the base directory for a particular magic folder)
-        # instantiate LocalSnapshotCreator
         super(LocalSnapshotCreatorTests, self).setUp()
-        self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
+        self.stash_dir = FilePath(self.mktemp())
+        self.stash_dir.makedirs()
 
-        self.stash_dir = self.mktemp()
-        os.mkdir(self.stash_dir)
-
-        magic_path_dirname = self.mktemp()
-        os.mkdir(magic_path_dirname)
-        self.magic_path = FilePath(magic_path_dirname)
+        self.magic_path = FilePath(self.mktemp())
+        self.magic_path.makedirs()
 
         self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,

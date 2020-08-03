@@ -70,9 +70,13 @@ from . import (
     magicfolderdb,
     magicpath,
 )
+from .config import (
+    MagicFolderConfig,
+)
 from .snapshot import (
     create_snapshot,
     LocalAuthor,
+    LocalSnapshot,
 )
 
 if six.PY3:
@@ -2054,9 +2058,17 @@ class LocalSnapshotCreator(object):
     """
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
+
+    :ivar MagicFolderConfig model: The configuration/state management object
+        for the magic folder to which the created snapshots will belong.
+
+    :ivar LocalAuthor author: The author for the created snapshots.
+
+    :ivar FilePath stash_dir: The directory to which snapshot content will be
+        stashed until it can be uploaded to create a remote snapshot.
     """
-    db = attr.ib()  # our database
-    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    model = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
+    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))
     stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @eliotutil.inline_callbacks
@@ -2071,12 +2083,16 @@ class LocalSnapshotCreator(object):
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
-            mangled_name = magicpath.mangle_path(path)
-            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
-            if parent_snapshot is None:
+            parent_db_snapshot = self.model.get_local_snapshot(path)
+            if parent_db_snapshot is None:
                 parents = []
             else:
-                parents = [parent_snapshot]
+                parents = [
+                    LocalSnapshot.from_database_snapshot(
+                        parent_db_snapshot,
+                        self.author,
+                    ),
+                ]
 
             # need to handle remote-parents when we have remote
             # snapshots

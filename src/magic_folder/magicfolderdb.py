@@ -284,28 +284,6 @@ class MagicFolderDB(object):
                 action.add_success_fields(insert_or_update=u"update")
             self.connection.commit()
 
-    @with_cursor
-    def get_local_snapshot(self, cursor, name, author):
-        """
-        return an instance of LocalSnapshot corresponding to
-        the given name and author. Traversing the parents
-        would give the entire history of local snapshots.
-
-        :param str name: magicpath that represents the relative path of the file.
-
-        :param author: an instance of LocalAuthor
-
-        :returns: An instance of LocalSnapshot for the given magicpath.
-        """
-        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
-                       " WHERE path=?",
-                       (name,))
-        row = cursor.fetchone()
-        if not row:
-            return None
-        else:
-            return LocalSnapshot.from_json(row[0], author)
-
     def get_all_localsnapshot_paths(self):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
@@ -315,4 +293,3 @@ class MagicFolderDB(object):
 
     def _clear_snapshot_table(self):
         return self._clear("local_snapshots")
-

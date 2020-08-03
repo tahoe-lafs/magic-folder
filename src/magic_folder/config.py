@@ -224,6 +224,40 @@ class MagicFolderConfig(object):
             path_raw = cursor.fetchone()[0]
             return FilePath(path_raw)
 
+    @with_cursor
+    def get_local_history(self, cursor, path):
+        """
+        Get the most recent local snapshot for the file at the given relative
+        path.
+
+        :param unicode path: A string giving the relative path to the file for
+            which to retrieve the latest local snapshot.
+
+        :returns: An instance of LocalSnapshot for the given relative path.
+        """
+        cursor.execute(
+            """
+            SELECT
+              snapshot_blob
+            FROM
+              local_snapshots
+            WHERE
+              path=?
+            """,
+            (path,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return LocalDatabaseSnapshot(
+                name=row[0],
+                metadata=json.loads(row[1]),
+                content_path=FilePath(row[2]),
+                parents_local=None if row[3] is None else FilePath(row[3]),
+                parents_remote=row[4],
+            )
+
 
 @attr.s
 class GlobalConfigDatabase(object):

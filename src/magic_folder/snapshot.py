@@ -317,6 +317,26 @@ class LocalSnapshot(object):
         return (json.dumps(serialized))
 
     @classmethod
+    def from_database_snapshot(cls, db_snapshot, author):
+        """
+        Creates a LocalSnapshot from the in-database representation of a local
+        snapshot.
+
+        :param LocalDatabaseSnapshot db_snapshot: The in-database
+            representation.
+
+        :param LocalAuthor author: The author to associate with the snapshot.
+        """
+        return cls(
+            name=db_snapshot.name,
+            author=author,
+            metadata=db_snapshot.metadata,
+            content_path=db_snapshot.content_path,
+            parents_local=db_snapshot.parents_local,
+            parents_remote=db_snapshot.parents_remote,
+        )
+
+    @classmethod
     def from_json(cls, serialized, author):
         """
         Creates a LocalSnapshot from a JSON serialized string that represents the
