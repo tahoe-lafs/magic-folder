@@ -49,6 +49,7 @@ from twisted.python.filepath import (
 
 from .snapshot import (
     LocalAuthor,
+    LocalSnapshot,
 )
 from .common import (
     atomic_makedirs,
@@ -255,6 +256,53 @@ class MagicFolderConfig(object):
         cursor.execute("SELECT stash_path FROM config");
         path_raw = cursor.fetchone()[0]
         return FilePath(path_raw)
+
+    @with_cursor
+    def get_local_snapshot(self, cursor, name, author):
+        """
+        return an instance of LocalSnapshot corresponding to
+        the given name and author. Traversing the parents
+        would give the entire history of local snapshots.
+
+        :param unicode name: magicpath that represents the relative path of the file.
+
+        :param author: an instance of LocalAuthor
+
+        :returns: An instance of LocalSnapshot for the given magicpath.
+        """
+        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return LocalSnapshot.from_json(row[0], author)
+
+    @with_cursor
+    def store_local_snapshot(self, cursor, snapshot):
+        """
+        Store or update the given local snapshot.
+
+        :param LocalSnapshot snapshot: The snapshot to store.
+        """
+        # insert a new row or update an existing row with the new blob.
+        cursor.execute(
+            """
+            INSERT INTO
+                [local_snapshots] ([path], [snapshot_blob])
+            VALUES
+                (?, ?)
+            ON CONFLICT
+                ([path])
+            DO UPDATE SET
+                [snapshot_blob] = excluded.[snapshot_blob]
+
+            """,
+            (snapshot.name, snapshot.to_json()),
+        )
+
+
 
 
 @attr.s
