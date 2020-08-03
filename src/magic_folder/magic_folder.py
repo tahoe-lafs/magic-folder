@@ -2304,7 +2304,7 @@ class UploaderService(service.Service):
                     # are offline. Retry?
                     # XXX: Perhaps implement exponential backoff for retry?
                     continue
-                except Exception as e:
+                except Exception:
                     # all other exceptions, pass on upstream
                     proc = Failure()
                     write_failure(proc)
