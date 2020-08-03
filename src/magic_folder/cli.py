@@ -389,6 +389,7 @@ def list_(options):
             _list_human(options, folders)
     except Exception as e:
         print("%s" % str(e), file=options.stderr)
+        raise
         returnValue(1)
 
     returnValue(0)
