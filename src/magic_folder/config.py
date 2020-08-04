@@ -345,33 +345,29 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @property
-    def magic_path(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT magic_directory FROM config");
-            path_raw = cursor.fetchone()[0]
-            return FilePath(path_raw)
+    @with_cursor
+    def magic_path(self, cursor):
+        cursor.execute("SELECT magic_directory FROM config");
+        path_raw = cursor.fetchone()[0]
+        return FilePath(path_raw)
 
     @property
-    def collective_dircap(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT collective_dircap FROM config");
-            return cursor.fetchone()[0].encode("utf8")
+    @with_cursor
+    def collective_dircap(self, cursor):
+        cursor.execute("SELECT collective_dircap FROM config");
+        return cursor.fetchone()[0].encode("utf8")
 
     @property
-    def upload_dircap(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT upload_dircap FROM config");
-            return cursor.fetchone()[0].encode("utf8")
+    @with_cursor
+    def upload_dircap(self, cursor):
+        cursor.execute("SELECT upload_dircap FROM config");
+        return cursor.fetchone()[0].encode("utf8")
 
     @property
-    def poll_interval(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT poll_interval FROM config");
-            return int(cursor.fetchone()[0])
+    @with_cursor
+    def poll_interval(self, cursor):
+        cursor.execute("SELECT poll_interval FROM config");
+        return int(cursor.fetchone()[0])
 
     def is_admin(self):
         """
@@ -393,20 +389,19 @@ class GlobalConfigDatabase(object):
     database = attr.ib()  # sqlite3 Connection; needs validator
     api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
 
-    def __attrs_post_init__(self):
+    @with_cursor
+    def __attrs_post_init__(self, cursor):
         self._api_token = None
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            cursor.execute("SELECT version FROM version");
-            dbversion = cursor.fetchone()[0]
-            if dbversion != _global_config_version:
-                raise ConfigurationError(
-                    "Unknown configuration database version (wanted {}, got {})".format(
-                        _global_config_version,
-                        dbversion,
-                    )
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        cursor.execute("SELECT version FROM version");
+        dbversion = cursor.fetchone()[0]
+        if dbversion != _global_config_version:
+            raise ConfigurationError(
+                "Unknown configuration database version (wanted {}, got {})".format(
+                    _global_config_version,
+                    dbversion,
                 )
+            )
 
     @property
     def api_token(self):
@@ -430,14 +425,13 @@ class GlobalConfigDatabase(object):
         return self._api_token
 
     @property
-    def api_endpoint(self):
+    @with_cursor
+    def api_endpoint(self, cursor):
         """
         The twisted server-string describing our API listener
         """
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0].encode("utf8")
+        cursor.execute("SELECT api_endpoint FROM config")
+        return cursor.fetchone()[0].encode("utf8")
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
