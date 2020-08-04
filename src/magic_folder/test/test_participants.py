@@ -244,8 +244,8 @@ class CollectiveParticipantTests(SyncTestCase):
     )
     def test_list(self, author_name, upload_dircap, is_self, children):
         """
-        ``IParticipant.list`` returns a ``Deferred`` that fires with a ``dict``
-        mapping relative file paths to ``IFolderFile`` providers.
+        ``IParticipant.files`` returns a ``Deferred`` that fires with a ``dict``
+        mapping relative file paths to ``FolderFile`` providers.
         """
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -275,7 +275,7 @@ class CollectiveParticipantTests(SyncTestCase):
         )
 
         self.assertThat(
-            participant.list(),
+            participant.files(),
             succeeded(
                 AfterPreprocessing(
                     lambda result: {

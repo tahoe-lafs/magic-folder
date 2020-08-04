@@ -35,9 +35,14 @@ class IParticipant(Interface):
     """
     is_self = Attribute("``True`` if this participant is us, ``False`` otherwise.")
 
-    def list():
+    def files():
         """
         Get all of the files this participant has uploaded to this magic folder.
+
+        :return Deferred[dict[unicode, FolderFile]]: All of the contents
+            belonging to this participant.  The keys are relative paths and
+            the associated values provide some details about the contents at
+            those paths.
         """
 
 
@@ -149,15 +154,34 @@ class _CollectiveDirnodeParticipants(object):
 @implementer(IParticipant)
 @attr.s(frozen=True)
 class _CollectiveDirnodeParticipant(object):
+    """
+    An ``IParticipant`` implementation backed by a Tahoe-LAFS directory node
+    (a DMD).
+
+    :ivar unicode name: A human-readable identifier for this participant.  It
+        will be the name of the DMD directory in the collective.
+
+    :ivar allmydata.interfaces.IDirectoryNode dirobj: An object for accessing
+        the Tahoe-LAFS directory node containing this participant's files.
+
+    :ivar bool is_self: True if this participant is known to represent the
+        ourself, False otherwise.  Concretely, "ourself" is whoever can write
+        to the directory node.
+    """
     name = attr.ib(validator=attr.validators.instance_of(unicode))
     dirobj = attr.ib()
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
 
-    def list(self):
+    def files(self):
+        """
+        List the children of the directory node, decode their paths, and return a
+        Deferred which fires with a dictionary mapping all of the paths to
+        more details.
+        """
         d = self.dirobj.list()
         d.addCallback(
             lambda listing_map: {
-                magic2path(encoded_relpath_u): _FolderFile(child, metadata)
+                magic2path(encoded_relpath_u): FolderFile(child, metadata)
                 for (encoded_relpath_u, (child, metadata))
                 in listing_map.items()
             },
@@ -166,7 +190,17 @@ class _CollectiveDirnodeParticipant(object):
 
 
 @attr.s
-class _FolderFile(object):
+class FolderFile(object):
+    """
+    A file associated with some metadata in a particular container (such as a
+    Tahoe-LAFS directory node).
+
+    :ivar allmydata.interfaces.IFilesystemNode node: The Tahoe-LAFS node for
+        the underlying file content.
+
+    :ivar dict metadata: Metadata associated with the file content in the
+        containing directory.
+    """
     node = attr.ib()
     metadata = attr.ib()
 
