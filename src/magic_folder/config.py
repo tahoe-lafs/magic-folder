@@ -474,7 +474,7 @@ class GlobalConfigDatabase(object):
                 clean.remove()
             except Exception as e:
                 failed_cleanups.append((clean.path, e))
-        return failed_cleanups or None
+        return failed_cleanups
 
     def create_magic_folder(self, name, magic_path, state_path, author,
                             collective_dircap, upload_dircap, poll_interval):
