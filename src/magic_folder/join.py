@@ -35,23 +35,6 @@ def magic_folder_join(config, invite_code, local_dir, name, poll_interval, autho
 
     :return: None or exception is raised on error.
     """
-    fields = invite_code.split(INVITE_SEPARATOR)
-    if len(fields) != 2:
-        raise usage.UsageError("Invalid invite code.")
-    magic_readonly_cap, dmd_write_cap = fields
-
-    if name in config.list_magic_folders():
-        raise Exception(
-            "This client already has a magic-folder named '{}'".format(name)
-        )
-
-    author = create_local_author(author_name)
-    config.create_magic_folder(
-        name,
-        local_dir,
-        config.get_default_state_path(name),
-        author,
-        magic_readonly_cap,
-        dmd_write_cap,
-        poll_interval,
-    )
+    # FIXME TODO
+    # https://github.com/LeastAuthority/magic-folder/issues/232
+    raise NotImplemented

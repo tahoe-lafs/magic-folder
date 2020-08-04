@@ -153,38 +153,31 @@ Inviting Participant Devices
 
 A new participant device is invited to collaborate on a magic folder
 using the ``magic-folder invite`` command. This produces an "invite
-code" which **contains secret information**. It must be shared in a
-secure way; anyone viewing the "invite code" can impersonate the
-invitee (if they also have access to the Tahoe Grid).
+code" which is a one-time code. This code should be communicated
+securely to the invitee. The code will allow the invitee's device to
+establish a connection to this device and exchange details. Thus, the
+code can only be used while this device is connected to the
+Internet. The code may only be used once, for a single invitee.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo invite --name default bob
+   $ magic-folder --config ./foo invite --name default
 
 An invitation code is created using an existing magic folder (``--name
-default`` above) and a nickname for the new participant device
-(``bob`` above). The magic-folder identified must have been created on
-this device.  The nickname is assigned to the participant device in
-the magic folder configuration and grid state.
+default`` above). The magic-folder identified must have been created on
+this device.
 
-**Technical details**: A new mutable directory is created in the Tahoe
-LAFS grid, producing a write-capability. This is "attenuated" to a
-read-capability. This read-capability is written into the "collective
-Distributed Mutable Diractory (DMD)" with the invitee's name; this
-allows other magic-folder participants to notice this new participant
-when they next download it.
+Once the invitee runs ``magic-folder join`` (see below) the two
+devices will connect and exchange some information; this will complete
+the invitation. The "invite" command won't exit until the invitee has
+actually completed and will print out some details. If you pass
+``--no-wait`` then the command will exist immediately (although the
+invite will still be valid).
 
-The invite-code includes the write-capability for the participant's
-"personal DMD"; this is where updates produced by the invitee will be
-written. Notice that the administrator of the magic-folder (the one
-device holding the write-capability for the "collective DMD") could
-retain the invitee's "personal DMD" write-capbility and use it to
-impersonate that participant.  **The invite-code MUST be communicated
-securely to the invitee**.
-
-Another part of the invite-code is a read-capability for the
-"collective DMD" allowing the new participant to learn of all other
-participants.
+Invites are valid until the magic-folder daemon stops running or until
+the default number of minutes pass (whichever is sooner). See the
+``--timeout`` for the default (or you can pass a different number of
+mintues if you prefer).
 
 
 Joining a Magic Folder
@@ -203,7 +196,10 @@ required is the path to a local directory.  This is the directory to
 which content will be downloaded and from which it will be uploaded.
 
 You must choose a name to identify content from this device with
-``--author``.
+``--author``. The device which has invited you must also be connected
+to the internet for the invite to work: once a connection is
+established, the two devices exchange some information and the invite
+is complete.
 
 Further options are documented in ``magic-folder join --help``.
 
