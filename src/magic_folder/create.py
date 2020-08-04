@@ -14,6 +14,7 @@ from .snapshot import (
 )
 from .common import (
     BadResponseCode,
+    atomic_makedirs,
 )
 from .tahoe_client import (
     create_tahoe_client,
@@ -93,7 +94,7 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
     # create our "state" directory for this magic-folder (could be
     # configurable in the future)
     state_dir = config.get_default_state_path(name)
-    try:
+    with atomic_makedirs(state_dir):
         config.create_magic_folder(
             name,
             local_dir,
@@ -103,6 +104,3 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
             personal_write_cap,
             poll_interval,
         )
-    except Exception:
-        state_dir.remove()
-        raise

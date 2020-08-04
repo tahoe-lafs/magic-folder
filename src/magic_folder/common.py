@@ -85,7 +85,7 @@ def bad_response(url, response):
 @contextmanager
 def atomic_makedirs(path):
     """
-    Call `path.makedirs()` but if an errors occurs before this
+    Call `path.makedirs()` but if an error occurs before this
     context-manager exits we will delete the directory.
 
     :param FilePath path: the directory/ies to create
