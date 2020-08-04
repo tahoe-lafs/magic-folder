@@ -169,7 +169,7 @@ class _CollectiveDirnodeParticipant(object):
         to the directory node.
     """
     name = attr.ib(validator=attr.validators.instance_of(unicode))
-    dirobj = attr.ib()
+    dirobj = attr.ib(validator=attr.validators.provides(IDirectoryNode))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
 
     def files(self):
