@@ -3,7 +3,8 @@ import attr
 from tempfile import mktemp
 
 from testtools.matchers import (
-    StartsWith,
+    AfterPreprocessing,
+    Always,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -44,6 +45,7 @@ from magic_folder.testing.web import (
 from magic_folder.tahoe_client import (
     create_tahoe_client,
 )
+from allmydata.uri import is_uri
 
 @attr.s
 class MemorySnapshotStore(object):
@@ -155,7 +157,7 @@ class UploaderServiceTests(SyncTestCase):
         self.assertThat(
             d,
             succeeded(
-                StartsWith("URI:CHK:"),
+                AfterPreprocessing(is_uri, Always()),
             ),
         )
 
