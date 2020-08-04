@@ -138,7 +138,7 @@ command:
    default:
        location: /home/alice/Documents
       stash-dir: /home/alice/foo/default/stash
-         author: alice-laptop (pubkey: KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
+         author: alice-laptop (public_key: KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
         updates: every 60s
 
 To get JSON output, pass ``--json``.  You can include sensitive secret

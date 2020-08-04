@@ -378,6 +378,7 @@ def _magic_folder_info(options):
         info[name] = {
             u"author": {
                 u"name": mf.author.name,
+                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
             },
             u"stash_path": mf.stash_path.path,
             u"magic_path": mf.magic_path.path,
@@ -385,7 +386,7 @@ def _magic_folder_info(options):
             u"is_admin": mf.is_admin(),
         }
         if options['include-secret-information']:
-            info[name][u"author"][u"verify_key"] = mf.author.verify_key.encode(Base32Encoder)
+            info[name][u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
             info[name][u"collective_dircap"] = mf.collective_dircap.encode("ascii")
             info[name][u"upload_dircap"] = mf.upload_dircap.encode("ascii")
     return info
@@ -399,7 +400,7 @@ def _list_human(info, stdout, include_secrets):
         template = (
             "    location: {magic_path}\n"
             "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} (pubkey: {author[verify_key]})\n"
+            "      author: {author[name]} (private_key: {author[signing_key]})\n"
             "  collective: {collective_dircap}\n"
             "    personal: {upload_dircap}\n"
             "     updates: every {poll_interval}s\n"
@@ -409,7 +410,7 @@ def _list_human(info, stdout, include_secrets):
         template = (
             "    location: {magic_path}\n"
             "   stash-dir: {stash_path}\n"
-            "      author: {author[name]}\n"
+            "      author: {author[name]} (public_key: {author[verify_key]})\n"
             "     updates: every {poll_interval}s\n"
             "       admin: {is_admin}\n"
         )
