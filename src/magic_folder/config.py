@@ -346,7 +346,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0]
+            return cursor.fetchone()[0].encode("utf8")
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
