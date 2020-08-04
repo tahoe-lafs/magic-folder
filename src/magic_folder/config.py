@@ -295,20 +295,30 @@ class MagicFolderConfig(object):
         :param LocalSnapshot snapshot: The snapshot to store.
         """
         # insert a new row or update an existing row with the new blob.
-        cursor.execute(
-            """
-            INSERT INTO
-                [local_snapshots] ([path], [snapshot_blob])
-            VALUES
-                (?, ?)
-            ON CONFLICT
-                ([path])
-            DO UPDATE SET
-                [snapshot_blob] = excluded.[snapshot_blob]
-
-            """,
-            (snapshot.name, snapshot.to_json()),
-        )
+        try:
+            cursor.execute(
+                """
+                INSERT INTO
+                    [local_snapshots] ([path], [snapshot_blob])
+                VALUES
+                    (?, ?)
+                """,
+                (snapshot.name, snapshot.to_json()),
+            )
+        except sqlite3.IntegrityError:
+            # There is already a row with the given path.  Once we can depend
+            # on a newer SQLite3 we can use an UPSERT instead.  Meanwhile,
+            cursor.execute(
+                """
+                UPDATE
+                    [local_snapshots]
+                SET
+                    [snapshot_blob] = ?
+                WHERE
+                    [path] = ?
+                """,
+                (snapshot.to_json(), snapshot.name),
+            )
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
