@@ -116,8 +116,8 @@ that local directory will be uploaded. Note that deleting a file in
 ``~/Documents`` will record a new "deleted" version in Tahoe Grid and
 not actually remove data from it.
 
-We can also specify ``--poll-interval`` to control how often the
-daemon will check for updates (by default this is 60 seconds).
+It is also possible to specify ``--poll-interval`` to control how
+often the daemon will check for updates if the default seems wrong.
 
 This device will be the administrator for a magic folder created in
 this manner (that is, only this device can invite new participants).
