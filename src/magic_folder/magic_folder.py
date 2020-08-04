@@ -45,6 +45,9 @@ from allmydata.util.encodingutil import to_filepath
 from . import (
     magicpath,
 )
+from .config import (
+    SnapshotNotFound,
+)
 from .snapshot import (
     create_snapshot,
     LocalAuthor,
@@ -738,8 +741,9 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
-            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
-            if parent_snapshot is None:
+            try:
+                parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            except SnapshotNotFound:
                 parents = []
             else:
                 parents = [parent_snapshot]

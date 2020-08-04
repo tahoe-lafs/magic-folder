@@ -67,6 +67,12 @@ class ConfigurationError(Exception):
     """
 
 
+class SnapshotNotFound(Exception):
+    """
+    No snapshot for a particular requested path was found.
+    """
+
+
 _global_config_version = 1
 
 _global_config_schema = """
@@ -268,16 +274,18 @@ class MagicFolderConfig(object):
 
         :param author: an instance of LocalAuthor
 
+        :raise SnapshotNotFound: If there is no matching snapshot for the
+            given path.
+
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
         cursor.execute("SELECT snapshot_blob FROM local_snapshots"
                        " WHERE path=?",
                        (name,))
         row = cursor.fetchone()
-        if not row:
-            return None
-        else:
+        if row:
             return LocalSnapshot.from_json(row[0], author)
+        raise SnapshotNotFound(name)
 
     @with_cursor
     def store_local_snapshot(self, cursor, snapshot):
