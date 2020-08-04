@@ -573,14 +573,7 @@ def leave(options):
 
 class RunOptions(usage.Options):
     optParameters = [
-        ("web-port", None, None,
-         "String description of an endpoint on which to run the web interface (required).",
-        ),
     ]
-
-    def postOptions(self):
-        if self['web-port'] is None:
-            raise usage.UsageError("Must specify a listening endpoint with --web-port")
 
 
 def run(options):
@@ -590,11 +583,8 @@ def run(options):
     """
     # XXX start logging
     from twisted.internet import  reactor
-    service = MagicFolderService.from_node_directory(
-        reactor,
-        options.parent.node_directory,
-        options["web-port"],
-    )
+    config = options.parent.config
+    service = MagicFolderService.from_config(reactor, config)
     return service.run()
 
 
@@ -602,10 +592,11 @@ def run(options):
 def poll(label, operation, reactor):
     while True:
         print("Polling {}...".format(label))
-        if (yield operation()):
-            print("Positive result ({}), done.".format(label))
+        status, message = yield operation()
+        if status:
+            print("{}: {}, done.".format(label, message))
             break
-        print("Negative result ({}), sleeping...".format(label))
+        print("Not {}: {}".format(label, message))
         yield deferLater(reactor, 1.0, lambda: None)
 
 
@@ -691,8 +682,6 @@ class MagicFolderService(MultiService):
     """
     reactor = attr.ib()
     config = attr.ib()
-    webport = attr.ib()
-    tahoe_nodedir = attr.ib()
     _state = attr.ib(
         validator=attr.validators.instance_of(MagicFolderServiceState),
         default=attr.Factory(MagicFolderServiceState),
@@ -701,16 +690,13 @@ class MagicFolderService(MultiService):
     def __attrs_post_init__(self):
         MultiService.__init__(self)
         self.tahoe_client = TahoeClient(
-            DecodedURL.from_text(
-                self.config.get_config_from_file(b"node.url").decode("utf-8"),
-            ),
+            self.config.tahoe_client_url,
             Agent(self.reactor),
         )
-        web_endpoint = RecordLocation(
-            serverFromString(self.reactor, self.webport),
-            self._write_web_url,
+        self._listen_endpoint = serverFromString(
+            self.reactor,
+            self.config.api_endpoint,
         )
-        self._listen_endpoint = ListenObserver(web_endpoint)
         web_service = magic_folder_web_service(
             self._listen_endpoint,
             self._state,
@@ -732,49 +718,62 @@ class MagicFolderService(MultiService):
         )
 
     def _get_auth_token(self):
-        return self.config.get_private_config("api_auth_token")
+        return self.config.api_token
 
     @classmethod
-    def from_node_directory(cls, reactor, nodedir, webport):
-        config = read_config(nodedir, u"client.port")
-        return cls(reactor, config, webport, FilePath(nodedir))
+    def from_config(cls, reactor, config):
+        return cls(
+            reactor,
+            config,
+        )
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
         # enough servers
-        k = int(self.config.get_config("client", "shares.needed", 3))
-        happy = int(self.config.get_config("client", "shares.happy", 7))
-        threshold = min(k, happy + 1)
+        tahoe_config = read_config(self.config.tahoe_node_directory.path, "portnum")
+        threshold = int(tahoe_config.get_config("client", "shares.needed"))
 
         @inline_callbacks
         def enough():
             welcome = yield self.tahoe_client.get_welcome()
             if welcome.code != 200:
-                returnValue(False)
+                returnValue((False, "Failed to get welcome page"))
 
             welcome_body = json.loads((yield readBody(welcome)))
-            if len(welcome_body[u"servers"]) < threshold:
-                returnValue(False)
-            returnValue(True)
+            servers = welcome_body[u"servers"]
+            connected_servers = [
+                server
+                for server in servers
+                if server["connection_status"].startswith("Connected ")
+            ]
+
+            message = "Found {} of {} connected servers (want {})".format(
+                len(connected_servers),
+                len(servers),
+                threshold,
+            )
+
+            if len(connected_servers) < threshold:
+                returnValue((False, message))
+            returnValue((True, message))
         return poll("connected enough", enough, self.reactor)
 
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
-        d.addCallback(lambda ignored: self._listen_endpoint.observe())
+#        d.addCallback(lambda ignored: self._listen_endpoint.observe())
         d.addCallback(lambda ignored: Deferred())
         return d
 
     def startService(self):
         MultiService.startService(self)
 
-        magic_folder_configs = load_magic_folders(self.tahoe_nodedir.path)
-
         ds = []
-        for (name, mf_config) in magic_folder_configs.items():
+        for name in self.config.list_magic_folders():
+            mf
             mf = MagicFolder.from_config(
                 self.reactor,
-                ClientStandIn(self.tahoe_client, self.config),
+                self.tahoe_client,
                 name,
                 mf_config,
                 self.config,
@@ -799,23 +798,6 @@ class FakeStats(object):
 
     def count(self, ctr, delta):
         pass
-
-@attr.s
-class ClientStandIn(object):
-    nickname = ""
-    stats_provider = FakeStats()
-
-    tahoe_client = attr.ib()
-    config = attr.ib()
-    convergence = attr.ib(default=None)
-
-    def __attrs_post_init__(self):
-        if self.convergence is None:
-            convergence_s = self.config.get_private_config('convergence')
-            self.convergence = base32.a2b(convergence_s)
-
-    def create_node_from_uri(self, uri, rouri=None):
-        return Node(self.tahoe_client, from_string(rouri if uri is None else uri))
 
 
 @implementer(IDirectoryNode)
@@ -1158,7 +1140,7 @@ def main(reactor):
     yield do_magic_folder(options)
 
 
-def run():
+def _entry():
     """
     Implement the *magic-folder* console script declared in ``setup.py``.
 
