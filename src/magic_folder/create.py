@@ -65,14 +65,6 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
         path_name=author_name,
         entry_cap=personal_write_cap,
     )
-    except BadResponseCode as e:
-        raise RuntimeError(
-            "Error adding '{}' to collective directory: {}".format(
-                author_name,
-                e
-            )
-        )
-
 
     # create our "state" directory for this magic-folder (could be
     # configurable in the future)
