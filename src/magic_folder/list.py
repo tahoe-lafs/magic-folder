@@ -25,19 +25,6 @@ from allmydata.client import read_config
 from .config import endpoint_description_to_http_api_root
 
 
-def get_magic_folder_api_base_url_from_node_dir(node_directory):
-    """
-    Get HTTP base URL stored in ``node_directory/magic-folder.url``.
-
-    :param str node_directory: A Tahoe node directory.
-
-    :returns: base URL for Magic Folder HTTP API.
-    """
-    magic_folder_url_file = os.path.join(node_directory, u"magic-folder.url")
-    with open(magic_folder_url_file, "r") as f:
-        magic_folder_url = f.read().strip()
-    return magic_folder_url
-
 def get_magic_folder_api_token_from_node_dir(node_directory):
     """
     Get token stored in ```node_directory/private/api_auth_token```.
@@ -81,7 +68,7 @@ def get_magic_folder_api_token_from_config_dir(config_directory):
 
 
 @inlineCallbacks
-def magic_folder_list(node_directory, config_directory=None):
+def magic_folder_list(node_directory, config_directory):
     """
     List folders associated with a node.
 
@@ -90,16 +77,12 @@ def magic_folder_list(node_directory, config_directory=None):
 
     :return: JSON response from `GET /v1/magic-folder`.
     """
-    if config_directory:
-        base_url = get_magic_folder_api_base_url_from_config_dir(config_directory)
-        api_token = get_magic_folder_api_token_from_config_dir(config_directory)
-        api_url = base_url.child(u'v1').child(u'magic-folder')
-    else:
-        base_url = get_magic_folder_api_base_url_from_node_dir(node_directory)
-        api_token = get_magic_folder_api_token_from_node_dir(node_directory)
-        api_url = DecodedURL.from_text(
-            unicode(base_url, 'utf-8')
-        ).child(u'v1').child(u'magic-folder')
+
+    base_url = get_magic_folder_api_base_url_from_config_dir(config_directory)
+    api_url = base_url.child(u'v1').child(u'magic-folder')
+
+    # api_token = get_magic_folder_api_token_from_config_dir(config_directory)
+    api_token = get_magic_folder_api_token_from_node_dir(node_directory)
 
     headers = {
         b"Authorization": u"Bearer {}".format(api_token).encode("ascii"),
