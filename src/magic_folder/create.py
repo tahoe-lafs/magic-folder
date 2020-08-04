@@ -9,25 +9,10 @@ from twisted.internet.defer import (
     inlineCallbacks,
 )
 
-from allmydata.scripts.common import get_aliases
-from allmydata import uri
-from allmydata.util import fileutil
-from allmydata.util.encodingutil import quote_output
-
 from .snapshot import (
     create_local_author,
 )
 
-from .magic_folder import (
-    load_magic_folders,
-)
-
-from .invite import (
-    magic_folder_invite as _invite
-)
-from .common import (
-    BadResponseCode,
-)
 from .tahoe_client import (
     create_tahoe_client,
 )

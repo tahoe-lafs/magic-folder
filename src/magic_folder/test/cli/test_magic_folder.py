@@ -1,10 +1,6 @@
-import sys
 import json
 import os.path
 
-from testtools import (
-    skipIf,
-)
 from testtools.content import (
     text_content,
 )
@@ -26,7 +22,6 @@ from twisted.python.filepath import (
 from ... import cli as magic_folder_cli
 from ...config import (
     create_global_configuration,
-    load_global_configuration,
 )
 
 from ..common_util import (

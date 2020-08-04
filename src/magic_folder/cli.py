@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import os
 import sys
 import getpass
 import traceback
@@ -24,13 +23,8 @@ from zope.interface import (
     implementer,
 )
 
-from hyperlink import (
-    DecodedURL,
-)
-
-import importlib_metadata
-
 import attr
+
 from io import (
     BytesIO,
 )
@@ -90,9 +84,6 @@ from allmydata.interfaces import (
 from allmydata.uri import (
     from_string,
 )
-from allmydata.util import (
-    base32,
-)
 from allmydata.util.encodingutil import (
     argv_to_unicode,
     to_str,
@@ -104,7 +95,6 @@ from allmydata.client import (
 
 from .magic_folder import (
     MagicFolder,
-    load_magic_folders,
 )
 from .web import (
     magic_folder_web_service,
@@ -133,8 +123,6 @@ from .config import (
 from .join import (
     magic_folder_join
 )
-
-from .util.observer import ListenObserver
 
 
 _default_config_path = user_config_dir("magic-folder")
@@ -770,7 +758,7 @@ class MagicFolderService(MultiService):
 
         ds = []
         for name in self.config.list_magic_folders():
-            mf
+            mf_config = self.config.get_magic_folder(name)
             mf = MagicFolder.from_config(
                 self.reactor,
                 self.tahoe_client,

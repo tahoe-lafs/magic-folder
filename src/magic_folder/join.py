@@ -5,12 +5,6 @@
 Implements the magic-folder join command.
 """
 
-from twisted.python import usage
-
-from .snapshot import (
-    create_local_author,
-)
-
 
 def magic_folder_join(config, invite_code, local_dir, name, poll_interval, author_name):
     """
@@ -34,4 +28,4 @@ def magic_folder_join(config, invite_code, local_dir, name, poll_interval, autho
     """
     # FIXME TODO
     # https://github.com/LeastAuthority/magic-folder/issues/232
-    raise NotImplemented
+    raise NotImplementedError

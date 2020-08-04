@@ -2,9 +2,6 @@ from __future__ import (
     print_function,
 )
 
-from os.path import (
-    join,
-)
 from six.moves import (
     StringIO as MixedIO,
 )
