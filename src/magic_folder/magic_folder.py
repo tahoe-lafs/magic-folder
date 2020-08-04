@@ -43,8 +43,10 @@ from allmydata.util.fileutil import (
 from allmydata.util.encodingutil import to_filepath
 
 from . import (
-    magicfolderdb,
     magicpath,
+)
+from .config import (
+    SnapshotNotFound,
 )
 from .snapshot import (
     create_snapshot,
@@ -107,57 +109,6 @@ def is_new_file(pathinfo, db_entry):
 
     return ((pathinfo.size, pathinfo.ctime_ns, pathinfo.mtime_ns) !=
             (db_entry.size, db_entry.ctime_ns, db_entry.mtime_ns))
-
-
-def _upgrade_magic_folder_config(basedir):
-    """
-    Helper that upgrades from single-magic-folder-only configs to
-    multiple magic-folder configuration style (in YAML)
-    """
-    config_fname = os.path.join(basedir, "tahoe.cfg")
-    config = configutil.get_config(config_fname)
-
-    collective_fname = os.path.join(basedir, "private", "collective_dircap")
-    upload_fname = os.path.join(basedir, "private", "magic_folder_dircap")
-    magic_folders = {
-        u"default": {
-            u"directory": config.get("magic_folder", "local.directory").decode("utf-8"),
-            u"collective_dircap": fileutil.read(collective_fname),
-            u"upload_dircap": fileutil.read(upload_fname),
-            u"poll_interval": int(config.get("magic_folder", "poll_interval")),
-        },
-    }
-    fileutil.move_into_place(
-        source=os.path.join(basedir, "private", "magicfolderdb.sqlite"),
-        dest=os.path.join(basedir, "private", "magicfolder_default.sqlite"),
-    )
-    save_magic_folders(basedir, magic_folders)
-    config.remove_option("magic_folder", "local.directory")
-    config.remove_option("magic_folder", "poll_interval")
-    configutil.write_config(os.path.join(basedir, 'tahoe.cfg'), config)
-    fileutil.remove_if_possible(collective_fname)
-    fileutil.remove_if_possible(upload_fname)
-
-
-def maybe_upgrade_magic_folders(node_directory):
-    """
-    If the given node directory is not already using the new-style
-    magic-folder config it will be upgraded to do so. (This should
-    only be done if the user is running a command that needs to modify
-    the config)
-    """
-    yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
-    if os.path.exists(yaml_fname):
-        # we already have new-style magic folders
-        return
-
-    config_fname = os.path.join(node_directory, "tahoe.cfg")
-    config = configutil.get_config(config_fname)
-
-    # we have no YAML config; if we have config in tahoe.cfg then we
-    # can upgrade it to the YAML-based configuration
-    if config.has_option("magic_folder", "local.directory"):
-        _upgrade_magic_folder_config(node_directory)
 
 
 def load_magic_folders(node_directory):
@@ -347,13 +298,7 @@ class MagicFolder(service.MultiService):
         except ValueError:
             raise ValueError("'poll_interval' option must be an int")
 
-        db_filename = client_node.config.get_private_path("magicfolder_{}.sqlite".format(name))
-        database = magicfolderdb.get_magicfolderdb(
-            abspath_expanduser_unicode(db_filename),
-            create_version=(magicfolderdb.SCHEMA_v1, 1)
-        )
-        if database is None:
-            raise Exception('ERROR: Unable to load magic folder db.')
+        database = None
 
         upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
         collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
@@ -473,12 +418,6 @@ REMOTE_URI = Field.for_types(
     u"The filecap of a path found in a peer DMD.",
 )
 
-REMOTE_DMD_ENTRY = MessageType(
-    u"magic-folder:remote-dmd-entry",
-    [RELPATH, magicfolderdb.PATHENTRY, REMOTE_VERSION, REMOTE_URI],
-    u"A single entry found by scanning a peer DMD.",
-)
-
 ADD_TO_DOWNLOAD_QUEUE = MessageType(
     u"magic-folder:add-to-download-queue",
     [RELPATH],
@@ -561,12 +500,6 @@ PROCESS_DIRECTORY = ActionType(
     [],
     [CREATED_DIRECTORY],
     u"An item being processed was a directory.",
-)
-
-DIRECTORY_PATHENTRY = MessageType(
-    u"magic-folder:directory-dbentry",
-    [magicfolderdb.PATHENTRY],
-    u"Local database state relating to an item possibly being uploaded.",
 )
 
 NOT_NEW_DIRECTORY = MessageType(
@@ -808,8 +741,9 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
-            parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
-            if parent_snapshot is None:
+            try:
+                parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            except SnapshotNotFound:
                 parents = []
             else:
                 parents = [parent_snapshot]

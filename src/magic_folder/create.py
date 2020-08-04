@@ -32,7 +32,6 @@ from allmydata.util.encodingutil import quote_output
 
 from .magic_folder import (
     load_magic_folders,
-    maybe_upgrade_magic_folders,
 )
 
 from .invite import (
@@ -127,11 +126,9 @@ def magic_folder_create(alias, nickname, name, node_directory, local_dir, poll_i
     :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
         an appropriate exception is raised.
     """
-
-    # make sure we don't already have a magic-folder with this name before we create the alias
-    maybe_upgrade_magic_folders(node_directory)
     folders = load_magic_folders(node_directory)
 
+    # make sure we don't already have a magic-folder with this name before we create the alias
     if name in folders:
         raise Exception("Already have a magic-folder named '{}'".format(name))
 
