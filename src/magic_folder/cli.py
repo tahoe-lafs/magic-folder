@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import sys
+import getpass
 import traceback
 from six.moves import (
     StringIO as MixedIO,
@@ -519,10 +520,10 @@ def _fill_author_from_environment(options):
     if it is not already set.
     """
     if options['author'] is None:
-        options['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
+        options['author'] = getpass.getuser()
         if options['author'] is None:
             raise usage.UsageError(
-                "--author not provided and no USERNAME environment-variable"
+                "--author not provided and could not determine a username"
             )
 
 
