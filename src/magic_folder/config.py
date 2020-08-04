@@ -303,24 +303,14 @@ class MagicFolderConfig(object):
         )
 
     @with_cursor
-    def _get_all_relpaths_from(self, cursor, statement):
-        """
-        :param unicode tablename: table name to fetch the relpaths from.
-
-        :returns: A set of all the relpaths in the given table.
-        """
-        cursor.execute(statement)
-        rows = cursor.fetchall()
-        return set(r[0] for r in rows)
-
-    def get_all_localsnapshot_paths(self):
+    def get_all_localsnapshot_paths(self, cursor):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        return self._get_all_relpaths_from(
-            "SELECT [path] FROM [local_snapshots]",
-        )
+        cursor.execute("SELECT [path] FROM [local_snapshots]")
+        rows = cursor.fetchall()
+        return set(r[0] for r in rows)
 
 
 @attr.s
