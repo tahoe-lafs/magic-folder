@@ -1185,15 +1185,3 @@ def run():
         return 1
 
     return react(main)
-    if options.subCommand in ["init", "migrate", "show-config"]:
-        pass
-    # run the same way as originally ported for "other" commands
-    console_scripts = importlib_metadata.entry_points()["console_scripts"]
-    magic_folder = list(
-        script
-        for script
-        in console_scripts
-        if script.name == "twist"
-    )[0]
-    argv = ["twist", "--log-level=debug", "--log-format=text", "magic_folder"] + sys.argv[1:]
-    magic_folder.load()(argv)
