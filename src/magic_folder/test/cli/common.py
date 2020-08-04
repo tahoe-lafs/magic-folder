@@ -5,7 +5,6 @@ from __future__ import (
 from six.moves import (
     StringIO as MixedIO,
 )
-from allmydata.util.encodingutil import unicode_to_argv
 from allmydata.scripts import runner
 
 from twisted.python.usage import (
@@ -22,12 +21,6 @@ from eliot import (
     Message,
 )
 
-from ..common_util import (
-    ReallyEqualMixin,
-    run_magic_folder_cli,
-    run_tahoe_cli,
-)
-
 from ...cli import (
     MagicFolderCommand,
     do_magic_folder,
@@ -39,19 +32,6 @@ def parse_options(basedir, command, args):
     while hasattr(o, "subOptions"):
         o = o.subOptions
     return o
-
-class CLITestMixin(ReallyEqualMixin):
-    def do_cli(self, verb, *args, **kwargs):
-        # client_num is used to execute client CLI commands on a specific
-        # client.
-        client_num = kwargs.get("client_num", 0)
-        client_dir = unicode_to_argv(self.get_clientdir(i=client_num))
-        nodeargs = [ "--node-directory", client_dir ]
-        if verb == "magic-folder":
-            return run_magic_folder_cli(verb, nodeargs=nodeargs, *args, **kwargs)
-        else:
-            return run_tahoe_cli(verb, nodeargs=nodeargs, *args, **kwargs)
-
 
 @attr.s
 class ProcessOutcome(object):

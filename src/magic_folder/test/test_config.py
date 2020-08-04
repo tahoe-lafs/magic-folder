@@ -6,6 +6,10 @@ from twisted.python.filepath import (
 from hypothesis import (
     given,
 )
+from hypothesis.strategies import (
+    one_of,
+    just,
+)
 
 from testtools import (
     ExpectedException,
@@ -15,6 +19,10 @@ from testtools.matchers import (
     NotEquals,
     Contains,
     MatchesStructure,
+)
+
+from hyperlink import (
+    URL,
 )
 
 import sqlite3
@@ -27,8 +35,11 @@ from .fixtures import (
 )
 from .strategies import (
     path_segments_without_dotfiles,
+    port_numbers,
+    interfaces,
 )
 from ..config import (
+    endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
     ConfigurationError,
@@ -56,16 +67,33 @@ class TestGlobalConfig(SyncTestCase):
         path_segments_without_dotfiles(),
     )
     def test_create(self, dirname):
+        """
+        ``create_global_configuration`` accepts a path that doesn't exist to which
+        to write the configuration.
+        """
         confdir = self.temp.child(dirname)
-        create_global_configuration(confdir, u"tcp:1234", self.node_dir)
-        # the implicit assertion here is "it didn't fail"
+        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir)
+        self.assertThat(
+            config,
+            MatchesStructure(
+                api_endpoint=Equals(u"tcp:1234"),
+            ),
+        )
 
     def test_create_existing_dir(self):
+        """
+        ``create_global_configuration`` raises ``ValueError`` if the configuration
+        path passed to it already exists.
+        """
         self.temp.makedirs()
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
             create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
 
     def test_load_db(self):
+        """
+        ``load_global_configuration`` can read the global configuration written by
+        ``create_global_configuration``.
+        """
         create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         config = load_global_configuration(self.temp)
         self.assertThat(
@@ -77,11 +105,19 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_load_db_no_such_directory(self):
+        """
+        ``load_global_configuration`` raises ``ValueError`` if passed a path which
+        does not exist.
+        """
         non_dir = self.temp.child("non-existent")
         with ExpectedException(ValueError, ".*{}.*".format(non_dir.path)):
             load_global_configuration(non_dir)
 
     def test_rotate_api_key(self):
+        """
+        ``GlobalConfigDatabase.rotate_api_token`` replaces the current API token
+        with a new one.
+        """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         pre = config.api_token
         config.rotate_api_token()
@@ -91,6 +127,12 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_change_api_endpoint(self):
+        """
+        An assignment that changes the value of
+        ``GlobalConfigDatabase.api_endpoint`` results in the new value being
+        available when the database is loaded again with
+        ``load_global_configuration``.
+        """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
@@ -104,6 +146,10 @@ class TestGlobalConfig(SyncTestCase):
         )
 
     def test_database_wrong_version(self):
+        """
+        ``load_global_configuration`` raises ``ConfigurationError`` if asked to
+        load a database that has a version other than ``1``.
+        """
         create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         # make the version "0", which will never happen for real
         # because we'll keep incrementing the version from 1
@@ -114,6 +160,46 @@ class TestGlobalConfig(SyncTestCase):
 
         with ExpectedException(ConfigurationError):
             load_global_configuration(self.temp)
+
+
+class EndpointDescriptionConverterTests(SyncTestCase):
+    """
+    Tests for ``endpoint_description_to_http_api_root``.
+    """
+    @given(port_numbers(), one_of(just(None), interfaces()))
+    def test_tcp(self, port_number, interface):
+        """
+        A TCP endpoint can be converted to an **http** URL.
+        """
+        return self._tcpish_test(u"tcp", u"http", port_number, interface)
+
+    @given(port_numbers(), one_of(just(None), interfaces()))
+    def test_ssl(self, port_number, interface):
+        """
+        An SSL endpoint can be converted to an **https** URL.
+        """
+        return self._tcpish_test(u"ssl", u"https", port_number, interface)
+
+    def _tcpish_test(self, endpoint_type, url_scheme, port_number, interface):
+        """
+        Assert that a sufficiently TCP-like endpoint string can be parsed into an
+        HTTP or HTTPS URL.
+        """
+        endpoint = u"{}:{}{}".format(
+            endpoint_type,
+            port_number,
+            u"" if interface is None else u":interface={}".format(interface),
+        )
+        self.assertThat(
+            endpoint_description_to_http_api_root(endpoint),
+            Equals(
+                URL(
+                    scheme=url_scheme,
+                    host=u"127.0.0.1" if interface in (None, u"0.0.0.0") else interface,
+                    port=port_number,
+                ).get_decoded_url(),
+            ),
+        )
 
 
 class TestMagicFolderConfig(SyncTestCase):
