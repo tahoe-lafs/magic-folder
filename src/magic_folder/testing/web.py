@@ -17,6 +17,7 @@ be pushed upstream eventually but not so quickly that we have to submit a PR
 to Tahoe-LAFS every few days.
 """
 
+import json
 from functools import (
     partial,
 )
@@ -219,6 +220,13 @@ class _FakeTahoeUriHandler(Resource, object):
         if fmt != "chk":
             raise NotImplementedError()
 
+        if len(request.postpath):
+            return self._add_entry_to_dir(
+                request=request,
+                dircap=request.postpath[0],
+                segments=request.postpath[1:],
+            )
+
         data = request.content.read()
         fresh, cap = self.add_data("URI:CHK:", data)
         if fresh:
@@ -226,6 +234,34 @@ class _FakeTahoeUriHandler(Resource, object):
         else:
             request.setResponseCode(http.OK)  # replaced/modified files
         return cap
+
+    def _add_entry_to_dir(self, request, dircap, segments):
+        """
+        Adds an entry to a mutable directory. Only handles a single-level
+        deep.
+        """
+        if len(segments) != 1:
+            raise Exception(
+                "Need exactly one path segment (got {})".format(len(segments))
+            )
+        dircap = request.postpath[0].decode("ascii")
+        if not dircap.startswith("URI:DIR2"):
+            raise Exception(
+                "Can't add entry to non-mutable directory '{}'".format(dircap)
+            )
+        try:
+            dir_raw_data = self.data[dircap]
+        except KeyError:
+            raise Exception(
+                "No directory for '{}'".format(dircap)
+            )
+
+        content_cap = request.content.read().decode("utf8")
+
+        dir_data = {} if not dir_raw_data else json.loads(dir_raw_data)
+        dir_data[segments[0]] = content_cap
+        self.data[dircap] = json.dumps(dir_data).encode("utf8")
+        return b""
 
     def render_POST(self, request):
         t = request.args[u"t"][0]
@@ -240,6 +276,7 @@ class _FakeTahoeUriHandler(Resource, object):
         return cap
 
     def render_GET(self, request):
+        print("GET")
         uri = DecodedURL.from_text(request.uri.decode('utf8'))
         capability = None
         for arg, value in uri.query:
@@ -248,6 +285,16 @@ class _FakeTahoeUriHandler(Resource, object):
         # it's legal to use the form "/uri/<capability>"
         if capability is None and request.postpath and request.postpath[0]:
             capability = request.postpath[0]
+
+        # Tahoe lets you get the children of directory-nodes by
+        # appending names after the capability; we support up to 1
+        # such path
+        if len(request.postpath) > 1:
+            if len(request.postpath) > 2:
+                raise NotImplementedError
+            child_name = request.postpath[1]
+            print("HI", child_name)
+            return self._get_child_of_directory(request, capability, child_name)
 
         # if we don't yet have a capability, that's an error
         if capability is None:
@@ -277,6 +324,33 @@ class _FakeTahoeUriHandler(Resource, object):
             return u"No data for '{}'".format(capability).encode("ascii")
 
         return self.data[capability]
+
+    def _get_child_of_directory(self, request, capability, child_name):
+        """
+        Return the data which is a in a child of a directory.
+
+        :param bytes capability: the directory-capability
+
+        :param unicode child_name: the name of the child
+        """
+        print("GET CHILD", child_name)
+        raw_data = self.data[capability]
+        if not raw_data:
+            raise Exception(
+                u"No child '{}' in empty directory".format(child_name)
+            )
+        dir_data = json.loads(raw_data)
+        try:
+            child_cap = dir_data[child_name]
+            print(u"child cap: {}".format(child_cap))
+            child_data = self.data[child_cap]
+            print(u"child data: {}".format(child_data))
+        except KeyError:
+            request.setResponseCode(http.GONE)
+            print("BAD STUFF", child_name)
+            return b"Child not found"
+        print("RETURN", type(child_data))
+        return child_data
 
 
 def create_fake_tahoe_root():

@@ -216,6 +216,7 @@ class TahoeClient(object):
 
         :return Deferred[None]: or exception on error
         """
+
         post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
             query=[
                 (u"t", u"uri"),

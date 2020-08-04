@@ -33,6 +33,7 @@ from hypothesis.strategies import (
     binary,
     text,
     dictionaries,
+    just,
 )
 
 from testtools.matchers import (
@@ -41,6 +42,7 @@ from testtools.matchers import (
     IsInstance,
     Equals,
     Always,
+    Contains,
 )
 
 from testtools.twistedsupport import (
@@ -69,6 +71,7 @@ from .common import (
 from .strategies import (
     filenodes,
     tahoe_lafs_chk_capabilities,
+    path_segments,
 )
 
 from .matchers import (
@@ -248,3 +251,37 @@ class TahoeClientTests(SyncTestCase):
                 ),
             ),
         )
+
+    @given(
+        just("foo"), #path_segments(),
+        just(b"test"*200), #binary(),
+    )
+    def test_mutable_directory_add_child(self, child_name, content):
+        """
+        A child can be added to a mutable directory
+        """
+        mutable_d = self.tahoe_client.create_mutable_directory()
+        child_d = self.tahoe_client.create_immutable(content)
+        self.assertThat(gatherResults([mutable_d, child_d]), Always())
+
+        mutable_cap = mutable_d.result
+        child_cap = child_d.result
+
+        self.tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap,
+            child_name,
+            child_cap,
+        )
+
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
+        resp_d = self.http_client.get(child_uri.to_text())
+        self.assertThat(
+            succeeded(resp_d),
+            Always(),
+        )
+        child_content_d = resp_d.result.content()
+        self.assertThat(
+            succeeded(child_content_d),
+            Always()
+        )
+        self.assertThat(child_content_d.result, Equals(content))
