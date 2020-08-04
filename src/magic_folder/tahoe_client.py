@@ -65,12 +65,30 @@ class TahoeAPIError(Exception):
 @attr.s(frozen=True)
 class CannotCreateDirectoryError(Exception):
     """
-    Attempting to create a (mutable) directory failed.
+    Failed to create a (mutable) directory.
     """
     tahoe_error = attr.ib()
 
     def __repr__(self):
         return "Could not create directory. Error code {}".format(
+            self.tahoe_error.code,
+        )
+
+    def __str__(self):
+        return repr(self)
+
+
+@attr.s(frozen=True)
+class CannotAddDirectoryEntryError(Exception):
+    """
+    Failed to add a sub-directory or file to a mutable directory.
+    """
+    entry_name = attr.ib()
+    tahoe_error = attr.ib()
+
+    def __repr__(self):
+        return "Could add {} to directory. Error code {}".format(
+            self.entry_name,
             self.tahoe_error.code,
         )
 
@@ -213,7 +231,13 @@ class TahoeClient(object):
         # Response code should probably be CREATED but it seems to be OK
         # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
         # artifact of the test double.
-        capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        try:
+            capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        except TahoeAPIError as e:
+            raise CannotAddDirectoryEntryError(
+                entry_name=path_name,
+                tahoe_error=e,
+            )
         returnValue(capability_string)
 
     @inlineCallbacks

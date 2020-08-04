@@ -54,33 +54,17 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
     author = create_local_author(author_name)
 
     # create an unlinked directory and get the dmd write-cap
-    try:
-        collective_write_cap = yield tahoe_client.create_mutable_directory()
-    except BadResponseCode as e:
-        raise RuntimeError(
-            "Error from '{}' while creating mutable directory: {}".format(
-                config.tahoe_client_url,
-                e
-            )
-        )
+    collective_write_cap = yield tahoe_client.create_mutable_directory()
 
-    try:
-        personal_write_cap = yield tahoe_client.create_mutable_directory()
-    except BadResponseCode as e:
-        raise RuntimeError(
-            "Error from '{}' while creating mutable directory: {}".format(
-                config.tahoe_client_url,
-                e
-            )
-        )
+    # create the personal dmd write-cap
+    personal_write_cap = yield tahoe_client.create_mutable_directory()
 
     # add ourselves to the collective
-    try:
-        yield tahoe_client.add_entry_to_mutable_directory(
-            mutable_cap=collective_write_cap,
-            path_name=author_name,
-            entry_cap=personal_write_cap,
-        )
+    yield tahoe_client.add_entry_to_mutable_directory(
+        mutable_cap=collective_write_cap,
+        path_name=author_name,
+        entry_cap=personal_write_cap,
+    )
     except BadResponseCode as e:
         raise RuntimeError(
             "Error adding '{}' to collective directory: {}".format(
