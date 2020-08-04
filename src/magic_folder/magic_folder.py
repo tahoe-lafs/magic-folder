@@ -2241,6 +2241,7 @@ class UploaderService(service.Service):
     local_author = attr.ib()
     tahoe_client = attr.ib()
     _clock = attr.ib()
+    _polling_interval = attr.ib()
 
     def startService(self):
 
@@ -2252,7 +2253,7 @@ class UploaderService(service.Service):
             self.tahoe_client,
         )
         self._processing_loop.clock = self._clock
-        self._processing = self._processing_loop.start(1, now=True)
+        self._processing = self._processing_loop.start(self._polling_interval, now=True)
 
     def stopService(self):
         """

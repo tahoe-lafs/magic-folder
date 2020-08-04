@@ -118,6 +118,7 @@ class UploaderServiceTests(SyncTestCase):
             local_author = self.author,
             tahoe_client=self.tahoe_client,
             clock=reactor,
+            polling_interval=1,
         )
 
     @given(path_segments(), binary())
