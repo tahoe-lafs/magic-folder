@@ -410,7 +410,7 @@ def _list_human(info, stdout, include_secrets):
         template = (
             "    location: {magic_path}\n"
             "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} ({author[verify_key]})\n"
+            "      author: {author[name]} (pubkey: {author[verify_key]})\n"
             "  collective: {collective_dircap}\n"
             "    personal: {upload_dircap}\n"
             "     updates: every {poll_interval}s\n"
