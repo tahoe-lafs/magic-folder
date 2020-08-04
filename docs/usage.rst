@@ -59,10 +59,9 @@ To create a magic folder daemon configuration from scratch:
 
    $ magic-folder init --config ./foo --listen-endpoint tcp:4321:interface=localhost --node-directory ./tahoe-client
 
-This will store configuration in ``~/.config/magic-folder/*`` or
-similar; listen on ``localhost`` port ``4321`` for API commands; and
-talk to the Tahoe-LAFS client in ``./tahoe-client`` (which must itself
-be running).
+This will store configuration in ``./foo``; listen on ``localhost``
+port ``4321`` for API commands; and talk to the Tahoe-LAFS client in
+``./tahoe-client`` (which must itself be running).
 
 To create a magic folder daemon configuration by migrating an existing
 Tahoe-LAFS-based magic-folder, do:
@@ -74,7 +73,7 @@ Tahoe-LAFS-based magic-folder, do:
 The main difference is the ``--author`` argument. This is required
 when creating signing keys for each configured magic-folder that is
 migrated over to the new daemon. Note that the Tahoe-LAFS
-configuration (``./foo`` in the example) will be left alone.
+configuration (``./tahoe-client`` in the example) will be left alone.
 
 From now on, we will assume there is a valid magic folder daemon
 configuration in ``./foo``. This is usually provided to all
