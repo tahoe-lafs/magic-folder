@@ -45,7 +45,10 @@ required and two decisions to be made. You need to know:
 
 You need to decide:
 
-- The network endpoint the API will listen on. This is how CLI commands and front-ends communciate to the magic-folder daemon and is expressed as a Twisted "server endpoint string". For example, ``tcp:4321`` to listen globally on port 4321. You may also use Unix Domain sockets on OSes which support that; for example ``unix:/var/run/magic-folder/api-socket``.
+- The network endpoint the API will listen on. This is how CLI
+  commands and front-ends communciate to the magic-folder daemon and
+  is expressed as a Twisted "server endpoint string". For example,
+  ``tcp:4321:interface=localhost`` to listen locally on port 4321.
 - If you wish to specify where to store the configuration. By default
   it will be in an appropriate location for your OS (like
   ``~/.config/magic-folder`` on Debian).
