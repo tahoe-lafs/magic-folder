@@ -136,7 +136,7 @@ class ListMagicFolder(AsyncTestCase):
         )
         outcome = yield cli(
             self.config_dir,
-            [b"list", b"--json"],
+            [b"list", b"--json", b"--include-secret-information"],
         )
         self.expectThat(
             outcome.stdout,
@@ -147,6 +147,8 @@ class ListMagicFolder(AsyncTestCase):
                         u"magic_path": Equals(folder_path.path),
                         u"poll_interval": Equals(60),
                         u"is_admin": Equals(True),
+                        u"collective_dircap": Always(),
+                        u"upload_dircap": Always(),
                     }),
                 }),
             ),
