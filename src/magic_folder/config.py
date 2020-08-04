@@ -27,6 +27,7 @@ from base64 import (
 
 from hyperlink import (
     DecodedURL,
+)
 
 from functools import (
     wraps,
