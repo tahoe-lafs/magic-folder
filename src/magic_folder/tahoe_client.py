@@ -105,8 +105,7 @@ class TahoeClient(object):
 
         :returns: a capability-string
         """
-        post_uri = self.url.replace(
-            path=(u"uri",),
+        post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir-immutable")],
         )
         res = yield _request(
@@ -149,8 +148,7 @@ class TahoeClient(object):
         :return Deferred[bytes]: The write capability string for the new
             directory.
         """
-        post_uri = self.url.replace(
-            path=(u"uri",),
+        post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir")],
         )
         response = yield _request(
@@ -181,8 +179,7 @@ class TahoeClient(object):
 
         :return Deferred[None]: or exception on error
         """
-        post_uri = self.url.replace(
-            path=(u"uri", mutable_cap.decode("utf8"), path_name),
+        post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
             query=[
                 (u"t", u"uri"),
                 (u"replace", u"false"),
@@ -209,8 +206,7 @@ class TahoeClient(object):
 
         :returns: bytes
         """
-        get_uri = self.url.replace(
-            path=(u"uri",),
+        get_uri = self.url.child(u"uri").replace(
             query=[(u"uri", cap.decode("ascii"))],
         )
         res = yield _request(
@@ -234,8 +230,7 @@ class TahoeClient(object):
 
         :returns: Deferred that fires with `None`
         """
-        get_uri = self.url.replace(
-            path=(u"uri",),
+        get_uri = self.url.child(u"uri").replace(
             query=[(u"uri", cap.decode("ascii"))],
         )
         res = yield self.http_client.get(get_uri.to_text())
