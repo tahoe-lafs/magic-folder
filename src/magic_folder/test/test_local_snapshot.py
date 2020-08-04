@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import attr
-import os
 
 from hypothesis import (
     given,

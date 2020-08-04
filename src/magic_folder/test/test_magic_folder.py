@@ -5,7 +5,7 @@ import stat
 from os.path import join, isdir
 from errno import ENOENT
 
-from twisted.internet import defer, reactor
+from twisted.internet import reactor
 from twisted.python.runtime import platform
 from twisted.python.filepath import FilePath
 
@@ -13,11 +13,9 @@ from eliot import (
     Message,
     start_action,
 )
-from allmydata.util.assertutil import precondition
 
 from allmydata.util import yamlutil
 from allmydata.util.encodingutil import to_filepath
-from allmydata.util.consumer import download_to_data
 
 from allmydata.util.fileutil import abspath_expanduser_unicode
 
@@ -31,33 +29,16 @@ from magic_folder.util.eliotutil import (
 
 from magic_folder.magic_folder import (
     ConfigurationError,
-    get_inotify_module,
     load_magic_folders,
 )
 from ..util import (
     fake_inotify,
 )
 
-from .. import (
-    magicpath,
-)
-
 from .common import (
     SyncTestCase,
 )
 _debug = False
-
-try:
-    get_inotify_module()
-except NotImplementedError:
-    support_missing = True
-    support_message = (
-        "Magic Folder support can only be tested for-real on an OS that "
-        "supports inotify or equivalent."
-    )
-else:
-    support_missing = False
-    support_message = None
 
 if platform.isMacOSX():
     def modified_mtime_barrier(path):
@@ -298,19 +279,6 @@ class NewConfigUtilTests(SyncTestCase):
         )
 
 
-def iterate_downloader(magic):
-    return magic.downloader._processing_iteration()
-
-
-def iterate_uploader(magic):
-    return magic.uploader._processing_iteration()
-
-@inline_callbacks
-def iterate(magic):
-    yield iterate_uploader(magic)
-    yield iterate_downloader(magic)
-
-
 @inline_callbacks
 def notify_when_pending(uploader, filename):
     with start_action(action_type=u"notify-when-pending", filename=filename):
@@ -387,104 +355,3 @@ class FileOperationsHelper(object):
     def _maybe_notify(self, fname, mask):
         if self._fake_inotify:
             self._uploader._notifier.event(to_filepath(fname), mask)
-
-
-class CheckerMixin(object):
-    """
-    Factored out of one of the many test classes.
-
-    *Ideally* these should just be bare helper methods, but many of
-    them already depended upon self.* state. One major problem is that
-    they're using self.magicfolder *but* some of the alice/bob tests
-    use this, too, and they just do "self.magicfolder =
-    self.bob_magicfolder" or whatever before calling them, which is
-    *horrible*.
-    """
-    def _check_mkdir(self, name_u):
-        return self._check_file(name_u + u"/", "", directory=True)
-
-    @defer.inlineCallbacks
-    def _check_file(self, name_u, data, temporary=False, directory=False):
-        precondition(not (temporary and directory), temporary=temporary, directory=directory)
-
-        # print "%r._check_file(%r, %r, temporary=%r, directory=%r)" % (self, name_u, data, temporary, directory)
-        previously_uploaded = self._get_count('uploader.objects_succeeded')
-        previously_disappeared = self._get_count('uploader.objects_disappeared')
-
-        path_u = abspath_expanduser_unicode(name_u, base=self.local_dir)
-
-        if directory:
-            yield self.fileops.mkdir(path_u)
-        else:
-            # We don't use FilePath.setContent() here because it creates a temporary file that
-            # is renamed into place, which causes events that the test is not expecting.
-            yield self.fileops.write(path_u, data)
-            yield iterate(self.magicfolder)
-            if temporary:
-                yield iterate(self.magicfolder)
-                yield self.fileops.delete(path_u)
-
-        yield iterate(self.magicfolder)
-        encoded_name_u = magicpath.path2magic(name_u)
-
-        yield self.failUnlessReallyEqual(self._get_count('uploader.objects_failed'), 0)
-        if temporary:
-            yield self.failUnlessReallyEqual(self._get_count('uploader.objects_disappeared'),
-                                             previously_disappeared + 1)
-        else:
-            yield self.magicfolder.uploader._upload_dirnode.list()
-            x = yield self.magicfolder.uploader._upload_dirnode.get(encoded_name_u)
-            actual_data = yield download_to_data(x)
-            self.failUnlessReallyEqual(actual_data, data)
-            self.failUnlessReallyEqual(self._get_count('uploader.objects_succeeded'),
-                                       previously_uploaded + 1)
-
-        self.failUnlessReallyEqual(self._get_count('uploader.objects_queued'), 0)
-
-    @defer.inlineCallbacks
-    def _check_version_in_dmd(self, magicfolder, relpath_u, expected_version):
-        encoded_name_u = magicpath.path2magic(relpath_u)
-        result = yield magicfolder.downloader._get_collective_latest_file(encoded_name_u)
-        self.assertIsNot(
-            result,
-            None,
-            "collective_latest_file({}) is None".format(encoded_name_u),
-        )
-        node, metadata = result
-        self.assertIsNot(
-            metadata,
-            None,
-            "collective_latest_file({}) metadata is None".format(encoded_name_u),
-        )
-        self.failUnlessEqual(metadata['version'], expected_version)
-
-    def _check_version_in_local_db(self, magicfolder, relpath_u, expected_version):
-        db_entry = magicfolder._db.get_db_entry(relpath_u)
-        if db_entry is not None:
-            #print "_check_version_in_local_db: %r has version %s" % (relpath_u, version)
-            self.failUnlessEqual(db_entry.version, expected_version)
-
-    def _check_file_gone(self, magicfolder, relpath_u):
-        path = os.path.join(magicfolder.uploader._local_path_u, relpath_u)
-        self.assertTrue(not os.path.exists(path))
-
-    def _check_uploader_count(self, name, expected, magic=None):
-        if magic is None:
-            magic = self.alice_magicfolder
-        self.failUnlessReallyEqual(
-            self._get_count(
-                'uploader.'+name,
-                client=magic._client,
-            ),
-            expected,
-            "Pending: {}\n"
-            "Deque:   {}\n".format(magic.uploader._pending, magic.uploader._deque),
-        )
-
-    def _check_downloader_count(self, name, expected, magic=None):
-        self.failUnlessReallyEqual(self._get_count('downloader.'+name, client=(magic or self.bob_magicfolder)._client),
-                                   expected)
-
-    def _get_count(self, name, client=None):
-        counters = (client or self.get_client()).stats_provider.get_stats()["counters"]
-        return counters.get('magic_folder.%s' % (name,), 0)
