@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import attr
-import os
 
 from hypothesis import (
     given,
@@ -35,18 +34,19 @@ from eliot import (
     Message,
 )
 
-from magic_folder.magic_folder import (
+from ..magic_folder import (
     LocalSnapshotService,
     LocalSnapshotCreator,
 )
-from magic_folder.snapshot import (
+from ..snapshot import (
     create_local_author,
 )
-from magic_folder.magicpath import (
+from ..magicpath import (
     path2magic,
 )
-from .. import magicfolderdb
-
+from ..config import (
+    create_global_configuration,
+)
 from .common import (
     SyncTestCase,
 )
@@ -201,36 +201,36 @@ class LocalSnapshotCreatorTests(SyncTestCase):
     snapshots and storing them in the database.
     """
     def setUp(self):
-        # setup db
-        # create author
-        # setup stashdir
-        # setup magicpath dir (the base directory for a particular magic folder)
-        # instantiate LocalSnapshotCreator
         super(LocalSnapshotCreatorTests, self).setUp()
-        self.db = magicfolderdb.get_magicfolderdb(":memory:", create_version=(magicfolderdb.SCHEMA_v1, 1))
         self.author = create_local_author("alice")
-
-        self.stash_dir = self.mktemp()
-        os.mkdir(self.stash_dir)
-
-        magic_path_dirname = self.mktemp()
-        os.mkdir(magic_path_dirname)
-        self.magic_path = FilePath(magic_path_dirname)
-
-        self.snapshot_creator = LocalSnapshotCreator(
-            db=self.db,
-            author=self.author,
-            stash_dir=FilePath(self.stash_dir),
-        )
 
     def setup_example(self):
         """
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        # XXX: Not sure if this function should exist at all and even if
-        # so, it shouldn't exist in magicfolderdb module perhaps?
-        self.db._clear_snapshot_table()
+        self.temp = FilePath(self.mktemp())
+        self.global_db = create_global_configuration(
+            self.temp.child(b"global-db"),
+            u"tcp:12345",
+            self.temp.child(b"tahoe-node"),
+        )
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+        self.db = self.global_db.create_magic_folder(
+            u"some-folder",
+            self.magic,
+            self.temp.child(b"state"),
+            self.author,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            60,
+        )
+        self.snapshot_creator = LocalSnapshotCreator(
+            db=self.db,
+            author=self.author,
+            stash_dir=self.db.stash_path,
+        )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            data())
@@ -242,7 +242,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         """
         files = []
         for filename in filenames :
-            file = self.magic_path.child(filename)
+            file = self.magic.child(filename)
             content = data.draw(binary())
             file.asBytesMode("utf-8").setContent(content)
 
@@ -271,7 +271,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         If a snapshot already exists for a file, adding a new snapshot to it
         should refer to the existing snapshot as a parent.
         """
-        foo = self.magic_path.child(filename)
+        foo = self.magic.child(filename)
         foo.asBytesMode("utf-8").setContent(content1)
 
         # make sure the process_item() succeeds

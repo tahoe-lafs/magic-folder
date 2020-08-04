@@ -7,9 +7,6 @@ Implements the magic-folder join command.
 
 from twisted.python import usage
 
-from .common import (
-    INVITE_SEPARATOR
-)
 from .snapshot import (
     create_local_author,
 )

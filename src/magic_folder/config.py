@@ -27,6 +27,9 @@ from base64 import (
 
 from hyperlink import (
     DecodedURL,
+
+from functools import (
+    wraps,
 )
 
 import attr
@@ -53,6 +56,7 @@ from allmydata.uri import (
 
 from .snapshot import (
     LocalAuthor,
+    LocalSnapshot,
 )
 from .common import (
     atomic_makedirs,
@@ -67,6 +71,12 @@ from ._endpoint_parser import (
 class ConfigurationError(Exception):
     """
     The configuration is unusable for some reason
+    """
+
+
+class SnapshotNotFound(Exception):
+    """
+    No snapshot for a particular requested path was found.
     """
 
 
@@ -112,10 +122,8 @@ CREATE TABLE config
 
 CREATE TABLE local_snapshots
 (
-    id TEXT PRIMARY KEY,         -- identifier (hash of .. stuff)
-    name TEXT,                   -- the (mangled) name in UTF8
-    metadata TEXT,               -- arbitrary JSON metadata in UTF8
-    content_path TEXT            -- where the content is sitting (path, UTF8)
+    path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
+    snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
 );
 """
 ## XXX "parents_local" should be IDs of other local_snapshots, not
@@ -210,6 +218,24 @@ def load_global_configuration(basedir):
     )
 
 
+# XXX: with_cursor lacks unit tests, see:
+#      https://github.com/LeastAuthority/magic-folder/issues/173
+def with_cursor(f):
+    """
+    Decorate a function so it is automatically passed a cursor with an active
+    transaction as the first positional argument.  If the function returns
+    normally then the transaction will be committed.  Otherwise, the
+    transaction will be rolled back.
+    """
+    @wraps(f)
+    def with_cursor(self, *a, **kw):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            return f(self, cursor, *a, **kw)
+    return with_cursor
+
+
 @attr.s
 class MagicFolderConfig(object):
     """
@@ -218,40 +244,104 @@ class MagicFolderConfig(object):
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
 
-    def __attrs_post_init__(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            cursor.execute("SELECT version FROM version");
-            dbversion = cursor.fetchone()[0]
-            if dbversion != _magicfolder_config_version:
-                raise ConfigurationError(
-                    "Magic Folder '{}' has unknown configuration database "
-                    "version (wanted {}, got {})".format(
-                        self.name,
-                        _magicfolder_config_version,
-                        dbversion,
-                    )
+    @with_cursor
+    def __attrs_post_init__(self, cursor):
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        cursor.execute("SELECT version FROM version");
+        dbversion = cursor.fetchone()[0]
+        if dbversion != _magicfolder_config_version:
+            raise ConfigurationError(
+                "Magic Folder '{}' has unknown configuration database "
+                "version (wanted {}, got {})".format(
+                    self.name,
+                    _magicfolder_config_version,
+                    dbversion,
                 )
-
-    @property
-    def author(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT author_name, author_private_key FROM config");
-            name, keydata = cursor.fetchone()
-            return LocalAuthor(
-                name=name,
-                signing_key=SigningKey(keydata, encoder=Base32Encoder),
             )
 
     @property
-    def stash_path(self):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT stash_path FROM config");
-            path_raw = cursor.fetchone()[0]
-            return FilePath(path_raw)
+    @with_cursor
+    def author(self, cursor):
+        cursor.execute("SELECT author_name, author_private_key FROM config");
+        name, keydata = cursor.fetchone()
+        return LocalAuthor(
+            name=name,
+            signing_key=SigningKey(keydata, encoder=Base32Encoder),
+        )
+
+    @property
+    @with_cursor
+    def stash_path(self, cursor):
+        cursor.execute("SELECT stash_path FROM config");
+        path_raw = cursor.fetchone()[0]
+        return FilePath(path_raw)
+
+    @with_cursor
+    def get_local_snapshot(self, cursor, name, author):
+        """
+        return an instance of LocalSnapshot corresponding to
+        the given name and author. Traversing the parents
+        would give the entire history of local snapshots.
+
+        :param unicode name: magicpath that represents the relative path of the file.
+
+        :param author: an instance of LocalAuthor
+
+        :raise SnapshotNotFound: If there is no matching snapshot for the
+            given path.
+
+        :returns: An instance of LocalSnapshot for the given magicpath.
+        """
+        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if row:
+            return LocalSnapshot.from_json(row[0], author)
+        raise SnapshotNotFound(name)
+
+    @with_cursor
+    def store_local_snapshot(self, cursor, snapshot):
+        """
+        Store or update the given local snapshot.
+
+        :param LocalSnapshot snapshot: The snapshot to store.
+        """
+        # insert a new row or update an existing row with the new blob.
+        try:
+            cursor.execute(
+                """
+                INSERT INTO
+                    [local_snapshots] ([path], [snapshot_blob])
+                VALUES
+                    (?, ?)
+                """,
+                (snapshot.name, snapshot.to_json()),
+            )
+        except sqlite3.IntegrityError:
+            # There is already a row with the given path.  Once we can depend
+            # on a newer SQLite3 we can use an UPSERT instead.  Meanwhile,
+            cursor.execute(
+                """
+                UPDATE
+                    [local_snapshots]
+                SET
+                    [snapshot_blob] = ?
+                WHERE
+                    [path] = ?
+                """,
+                (snapshot.to_json(), snapshot.name),
+            )
+
+    @with_cursor
+    def get_all_localsnapshot_paths(self, cursor):
+        """
+        Retrieve a set of all relpaths of files that have had an entry in magic folder db
+        (i.e. that have been downloaded at least once).
+        """
+        cursor.execute("SELECT [path] FROM [local_snapshots]")
+        rows = cursor.fetchall()
+        return set(r[0] for r in rows)
 
     @property
     def magic_path(self):

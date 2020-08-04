@@ -1,4 +1,8 @@
 
+from io import (
+    BytesIO,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
@@ -9,6 +13,7 @@ from hypothesis import (
 from hypothesis.strategies import (
     one_of,
     just,
+    binary,
 )
 
 from testtools import (
@@ -19,6 +24,11 @@ from testtools.matchers import (
     NotEquals,
     Contains,
     MatchesStructure,
+    Always,
+    HasLength,
+)
+from testtools.twistedsupport import (
+    succeeded,
 )
 
 from hyperlink import (
@@ -35,9 +45,11 @@ from .fixtures import (
     NodeDirectory,
 )
 from .strategies import (
+    path_segments,
     path_segments_without_dotfiles,
     port_numbers,
     interfaces,
+    magic_folder_filenames,
 )
 from ..config import (
     endpoint_description_to_http_api_root,
@@ -47,6 +59,7 @@ from ..config import (
 )
 from ..snapshot import (
     create_local_author,
+    create_snapshot,
 )
 
 
@@ -320,3 +333,98 @@ class TestMagicFolderConfig(SyncTestCase):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
+
+
+class StoreLocalSnapshotTests(SyncTestCase):
+    """
+    Tests for the ``MagicFolderConfig`` APIs which store and load
+    ``LocalSnapshot`` objects.
+    """
+    def setUp(self):
+        super(StoreLocalSnapshotTests, self).setUp()
+        self.alice = create_local_author("alice")
+
+    def setup_example(self):
+        self.temp = FilePath(self.mktemp())
+        self.global_db = create_global_configuration(
+            self.temp.child(b"global-db"),
+            u"tcp:12345",
+            self.temp.child(b"tahoe-node"),
+        )
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+        self.db = self.global_db.create_magic_folder(
+            u"some-folder",
+            self.magic,
+            self.temp.child(b"state"),
+            self.alice,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            60,
+        )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, stash_subdir):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+        stash_dir = self.db.stash_path.child(stash_subdir.encode("utf-8"))
+        stash_dir.makedirs()
+
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data1,
+            snapshot_stash_dir=stash_dir,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        self.db.store_local_snapshot(snapshots[0])
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.alice,
+            data_producer=data2,
+            snapshot_stash_dir=stash_dir,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        self.db.store_local_snapshot(snapshots[1])
+
+        # now read back the serialized snapshot from db
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
+
+        self.assertThat(
+            reconstructed_local_snapshot,
+            MatchesStructure(
+                name=Equals(filename),
+                parents_local=HasLength(1)
+            )
+        )
+
+        # the initial snapshot does not have parent snapshots
+        self.assertThat(
+            reconstructed_local_snapshot.parents_local[0],
+            MatchesStructure(
+                parents_local=HasLength(0),
+            )
+        )
