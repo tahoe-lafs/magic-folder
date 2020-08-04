@@ -50,6 +50,9 @@ from .snapshot import (
     create_snapshot,
     LocalAuthor,
 )
+from .participants import (
+    participants_from_collective,
+)
 
 if six.PY3:
     long = int
@@ -352,10 +355,14 @@ class MagicFolder(service.MultiService):
         if database is None:
             raise Exception('ERROR: Unable to load magic folder db.')
 
+        upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
+        collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
+        participants = participants_from_collective(collective_dirnode, upload_dirnode)
+
         return cls(
             client=client_node,
-            upload_dircap=config["upload_dircap"],
-            collective_dircap=config["collective_dircap"],
+            upload_dirnode=upload_dirnode,
+            participants=participants,
             # XXX surely a better way for this local_path_u business
             local_path_u=abspath_expanduser_unicode(
                 local_dir_config,
@@ -368,7 +375,7 @@ class MagicFolder(service.MultiService):
             clock=reactor,
         )
 
-    def __init__(self, client, upload_dircap, collective_dircap, local_path_u, db, umask,
+    def __init__(self, client, upload_dirnode, participants, local_path_u, db, umask,
                  name, clock=None, downloader_delay=60):
         precondition_abspath(local_path_u)
         if not os.path.exists(local_path_u):
@@ -436,9 +443,7 @@ SCAN_REMOTE_COLLECTIVE = ActionType(
 
 _DMDS = Field(
     u"dmds",
-    # The children of the collective directory are the participant DMDs.  The
-    # keys in this dict give us the aliases of the participants.
-    lambda collective_directory_listing: collective_directory_listing.keys(),
+    lambda participants: list(participant.name for participant in participants),
     u"The (D)istributed (M)utable (D)irectories belonging to each participant are being scanned for changes.",
 )
 

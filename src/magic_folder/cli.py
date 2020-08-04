@@ -796,7 +796,7 @@ class ClientStandIn(object):
 
 
 @implementer(IDirectoryNode)
-@attr.s
+@attr.s(frozen=True)
 class Node(object):
     tahoe_client = attr.ib()
     uri = attr.ib()
@@ -843,7 +843,7 @@ class Node(object):
             )
             return d.addActionFinish()
 
-@attr.s
+@attr.s(frozen=True)
 class TahoeClient(object):
     node_uri = attr.ib()
     agent = attr.ib()
