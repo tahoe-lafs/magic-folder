@@ -215,3 +215,21 @@ def header_contains(header_dict):
         lambda headers: dict(headers.getAllRawHeaders()),
         ContainsDict(header_dict),
     )
+
+
+def provides(*interfaces):
+    """
+    Match an object that provides all of the given interfaces.
+
+    :param InterfaceClass *interfaces: The required interfaces.
+
+    :return: A matcher.
+    """
+    return MatchesAll(*list(
+        MatchesPredicate(
+            lambda obj, iface=iface: iface.providedBy(obj),
+            "%s does not provide {!r}".format(iface),
+        )
+        for iface
+        in interfaces
+    ))

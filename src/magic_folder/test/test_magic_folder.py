@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 import os, sys, time
-import stat, shutil
-from os.path import join, exists, isdir
+import stat
+from os.path import join, isdir
 from errno import ENOENT
 
 from twisted.internet import reactor
@@ -14,10 +14,9 @@ from eliot import (
     start_action,
 )
 
-from allmydata.util import configutil, yamlutil
+from allmydata.util import yamlutil
 from allmydata.util.encodingutil import to_filepath
 
-from allmydata.util.fileutil import get_pathinfo
 from allmydata.util.fileutil import abspath_expanduser_unicode
 
 from eliot.twisted import (
@@ -31,15 +30,9 @@ from magic_folder.util.eliotutil import (
 from magic_folder.magic_folder import (
     ConfigurationError,
     load_magic_folders,
-    maybe_upgrade_magic_folders,
-    _upgrade_magic_folder_config,
 )
 from ..util import (
     fake_inotify,
-)
-
-from .. import (
-    magicfolderdb,
 )
 
 from .common import (
@@ -284,275 +277,6 @@ class NewConfigUtilTests(SyncTestCase):
             "missing 'poll_interval'",
             str(ctx.exception)
         )
-
-
-class LegacyConfigUtilTests(SyncTestCase):
-
-    def setUp(self):
-        # create a valid 'old style' magic-folder configuration
-        self.basedir = abspath_expanduser_unicode(unicode(self.mktemp()))
-        os.mkdir(self.basedir)
-        self.local_dir = abspath_expanduser_unicode(unicode(self.mktemp()))
-        os.mkdir(self.local_dir)
-        privdir = join(self.basedir, "private")
-        os.mkdir(privdir)
-
-        # state tests might need to know
-        self.poll_interval = 60
-        self.collective_dircap = u"a" * 32
-        self.magic_folder_dircap = u"b" * 32
-
-        # write fake config structure
-        with open(join(self.basedir, u"tahoe.cfg"), "w") as f:
-            f.write(
-                u"[magic_folder]\n"
-                u"enabled = True\n"
-                u"local.directory = {}\n"
-                u"poll_interval = {}\n".format(
-                    self.local_dir,
-                    self.poll_interval,
-                )
-            )
-        with open(join(privdir, "collective_dircap"), "w") as f:
-            f.write("{}\n".format(self.collective_dircap))
-        with open(join(privdir, "magic_folder_dircap"), "w") as f:
-            f.write("{}\n".format(self.magic_folder_dircap))
-        with open(join(privdir, "magicfolderdb.sqlite"), "w") as f:
-            pass
-        return super(LegacyConfigUtilTests, self).setUp()
-
-    def test_load_legacy_no_dir(self):
-        expected = self.local_dir + 'foo'
-        with open(join(self.basedir, u"tahoe.cfg"), "w") as f:
-            f.write(
-                u"[magic_folder]\n"
-                u"enabled = True\n"
-                u"local.directory = {}\n"
-                u"poll_interval = {}\n".format(
-                    expected,
-                    self.poll_interval,
-                )
-            )
-
-        load_magic_folders(self.basedir)
-
-        self.assertTrue(
-            isdir(expected),
-            "magic-folder local directory {} was not created".format(
-                expected,
-            ),
-        )
-
-    def test_load_legacy_not_a_dir(self):
-        with open(join(self.basedir, u"tahoe.cfg"), "w") as f:
-            f.write(
-                u"[magic_folder]\n"
-                u"enabled = True\n"
-                u"local.directory = {}\n"
-                u"poll_interval = {}\n".format(
-                    self.local_dir + "foo",
-                    self.poll_interval,
-                )
-            )
-        with open(self.local_dir + "foo", "w") as f:
-            f.write("not a directory")
-
-        with self.assertRaises(ConfigurationError) as ctx:
-            load_magic_folders(self.basedir)
-        self.assertIn(
-            "is not a directory",
-            str(ctx.exception)
-        )
-
-    def test_load_legacy_and_new(self):
-        with open(join(self.basedir, u"private", u"magic_folders.yaml"), "w") as f:
-            f.write("---")
-
-        with self.assertRaises(Exception) as ctx:
-            load_magic_folders(self.basedir)
-        self.assertIn(
-            "both old-style configuration and new-style",
-            str(ctx.exception)
-        )
-
-    def test_upgrade(self):
-        # test data is created in setUp; upgrade config
-        _upgrade_magic_folder_config(self.basedir)
-
-        # ensure old stuff is gone
-        self.assertFalse(
-            exists(join(self.basedir, "private", "collective_dircap"))
-        )
-        self.assertFalse(
-            exists(join(self.basedir, "private", "magic_folder_dircap"))
-        )
-        self.assertFalse(
-            exists(join(self.basedir, "private", "magicfolderdb.sqlite"))
-        )
-
-        # ensure we've got the new stuff
-        self.assertTrue(
-            exists(join(self.basedir, "private", "magicfolder_default.sqlite"))
-        )
-        # what about config?
-        config = configutil.get_config(join(self.basedir, u"tahoe.cfg"))
-        self.assertFalse(config.has_option("magic_folder", "local.directory"))
-
-    def test_load_legacy(self):
-        folders = load_magic_folders(self.basedir)
-
-        self.assertEqual(['default'], list(folders.keys()))
-        self.assertTrue(
-            exists(join(self.basedir, "private", "collective_dircap"))
-        )
-        self.assertTrue(
-            exists(join(self.basedir, "private", "magic_folder_dircap"))
-        )
-        self.assertTrue(
-            exists(join(self.basedir, "private", "magicfolderdb.sqlite"))
-        )
-
-    def test_load_legacy_upgrade(self):
-        maybe_upgrade_magic_folders(self.basedir)
-        folders = load_magic_folders(self.basedir)
-
-        self.assertEqual(['default'], list(folders.keys()))
-        # 'legacy' files should be gone
-        self.assertFalse(
-            exists(join(self.basedir, "private", "collective_dircap"))
-        )
-        self.assertFalse(
-            exists(join(self.basedir, "private", "magic_folder_dircap"))
-        )
-        self.assertFalse(
-            exists(join(self.basedir, "private", "magicfolderdb.sqlite"))
-        )
-
-
-
-class MagicFolderDbTests(SyncTestCase):
-
-    def setUp(self):
-        self.temp = abspath_expanduser_unicode(unicode(self.mktemp()))
-        os.mkdir(self.temp)
-        self.addCleanup(lambda: shutil.rmtree(self.temp))
-        dbfile = abspath_expanduser_unicode(u"testdb.sqlite", base=self.temp)
-        self.db = magicfolderdb.get_magicfolderdb(dbfile, create_version=(magicfolderdb.SCHEMA_v1, 1))
-        self.addCleanup(lambda: self.db.close())
-        self.failUnless(self.db, "unable to create magicfolderdb from %r" % (dbfile,))
-        self.failUnlessEqual(self.db.VERSION, 1)
-        return super(MagicFolderDbTests, self).setUp()
-
-    def test_create(self):
-        self.db.did_upload_version(
-            relpath_u=u'fake_path',
-            version=0,
-            last_uploaded_uri=None,
-            last_downloaded_uri='URI:foo',
-            last_downloaded_timestamp=1234.5,
-            pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
-        )
-
-        entry = self.db.get_db_entry(u'fake_path')
-        self.assertTrue(entry is not None)
-        self.assertEqual(entry.last_downloaded_uri, 'URI:foo')
-
-    def test_update(self):
-        self.db.did_upload_version(
-            relpath_u=u'fake_path',
-            version=0,
-            last_uploaded_uri=None,
-            last_downloaded_uri='URI:foo',
-            last_downloaded_timestamp=1234.5,
-            pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
-        )
-        self.db.did_upload_version(
-            relpath_u=u'fake_path',
-            version=1,
-            last_uploaded_uri=None,
-            last_downloaded_uri='URI:bar',
-            last_downloaded_timestamp=1234.5,
-            pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
-        )
-
-        entry = self.db.get_db_entry(u'fake_path')
-        self.assertTrue(entry is not None)
-        self.assertEqual(entry.last_downloaded_uri, 'URI:bar')
-        self.assertEqual(entry.version, 1)
-
-    def test_same_content_different_path(self):
-        content_uri = 'URI:CHK:27d2yruqwk6zb2w7hkbbfxxbue:ipmszjysmn4vdeaxz7rtxtv3gwv6vrqcg2ktrdmn4oxqqucltxxq:2:4:1052835840'
-        self.db.did_upload_version(
-            relpath_u=u'path0',
-            version=0,
-            last_uploaded_uri=None,
-            last_downloaded_uri=content_uri,
-            last_downloaded_timestamp=1234.5,
-            pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
-        )
-        self.db.did_upload_version(
-            relpath_u=u'path1',
-            version=0,
-            last_uploaded_uri=None,
-            last_downloaded_uri=content_uri,
-            last_downloaded_timestamp=1234.5,
-            pathinfo=get_pathinfo(self.temp),  # a directory, but should be fine for test
-        )
-
-        entry = self.db.get_db_entry(u'path0')
-        self.assertTrue(entry is not None)
-        self.assertEqual(entry.last_downloaded_uri, content_uri)
-
-        entry = self.db.get_db_entry(u'path1')
-        self.assertTrue(entry is not None)
-        self.assertEqual(entry.last_downloaded_uri, content_uri)
-
-    def test_get_direct_children(self):
-        """
-        ``get_direct_children`` returns a list of ``PathEntry`` representing each
-        local file in the database which is a direct child of the given path.
-        """
-        def add_file(relpath_u):
-            self.db.did_upload_version(
-                relpath_u=relpath_u,
-                version=0,
-                last_uploaded_uri=None,
-                last_downloaded_uri=None,
-                last_downloaded_timestamp=1234,
-                pathinfo=get_pathinfo(self.temp),
-            )
-        paths = [
-            u"some_random_file",
-            u"the_target_directory_is_elsewhere",
-            u"the_target_directory_is_not_this/",
-            u"the_target_directory_is_not_this/and_not_in_here",
-            u"the_target_directory/",
-            u"the_target_directory/foo",
-            u"the_target_directory/bar",
-            u"the_target_directory/baz",
-            u"the_target_directory/quux/",
-            u"the_target_directory/quux/exclude_grandchildren",
-            u"the_target_directory/quux/and_great_grandchildren/",
-            u"the_target_directory/quux/and_great_grandchildren/foo",
-            u"the_target_directory_is_over/stuff",
-            u"please_ignore_this_for_sure",
-        ]
-        for relpath_u in paths:
-            add_file(relpath_u)
-
-        expected_paths = [
-            u"the_target_directory/foo",
-            u"the_target_directory/bar",
-            u"the_target_directory/baz",
-            u"the_target_directory/quux/",
-        ]
-
-        actual_paths = list(
-            localpath.relpath_u
-            for localpath
-            in self.db.get_direct_children(u"the_target_directory")
-        )
-        self.assertEqual(expected_paths, actual_paths)
 
 
 @inline_callbacks
