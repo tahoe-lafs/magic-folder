@@ -12,7 +12,6 @@ from twisted.internet import defer, reactor
 from twisted.python import runtime
 from twisted.application import service
 from twisted.internet import task
-from twisted.python.failure import Failure
 
 from zope.interface import implementer
 from twisted.internet.defer import (
@@ -25,7 +24,6 @@ from eliot import (
     ActionType,
     MessageType,
     write_traceback,
-    write_failure,
 )
 
 from allmydata.util import (
@@ -1047,7 +1045,5 @@ class UploaderService(service.Service):
                     NO_NETWORK.log()
                     continue
                 except Exception:
-                    # all other exceptions, pass on upstream
-                    proc = Failure()
-                    write_failure(proc)
+                    write_traceback()
 

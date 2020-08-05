@@ -3,8 +3,7 @@ import attr
 from tempfile import mktemp
 
 from testtools.matchers import (
-    AfterPreprocessing,
-    Always,
+    MatchesPredicate,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -157,7 +156,8 @@ class UploaderServiceTests(SyncTestCase):
         self.assertThat(
             d,
             succeeded(
-                AfterPreprocessing(is_uri, Always()),
+                MatchesPredicate(is_uri,
+                                 "%s is not a Tahoe-LAFS URI"),
             ),
         )
 
