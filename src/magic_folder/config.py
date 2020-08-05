@@ -62,10 +62,12 @@ from ._endpoint_parser import (
 
 from eliot import (
     ActionType,
+    Field,
 )
 
 from .util.eliotutil import (
     RELPATH,
+    validateSetMembership,
 )
 
 class ConfigurationError(Exception):
@@ -140,6 +142,13 @@ DELETE_SNAPSHOTS = ActionType(
     [RELPATH],
     [],
     u"Delete the row corresponding to the given path from the local snapshot table.",
+)
+
+_INSERT_OR_UPDATE = Field.for_types(
+    u"insert_or_update",
+    [unicode],
+    u"An indication of whether the record for this upload was new or an update to a previous entry.",
+    validateSetMembership({u"insert", u"update"}),
 )
 
 STORE_OR_UPDATE_SNAPSHOTS = ActionType(
@@ -370,10 +379,9 @@ class MagicFolderConfig(object):
             cursor.execute("DELETE FROM local_snapshots"
                            " WHERE path=?",
                            (path,))
-            self.connection.commit()
 
     @with_cursor
-    def store_remotesnapshot(self, cursor, name, remote_snapshot_cap):
+    def store_remotesnapshot(self, cursor, path, remote_snapshot_cap):
         """
         Store or update the given remote snapshot cap for the
         given the magicpath of the file (mangled file path).
@@ -383,22 +391,21 @@ class MagicFolderConfig(object):
         :param unicode snapshot_cap: A Tahoe-LAFS dir cap corresponding to the
             RemoteSnapshot for the file.
         """
-        action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=path,
-        )
-        with action:
-            try:
-                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
-                               (path, snapshot_cap))
-                action.add_success_fields(insert_or_update=u"insert")
-            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
-                cursor.execute("UPDATE remote_snapshots"
-                               " SET snapshot_cap=?"
-                               " WHERE path=?",
-                               (snapshot_cap, path))
-                action.add_success_fields(insert_or_update=u"update")
-            self.connection.commit()
-
+        # action = STORE_OR_UPDATE_SNAPSHOTS(
+        #     relpath=path,
+        # )
+        # with action:
+        #     try:
+        #         cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+        #                        (path, snapshot_cap))
+        #         action.add_success_fields(insert_or_update=u"insert")
+        #     except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+        #         cursor.execute("UPDATE remote_snapshots"
+        #                        " SET snapshot_cap=?"
+        #                        " WHERE path=?",
+        #                        (snapshot_cap, path))
+        #         action.add_success_fields(insert_or_update=u"update")
+        pass
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
@@ -411,16 +418,16 @@ class MagicFolderConfig(object):
         :returns: An unicode string that represents the RemoteSnapshot cap.
         """
         # XXX: eliot logging
-        cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
-                       " WHERE path=?",
-                       (name,))
-        row = cursor.fetchone()
-        if not row:
-            return None
-        else:
-            return row[0]
-
-
+        # cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+        #                " WHERE path=?",
+        #                (name,))
+        # row = cursor.fetchone()
+        # if not row:
+        #     # XXX: return an exception?
+        #     return None
+        # else:
+        #     return row[0]
+        pass
 @attr.s
 class GlobalConfigDatabase(object):
     """
