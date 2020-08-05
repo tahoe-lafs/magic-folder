@@ -180,4 +180,4 @@ class UploaderServiceTests(SyncTestCase):
             ),
         )
 
-        self.uploader_service.stopService()
+        self.addCleanup(self.uploader_service.stopService)
