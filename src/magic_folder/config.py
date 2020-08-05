@@ -60,6 +60,13 @@ from ._endpoint_parser import (
     endpoint_description_to_http_api_root,
 )
 
+from eliot import (
+    ActionType,
+)
+
+from .util.eliotutil import (
+    RELPATH,
+)
 
 class ConfigurationError(Exception):
     """
@@ -127,6 +134,13 @@ CREATE TABLE remote_snapshots
 """
 ## XXX "parents_local" should be IDs of other local_snapshots, not
 ## sure how to do that w/o docs here
+
+DELETE_SNAPSHOTS = ActionType(
+    u"magic-folder-db:delete-local-snapshot-entry",
+    [RELPATH],
+    [],
+    u"Delete the row corresponding to the given path from the local snapshot table.",
+)
 
 
 def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
@@ -339,9 +353,18 @@ class MagicFolderConfig(object):
     @with_cursor
     def delete_localsnapshot(self, cursor, path):
         """
-        remote the row corresponding to the given path from the local_snapshots table
+        remove the row corresponding to the given path from the local_snapshots table
+
+        :param unicode path: Unicode string that represents the relative path of the file.
         """
-        pass
+        action = DELETE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            cursor.execute("DELETE FROM local_snapshots"
+                           " WHERE path=?",
+                           (path,))
+            self.connection.commit()
 
     @with_cursor
     def store_remotesnapshot(self, cursor, name, remote_snapshot_cap):
