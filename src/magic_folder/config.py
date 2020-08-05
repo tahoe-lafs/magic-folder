@@ -381,31 +381,30 @@ class MagicFolderConfig(object):
                            (path,))
 
     @with_cursor
-    def store_remotesnapshot(self, cursor, path, remote_snapshot_cap):
+    def store_remotesnapshot(self, cursor, path, remote_snapshot):
         """
         Store or update the given remote snapshot cap for the
         given the magicpath of the file (mangled file path).
 
         :param unicode path: mangled path corresponding to the relpath of their
             file in a particular folder.
-        :param unicode snapshot_cap: A Tahoe-LAFS dir cap corresponding to the
-            RemoteSnapshot for the file.
+        :param RemoteSnapshot snapshot: RemoteSnapshot instance
         """
-        # action = STORE_OR_UPDATE_SNAPSHOTS(
-        #     relpath=path,
-        # )
-        # with action:
-        #     try:
-        #         cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
-        #                        (path, snapshot_cap))
-        #         action.add_success_fields(insert_or_update=u"insert")
-        #     except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
-        #         cursor.execute("UPDATE remote_snapshots"
-        #                        " SET snapshot_cap=?"
-        #                        " WHERE path=?",
-        #                        (snapshot_cap, path))
-        #         action.add_success_fields(insert_or_update=u"update")
-        pass
+        snapshot_cap = remote_snapshot.capability
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            try:
+                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+                               (path, snapshot_cap))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (sqlite3.IntegrityError, sqlite3.OperationalError):
+                cursor.execute("UPDATE remote_snapshots"
+                               " SET snapshot_cap=?"
+                               " WHERE path=?",
+                               (snapshot_cap, path))
+                action.add_success_fields(insert_or_update=u"update")
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
@@ -418,16 +417,16 @@ class MagicFolderConfig(object):
         :returns: An unicode string that represents the RemoteSnapshot cap.
         """
         # XXX: eliot logging
-        # cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
-        #                " WHERE path=?",
-        #                (name,))
-        # row = cursor.fetchone()
-        # if not row:
-        #     # XXX: return an exception?
-        #     return None
-        # else:
-        #     return row[0]
-        pass
+        cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if not row:
+            # XXX: return an exception?
+            return None
+        else:
+            return row[0]
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
