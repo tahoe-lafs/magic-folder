@@ -425,7 +425,8 @@ class MagicFolderConfig(object):
             # XXX: return an exception?
             return None
         else:
-            return row[0]
+            # coerce capability strings to a bytestring
+            return row[0].encode('utf-8')
 
 @attr.s
 class GlobalConfigDatabase(object):
