@@ -226,7 +226,7 @@ class SnapshotStoreTests(SyncTestCase):
             u"URI:DIR2:ccc:ddd",
             60,
         )
-        self.snapshot_creator = LocalSnapshotCreator(
+        self.snapshot_creator = SnapshotStore(
             db=self.db,
             author=self.author,
             stash_dir=self.db.stash_path,
