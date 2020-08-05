@@ -136,7 +136,7 @@ CREATE TABLE remote_snapshots
 ## sure how to do that w/o docs here
 
 DELETE_SNAPSHOTS = ActionType(
-    u"magic-folder-db:delete-local-snapshot-entry",
+    u"config:state-db:delete-local-snapshot-entry",
     [RELPATH],
     [],
     u"Delete the row corresponding to the given path from the local snapshot table.",
