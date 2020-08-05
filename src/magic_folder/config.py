@@ -118,6 +118,12 @@ CREATE TABLE local_snapshots
     path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
     snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
 );
+
+CREATE TABLE remote_snapshots
+(
+    path          TEXT PRIMARY KEY, -- mangled name in UTF-8
+    snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
+);
 """
 ## XXX "parents_local" should be IDs of other local_snapshots, not
 ## sure how to do that w/o docs here
@@ -329,6 +335,28 @@ class MagicFolderConfig(object):
         cursor.execute("SELECT [path] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
+
+    @with_cursor
+    def delete_localsnapshot(self, cursor, path):
+        """
+        remote the row corresponding to the given path from the local_snapshots table
+        """
+        pass
+
+    @with_cursor
+    def store_remotesnapshot(self, cursor, name, remote_snapshot_cap):
+        """
+        Store the given capability against the given name in the remote_snapshots table
+        """
+        pass
+
+    @with_cursor
+    def get_remotesnapshot(self, cursor, name):
+        """
+        returns the capability that represents the remote snapshot for the given
+        name.
+        """
+        pass
 
 
 @attr.s
