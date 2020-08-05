@@ -142,6 +142,12 @@ DELETE_SNAPSHOTS = ActionType(
     u"Delete the row corresponding to the given path from the local snapshot table.",
 )
 
+STORE_OR_UPDATE_SNAPSHOTS = ActionType(
+    u"config:state-db:update-snapshot-entry",
+    [RELPATH],
+    [_INSERT_OR_UPDATE],
+    u"Persist local snapshot object of a relative path in the magic-folder db.",
+)
 
 def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
     """
@@ -369,17 +375,50 @@ class MagicFolderConfig(object):
     @with_cursor
     def store_remotesnapshot(self, cursor, name, remote_snapshot_cap):
         """
-        Store the given capability against the given name in the remote_snapshots table
+        Store or update the given remote snapshot cap for the
+        given the magicpath of the file (mangled file path).
+
+        :param unicode path: mangled path corresponding to the relpath of their
+            file in a particular folder.
+        :param unicode snapshot_cap: A Tahoe-LAFS dir cap corresponding to the
+            RemoteSnapshot for the file.
         """
-        pass
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            try:
+                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+                               (path, snapshot_cap))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (self.sqlite_module.IntegrityError, self.sqlite_module.OperationalError):
+                cursor.execute("UPDATE remote_snapshots"
+                               " SET snapshot_cap=?"
+                               " WHERE path=?",
+                               (snapshot_cap, path))
+                action.add_success_fields(insert_or_update=u"update")
+            self.connection.commit()
+
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
         """
-        returns the capability that represents the remote snapshot for the given
-        name.
+        return the cap that represents the latest remote snapshot that
+        the client has recorded in the db.
+
+        :param str name: magicpath that represents the relative path of the file.
+
+        :returns: An unicode string that represents the RemoteSnapshot cap.
         """
-        pass
+        # XXX: eliot logging
+        cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+                       " WHERE path=?",
+                       (name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        else:
+            return row[0]
 
 
 @attr.s
