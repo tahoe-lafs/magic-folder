@@ -23,7 +23,10 @@ from hyperlink import (
 from ..magic_folder import (
     UploaderService,
 )
-from magic_folder.snapshot import (
+from ..config import (
+    create_global_configuration,
+)
+from ..snapshot import (
     create_local_author,
     create_snapshot,
 )
@@ -97,11 +100,7 @@ class UploaderServiceTests(SyncTestCase):
     """
     def setUp(self):
         super(UploaderServiceTests, self).setUp()
-        self.magic_path = FilePath(self.mktemp())
-        self.magic_path.makedirs()
         self.author = create_local_author("alice")
-        self.stash_dir = FilePath(mktemp())
-        self.stash_dir.makedirs()
 
     def setup_example(self):
         """
@@ -113,16 +112,36 @@ class UploaderServiceTests(SyncTestCase):
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
-        self.snapshot_store = MemorySnapshotStore()
+
+        self.temp = FilePath(self.mktemp())
+        self.global_db = create_global_configuration(
+            self.temp.child(b"global-db"),
+            u"tcp:12345",
+            self.temp.child(b"tahoe-node"),
+        )
+        self.magic_path = self.temp.child(b"magic")
+        self.magic_path.makedirs()
+        self.state_db = self.global_db.create_magic_folder(
+            u"some-folder",
+            self.magic_path,
+            self.temp.child(b"state"),
+            self.author,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            60,
+        )
+
         self.uploader_service = UploaderService(
-            snapshot_store=self.snapshot_store,
+            state_db=self.state_db,
             local_author = self.author,
             tahoe_client=self.tahoe_client,
             clock=reactor,
             polling_interval=1,
         )
 
-    @given(path_segments(), binary())
+    @given(name=path_segments(),
+           content=binary(),
+    )
     def test_commit_a_file(self, name, content):
         """
         Add a file into localsnapshot store, start the service which
@@ -137,12 +156,12 @@ class UploaderServiceTests(SyncTestCase):
             name=name,
             author=self.author,
             data_producer=data,
-            snapshot_stash_dir=self.stash_dir,
+            snapshot_stash_dir=self.state_db.stash_path,
             parents=[],
         )
 
         # push LocalSnapshot object into the SnapshotStore.
-        d.addCallback(self.snapshot_store.store_local_snapshot)
+        d.addCallback(self.state_db.store_local_snapshot)
 
         # start Uploader Service
         self.uploader_service.startService()
@@ -150,7 +169,7 @@ class UploaderServiceTests(SyncTestCase):
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         d.addCallback(lambda _unused:
-                      self.snapshot_store.get_remote_snapshot_cap(name))
+                      self.state_db.get_remotesnapshot(name))
 
         # test whether we got a capability
         self.assertThat(
