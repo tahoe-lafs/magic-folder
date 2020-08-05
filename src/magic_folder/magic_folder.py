@@ -46,15 +46,7 @@ from allmydata.util.fileutil import (
 )
 from allmydata.util.encodingutil import to_filepath
 
-from . import (
-    magicpath,
-)
-from .config import (
-    SnapshotNotFound,
-)
 from .snapshot import (
-    create_snapshot,
-    LocalAuthor,
     write_snapshot_to_tahoe,
 )
 from .participants import (

@@ -1,6 +1,5 @@
 import io
 import attr
-from tempfile import mktemp
 
 from testtools.matchers import (
     MatchesPredicate,
