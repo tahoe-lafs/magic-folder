@@ -172,6 +172,14 @@ class UploaderServiceTests(SyncTestCase):
 
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
+
+        # XXX: There is a race condition here. We are checking for a
+        # remotesnapshot in the db immediately. This works only
+        # because we started the service just above this function. Had
+        # it been running for a while, then we would have to wait for
+        # at the most the polling interval + some processing time for
+        # the db to appear on the database.
+
         d.addCallback(lambda _unused:
                       self.state_db.get_remotesnapshot(name))
 

@@ -422,7 +422,6 @@ class MagicFolderConfig(object):
                        (name,))
         row = cursor.fetchone()
         if not row:
-            # XXX: return an exception?
             return None
         else:
             # coerce capability strings to a bytestring
