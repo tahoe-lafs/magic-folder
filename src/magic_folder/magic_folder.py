@@ -939,7 +939,7 @@ class UploaderService(service.Service):
     _tahoe_client = attr.ib()
     _clock = attr.ib()
     _polling_interval = attr.ib() # in GlobalConfigdatabase
-    _remote_snapshot_creator = attr.ib(validator=attr.validators(RemoteSnapshotCreator))
+    _remote_snapshot_creator = attr.ib(validator=attr.validators.instance_of(RemoteSnapshotCreator))
 
     def startService(self):
 
