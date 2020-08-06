@@ -58,6 +58,14 @@ class SchemaUpgrade(object):
     statements = attr.ib(validator=attr.validators.instance_of(list))
 
     def run(self, cursor):
+        """
+        Execute this upgrade against the given cursor.
+
+        This method does no transaction management.  It uses the cursor in
+        whatever state it is in.
+
+        :param cursor: A DB-API cursor to use to run the SQL.
+        """
         for statement in self.statements:
             cursor.execute(statement)
         cursor.execute(_INCREMENT_VERSION)
