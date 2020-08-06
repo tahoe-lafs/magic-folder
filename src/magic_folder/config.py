@@ -163,11 +163,12 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
 
     # set up the configuration database
     db_fname = basedir.child(b"global.sqlite")
-    connection = sqlite3.connect(db_fname.path)
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(db_fname.path),
+    )
     with connection:
         cursor = connection.cursor()
-        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-        _global_config_schema.run_upgrades(cursor)
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory) VALUES (?, ?)",
             (api_endpoint, tahoe_node_directory.path)
@@ -195,7 +196,10 @@ def load_global_configuration(basedir):
             "'{}' doesn't exist".format(basedir.path)
         )
     db_fname = basedir.child("global.sqlite")
-    connection = sqlite3.connect(db_fname.path)
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(db_fname.path),
+    )
     return GlobalConfigDatabase(
         database=connection,
         api_token_path=basedir.child("api_token"),
@@ -218,6 +222,24 @@ def with_cursor(f):
             cursor.execute("BEGIN IMMEDIATE TRANSACTION")
             return f(self, cursor, *a, **kw)
     return with_cursor
+
+
+def _upgraded(schema, connection):
+    """
+    Return ``connection`` fully upgraded according to ``schema``.
+
+    :param Schema schema: The schema to use to perform any necessary upgrades.
+
+    :param sqlite3.Connection connection: The database connection to possibly
+        upgrade.
+
+    :return: ``connection`` after possibly upgrading its schema.
+    """
+    with connection:
+        cursor = connection.cursor()
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        schema.run_upgrades(cursor)
+    return connection
 
 
 @attr.s
@@ -321,10 +343,6 @@ class GlobalConfigDatabase(object):
     database = attr.ib()  # sqlite3 Connection; needs validator
     api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
     _api_token = attr.ib(default=None)
-
-    @with_cursor
-    def __attrs_post_init__(self, cursor):
-        _global_config_schema.run_upgrades(cursor)
 
     @property
     def api_token(self):
