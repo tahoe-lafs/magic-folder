@@ -158,22 +158,6 @@ class TestGlobalConfig(SyncTestCase):
             Equals("tcp:42")
         )
 
-    def test_database_wrong_version(self):
-        """
-        ``load_global_configuration`` raises ``ConfigurationError`` if asked to
-        load a database that has a version other than ``1``.
-        """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
-        # make the version "0", which will never happen for real
-        # because we'll keep incrementing the version from 1
-        db_fname = self.temp.child("global.sqlite")
-        with sqlite3.connect(db_fname.path) as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE version SET version=?", (0, ))
-
-        with ExpectedException(ConfigurationError):
-            load_global_configuration(self.temp)
-
 
 class EndpointDescriptionConverterTests(SyncTestCase):
     """
