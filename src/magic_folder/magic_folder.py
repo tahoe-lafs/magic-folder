@@ -743,7 +743,7 @@ class LocalSnapshotCreator(object):
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
     """
-    _state_db = attr.ib()  # our database
+    _db = attr.ib()  # our database
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
@@ -760,7 +760,7 @@ class LocalSnapshotCreator(object):
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
             try:
-                parent_snapshot = self._state_db.get_local_snapshot(mangled_name, self._author)
+                parent_snapshot = self._db.get_local_snapshot(mangled_name, self._author)
             except SnapshotNotFound:
                 parents = []
             else:
@@ -784,7 +784,7 @@ class LocalSnapshotCreator(object):
                 )
 
                 # store the local snapshot to the disk
-                self._state_db.store_local_snapshot(snapshot)
+                self._db.store_local_snapshot(snapshot)
 
 @attr.s
 @implementer(service.IService)
