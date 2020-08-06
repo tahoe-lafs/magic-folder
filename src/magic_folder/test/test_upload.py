@@ -1,5 +1,4 @@
 import io
-import attr
 
 from testtools.matchers import (
     MatchesPredicate,
@@ -37,9 +36,7 @@ from .common import (
 from .strategies import (
     path_segments,
 )
-from eliot import (
-    Message,
-)
+
 from magic_folder.testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
