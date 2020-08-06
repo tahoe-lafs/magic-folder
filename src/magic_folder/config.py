@@ -444,7 +444,11 @@ class GlobalConfigDatabase(object):
                     "No Magic Folder named '{}'".format(name)
                 )
             name, location = data
-            connection = sqlite3.connect(FilePath(location).child("state.sqlite").path)
+            connection = _upgraded(
+                _magicfolder_config_schema,
+                sqlite3.connect(FilePath(location).child("state.sqlite").path),
+            )
+
             config = MagicFolderConfig(
                 name=name,
                 database=connection,
@@ -497,13 +501,13 @@ class GlobalConfigDatabase(object):
         stash_path = state_path.child("stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
-            connection = sqlite3.connect(db_path.path)
+            connection = _upgraded(
+                _magicfolder_config_schema,
+                sqlite3.connect(db_path.path),
+            )
             with connection:
                 cursor = connection.cursor()
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-                _magicfolder_config_schema.run_upgrades(cursor)
-
-                # default configuration values
                 cursor.execute(
                     """
                     INSERT INTO
@@ -533,6 +537,7 @@ class GlobalConfigDatabase(object):
             # add to the global config
             with self.database:
                 cursor = self.database.cursor()
+                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
                     (name, state_path.path)
