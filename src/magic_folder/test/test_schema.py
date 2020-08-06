@@ -16,6 +16,7 @@ from testtools import (
 )
 from testtools.matchers import (
     Equals,
+    MatchesStructure,
 )
 
 from hypothesis import (
@@ -33,6 +34,7 @@ from sqlite3 import (
 
 from .._schema import (
     MAXIMUM_UPGRADES,
+    DatabaseSchemaTooNew,
     SchemaUpgrade,
     Schema,
 )
@@ -54,8 +56,25 @@ class SchemaTests(TestCase):
         """
         with ExpectedException(ValueError):
             Schema(
-                upgrades=[SchemaUpgrade(["SELECT 1"])] * num_upgrades,
+                upgrades=dummy_upgrades(num_upgrades),
             )
+
+    @given(
+        integers(min_value=0, max_value=MAXIMUM_UPGRADES),
+    )
+    def test_version(self, num_upgrades):
+        """
+        ``Schema.version`` evaluates to the version that the schema itself
+        defines.
+        """
+        upgrades = dummy_upgrades(num_upgrades)
+        schema = Schema(upgrades=upgrades)
+        self.assertThat(
+            schema,
+            MatchesStructure(
+                version=Equals(num_upgrades),
+            ),
+        )
 
     @given(
         integers(min_value=0, max_value=MAXIMUM_UPGRADES),
@@ -65,7 +84,7 @@ class SchemaTests(TestCase):
         ``Schema.get_version`` returns the version number to which the schema has
         been upgraded.
         """
-        upgrades = [SchemaUpgrade(["SELECT 1"])] * num_upgrades
+        upgrades = dummy_upgrades(num_upgrades)
         schema = Schema(upgrades=upgrades)
 
         db = connect(":memory:")
@@ -75,6 +94,28 @@ class SchemaTests(TestCase):
             schema.get_version(cursor),
             Equals(num_upgrades),
         )
+
+    @given(
+        integers(min_value=0, max_value=MAXIMUM_UPGRADES),
+        integers(min_value=1, max_value=2 ** 63),
+    )
+    def test_database_newer_than_schema(self, num_upgrades, additional_versions):
+        """
+        ``Schema.run_upgrades`` raises ``ValueError`` if initialized with a schema
+        with a version that is less than the version recorded in the database.
+        """
+        schema = Schema(upgrades=dummy_upgrades(num_upgrades))
+        db = connect(":memory:")
+        cursor = db.cursor()
+
+        # Force version schema creation.
+        schema.get_version(cursor)
+
+        # Advance to a version newer than we have.
+        update_version(cursor, num_upgrades + additional_versions)
+
+        with ExpectedException(DatabaseSchemaTooNew):
+            schema.run_upgrades(cursor)
 
     @given(
         lists(
@@ -119,10 +160,7 @@ class SchemaTests(TestCase):
         schema.get_version(cursor)
 
         # Fast-forward to the state we're going to pretend the database is at.
-        cursor.execute(
-            "UPDATE [schema-version] SET [version] = ?",
-            (current_version,),
-        )
+        update_version(cursor, current_version)
 
         # Run whatever upgrades remain appropriate.
         schema.run_upgrades(cursor)
@@ -134,3 +172,14 @@ class SchemaTests(TestCase):
             selected_values,
             Equals(values[current_version:]),
         )
+
+
+def dummy_upgrades(count):
+    return [SchemaUpgrade(["SELECT 1"])] * count
+
+
+def update_version(cursor, new_version):
+    cursor.execute(
+        "UPDATE [schema-version] SET [version] = ?",
+        (new_version,),
+    )

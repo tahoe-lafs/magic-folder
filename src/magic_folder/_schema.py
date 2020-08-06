@@ -37,6 +37,17 @@ _READ_VERSION = (
 MAXIMUM_UPGRADES = 1000
 
 @attr.s(frozen=True)
+class DatabaseSchemaTooNew(Exception):
+    """
+    The schema in the database is newer than the Python schema representation.
+
+    This version of the software cannot use this version of the database.
+    """
+    software_version = attr.ib()
+    database_version = attr.ib()
+
+
+@attr.s(frozen=True)
 class SchemaUpgrade(object):
     """
     An upgrade from one schema version to the next.
@@ -61,6 +72,13 @@ class Schema(object):
         corresponding to the index of that element.
     """
     upgrades = attr.ib()
+
+    @property
+    def version(self):
+        """
+        Get the version number which identifies this particular schema.
+        """
+        return len(self.upgrades)
 
     @upgrades.validator
     def _validate_upgrades(self, attribute, value):
@@ -110,7 +128,13 @@ class Schema(object):
 
         :param cursor: A DB-API cursor to use to run the SQL.
         """
-        current_version = self.get_version(cursor)
-        upgrades = self.get_upgrades(current_version)
+        database_version = self.get_version(cursor)
+        if database_version > self.version:
+            raise DatabaseSchemaTooNew(
+                software_version=self.version,
+                database_version=database_version,
+            )
+
+        upgrades = self.get_upgrades(database_version)
         for upgrade in upgrades:
             upgrade.run(cursor)
