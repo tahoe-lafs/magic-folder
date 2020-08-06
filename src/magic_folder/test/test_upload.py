@@ -49,51 +49,6 @@ from magic_folder.tahoe_client import (
 )
 from allmydata.uri import is_uri
 
-@attr.s
-class MemorySnapshotStore(object):
-    """
-    A way to test Uploader Service with an in-memory database.
-
-    :ivar [FilePath] processed: All of the paths passed to ``process_item``,
-        in the order they were passed.
-    """
-    local_processed = attr.ib(default=attr.Factory(list))
-    remote_processed = attr.ib(default=attr.Factory(list))
-
-    def store_local_snapshot(self, snapshot):
-        Message.log(
-            message_type=u"memory-snapshot-store:store-local-snapshot",
-            path=snapshot.name,
-        )
-        name = snapshot.name
-        self.local_processed.append((name, snapshot))
-
-    def get_all_item_paths(self):
-        return map(
-            lambda name_snapshot_pair: name_snapshot_pair[0],
-            self.local_processed,
-        )
-
-    def get_local_snapshot(self, path, _unused):
-        for (name, snapshot) in self.local_processed:
-            if name is path:
-                return snapshot
-        return None
-
-    def remove_localsnapshot(self, path):
-        for p in self.local_processed:
-            (name, snapshot) = p
-            if name is path:
-                self.local_processed.remove(p)
-
-    def store_remote_snapshot(self, path, cap):
-        self.remote_processed.append((path, cap))
-
-    def get_remote_snapshot_cap(self, path):
-        for (p, remote_snapshot) in self.remote_processed:
-            if p is path:
-                return remote_snapshot.content_cap
-
 class UploaderServiceTests(SyncTestCase):
     """
     Tests for ``UploaderService``.
