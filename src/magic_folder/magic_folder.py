@@ -876,41 +876,9 @@ class LocalSnapshotService(service.Service):
         return d
 
 @attr.s
-@implementer(service.IService)
-class UploaderService(service.Service):
-    """
-    A service that periodically polls the database for local snapshots
-    and commit them into the grid.
-    """
+class RemoteSnapshotCreator(object):
     _state_db = attr.ib()
     _local_author = attr.ib()
-    _tahoe_client = attr.ib()
-    _clock = attr.ib()
-    _polling_interval = attr.ib()
-
-    def startService(self):
-
-        service.Service.startService(self)
-
-        # do a looping call that polls the db for LocalSnapshots.
-        self._processing_loop = task.LoopingCall(
-            self._upload_local_snapshots,
-            self._tahoe_client,
-        )
-        self._processing_loop.clock = self._clock
-        self._processing = self._processing_loop.start(self._polling_interval, now=True)
-
-    def stopService(self):
-        """
-        Stop the uploader service.
-        """
-        service.Service.stopService(self)
-        d = self._processing
-        self._processing_loop.stop()
-        self._processing = None
-        self._processing_loop = None
-        return d
-
 
     @eliotutil.inline_callbacks
     def _upload_local_snapshots(self, tahoe_client):
@@ -961,3 +929,37 @@ class UploaderService(service.Service):
                 except Exception:
                     write_traceback()
 
+@attr.s
+@implementer(service.IService)
+class UploaderService(service.Service):
+    """
+    A service that periodically polls the database for local snapshots
+    and commit them into the grid.
+    """
+    _tahoe_client = attr.ib()
+    _clock = attr.ib()
+    _polling_interval = attr.ib() # in GlobalConfigdatabase
+    _remote_snapshot_creator = attr.ib(validator=attr.validators(RemoteSnapshotCreator))
+
+    def startService(self):
+
+        service.Service.startService(self)
+
+        # do a looping call that polls the db for LocalSnapshots.
+        self._processing_loop = task.LoopingCall(
+            self._remote_snapshot_creator._upload_local_snapshots,
+            self._tahoe_client,
+        )
+        self._processing_loop.clock = self._clock
+        self._processing = self._processing_loop.start(self._polling_interval, now=True)
+
+    def stopService(self):
+        """
+        Stop the uploader service.
+        """
+        service.Service.stopService(self)
+        d = self._processing
+        self._processing_loop.stop()
+        self._processing = None
+        self._processing_loop = None
+        return d
