@@ -743,9 +743,9 @@ class LocalSnapshotCreator(object):
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
     """
-    db = attr.ib()  # our database
-    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
-    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _state_db = attr.ib()  # our database
+    _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @eliotutil.inline_callbacks
     def store_local_snapshot(self, path):
@@ -760,7 +760,7 @@ class LocalSnapshotCreator(object):
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
             try:
-                parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+                parent_snapshot = self._state_db.get_local_snapshot(mangled_name, self._author)
             except SnapshotNotFound:
                 parents = []
             else:
@@ -777,14 +777,14 @@ class LocalSnapshotCreator(object):
             with action:
                 snapshot = yield create_snapshot(
                     name=mangled_name,
-                    author=self.author,
+                    author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self.stash_dir,
+                    snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                 )
 
                 # store the local snapshot to the disk
-                self.db.store_local_snapshot(snapshot)
+                self._state_db.store_local_snapshot(snapshot)
 
 @attr.s
 @implementer(service.IService)
