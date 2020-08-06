@@ -21,6 +21,7 @@ from hyperlink import (
 )
 from ..magic_folder import (
     UploaderService,
+    RemoteSnapshotCreator,
 )
 from ..config import (
     create_global_configuration,
@@ -130,12 +131,16 @@ class UploaderServiceTests(SyncTestCase):
             60,
         )
 
-        self.uploader_service = UploaderService(
+        self.remote_snapshot_creator = RemoteSnapshotCreator(
             state_db=self.state_db,
             local_author = self.author,
+        )
+
+        self.uploader_service = UploaderService(
             tahoe_client=self.tahoe_client,
             clock=reactor,
             polling_interval=1,
+            remote_snapshot_creator=self.remote_snapshot_creator,
         )
 
     @given(name=path_segments(),
