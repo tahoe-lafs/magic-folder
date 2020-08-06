@@ -36,7 +36,7 @@ from eliot import (
 
 from ..magic_folder import (
     LocalSnapshotService,
-    SnapshotStore,
+    LocalSnapshotCreator,
 )
 from ..snapshot import (
     create_local_author,
@@ -195,13 +195,13 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always())
         )
 
-class SnapshotStoreTests(SyncTestCase):
+class LocalSnapshotCreatorTests(SyncTestCase):
     """
-    Tests for ``SnapshotStore``, responsible for creating the local
+    Tests for ``LocalSnapshotCreator``, responsible for creating the local
     snapshots and storing them in the database.
     """
     def setUp(self):
-        super(SnapshotStoreTests, self).setUp()
+        super(LocalSnapshotCreatorTests, self).setUp()
         self.author = create_local_author("alice")
 
     def setup_example(self):
@@ -226,7 +226,7 @@ class SnapshotStoreTests(SyncTestCase):
             u"URI:DIR2:ccc:ddd",
             60,
         )
-        self.snapshot_creator = SnapshotStore(
+        self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,
             author=self.author,
             stash_dir=self.db.stash_path,

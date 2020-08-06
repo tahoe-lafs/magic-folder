@@ -46,8 +46,16 @@ from allmydata.util.fileutil import (
 )
 from allmydata.util.encodingutil import to_filepath
 
+from . import (
+    magicpath,
+)
+from .config import (
+    SnapshotNotFound,
+)
 from .snapshot import (
     write_snapshot_to_tahoe,
+    create_snapshot,
+    LocalAuthor,
 )
 from .participants import (
     participants_from_collective,
@@ -728,6 +736,55 @@ PROCESS_FILE_QUEUE = ActionType(
     [],
     u"A Magic-Folder is working through an item queue.",
 )
+
+@attr.s
+class LocalSnapshotCreator(object):
+    """
+    When given the db and the author instance, this class that actually
+    creates a local snapshot and stores it in the database.
+    """
+    db = attr.ib()  # our database
+    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+
+    @eliotutil.inline_callbacks
+    def store_local_snapshot(self, path):
+        """
+        Convert `path` into a LocalSnapshot and persist it to disk.
+        :param FilePath path: a single file inside our magic-folder dir
+        """
+
+        with path.open('rb') as input_stream:
+            # Query the db to check if there is an existing local
+            # snapshot for the file being added.
+            # If so, we use that as the parent.
+            mangled_name = magicpath.mangle_path(path)
+            try:
+                parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
+            except SnapshotNotFound:
+                parents = []
+            else:
+                parents = [parent_snapshot]
+
+            # need to handle remote-parents when we have remote
+            # snapshots
+
+            # when we handle conflicts we will have to handle multiple
+            # parents here (or, somewhere)
+
+            relpath_u = path.asTextMode(encoding="utf-8").path
+            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
+            with action:
+                snapshot = yield create_snapshot(
+                    name=mangled_name,
+                    author=self.author,
+                    data_producer=input_stream,
+                    snapshot_stash_dir=self.stash_dir,
+                    parents=parents,
+                )
+
+                # store the local snapshot to the disk
+                self.db.store_local_snapshot(snapshot)
 
 @attr.s
 @implementer(service.IService)
