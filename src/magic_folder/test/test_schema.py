@@ -112,7 +112,14 @@ class SchemaTests(TestCase):
         schema.get_version(cursor)
 
         # Advance to a version newer than we have.
-        update_version(cursor, num_upgrades + additional_versions)
+        update_version(
+            cursor,
+            # Don't overflow SQLite3 integer type.
+            min(
+                2 ** 63 - 1,
+                num_upgrades + additional_versions,
+            ),
+        )
 
         with ExpectedException(DatabaseSchemaTooNew):
             schema.run_upgrades(cursor)
