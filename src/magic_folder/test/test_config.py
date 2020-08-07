@@ -35,8 +35,6 @@ from hyperlink import (
     URL,
 )
 
-import sqlite3
-
 from .common import (
     SyncTestCase,
 )
@@ -54,7 +52,6 @@ from ..config import (
     endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
-    ConfigurationError,
 )
 from ..snapshot import (
     create_local_author,

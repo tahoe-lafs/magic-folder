@@ -9,7 +9,6 @@ from __future__ import (
 )
 
 __all__ = [
-    "ConfigurationError",
     "MagicFolderConfig",
     "GlobalConfigDatabase",
 
@@ -64,12 +63,6 @@ from ._schema import (
 from ._endpoint_parser import (
     endpoint_description_to_http_api_root,
 )
-
-
-class ConfigurationError(Exception):
-    """
-    The configuration is unusable for some reason
-    """
 
 
 class SnapshotNotFound(Exception):
