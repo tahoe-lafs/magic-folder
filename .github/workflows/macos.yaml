@@ -23,6 +23,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    # See https://github.com/actions/cache/blob/master/examples.md#python---pip
     - name: Use pip cache
       uses: actions/cache@v2
       with:
