@@ -222,8 +222,6 @@ class MigrateOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None,
-         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
         ("author", "A", None, "The name for the author to use in each migrated magic-folder"),
@@ -234,23 +232,23 @@ class MigrateOptions(usage.Options):
     )
 
     def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
-
         # required args
         if self['listen-endpoint'] is None:
             raise usage.UsageError("--listen-endpoint / -l is required")
         if self['node-directory'] is None:
             raise usage.UsageError("--node-directory / -n is required")
-        if self['author-name'] is None:
-            raise usage.UsageError("--author-name / -a is required")
+        if self['author'] is None:
+            raise usage.UsageError("--author / -a is required")
 
         # validate
-        if FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+        if self.parent._config_path.exists():
+            raise usage.UsageError(
+                "Directory '{}' already exists".format(self.parent._config_path.path)
+            )
         if not FilePath(self['node-directory']).exists():
-            raise usage.UsageError("--node-directory '{}' doesn't exist".format(self['node-directory']))
+            raise usage.UsageError(
+                "--node-directory '{}' doesn't exist".format(self['node-directory'])
+            )
         if not FilePath(self['node-directory']).child("tahoe.cfg").exists():
             raise usage.UsageError(
                 "'{}' doesn't look like a Tahoe node-directory (no tahoe.cfg)".format(self['node-directory'])
@@ -262,13 +260,13 @@ def migrate(options):
 
     try:
         config = yield magic_folder_migrate(
-            FilePath(options['config']),
+            options.parent._config_path,
             options['listen-endpoint'],
             FilePath(options['node-directory']),
-            options['author-name'],
+            options['author'],
         )
         print(
-            "Created Magic Folder daemon configuration in:\n     {}".format(options['config']),
+            "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
             file=options.stdout,
         )
         print("\nIt contains the following magic-folders:", file=options.stdout)
