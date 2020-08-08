@@ -80,7 +80,7 @@ jobs:
         pip install wheel tox
 
     - name: Test with tox
-      run: tox -vvv -e integration
+      run: tox -e integration
 
     - uses: codecov/codecov-action@v1
       with:
