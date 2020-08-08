@@ -172,8 +172,6 @@ class InitializeOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None,
-         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
     ]
@@ -184,10 +182,6 @@ class InitializeOptions(usage.Options):
     )
 
     def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
-
         # required args
         if self['listen-endpoint'] is None:
             raise usage.UsageError("--listen-endpoint / -l is required")
@@ -195,8 +189,10 @@ class InitializeOptions(usage.Options):
             raise usage.UsageError("--node-directory / -n is required")
 
         # validate
-        if FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+        if self.parent._config_path.exists():
+            raise usage.UsageError(
+                "Directory '{}' already exists".format(self.parent._config_path.path)
+            )
 
 
 @inlineCallbacks
@@ -204,12 +200,12 @@ def initialize(options):
 
     try:
         rc = yield magic_folder_initialize(
-            FilePath(options['config']),
+            options.parent._config_path,
             options['listen-endpoint'],
             FilePath(options['node-directory']),
         )
         print(
-            "Created Magic Folder daemon configuration in:\n     {}".format(options['config']),
+            "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
             file=options.stdout,
         )
     except Exception as e:
@@ -1029,12 +1025,7 @@ class BaseOptions(usage.Options):
         """
         The FilePath where our config is located
         """
-        fp = FilePath(self['config'])
-        if not fp.exists():
-            raise usage.UsageError(
-                u"Configuration directory '{}' doesn't exist".format(fp.path)
-            )
-        return fp
+        return FilePath(self['config'])
 
     @property
     def config(self):
