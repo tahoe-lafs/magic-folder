@@ -276,7 +276,6 @@ class _FakeTahoeUriHandler(Resource, object):
         return cap
 
     def render_GET(self, request):
-        print("GET")
         uri = DecodedURL.from_text(request.uri.decode('utf8'))
         capability = None
         for arg, value in uri.query:
