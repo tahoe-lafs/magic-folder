@@ -53,6 +53,9 @@ from testtools.twistedsupport import (
 from twisted.internet.defer import (
     gatherResults,
 )
+from twisted.web.http import (
+    GONE,
+)
 
 from ..tahoe_client import (
     TahoeAPIError,
@@ -285,3 +288,12 @@ class TahoeClientTests(SyncTestCase):
             Always()
         )
         self.assertThat(child_content_d.result, Equals(content))
+
+        # getting a different child fails
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
+        resp_d = self.http_client.get(child_uri.to_text())
+        self.assertThat(
+            succeeded(resp_d),
+            Always(),
+        )
+        self.assertThat(resp_d.result.code, Equals(GONE))
