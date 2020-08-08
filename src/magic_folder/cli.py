@@ -1100,9 +1100,6 @@ class MagicFolderCommand(BaseOptions):
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
             raise usage.UsageError("must specify a subcommand")
-        # ensure our configuration is valid
-        if self.subCommand not in ["init", "migrate"]:
-            _ = self.config
 
     def getSynopsis(self):
         return "Usage: magic-folder [global-options] <subcommand> [subcommand-options]"
