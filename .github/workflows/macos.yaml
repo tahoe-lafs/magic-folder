@@ -41,7 +41,7 @@ jobs:
       run: pip -v download . --dest ./wheelhouse
 
     - name: Test with tox
-      env: |
+      env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
         PIP_FIND_LINKS: ./wheelhouse
       run: tox -e py27-coverage
