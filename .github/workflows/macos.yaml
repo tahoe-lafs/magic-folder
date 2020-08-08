@@ -37,13 +37,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install wheel tox
 
-    - name: Populate wheelhouse
-      run: pip -v download . --dest ./wheelhouse
-
     - name: Test with tox
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
-        PIP_FIND_LINKS: ./wheelhouse
       run: tox -e py27-coverage
 
     - uses: codecov/codecov-action@v1
@@ -83,12 +79,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install wheel tox
 
-    - name: Populate wheelhouse
-      run: pip -v download . --dest ./wheelhouse
-
     - name: Test with tox
-      env:
-        PIP_FIND_LINKS: ./wheelhouse
       run: tox -vvv -e integration
 
     - uses: codecov/codecov-action@v1
