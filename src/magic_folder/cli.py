@@ -292,7 +292,7 @@ class AddOptions(usage.Options):
     synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", "default", "The name of this magic-folder"),
+        ("name", "n", None, "The name of this magic-folder"),
         ("author", "A", None, "Our name for Snapshots authored here"),
     ]
     description = (
@@ -315,7 +315,12 @@ class AddOptions(usage.Options):
             )
 
     def postOptions(self):
+        super(AddOptions, self).postOptions()
         _fill_author_from_environment(self)
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
         try:
             if int(self['poll-interval']) <= 0:
                 raise ValueError("should be positive")
@@ -429,7 +434,7 @@ class InviteOptions(usage.Options):
     synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
     stdin = MixedIO(u"")
     optParameters = [
-        ("name", "n", "default", "Name of an existing magic-folder"),
+        ("name", "n", None, "Name of an existing magic-folder"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -440,6 +445,12 @@ class InviteOptions(usage.Options):
     def parseArgs(self, nickname):
         super(InviteOptions, self).parseArgs()
         self.nickname = argv_to_unicode(nickname)
+
+    def postOptions(self):
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
 
 
 @inlineCallbacks
@@ -462,7 +473,7 @@ class JoinOptions(usage.Options):
     magic_readonly_cap = ""
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", "default", "Name for the new magic-folder"),
+        ("name", "n", None, "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
 
@@ -486,7 +497,14 @@ class JoinOptions(usage.Options):
                 "'{}' isn't a directory".format(local_dir)
             )
         self.invite_code = to_str(argv_to_unicode(invite_code))
+
+    def postOptions(self):
+        super(JoinOptions, self).postOptions()
         _fill_author_from_environment(self)
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
 
 
 def join(options):
@@ -522,8 +540,15 @@ class LeaveOptions(usage.Options):
         ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
     ]
     optParameters = [
-        ("name", "n", "default", "Name of magic-folder to leave"),
+        ("name", "n", None, "Name of magic-folder to leave"),
     ]
+
+    def postOptions(self):
+        super(LeaveOptions, self).postOptions()
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
 
 
 def leave(options):
