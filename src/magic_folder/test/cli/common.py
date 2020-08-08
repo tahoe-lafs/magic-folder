@@ -23,7 +23,7 @@ from eliot import (
 
 from ...cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
 
 def parse_options(basedir, command, args):
@@ -71,7 +71,7 @@ def cli(config_directory, argv):
             print(e, file=options.stderr)
             result = 1
         else:
-            result = yield do_magic_folder(options)
+            result = yield run_magic_folder_options(options)
             if result is None:
                 result = 0
     except SystemExit as e:

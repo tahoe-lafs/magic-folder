@@ -292,7 +292,6 @@ class _FakeTahoeUriHandler(Resource, object):
             if len(request.postpath) > 2:
                 raise NotImplementedError
             child_name = request.postpath[1]
-            print("HI", child_name)
             return self._get_child_of_directory(request, capability, child_name)
 
         # if we don't yet have a capability, that's an error
@@ -332,7 +331,6 @@ class _FakeTahoeUriHandler(Resource, object):
 
         :param unicode child_name: the name of the child
         """
-        print("GET CHILD", child_name)
         raw_data = self.data[capability]
         if not raw_data:
             raise Exception(
@@ -341,14 +339,10 @@ class _FakeTahoeUriHandler(Resource, object):
         dir_data = json.loads(raw_data)
         try:
             child_cap = dir_data[child_name]
-            print(u"child cap: {}".format(child_cap))
             child_data = self.data[child_cap]
-            print(u"child data: {}".format(child_data))
         except KeyError:
             request.setResponseCode(http.GONE)
-            print("BAD STUFF", child_name)
             return b"Child not found"
-        print("RETURN", type(child_data))
         return child_data
 
 

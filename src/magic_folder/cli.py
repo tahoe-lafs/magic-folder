@@ -1116,10 +1116,37 @@ subDispatch = {
 
 
 @inlineCallbacks
-def do_magic_folder(options):
+def dispatch_magic_folder_command(args):
     """
-    :returns: a Deferred which fires with the result of doig this
-        magic-folder subcommand.
+    Run a magic-folder command with the given args
+
+    :returns: a Deferred which fires with the result of doing this
+        magic-folder (sub)command.
+    """
+    options = MagicFolderCommand()
+    try:
+        options.parseOptions(sys.argv[1:])
+    except usage.UsageError as e:
+        print("Error: {}".format(e))
+        # if a user just typed "magic-folder" don't make them re-run
+        # with "--help" just to see the sub-commands they were
+        # supposed to use
+        if len(sys.argv) == 1:
+            print(options)
+        raise SystemExit(1)
+
+    yield run_magic_folder_options(options)
+
+
+@inlineCallbacks
+def run_magic_folder_options(options):
+    """
+    Runs a magic-folder subcommand with the provided options.
+
+    :param options: already-parsed options.
+
+    :returns: a Deferred which fires with the result of doing this
+        magic-folder (sub)command.
     """
     so = options.subOptions
     so.stdout = options.stdout
@@ -1133,12 +1160,6 @@ def do_magic_folder(options):
             traceback.print_exc(file=options.stderr)
         raise SystemExit(1)
 
-@inlineCallbacks
-def main(reactor):
-    options = MagicFolderCommand()
-    options.parseOptions(sys.argv[1:])
-    yield do_magic_folder(options)
-
 
 def _entry():
     """
@@ -1150,20 +1171,6 @@ def _entry():
     from os import getpid
     to_file(open("magic-folder-cli.{}.eliot".format(getpid()), "w"))
 
-    # for most commands that produce output for users we don't want
-    # the logging etc that 'twist' does .. only doing this for "new"
-    # commands for now
-
-    options = MagicFolderCommand()
-    try:
-        options.parseOptions(sys.argv[1:])
-    except usage.UsageError as e:
-        print("Error: {}".format(e))
-        # if a user just typed "magic-folder" don't make them re-run
-        # with "--help" just to see the sub-commands they were
-        # supposed to use
-        if len(sys.argv) == 1:
-            print(options)
-        return 1
-
+    def main(reactor):
+        return dispatch_magic_folder_command(sys.argv[1:])
     return react(main)

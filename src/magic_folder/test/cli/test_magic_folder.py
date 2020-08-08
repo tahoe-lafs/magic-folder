@@ -24,6 +24,9 @@ from ...config import (
     create_global_configuration,
 )
 
+from ...cli import (
+    run_magic_folder_options,
+)
 from ..common_util import (
     parse_cli,
 )
@@ -202,6 +205,7 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield cli(
             self.config_dir, [
                 b"add",
+                b"--name", b"test",
                 b"--author", b"test",
                 magic_folder.asBytesMode().path,
             ],
@@ -418,50 +422,29 @@ class CreateMagicFolder(AsyncTestCase):
         o.parent = magic_folder_cli.MagicFolderCommand()
         o.parent.getSynopsis()
 
-    def test_no_config_directory(self):
-        """
-        Running a command without --config fails
-        """
-        o = magic_folder_cli.InviteOptions()
-        o.parent = magic_folder_cli.MagicFolderCommand()
-
-        try:
-            o.parent.parseOptions(["invite", "nickname"])
-        except usage.UsageError as e:
-            self.assertIn("doesn't exist", str(e))
-        else:
-            self.fail("expected UsageError")
-
     def test_config_directory_is_file(self):
         """
         Using --config with a file is an error
         """
-        o = magic_folder_cli.MagicFolderCommand()
-        nodefile = self.mktemp()
-        with open(nodefile, "w") as f:
+        confdir = FilePath(self.mktemp())
+        with confdir.open("w") as f:
             f.write("dummy\n")
 
-        try:
-            o.parseOptions(["--config", nodefile, "invite", "nickname"])
-        except usage.UsageError as e:
-            self.assertIn("Unable to load configuration", str(e))
-        else:
-            self.fail("expected UsageError")
+        outcome = yield cli(confdir, ["list"])
+        self.assertThat(outcome.code, Equals(1))
+        self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
 
+    @defer.inlineCallbacks
     def test_config_directory_empty(self):
         """
         A directory that is empty isn't valid for --config
         """
-        o = magic_folder_cli.MagicFolderCommand()
-        nodedir = self.mktemp()
-        os.mkdir(nodedir)
+        confdir = FilePath(self.mktemp())
+        confdir.makedirs()
 
-        try:
-            o.parseOptions(["--config", nodedir, "invite", "nickname"])
-        except usage.UsageError as e:
-            self.assertIn("Unable to load configuration", str(e))
-        else:
-            self.fail("expected UsageError")
+        outcome = yield cli(confdir, ["list"])
+        self.assertThat(outcome.code, Equals(1))
+        self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
 
 
 class CreateErrors(SyncTestCase):
@@ -475,6 +458,7 @@ class CreateErrors(SyncTestCase):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
+                "--name", "test",
                 "--author", "test",
                 "--poll-interval=frog",
                 self.temp.path
