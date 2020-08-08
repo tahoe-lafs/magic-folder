@@ -105,10 +105,10 @@ command.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo add --author alice-laptop ~/Documents
+   $ magic-folder --config ./foo add --author alice-laptop --name example ~/Documents
 
 There are some other options that can be specified. The above will
-create a new magic-folder named ``default`` (we could decide
+create a new magic-folder named ``example`` (we could decide
 differently with ``--name docs`` for example). Any changes we make
 locally will be signed as ``alice-laptop``. Files from other devices
 are downloaded into ``~/Documents`` and any files we add or change in
@@ -135,9 +135,9 @@ command:
 
    $ magic-folder --config ./foo list
    This client has the following magic-folders:
-   default:
+   example:
        location: /home/alice/Documents
-      stash-dir: /home/alice/foo/default/stash
+      stash-dir: /home/alice/foo/example/stash
          author: alice-laptop (public_key: KSYPPXN3HTCSEJC56RRYXDEO2TZX5LO743Q3E2M7NA7UP2W3OK2A====)
         updates: every 60s
 
@@ -161,10 +161,10 @@ Internet. The code may only be used once, for a single invitee.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo invite --name default
+   $ magic-folder --config ./foo invite --name example
 
 An invitation code is created using an existing magic folder (``--name
-default`` above). The magic-folder identified must have been created on
+example`` above). The magic-folder identified must have been created on
 this device.
 
 Once the invitee runs ``magic-folder join`` (see below) the two
@@ -210,12 +210,11 @@ Leaving a Magic Folder
 A participant device can reverse the action of joining a magic folder
 using the ``magic-folder leave`` command.
 
-The only option which can be supplied (but which has a default) is the
-nickname of the magic folder to leave.  Once a device has left a magic
-folder, further changes to files in the folder will not be
-synchronized.  The local synchronized directory itself is not
-removed. **All configuration and state for the magic-folder is
-destroyed**.
+You must supply the name of the magic folder to leave with ``--name``.
+Once a device has left a magic folder, further changes to files in the
+folder will not be synchronized.  The local synchronized directory
+itself is not removed. **All configuration and state for the
+magic-folder is destroyed**.
 
 Note that by default you cannot leave a folder that this device has
 created as it has the only copy of the write-capability which allows
@@ -253,10 +252,10 @@ corresponding magic folders with them, like so:
    $ daemonize magic-folder --config $BOB_MAGIC run
 
    # alice creates a magic-folder and invites bob
-   $ magic-folder --config $ALICE_MAGIC create alice $ALICE_FOLDER
-   $ magic-folder --config $ALICE_MAGIC invite bob >invitecode
+   $ magic-folder --config $ALICE_MAGIC add --name example alice $ALICE_FOLDER
+   $ magic-folder --config $ALICE_MAGIC invite --name example bob >invitecode
    $ export INVITECODE=$(cat invitecode)
-   $ magic-folder --config $BOB_MAGIC join "$INVITECODE" $BOB_FOLDER
+   $ magic-folder --config $BOB_MAGIC join --name example "$INVITECODE" $BOB_FOLDER
 
 You can now experiment with creating files and directories in
 ``./alice-magic`` and ``./bob-magic``.  Any changes in one should be
