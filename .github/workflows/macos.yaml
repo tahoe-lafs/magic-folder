@@ -87,7 +87,8 @@ jobs:
       run: pip -v download . --dest ./wheelhouse
 
     - name: Test with tox
-      env: PIP_FIND_LINKS:./wheelhouse
+      env:
+        PIP_FIND_LINKS: ./wheelhouse
       run: tox -vvv -e integration
 
     - uses: codecov/codecov-action@v1
