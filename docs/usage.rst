@@ -114,7 +114,7 @@ locally will be signed as ``alice-laptop``. Files from other devices
 are downloaded into ``~/Documents`` and any files we add or change in
 that local directory will be uploaded. Note that deleting a file in
 ``~/Documents`` will record a new "deleted" version in Tahoe Grid and
-not actually remove data from it.
+not actually remove data.
 
 It is also possible to specify ``--poll-interval`` to control how
 often the daemon will check for updates if the default seems wrong.
@@ -171,13 +171,13 @@ Once the invitee runs ``magic-folder join`` (see below) the two
 devices will connect and exchange some information; this will complete
 the invitation. The "invite" command won't exit until the invitee has
 actually completed and will print out some details. If you pass
-``--no-wait`` then the command will exist immediately (although the
+``--no-wait`` then the command will exit immediately (although the
 invite will still be valid).
 
 Invites are valid until the magic-folder daemon stops running or until
 the default number of minutes pass (whichever is sooner). See the
-``--timeout`` for the default (or you can pass a different number of
-mintues if you prefer).
+``--timeout`` options for the default (or you can pass a different
+number of mintues if you prefer).
 
 
 Joining a Magic Folder
