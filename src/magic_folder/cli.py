@@ -778,12 +778,10 @@ class MagicFolderService(MultiService):
 
         ds = []
         for name in self.config.list_magic_folders():
-            mf_config = self.config.get_magic_folder(name)
             mf = MagicFolder.from_config(
                 self.reactor,
                 self.tahoe_client,
                 name,
-                mf_config,
                 self.config,
             )
             self._state.add_magic_folder(name, mf_config, mf)

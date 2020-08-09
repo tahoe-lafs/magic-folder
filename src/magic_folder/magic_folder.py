@@ -277,56 +277,37 @@ def save_magic_folders(node_directory, folders):
 class MagicFolder(service.MultiService):
 
     @classmethod
-    def from_config(cls, reactor, client_node, name, config, global_config):
+    def from_config(cls, reactor, tahoe_client, name, config):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
 
         :param IReactorTime reactor: the reactor to use
 
-        :param _Client client_node: The client node the magic-folder is
-            attached to.
+        :param TahoeClient tahoe_client: Access the API of the
+            Tahoe-LAFS client we're associated with.
 
-        :param dict config: Magic-folder configuration like that in the list
-            returned by ``load_magic_folders``.
-
-        :param _Config global_config: the main Tahoe config
+        :param GlobalConfigurationDatabase config: our configuration
         """
-        local_dir_config = config['directory']
-        try:
-            poll_interval = int(config["poll_interval"])
-        except ValueError:
-            raise ValueError("'poll_interval' option must be an int")
-
-        database = None
+        mf_config = config.get_magic_folder(name)
 
         upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
         collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
         participants = participants_from_collective(collective_dirnode, upload_dirnode)
 
         return cls(
-            client=client_node,
+            client=client_client,
             upload_dirnode=upload_dirnode,
             participants=participants,
-            # XXX surely a better way for this local_path_u business
-            local_path_u=abspath_expanduser_unicode(
-                local_dir_config,
-                base=client_node.config.get_config_path(),
-            ),
-            db=database,
-            umask=config["umask"],
+            local_path_u=mf_config.magic_path.asTextMode().path,
+            db=mf_config.database,
             name=name,
-            downloader_delay=poll_interval,
+            downloader_delay=mf_config.poll_interval,
             clock=reactor,
         )
 
-    def __init__(self, client, upload_dirnode, participants, local_path_u, db, umask,
+    def __init__(self, client, upload_dirnode, participants, local_path_u, db,
                  name, clock=None, downloader_delay=60):
-        precondition_abspath(local_path_u)
-        if not os.path.exists(local_path_u):
-            raise ValueError("'{}' does not exist".format(local_path_u))
-        if not os.path.isdir(local_path_u):
-            raise ValueError("'{}' is not a directory".format(local_path_u))
         # this is used by 'service' things and must be unique in this Service hierarchy
         self.name = 'magic-folder-{}'.format(name)
 
@@ -335,7 +316,6 @@ class MagicFolder(service.MultiService):
         clock = clock or reactor
 
         # for tests
-        self._client = client
         self._db = db
 
 
