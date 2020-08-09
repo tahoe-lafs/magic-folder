@@ -32,8 +32,8 @@ def test_daemon_inititialize(request, reactor, temp_dir):
     util._magic_folder_runner(
         proto, reactor, request,
         [
-            "init",
             "--config", node_dir,
+            "init",
             "--listen-endpoint", "tcp:1234",
             "--node-directory", tahoe_dir,
         ],

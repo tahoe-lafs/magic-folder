@@ -74,6 +74,10 @@ class MagicFolderEnabledNode(object):
         return join(self.temp_dir, self.name)
 
     @property
+    def magic_config_directory(self):
+        return join(self.temp_dir, "magic-daemon-{}".format(self.name))
+
+    @property
     def magic_directory(self):
         return join(self.temp_dir, "magic-{}".format(self.name))
 
@@ -129,13 +133,22 @@ class MagicFolderEnabledNode(object):
         )
         await_client_ready(tahoe)
 
+        # Create the magic-folder daemon config
+        ding = yield _init_magic_folder(
+            reactor,
+            request,
+            temp_dir,
+            name,
+            magic_folder_web_port,
+        )
+        print("XXX init-d magic folder", ding)
+
         # Make the magic folder process.
         magic_folder = yield _run_magic_folder(
             reactor,
             request,
             temp_dir,
             name,
-            magic_folder_web_port,
         )
         returnValue(
             cls(
@@ -672,7 +685,69 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _run_magic_folder(reactor, request, temp_dir, name, web_port):
+def _init_magic_folder(reactor, request, temp_dir, name, web_port):
+    """
+    Create a new magic-folder-daemon configuration
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param name: The alias of the Tahoe-LAFS node.
+
+    :return Deferred[IProcessTransport]: The started process.
+    """
+    node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
+    # proto = _ProcessExitedProtocol()
+    proto = _CollectOutputProtocol()
+
+    coverage = request.config.getoption('coverage')
+    def optional(flag, elements):
+        if flag:
+            return elements
+        return []
+
+    args = [
+        sys.executable,
+        "-m",
+    ] + optional(coverage, [
+        "coverage",
+        "run",
+        "-m",
+    ]) + [
+        "magic_folder",
+    ] + optional(coverage, [
+        "--coverage",
+    ]) + [
+        "--config", config_dir,
+        "init",
+        "--node-directory", node_dir,
+        "--listen-endpoint", web_port,
+    ]
+    Message.log(
+        message_type=u"integration:init-magic-folder",
+        coverage=coverage,
+        args=args,
+    )
+    transport = reactor.spawnProcess(
+        proto,
+        sys.executable,
+        args,
+    )
+
+    def dump(transp):
+        print("XXX", proto.output.getvalue())
+        return transp
+
+    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
+    with start_action(action_type=u"integration:init-magic-folder").context():
+        ctx = DeferredContext(proto.done)
+        ctx.addCallback(dump)
+        ctx.addCallback(lambda ignored: transport)
+        return ctx.addActionFinish()
+
+
+def _run_magic_folder(reactor, request, temp_dir, name):
     """
     Start a magic-folder process.
 
@@ -684,6 +759,7 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     :return Deferred[IProcessTransport]: The started process.
     """
     node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
@@ -706,11 +782,9 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     ] + optional(coverage, [
         "--coverage",
     ]) + [
-        "--node-directory",
-        node_dir,
+        "--config",
+        config_dir,
         "run",
-        "--web-port",
-        web_port,
     ]
     Message.log(
         message_type=u"integration:run-magic-folder",
