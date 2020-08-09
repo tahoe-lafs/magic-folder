@@ -81,7 +81,8 @@ def participant_from_dmd(name, dirnode, is_self):
     :return IParticipant: A participant object for accessing this
         participant's state.
     """
-    return _CollectiveDirnodeParticipant(name, dirnode, is_self)
+    # FIXME: https://github.com/LeastAuthority/magic-folder/issues/241
+    return _CollectiveDirnodeParticipant(name, dirnode, is_self, tahoe_client=None)
 
 
 def participants_from_collective(tahoe_client, collective_dirnode, upload_dirnode):
