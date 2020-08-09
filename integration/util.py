@@ -734,14 +734,9 @@ def _init_magic_folder(reactor, request, temp_dir, name, web_port):
         args,
     )
 
-    def dump(transp):
-        print("XXX", proto.output.getvalue())
-        return transp
-
     request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
     with start_action(action_type=u"integration:init-magic-folder").context():
         ctx = DeferredContext(proto.done)
-        ctx.addCallback(dump)
         ctx.addCallback(lambda ignored: transport)
         return ctx.addActionFinish()
 

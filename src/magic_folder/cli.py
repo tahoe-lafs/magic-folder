@@ -45,6 +45,11 @@ from twisted.internet.endpoints import (
 from twisted.internet.task import (
     react,
 )
+from twisted.logger import (
+    globalLogBeginner,
+    FileLogObserver,
+    formatEvent,
+)
 
 from twisted.web.client import (
     Agent,
@@ -589,8 +594,13 @@ def run(options):
     This is the long-running magic-folders function which performs
     synchronization between local and remote folders.
     """
-    # XXX start logging
-    from twisted.internet import  reactor
+    from twisted.internet import reactor
+
+    # being logging to stdout
+    globalLogBeginner.beginLoggingTo([
+        FileLogObserver(options.stdout, formatEvent),
+    ])
+
     config = options.parent.config
     service = MagicFolderService.from_config(reactor, config)
     return service.run()
