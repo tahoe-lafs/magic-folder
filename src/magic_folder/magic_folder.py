@@ -291,14 +291,11 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        # NB: participants_from_collective() needs some adjustments
-        # because we can't use Tahoe-internal _Client() object
-        # .. calls need to go via the API and hence tahoe_client, see:
-        # https://github.com/LeastAuthority/magic-folder/issues/241
-        participants = participants_from_collective(
-            tahoe_client,
-            mf_config.collective_dircap,
-            mf_config.upload_dircap,
+        from magic_folder.cli import Node
+
+        initial_participants = participants_from_collective(
+            Node(tahoe_client, mf_config.collective_dircap),
+            Node(tahoe_client, mf_config.upload_dircap),
         )
         return cls(
             client=tahoe_client,
