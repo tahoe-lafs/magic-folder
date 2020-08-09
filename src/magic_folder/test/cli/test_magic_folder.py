@@ -24,9 +24,6 @@ from ...config import (
     create_global_configuration,
 )
 
-from ...cli import (
-    run_magic_folder_options,
-)
 from ..common_util import (
     parse_cli,
 )

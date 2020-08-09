@@ -42,7 +42,6 @@ from testtools.matchers import (
     IsInstance,
     Equals,
     Always,
-    Contains,
 )
 
 from testtools.twistedsupport import (
@@ -74,7 +73,6 @@ from .common import (
 from .strategies import (
     filenodes,
     tahoe_lafs_chk_capabilities,
-    path_segments,
 )
 
 from .matchers import (

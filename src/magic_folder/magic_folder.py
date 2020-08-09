@@ -36,10 +36,6 @@ from .util.eliotutil import (
     validateSetMembership,
 )
 from allmydata.util import log
-from allmydata.util.fileutil import (
-    precondition_abspath,
-    abspath_expanduser_unicode,
-)
 from allmydata.util.encodingutil import to_filepath
 
 from . import (
@@ -301,7 +297,7 @@ class MagicFolder(service.MultiService):
             client=tahoe_client,
             config=mf_config,
             name=name,
-            initial_participants=participants,
+            initial_participants=initial_participants,
             _clock=reactor,
         )
 
