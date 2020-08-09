@@ -1053,7 +1053,7 @@ class MagicFolderCommand(BaseOptions):
         ["join", None, JoinOptions, "Join a Magic Folder."],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
-        ["run", None, RunOptions, "Run the Magic Folders synchronization process."],
+        ["run", None, RunOptions, "Run the Magic Folders daemon process."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
