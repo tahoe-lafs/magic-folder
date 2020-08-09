@@ -45,7 +45,7 @@ import pytest_twisted
 
 from magic_folder.cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
 
 
@@ -795,6 +795,6 @@ def _command(*args):
     o = MagicFolderCommand()
     o.stdout = BytesIO()
     o.parseOptions(args)
-    return_value = yield do_magic_folder(o)
+    return_value = yield run_magic_folder_options(o)
     assert 0 == return_value
     returnValue(o.stdout.getvalue())
