@@ -18,10 +18,7 @@ from twisted.internet.defer import (
 )
 
 from allmydata.interfaces import (
-    IDirectoryURI,
-)
-from allmydata.uri import (
-    from_string as tahoe_uri_from_string,
+    IDirectoryNode,
 )
 from allmydata.util.eliotutil import (
     inline_callbacks,
@@ -81,21 +78,18 @@ def participant_from_dmd(name, dirnode, is_self):
     :return IParticipant: A participant object for accessing this
         participant's state.
     """
-    # FIXME: https://github.com/LeastAuthority/magic-folder/issues/241
-    return _CollectiveDirnodeParticipant(name, dirnode, is_self, tahoe_client=None)
+    return _CollectiveDirnodeParticipant(name, dirnode, is_self)
 
 
-def participants_from_collective(tahoe_client, collective_dirnode, upload_dirnode):
+def participants_from_collective(collective_dirnode, upload_dirnode):
     """
     Get an ``IParticipants`` provider that reads participants from the given
     Tahoe-LAFS dirnodes.
 
-    :param TahoeClient tahoe_client: access to our Tahoe-LAFS node
-
-    :param bytes collective_dircap: The magic folder "collective"
+    :param IDirectoryNode collective_dirnode: The magic folder "collective"
         directory into which participant DMDs are linked.
 
-    :param bytes upload_dircap: The DMD for ourself, used to
+    :param IDirectoryNode upload_dirnode: The DMD for ourself, used to
         identify which participant is ourself.
 
     :return: An ``IParticipants`` provider.
@@ -111,21 +105,25 @@ class _CollectiveDirnodeParticipants(object):
 
     @_collective_dirnode.validator
     def readonly_dirnode(self, attribute, value):
-        uri = tahoe_uri_from_string(value)
-        if IDirectoryURI.providedBy(uri):
+        ok = (
+            IDirectoryNode.providedBy(value) and
+            not value.is_unknown() and
+            value.is_readonly()
+        )
+        if ok:
             return
         raise TypeError(
-            "Collective dirnode was {!r}, must be a directory node.".format(
+            "Collective dirnode was {!r}, must be a read-only directory node.".format(
                 value,
             ),
         )
 
     @_upload_dirnode.validator
     def mutable_dirnode(self, attribute, value):
-        uri = tahoe_uri_from_string(value)
         ok = (
-            IDirectoryURI.providedBy(uri) and
-            not uri.is_readonly()
+            IDirectoryNode.providedBy(value) and
+            not value.is_unknown() and
+            not value.is_readonly()
         )
         if ok:
             return
@@ -134,6 +132,7 @@ class _CollectiveDirnodeParticipants(object):
                 value,
             ),
         )
+
 
     @inline_callbacks
     def list(self):
@@ -162,20 +161,16 @@ class _CollectiveDirnodeParticipant(object):
     :ivar unicode name: A human-readable identifier for this participant.  It
         will be the name of the DMD directory in the collective.
 
-    :ivar bytes dircap: The capability-string of the dirnode for this
-        participant (aka "upload_dircap").
+    :ivar allmydata.interfaces.IDirectoryNode dirobj: An object for accessing
+        the Tahoe-LAFS directory node containing this participant's files.
 
     :ivar bool is_self: True if this participant is known to represent the
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
-
-    :ivar TahoeClient _tahoe_client: Internal use. The Tahoe-LAFS API
-        client currently being used.
     """
     name = attr.ib(validator=attr.validators.instance_of(unicode))
-    dircap = attr.ib(validator=attr.validators.instance_of(bytes))
+    dirobj = attr.ib(validator=attr.validators.provides(IDirectoryNode))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
-    _tahoe_client = attr.ib()
 
     def files(self):
         """
@@ -183,7 +178,7 @@ class _CollectiveDirnodeParticipant(object):
         Deferred which fires with a dictionary mapping all of the paths to
         more details.
         """
-        d = self._tahoe_client.list_directory(self.dircap)
+        d = self.dirobj.list()
         d.addCallback(
             lambda listing_map: {
                 magic2path(encoded_relpath_u): FolderFile(child, metadata)
