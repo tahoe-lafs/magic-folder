@@ -134,16 +134,15 @@ class MagicFolderEnabledNode(object):
         await_client_ready(tahoe)
 
         # Create the magic-folder daemon config
-        ding = yield _init_magic_folder(
+        yield _init_magic_folder(
             reactor,
             request,
             temp_dir,
             name,
             magic_folder_web_port,
         )
-        print("XXX init-d magic folder", ding)
 
-        # Make the magic folder process.
+        # Run the magic-folder daemon
         magic_folder = yield _run_magic_folder(
             reactor,
             request,
