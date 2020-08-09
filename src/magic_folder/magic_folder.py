@@ -314,7 +314,14 @@ class MagicFolder(service.MultiService):
         self.name = 'magic-folder-{}'.format(name)
         self._clock = _clock or reactor
         self._config = config  # a MagicFolderConfig instance
-        self._participants = initial_particpants
+        self._participants = initial_participants
+
+    def ready(self):
+        """
+        :returns: Deferred that fires with None when this magic-folder is
+            ready to operate
+        """
+        return defer.succeed(None)
 
 
 _NICKNAME = Field.for_types(

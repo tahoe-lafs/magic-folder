@@ -183,7 +183,6 @@ class MagicFolderEnabledNode(object):
                 self.request,
                 self.temp_dir,
                 self.name,
-                self.magic_folder_web_port,
             )
 
 

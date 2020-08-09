@@ -784,7 +784,7 @@ class MagicFolderService(MultiService):
                 name,
                 self.config,
             )
-            self._state.add_magic_folder(name, mf_config, mf)
+            self._state.add_magic_folder(name, self.config.get_magic_folder(name), mf)
             mf.setServiceParent(self)
             ds.append(mf.ready())
         # The integration tests look for this message.  You cannot get rid of
