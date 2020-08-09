@@ -291,32 +291,30 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
-        collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
-        participants = participants_from_collective(collective_dirnode, upload_dirnode)
-
+        # NB: participants_from_collective() needs some adjustments
+        # because we can't use Tahoe-internal _Client() object
+        # .. calls need to go via the API and hence tahoe_client, see:
+        # https://github.com/LeastAuthority/magic-folder/issues/241
+        participants = participants_from_collective(
+            tahoe_client,
+            mf_config.collective_dircap,
+            mf_config.upload_dircap,
+        )
         return cls(
-            client=client_client,
-            upload_dirnode=upload_dirnode,
-            participants=participants,
-            local_path_u=mf_config.magic_path.asTextMode().path,
-            db=mf_config.database,
+            client=tahoe_client,
+            config=mf_config,
             name=name,
-            downloader_delay=mf_config.poll_interval,
-            clock=reactor,
+            initial_participants=participants,
+            _clock=reactor,
         )
 
-    def __init__(self, client, upload_dirnode, participants, local_path_u, db,
-                 name, clock=None, downloader_delay=60):
+    def __init__(self, client, config, name, initial_participants, _clock=None):
+        super(MagicFolder, self).__init__()
         # this is used by 'service' things and must be unique in this Service hierarchy
         self.name = 'magic-folder-{}'.format(name)
-
-        service.MultiService.__init__(self)
-
-        clock = clock or reactor
-
-        # for tests
-        self._db = db
+        self._clock = _clock or reactor
+        self._config = config  # a MagicFolderConfig instance
+        self._participants = initial_particpants
 
 
 _NICKNAME = Field.for_types(

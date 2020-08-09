@@ -81,15 +81,17 @@ def participant_from_dmd(name, dirnode, is_self):
     return _CollectiveDirnodeParticipant(name, dirnode, is_self)
 
 
-def participants_from_collective(collective_dirnode, upload_dirnode):
+def participants_from_collective(tahoe_client, collective_dirnode, upload_dirnode):
     """
     Get an ``IParticipants`` provider that reads participants from the given
     Tahoe-LAFS dirnodes.
 
-    :param IDirectoryNode collective_dirnode: The magic folder "collective"
+    :param TahoeClient tahoe_client: access to our Tahoe-LAFS node
+
+    :param bytes collective_dircap: The magic folder "collective"
         directory into which participant DMDs are linked.
 
-    :param IDirectoryNode upload_dirnode: The DMD for ourself, used to
+    :param bytes upload_dircap: The DMD for ourself, used to
         identify which participant is ourself.
 
     :return: An ``IParticipants`` provider.
