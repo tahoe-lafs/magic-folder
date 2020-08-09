@@ -199,6 +199,15 @@ class TahoeClient(object):
             raise CannotCreateDirectoryError(e)
         returnValue(capability_string)
 
+    @inlineCallbacks
+    def list_directory(self, dir_cap):
+        """
+        List the contents of a read- or read/write- directory
+
+        :param bytes dir_cap: the capability-string of the directory.
+        """
+        # https://github.com/LeastAuthority/magic-folder/issues/241
+        raise NotImplementedError
 
     @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap):

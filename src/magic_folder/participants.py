@@ -18,7 +18,10 @@ from twisted.internet.defer import (
 )
 
 from allmydata.interfaces import (
-    IDirectoryNode,
+    IDirectoryURI,
+)
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
 )
 from allmydata.util.eliotutil import (
     inline_callbacks,
@@ -107,25 +110,21 @@ class _CollectiveDirnodeParticipants(object):
 
     @_collective_dirnode.validator
     def readonly_dirnode(self, attribute, value):
-        ok = (
-            IDirectoryNode.providedBy(value) and
-            not value.is_unknown() and
-            value.is_readonly()
-        )
-        if ok:
+        uri = tahoe_uri_from_string(value)
+        if IDirectoryURI.providedBy(uri):
             return
         raise TypeError(
-            "Collective dirnode was {!r}, must be a read-only directory node.".format(
+            "Collective dirnode was {!r}, must be a directory node.".format(
                 value,
             ),
         )
 
     @_upload_dirnode.validator
     def mutable_dirnode(self, attribute, value):
+        uri = tahoe_uri_from_string(value)
         ok = (
-            IDirectoryNode.providedBy(value) and
-            not value.is_unknown() and
-            not value.is_readonly()
+            IDirectoryURI.providedBy(uri) and
+            not uri.is_readonly()
         )
         if ok:
             return
@@ -134,7 +133,6 @@ class _CollectiveDirnodeParticipants(object):
                 value,
             ),
         )
-
 
     @inline_callbacks
     def list(self):
@@ -163,16 +161,20 @@ class _CollectiveDirnodeParticipant(object):
     :ivar unicode name: A human-readable identifier for this participant.  It
         will be the name of the DMD directory in the collective.
 
-    :ivar allmydata.interfaces.IDirectoryNode dirobj: An object for accessing
-        the Tahoe-LAFS directory node containing this participant's files.
+    :ivar bytes dircap: The capability-string of the dirnode for this
+        participant (aka "upload_dircap").
 
     :ivar bool is_self: True if this participant is known to represent the
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
+
+    :ivar TahoeClient _tahoe_client: Internal use. The Tahoe-LAFS API
+        client currently being used.
     """
     name = attr.ib(validator=attr.validators.instance_of(unicode))
-    dirobj = attr.ib(validator=attr.validators.provides(IDirectoryNode))
+    dircap = attr.ib(validator=attr.validators.instance_of(bytes))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
+    _tahoe_client = attr.ib()
 
     def files(self):
         """
@@ -180,7 +182,7 @@ class _CollectiveDirnodeParticipant(object):
         Deferred which fires with a dictionary mapping all of the paths to
         more details.
         """
-        d = self.dirobj.list()
+        d = self._tahoe_client.list_directory(self.dircap)
         d.addCallback(
             lambda listing_map: {
                 magic2path(encoded_relpath_u): FolderFile(child, metadata)
