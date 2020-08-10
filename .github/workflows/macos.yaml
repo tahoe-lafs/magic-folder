@@ -34,8 +34,10 @@ jobs:
         restore-keys: |
             ${{ runner.os }}-pip-
 
+    # Packages with pinned versions are from tox.ini; we will have to
+    # update them if/when tox.ini changes.
     - name: Populate wheelhouse
-      run: pip -v download . --dest ./wheelhouse
+      run: pip wheel --wheel-dir ./wheelhouse $(pwd)[test] pip==19.1.1 setuptools==41.0.1 wheel==0.33.4  subunitreporter==19.3.2 tox codecov python-subunit junitxml
 
     - name: Install dependencies
       run: |
