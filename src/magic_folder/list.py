@@ -13,6 +13,9 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
+from twisted.internet.error import (
+    ConnectError,
+)
 from twisted.internet.endpoints import (
     clientFromString,
 )
@@ -74,10 +77,25 @@ def magic_folder_list(config, include_secret_information=False):
         b"Authorization": u"Bearer {}".format(config.api_token).encode("ascii"),
     }
 
-    response = yield HTTPClient(agent).get(
-        api_url.to_uri().to_text().encode('ascii'),
-        headers=headers,
-    )
+    # all this "access the HTTP API" stuff should be rolled into a
+    # class that all the subcommands can re-use .. just keeping it all
+    # here for now
+    class CannotAccessApiError(Exception):
+        """
+        The Magic Folder HTTP API can't be reached at all
+        """
+
+    try:
+        response = yield HTTPClient(agent).get(
+            api_url.to_uri().to_text().encode('ascii'),
+            headers=headers,
+        )
+    except ConnectError:
+        raise CannotAccessApiError(
+            "Can't reach the magic folder daemon at all on '{}'.".format(
+                config.api_client_endpoint,
+            )
+        )
 
     if response.code != http.OK:
         message = http.RESPONSES.get(response.code, b"Unknown Status")
