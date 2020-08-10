@@ -424,7 +424,7 @@ def _list_human(info, stdout, include_secrets):
         )
 
     if info:
-        print("This client has the following magic-folders:", file=stdout)
+        print("Configured magic-folders:", file=stdout)
         for details in info:
             print("{}:".format(details["name"]), file=stdout)
             print(template.format(**details).rstrip("\n"), file=stdout)
