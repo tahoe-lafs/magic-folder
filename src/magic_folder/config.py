@@ -144,6 +144,12 @@ DELETE_SNAPSHOTS = ActionType(
     u"Delete the row corresponding to the given path from the local snapshot table.",
 )
 
+FETCH_REMOTE_SNAPSHOTS_FROM_DB = ActionType(
+    u"config:state-db:get-remote-snapshot-entry",
+    [RELPATH],
+    [],
+    u"Delete the row corresponding to the given path from the local snapshot table.",
+)
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
     [unicode],
@@ -416,16 +422,19 @@ class MagicFolderConfig(object):
 
         :returns: An unicode string that represents the RemoteSnapshot cap.
         """
-        # XXX: eliot logging
-        cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
-                       " WHERE path=?",
-                       (name,))
-        row = cursor.fetchone()
-        if not row:
-            return None
-        else:
-            # coerce capability strings to a bytestring
-            return row[0].encode('utf-8')
+        action = FETCH_REMOTE_SNAPSHOTS_FROM_DB(
+            relpath=name,
+        )
+        with action:
+            cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+                           " WHERE path=?",
+                           (name,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            else:
+                # coerce capability strings to a bytestring
+                return row[0].encode('utf-8')
 
 @attr.s
 class GlobalConfigDatabase(object):
