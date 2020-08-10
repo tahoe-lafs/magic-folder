@@ -27,15 +27,9 @@ from hyperlink import (
 import importlib_metadata
 
 import attr
-from io import (
-    BytesIO,
-)
 from eliot import (
     start_action,
     log_call,
-)
-from eliot.twisted import (
-    DeferredContext,
 )
 
 from twisted.internet.interfaces import (
@@ -51,7 +45,6 @@ from twisted.internet.task import (
 from twisted.web.client import (
     Agent,
     readBody,
-    FileBodyProducer,
 )
 from twisted.python.filepath import (
     FilePath,
