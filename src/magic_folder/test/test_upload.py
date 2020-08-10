@@ -120,13 +120,12 @@ class UploaderServiceTests(SyncTestCase):
         )
 
         # push LocalSnapshot object into the SnapshotStore.
+        # This should be picked up by the Uploader Service and should
+        # result in a snapshot cap.
         d.addCallback(self.state_db.store_local_snapshot)
 
         # start Uploader Service
         self.uploader_service.startService()
-
-        # this should be picked up by the Uploader Service and should
-        # result in a snapshot cap.
 
         # advance the clock manually, which should result in the
         # polling of the db for uncommitted LocalSnapshots in the db
