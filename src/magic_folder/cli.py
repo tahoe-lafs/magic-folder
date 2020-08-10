@@ -358,16 +358,18 @@ class ListOptions(usage.Options):
         ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
     ]
 
+
 @inlineCallbacks
 def list_(options):
     """
     List existing magic-folders.
     """
-    mf_info = _magic_folder_info(options)
+    mf_info = yield magic_folder_list(options.parent.config)
     if options["json"]:
         print(json.dumps(mf_info, indent=4), file=options.stdout)
         return
-    return _list_human(mf_info, options.stdout, options["include-secret-information"])
+    _list_human(mf_info, options.stdout, options["include-secret-information"])
+    return
 
 
 def _magic_folder_info(options):
