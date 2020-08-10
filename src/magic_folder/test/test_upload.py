@@ -29,7 +29,8 @@ from ..snapshot import (
     create_local_author,
     create_snapshot,
 )
-from twisted.internet import reactor
+from twisted.internet import task
+
 from .common import (
     SyncTestCase,
 )
@@ -90,7 +91,7 @@ class UploaderServiceTests(SyncTestCase):
 
         self.uploader_service = UploaderService(
             tahoe_client=self.tahoe_client,
-            clock=reactor,
+            clock=task.Clock(),
             polling_interval=1,
             remote_snapshot_creator=self.remote_snapshot_creator,
         )
@@ -125,12 +126,10 @@ class UploaderServiceTests(SyncTestCase):
         # this should be picked up by the Uploader Service and should
         # result in a snapshot cap.
 
-        # XXX: There is a race condition here. We are checking for a
-        # remotesnapshot in the db immediately. This works only
-        # because we started the service just above this function. Had
-        # it been running for a while, then we would have to wait for
-        # at the most the polling interval + some processing time for
-        # the db to appear on the database.
+        # advance the clock manually, which should result in the
+        # polling of the db for uncommitted LocalSnapshots in the db
+        # and then check for remote snapshots
+        self.uploader_service._clock.advance(1)
 
         d.addCallback(lambda _unused:
                       self.state_db.get_remotesnapshot(name))
