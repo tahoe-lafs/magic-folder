@@ -825,24 +825,6 @@ class Node(object):
     def list(self):
         return self.tahoe_client.list_directory(self.uri)
 
-    def download_best_version(self, progress):
-        return self.tahoe_client.download_best_version(
-            self.uri, progress
-        )
-
-    def add_file(self, name, uploadable, metadata=None, overwrite=True, progress=None):
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file",
-            name=name,
-        )
-        with action.context():
-            d = DeferredContext(
-                self.tahoe_client.add_file(
-                    self.uri, name, uploadable, metadata, overwrite, progress,
-                ),
-            )
-            return d.addActionFinish()
-
 @attr.s(frozen=True)
 class TahoeClient(object):
     node_uri = attr.ib()
@@ -897,96 +879,6 @@ class TahoeClient(object):
             for (name, (child_kind, json_metadata))
             in dirinfo[u"children"].items()
         })
-
-    @inline_callbacks
-    def download_best_version(self, filenode_uri, progress):
-        uri = self.node_uri.child(
-            u"uri",
-            filenode_uri.to_string().decode("ascii"),
-        ).to_uri().to_text().encode("ascii")
-
-        with start_action(action_type=u"magic-folder:cli:download", uri=uri):
-            response = yield self.agent.request(
-                b"GET",
-                uri,
-            )
-            if response.code != 200:
-                raise Exception(
-                    "Error response from download endpoint: {code} {phrase}".format(
-                        **vars(response)
-                    ))
-
-        returnValue((yield readBody(response)))
-
-    @inline_callbacks
-    def add_file(self, dirnode_uri, name, uploadable, metadata, overwrite, progress):
-        size = yield uploadable.get_size()
-        contents = b"".join((yield uploadable.read(size)))
-
-        uri = self.node_uri.child(
-            u"uri",
-        ).to_uri().to_text().encode("ascii")
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file:put",
-            uri=uri,
-            size=size,
-        )
-        with action:
-            upload_response = yield self.agent.request(
-                b"PUT",
-                uri,
-                bodyProducer=FileBodyProducer(BytesIO(contents)),
-            )
-
-            if upload_response.code != 200:
-                raise Exception(
-                    "Error response from upload endpoint: {code} {phrase}".format(
-                        **vars(upload_response)
-                    ),
-                )
-
-            filecap = yield readBody(upload_response)
-
-        uri = self.node_uri.child(
-            u"uri",
-            dirnode_uri.to_string().decode("ascii"),
-            u"",
-        ).add(
-            u"t",
-            u"set-children",
-        ).add(
-            u"overwrite",
-            u"true" if overwrite else u"false",
-        ).to_uri().to_text().encode("ascii")
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file:metadata",
-            uri=uri,
-        )
-        with action:
-            response = yield self.agent.request(
-                b"POST",
-                uri,
-                bodyProducer=FileBodyProducer(
-                    BytesIO(
-                        json.dumps({
-                            name: [
-                                u"filenode", {
-                                    "ro_uri": filecap,
-                                    "size": size,
-                                    "metadata": metadata,
-                                },
-                            ],
-                        }).encode("utf-8"),
-                    ),
-                ),
-            )
-            if response.code != 200:
-                raise Exception("Error response from metadata endpoint: {code} {phrase}".format(
-                    **vars(response)
-                ))
-        returnValue(Node(self, from_string(filecap)))
-
-
 
 NODEDIR_HELP = (
     "Specify which Tahoe node directory should be used. The "
