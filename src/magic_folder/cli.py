@@ -48,6 +48,7 @@ from twisted.internet.task import (
 from twisted.logger import (
     globalLogBeginner,
     FileLogObserver,
+    eventAsText,
     formatEvent,
 )
 
@@ -597,10 +598,17 @@ def run(options):
     from twisted.internet import reactor
 
     # being logging to stdout
+    def event_to_string(event):
+        # docstring seems to indicate eventAsText() includes a
+        # newline, but it .. doesn't
+        return u"{}\n".format(
+            eventAsText(event, includeSystem=False)
+        )
     globalLogBeginner.beginLoggingTo([
-        FileLogObserver(options.stdout, formatEvent),
+        FileLogObserver(options.stdout, event_to_string),
     ])
 
+    # start the daemon services
     config = options.parent.config
     service = MagicFolderService.from_config(reactor, config)
     return service.run()
