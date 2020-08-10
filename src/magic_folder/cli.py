@@ -364,7 +364,7 @@ def list_(options):
     """
     List existing magic-folders.
     """
-    mf_info = yield magic_folder_list(options.parent.config)
+    mf_info = yield magic_folder_list(options.parent.config, options["include-secret-information"])
     mf_info = mf_info["folders"]
     if options["json"]:
         print(json.dumps(mf_info, indent=4), file=options.stdout)
