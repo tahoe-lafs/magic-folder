@@ -31,6 +31,9 @@ from allmydata.util import (
     yamlutil,
     eliotutil,
 )
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -290,8 +293,8 @@ class MagicFolder(service.MultiService):
         from .cli import Node
 
         initial_participants = participants_from_collective(
-            Node(tahoe_client, mf_config.collective_dircap),
-            Node(tahoe_client, mf_config.upload_dircap),
+            Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
+            Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
         )
         return cls(
             client=tahoe_client,
