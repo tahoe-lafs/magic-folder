@@ -48,7 +48,6 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
         PIP_FIND_LINKS: ./wheelhouse
-        PIP_NO_INDEX: true
       run: tox -e py27-coverage
 
     - uses: codecov/codecov-action@v1
