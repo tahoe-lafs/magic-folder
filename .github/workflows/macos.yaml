@@ -45,6 +45,7 @@ jobs:
     - name: Test with tox
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
+        PIP_FIND_LINKS: ./wheelhouse
       run: tox -e py27-coverage
 
     - uses: codecov/codecov-action@v1
