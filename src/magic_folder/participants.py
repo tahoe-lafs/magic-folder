@@ -104,16 +104,15 @@ class _CollectiveDirnodeParticipants(object):
     _upload_dirnode = attr.ib()
 
     @_collective_dirnode.validator
-    def readonly_dirnode(self, attribute, value):
+    def any_dirnode(self, attribute, value):
         ok = (
             IDirectoryNode.providedBy(value) and
-            not value.is_unknown() and
-            value.is_readonly()
+            not value.is_unknown()
         )
         if ok:
             return
         raise TypeError(
-            "Collective dirnode was {!r}, must be a read-only directory node.".format(
+            "Collective dirnode was {!r}, must be a directory node.".format(
                 value,
             ),
         )
