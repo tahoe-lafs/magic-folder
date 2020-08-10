@@ -287,7 +287,7 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        from magic_folder.cli import Node
+        from .cli import Node
 
         initial_participants = participants_from_collective(
             Node(tahoe_client, mf_config.collective_dircap),
