@@ -913,11 +913,16 @@ class RemoteSnapshotCreator(object):
                     )
 
                     # At this point, remote snapshot creation successful for
-                    # the given relpath. Remove the LocalSnapshot from the db.
-                    yield self._state_db.delete_localsnapshot(name)
-
+                    # the given relpath.
                     # store the remote snapshot capability in the db.
                     yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+
+                    # Remove the local snapshot content from the stash area.
+                    snapshot.content_path.remove()
+
+                    # Remove the LocalSnapshot from the db.
+                    yield self._state_db.delete_localsnapshot(name)
+
 
                 except NoServersError:
                     # Unable to reach Tahoe storage nodes because of
