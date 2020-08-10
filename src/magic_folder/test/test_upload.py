@@ -74,6 +74,8 @@ class UploaderServiceTests(SyncTestCase):
         )
         self.magic_path = self.temp.child(b"magic")
         self.magic_path.makedirs()
+
+        self.polling_interval = 1
         self.state_db = self.global_db.create_magic_folder(
             u"some-folder",
             self.magic_path,
@@ -81,7 +83,7 @@ class UploaderServiceTests(SyncTestCase):
             self.author,
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
-            60,
+            self.polling_interval,
         )
 
         self.remote_snapshot_creator = RemoteSnapshotCreator(
@@ -129,7 +131,7 @@ class UploaderServiceTests(SyncTestCase):
         # advance the clock manually, which should result in the
         # polling of the db for uncommitted LocalSnapshots in the db
         # and then check for remote snapshots
-        self.uploader_service._clock.advance(1)
+        self.uploader_service._clock.advance(self.polling_interval)
 
         d.addCallback(lambda _unused:
                       self.state_db.get_remotesnapshot(name))
