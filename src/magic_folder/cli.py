@@ -177,6 +177,9 @@ class InitializeOptions(usage.Options):
     optParameters = [
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
+        ("client-endpoint", "c", None,
+         "(Optional) the Twisted client-string for our REST API only required "
+         "if auto-converting from the listen endpoint files"),
     ]
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
@@ -205,6 +208,7 @@ def initialize(options):
         options.parent._config_path,
         options['listen-endpoint'],
         FilePath(options['node-directory']),
+        options['client-endpoint'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
@@ -222,6 +226,9 @@ class MigrateOptions(usage.Options):
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
         ("author", "A", None, "The name for the author to use in each migrated magic-folder"),
+        ("client-endpoint", "c", None,
+         "(Optional) the Twisted client-string for our REST API only required "
+         "if auto-converting from the listen endpoint files"),
     ]
     synopsis = (
         "\n\nCreate a new magic-folder daemon configuration in the --config "
@@ -260,6 +267,7 @@ def migrate(options):
         options['listen-endpoint'],
         FilePath(options['node-directory']),
         options['author'],
+        options['client-endpoint'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),

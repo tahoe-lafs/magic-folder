@@ -22,7 +22,8 @@ from .snapshot import (
 )
 
 
-def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, author_name):
+def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, author_name,
+                         client_endpoint):
     """
     From an existing Tahoe-LAFS 1.14.0 or earlier configuration we
     initialize a new magic-folder using the relevant configuration
@@ -40,6 +41,9 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
     :param unicode author_name: the name of our author (will be used
         for each magic-folder we create from the "other" config)
 
+    :param unicode client_endpoint: Twisted client-string to our API
+        (or None to autoconvert the listen_endpoint)
+
     :return Deferred[GlobalConfigDatabase]: the newly migrated
         configuration or an exception upon error.
     """
@@ -48,6 +52,7 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
         config_dir,
         listen_endpoint,
         tahoe_node_directory,
+        client_endpoint,
     )
 
     # now that we have the global configuration we find all the

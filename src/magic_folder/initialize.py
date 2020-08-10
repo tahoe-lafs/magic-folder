@@ -14,7 +14,7 @@ from .config import (
 )
 
 
-def magic_folder_initialize(config_dir, listen_endpoint, tahoe_node_directory):
+def magic_folder_initialize(config_dir, listen_endpoint, tahoe_node_directory, client_endpoint):
     """
     Initialize a magic-folder daemon configuration with the specified required options in ``config_dir``.
 
@@ -26,6 +26,9 @@ def magic_folder_initialize(config_dir, listen_endpoint, tahoe_node_directory):
     :param FilePath tahoe_node_directory: the directory containing our
         Tahoe-LAFS client's configuration
 
+    :param unicode client_endpoint: Twisted client-string to our API
+        (or None to autoconvert the listen_endpoint)
+
     :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
         an appropriate exception is raised.
     """
@@ -34,6 +37,7 @@ def magic_folder_initialize(config_dir, listen_endpoint, tahoe_node_directory):
         config_dir,
         listen_endpoint,
         tahoe_node_directory,
+        client_endpoint,
     )
 
     return succeed(0)
