@@ -27,7 +27,9 @@ jobs:
     - name: Use pip cache
       uses: actions/cache@v2
       with:
-        path: ~/Library/Caches/pip
+        path:
+          - ~/Library/Caches/pip
+          - ./wheelhouse
         key: ${{ runner.os }}-pip-${{ hashFiles('setup.py') }}
         restore-keys: |
             ${{ runner.os }}-pip-
