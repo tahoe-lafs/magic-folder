@@ -1021,7 +1021,7 @@ class BaseOptions(usage.Options):
     ]
     optParameters = [
         ("config", "c", _default_config_path,
-         "The directory containing config (default {})".format(_default_config_path)),
+         "The directory containing configuration"),
     ]
 
     _config = None  # lazy-instantiated by .config @property
