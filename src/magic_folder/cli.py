@@ -365,6 +365,7 @@ def list_(options):
     List existing magic-folders.
     """
     mf_info = yield magic_folder_list(options.parent.config)
+    mf_info = mf_info["folders"]
     if options["json"]:
         print(json.dumps(mf_info, indent=4), file=options.stdout)
         return
@@ -424,8 +425,8 @@ def _list_human(info, stdout, include_secrets):
 
     if info:
         print("This client has the following magic-folders:", file=stdout)
-        for name, details in info.items():
-            print("{}:".format(name), file=stdout)
+        for details in info:
+            print("{}:".format(details["name"]), file=stdout)
             print(template.format(**details).rstrip("\n"), file=stdout)
     else:
         print("No magic-folders", file=stdout)
