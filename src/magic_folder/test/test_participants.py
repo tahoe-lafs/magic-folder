@@ -112,7 +112,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         """
         collective_dirnode = Node(
             None,
-            CHKFileURI(b"", b"", 0, 0, 0),
+            DirectoryURI(),
         )
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(

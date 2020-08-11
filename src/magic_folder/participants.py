@@ -19,6 +19,8 @@ from twisted.internet.defer import (
 
 from allmydata.interfaces import (
     IDirectoryNode,
+    IDirectoryURI,
+    IReadonlyDirectoryURI,
 )
 from allmydata.util.eliotutil import (
     inline_callbacks,
@@ -107,6 +109,10 @@ class _CollectiveDirnodeParticipants(object):
     def any_dirnode(self, attribute, value):
         ok = (
             IDirectoryNode.providedBy(value) and
+            (
+                IDirectoryURI.providedBy(value.uri) or
+                IReadonlyDirectoryURI.providedBy(value.uri)
+            ) and
             not value.is_unknown()
         )
         if ok:
@@ -121,6 +127,7 @@ class _CollectiveDirnodeParticipants(object):
     def mutable_dirnode(self, attribute, value):
         ok = (
             IDirectoryNode.providedBy(value) and
+            IDirectoryURI.providedBy(value.uri) and
             not value.is_unknown() and
             not value.is_readonly()
         )
