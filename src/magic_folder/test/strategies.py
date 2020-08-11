@@ -83,7 +83,18 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
     return text(
         alphabet=alphabet,
         min_size=1,
-        max_size=255,
+        # Path segments can typically be longer than this but when turned into
+        # an absolute path, the longer the path segment the greater the risk
+        # we run into a total path length limit.  We don't really know what we
+        # can get away with here.  Even this value might lead to problems if
+        # the test suite is operating on multiple path segments joined or
+        # using these path segments relative to a very long path.
+        #
+        # openat(2), at least on POSIX, might someday help with this (deal
+        # with long paths segment by segment).  Ideally something like
+        # FilePath would abstract over that.  Also it's not available from the
+        # stdlib on Python 2.x.
+        max_size=32,
     ).filter(
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
