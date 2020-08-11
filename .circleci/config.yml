@@ -16,10 +16,10 @@ workflows:
           requires:
             - "ubuntu-20.04"
 
-      - "fedora-29"
-      - "fedora-28":
+      - "fedora-32"
+      - "fedora-31":
           requires:
-            - "fedora-29"
+            - "fedora-32"
 
       - "centos-8"
 
@@ -60,8 +60,8 @@ workflows:
       - "build-image-debian-9"
       - "build-image-ubuntu-18.04"
       - "build-image-ubuntu-20.04"
-      - "build-image-fedora-28"
-      - "build-image-fedora-29"
+      - "build-image-fedora-31"
+      - "build-image-fedora-32"
       - "build-image-centos-8"
       - "build-image-slackware-14.2"
       - "build-image-pypy-2.7-7.3.0-buster"
@@ -260,17 +260,17 @@ jobs:
       - run: *SUBMIT_COVERAGE
 
 
-  fedora-28:
+  fedora-31:
     <<: *RHEL_DERIV
     docker:
-      - image: "magicfolderci/fedora:28"
+      - image: "magicfolderci/fedora:31"
         user: "nobody"
 
 
-  fedora-29:
+  fedora-32:
     <<: *RHEL_DERIV
     docker:
-      - image: "magicfolderci/fedora:29"
+      - image: "magicfolderci/fedora:32"
         user: "nobody"
 
 
@@ -486,20 +486,20 @@ jobs:
       TAG: "8"
 
 
-  build-image-fedora-28:
+  build-image-fedora-31:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "fedora"
-      TAG: "28"
+      TAG: "31"
 
 
-  build-image-fedora-29:
+  build-image-fedora-32:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "fedora"
-      TAG: "29"
+      TAG: "32"
 
 
   build-image-slackware-14.2:
