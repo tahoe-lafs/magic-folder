@@ -49,7 +49,6 @@ from twisted.logger import (
     globalLogBeginner,
     FileLogObserver,
     eventAsText,
-    formatEvent,
 )
 
 from twisted.web.client import (
