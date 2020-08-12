@@ -278,3 +278,31 @@ def interfaces():
         # https://en.wikipedia.org/wiki/Reserved_IP_addresses
         u"192.0.2.123",
     ])
+
+
+def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
+    """
+    Build dictionaries with keys drawn from ``keys`` and values drawn from
+    ``values``.  No value will appear more than once.
+
+    :param int min_size: The fewest number of items in the resulting
+        dictionaries.
+
+    :param int max_size: The greatest number of items in the resulting
+        dictionaries.
+    """
+    return lists(
+        keys,
+        unique=True,
+        min_size=min_size,
+        max_size=max_size,
+    ).flatmap(
+        lambda keys: lists(
+            values,
+            unique=True,
+            min_size=len(keys),
+            max_size=len(keys),
+        ).map(
+            lambda values: dict(zip(keys, values)),
+        ),
+    )
