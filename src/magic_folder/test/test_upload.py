@@ -126,6 +126,7 @@ class UploaderServiceTests(SyncTestCase):
 
         # start Uploader Service
         self.uploader_service.startService()
+        self.addCleanup(self.uploader_service.stopService)
 
         # advance the clock manually, which should result in the
         # polling of the db for uncommitted LocalSnapshots in the db
@@ -144,4 +145,3 @@ class UploaderServiceTests(SyncTestCase):
             ),
         )
 
-        self.addCleanup(self.uploader_service.stopService)
