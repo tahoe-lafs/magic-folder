@@ -3,6 +3,9 @@ import io
 from testtools.matchers import (
     MatchesPredicate,
 )
+from testtools import (
+    ExpectedException,
+)
 from testtools.twistedsupport import (
     succeeded,
 )
@@ -24,6 +27,7 @@ from ..magic_folder import (
 )
 from ..config import (
     create_global_configuration,
+    SnapshotNotFound,
 )
 from ..snapshot import (
     create_local_author,
@@ -144,4 +148,7 @@ class UploaderServiceTests(SyncTestCase):
                                  "%s is not a Tahoe-LAFS URI"),
             ),
         )
+
+        with ExpectedException(SnapshotNotFound, ""):
+            self.state_db.get_local_snapshot(name, self.author)
 
