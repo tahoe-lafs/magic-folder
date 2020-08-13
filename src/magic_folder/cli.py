@@ -1121,7 +1121,7 @@ def dispatch_magic_folder_command(args):
     """
     options = MagicFolderCommand()
     try:
-        options.parseOptions(sys.argv[1:])
+        options.parseOptions(args)
     except usage.UsageError as e:
         print("Error: {}".format(e))
         # if a user just typed "magic-folder" don't make them re-run
