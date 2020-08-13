@@ -767,7 +767,7 @@ class MagicFolderService(MultiService):
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
-#        d.addCallback(lambda ignored: self._listen_endpoint.observe())
+        d.addCallback(lambda ignored: self._listen_endpoint.observe())
         d.addCallback(lambda ignored: Deferred())
         return d
 
