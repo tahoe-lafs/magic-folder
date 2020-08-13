@@ -183,6 +183,11 @@ actually completed and will print out some details. If you pass
 ``--no-wait`` then the command will exit immediately (although the
 invite will still be valid).
 
+XXX DECIDE: should the default be to wait, or to not? Developers are
+split on this; maybe some UX research or discussion can solve it? No
+matter what, the HTTP API will have to be two-part ("start invite ->
+X" and "status of invite X" or "wait for invite X")
+
 Invites are valid until the magic-folder daemon stops running or until
 the default number of minutes pass (whichever is sooner). See the
 ``--timeout`` options for the default (or you can pass a different
