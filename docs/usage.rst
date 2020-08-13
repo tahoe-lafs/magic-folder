@@ -17,6 +17,15 @@ folder which Magic-Folder synchronizes is a normal folder in the
 filesystem.  The platform's filesystem change notification features
 are used to detect changes.
 
+We think of participants in the system as "devices". A single human
+may control many devices (in case they are synchronizing files between
+them, for example). It is possible that a magic-folder setup serves
+just a single human or it may serve many. Each human may have one or
+many devices. When we talk about "an author" below (equivalent to the
+``--author`` CLI option, usally) this means a single device. A single
+human may control many "authors".
+
+
 Prerequisites
 -------------
 
