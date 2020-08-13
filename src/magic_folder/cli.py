@@ -158,15 +158,9 @@ class ShowConfigOptions(usage.Options):
 @inlineCallbacks
 def show_config(options):
 
-    try:
-        rc = yield magic_folder_show_config(
-            FilePath(options['config']),
-        )
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
+    yield magic_folder_show_config(
+        FilePath(options['config']),
+    )
 
 
 class InitializeOptions(usage.Options):
@@ -203,21 +197,15 @@ class InitializeOptions(usage.Options):
 @inlineCallbacks
 def initialize(options):
 
-    try:
-        rc = yield magic_folder_initialize(
-            options.parent._config_path,
-            options['listen-endpoint'],
-            FilePath(options['node-directory']),
-        )
-        print(
-            "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
-            file=options.stdout,
-        )
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
+    yield magic_folder_initialize(
+        options.parent._config_path,
+        options['listen-endpoint'],
+        FilePath(options['node-directory']),
+    )
+    print(
+        "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
+        file=options.stdout,
+    )
 
 
 class MigrateOptions(usage.Options):
@@ -263,27 +251,20 @@ class MigrateOptions(usage.Options):
 @inlineCallbacks
 def migrate(options):
 
-    try:
-        config = yield magic_folder_migrate(
-            options.parent._config_path,
-            options['listen-endpoint'],
-            FilePath(options['node-directory']),
-            options['author'],
-        )
-        print(
-            "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
-            file=options.stdout,
-        )
-        print("\nIt contains the following magic-folders:", file=options.stdout)
-        for name in config.list_magic_folders():
-            mf = config.get_magic_folder(name)
-            print("  {}: author={}".format(name, mf.author.name), file=options.stdout)
-
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(0)
+    config = yield magic_folder_migrate(
+        options.parent._config_path,
+        options['listen-endpoint'],
+        FilePath(options['node-directory']),
+        options['author'],
+    )
+    print(
+        "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
+        file=options.stdout,
+    )
+    print("\nIt contains the following magic-folders:", file=options.stdout)
+    for name in config.list_magic_folders():
+        mf = config.get_magic_folder(name)
+        print("  {}: author={}".format(name, mf.author.name), file=options.stdout)
 
 
 class AddOptions(usage.Options):
