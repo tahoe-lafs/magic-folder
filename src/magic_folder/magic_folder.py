@@ -36,9 +36,6 @@ from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
 )
-from allmydata.interfaces import (
-    NoServersError,
-)
 from allmydata.util import log
 from allmydata.util.fileutil import (
     precondition_abspath,
@@ -717,10 +714,10 @@ UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS = ActionType(
     u"Uploader service is uploading a local snapshot",
 )
 
-NO_NETWORK = MessageType(
-    u"magic-folder:uploader-service:no-network",
+SNAPSHOT_COMMIT_FAILURE = MessageType(
+    u"magic-folder:uploader-service:snapshot-commit-failure",
     [],
-    u"Uploader service is unable to commit the LocalSnapshot since network is down.",
+    u"Uploader service is unable to commit the LocalSnapshot.",
 )
 
 
@@ -923,16 +920,14 @@ class RemoteSnapshotCreator(object):
                     # Remove the LocalSnapshot from the db.
                     yield self._state_db.delete_localsnapshot(name)
 
-
-                except NoServersError:
+                except Exception:
                     # Unable to reach Tahoe storage nodes because of
                     # network errors or because the tahoe storage nodes
                     # are offline. Retry?
-                    # XXX: Perhaps implement exponential backoff for retry?
-                    NO_NETWORK.log()
-                    continue
-                except Exception:
+                    SNAPSHOT_COMMIT_FAILURE.log()
                     write_traceback()
+                    continue
+
 
 @attr.s
 @implementer(service.IService)
