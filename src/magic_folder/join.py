@@ -10,7 +10,7 @@ def magic_folder_join(config, invite_code, local_dir, name, poll_interval, autho
     """
     Join a magic-folder specified by the ``name`` and create the config files.
 
-    :param GlobalConfgDatabase config: our configuration
+    :param GlobalConfigDatabase config: our configuration
 
     :param unicode invite_code: The code used to join a magic folder.
 
