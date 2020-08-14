@@ -25,8 +25,6 @@ from twisted.web.client import (
     FileBodyProducer,
 )
 
-import magic_folder
-
 from eliot import (
     start_action,
     register_exception_extractor,
@@ -143,6 +141,7 @@ def create_local_author_from_config(config, name=None):
     if name is None:
         name = "default"
     nodedir = config.get_config_path()
+    import magic_folder
     magic_folders = magic_folder.load_magic_folders(nodedir)
     if name not in magic_folders:
         raise RuntimeError(
