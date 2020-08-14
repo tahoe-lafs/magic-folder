@@ -124,6 +124,9 @@ from .migrate import (
 from .config import (
     load_global_configuration,
 )
+from .tahoe_client import (
+    create_tahoe_client,
+)
 
 from .join import (
     magic_folder_join
@@ -318,13 +321,14 @@ def add(options):
 
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
+    client = create_tahoe_client(options.parent.config.tahoe_client_url, treq)
     yield magic_folder_create(
         options.parent.config,
         argv_to_unicode(options["name"]),
         argv_to_unicode(options["author"]),
         options.local_dir,
         options["poll-interval"],
-        treq,
+        client,
     )
     print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 
