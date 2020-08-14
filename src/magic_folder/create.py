@@ -13,13 +13,9 @@ from .snapshot import (
     create_local_author,
 )
 
-from .tahoe_client import (
-    create_tahoe_client,
-)
-
 
 @inlineCallbacks
-def magic_folder_create(config, name, author_name, local_dir, poll_interval, treq):
+def magic_folder_create(config, name, author_name, local_dir, poll_interval, tahoe_client):
     """
     Create a magic-folder with the specified ``name`` and
     ``local_dir``.
@@ -36,14 +32,10 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tre
     :param integer poll_interval: Periodic time interval after which the
         client polls for updates.
 
-    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
-        the queries.
+    :param TahoeClient tahoe_client: The client we use to make queries
 
     :return Deferred: ``None`` or an appropriate exception is raised.
     """
-
-    # XXX probably want to pass this in, instead of "treq"?
-    tahoe_client = create_tahoe_client(config.tahoe_client_url, treq)
 
     if name in config.list_magic_folders():
         raise Exception("Already have a magic-folder named '{}'".format(name))
