@@ -76,10 +76,7 @@ class TestAdd(SyncTestCase):
             60,
             self.tahoe_client,
         )
-        self.assertThat(
-            succeeded(d),
-            Always(),
-        )
+        self.assertThat(d, succeeded(Always()))
 
         # confirm that we've added a magic-folder
         mf = self.config.get_magic_folder(u"test")
@@ -88,11 +85,11 @@ class TestAdd(SyncTestCase):
         # read-only capability)
         collective_d = self.tahoe_client.download_capability(mf.collective_dircap)
         collective_d.addCallback(json.loads)
-        self.assertThat(succeeded(collective_d), Always())
+        self.assertThat(collective_d, succeeded(Always()))
 
         kind, metadata = collective_d.result
         self.assertThat(kind, Equals("dirnode"))
-        # the collective should be a mutable director and have "alice"
+        # the collective should be a mutable directory and have "alice"
         # as a child pointing to a *read-only* directory.
 
         def extract_metadata(child_info):
