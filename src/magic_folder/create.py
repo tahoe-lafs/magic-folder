@@ -9,6 +9,10 @@ from twisted.internet.defer import (
     inlineCallbacks,
 )
 
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
+
 from .snapshot import (
     create_local_author,
 )
@@ -49,11 +53,14 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tah
     # create the personal dmd write-cap
     personal_write_cap = yield tahoe_client.create_mutable_directory()
 
+    # 'attenuate' our personal dmd write-cap to a read-cap
+    personal_readonly_cap = tahoe_uri_from_string(personal_write_cap).get_readonly().to_string().encode("ascii")
+
     # add ourselves to the collective
     yield tahoe_client.add_entry_to_mutable_directory(
         mutable_cap=collective_write_cap,
         path_name=author_name,
-        entry_cap=personal_write_cap,
+        entry_cap=personal_readonly_cap,
     )
 
     # create our "state" directory for this magic-folder (could be
