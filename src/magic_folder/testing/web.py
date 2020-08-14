@@ -52,6 +52,10 @@ from treq.testing import (
 from zope.interface import implementer
 
 import allmydata.uri
+from allmydata.interfaces import (
+    IDirectoryURI,
+    IReadonlyDirectoryURI,
+)
 from allmydata.util import (
     base32,
 )
@@ -160,6 +164,10 @@ class _FakeTahoeUriHandler(Resource, object):
         if kind not in self.capability_generators:
             self.capability_generators[kind] = capability_generator(kind)
         capability = next(self.capability_generators[kind])
+        if kind.startswith("URI:DIR2"):
+            # directory-capabilities don't have the trailing size etc information
+            parts = capability.split(":")
+            capability = ":".join(parts[:4])
         return capability
 
     def _add_new_data(self, kind, data):
@@ -320,6 +328,34 @@ class _FakeTahoeUriHandler(Resource, object):
             # redirects so here we go.
             request.setResponseCode(http.GONE)
             return u"No data for '{}'".format(capability).encode("ascii")
+
+        # If you do a GET of a directory-capability, Tahoe-LAFS will
+        # return a JSON format which looks like: ["dirnode", metadata]
+        # where metadata is a dict containing information about the
+        # dir. metatdata["children"] is a dict mapping child names to
+        # lists with ["dirnode", metadata] or ["filenode", metadata].
+        if capability.startswith("URI:DIR2"):
+            # *no* trailing ":" above means we accept "URI:DIR2-RO:" too
+
+            def child_json(raw_cap):
+                u = allmydata.uri.from_string(raw_cap)
+                meta = {
+                    "mutable": (not u.is_readonly()),
+                    "verify_uri": u.get_verify_cap().to_string(),
+                    "ro_uri": u.get_readonly().to_string()
+                }
+                kind = "filenode"
+                if IDirectoryURI.providedBy(u) or IReadonlyDirectoryURI.providedBy(u):
+                    kind = "dirnode"
+                return [kind, meta]
+            our_children = json.loads(self.data[capability])
+            children = {
+                name: child_json(child_cap.encode("ascii"))
+                for name, child_cap in our_children.items()
+            }
+            entry_data = child_json(capability.encode("ascii"))
+            entry_data[1][u"children"] = children
+            return json.dumps(entry_data)
 
         return self.data[capability]
 
