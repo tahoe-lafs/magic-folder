@@ -166,7 +166,7 @@ def show_config(options):
 class InitializeOptions(usage.Options):
     """
     Create and initialize a new Magic Folder daemon directory (which
-    will have no magic-folders in it; use "magic-folder create" for
+    will have no magic-folders in it; use "magic-folder add" for
     that).
     """
 
