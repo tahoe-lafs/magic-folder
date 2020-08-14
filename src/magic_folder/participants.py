@@ -107,6 +107,10 @@ class _CollectiveDirnodeParticipants(object):
 
     @_collective_dirnode.validator
     def any_dirnode(self, attribute, value):
+        """
+        The Collective DMD must be a directory capability (but could be a
+        read-only one or a read-write one).
+        """
         ok = (
             IDirectoryNode.providedBy(value) and
             (
@@ -125,6 +129,9 @@ class _CollectiveDirnodeParticipants(object):
 
     @_upload_dirnode.validator
     def mutable_dirnode(self, attribute, value):
+        """
+        The Upload DMD must be a writable directory capability
+        """
         ok = (
             IDirectoryNode.providedBy(value) and
             IDirectoryURI.providedBy(value.uri) and
@@ -142,6 +149,9 @@ class _CollectiveDirnodeParticipants(object):
 
     @inline_callbacks
     def list(self):
+        """
+        IParticipants API
+        """
         result = yield self._collective_dirnode.list()
         returnValue(list(
             participant_from_dmd(
