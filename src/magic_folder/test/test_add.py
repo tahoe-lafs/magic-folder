@@ -3,6 +3,8 @@ import json
 from testtools.matchers import (
     Equals,
     ContainsDict,
+    Contains,
+    Not,
     AfterPreprocessing,
     Always,
 )
@@ -97,11 +99,11 @@ class TestAdd(SyncTestCase):
         self.assertThat(
             metadata,
             ContainsDict({
-                u"mutable": Equals(True),
                 u"children": ContainsDict({
-                    u"alice": AfterPreprocessing(extract_metadata, ContainsDict({
-                        "mutable": Equals(False),
-                    })),
+                    u"alice": AfterPreprocessing(
+                        extract_metadata,
+                        Not(Contains("rw_uri"))
+                    )
                 }),
             })
         )
