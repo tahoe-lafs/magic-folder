@@ -217,7 +217,7 @@ class TahoeClientTests(SyncTestCase):
             self.tahoe_client.create_immutable_directory(children),
             succeeded(
                 AfterPreprocessing(
-                    lambda cap: loads(self.root._uri.data[cap]),
+                    lambda cap: loads(self.root._uri.data[cap])[1]["children"],
                     Equals(children),
                 ),
             ),

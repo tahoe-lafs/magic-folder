@@ -164,8 +164,9 @@ class _FakeTahoeUriHandler(Resource, object):
         if kind not in self.capability_generators:
             self.capability_generators[kind] = capability_generator(kind)
         capability = next(self.capability_generators[kind])
-        if kind.startswith("URI:DIR2"):
-            # directory-capabilities don't have the trailing size etc information
+        if kind.startswith("URI:DIR2") and not kind.startswith("URI:DIR2-CHK"):
+            # directory-capabilities don't have the trailing size etc
+            # information unless they're immutable ...
             parts = capability.split(":")
             capability = ":".join(parts[:4])
         return capability
@@ -222,9 +223,12 @@ class _FakeTahoeUriHandler(Resource, object):
     def render_PUT(self, request):
         uri = DecodedURL.from_text(request.uri.decode("utf8"))
         fmt = "chk"
+        t = None
         for arg, value in uri.query:
             if arg == "format":
                 fmt = value.lower()
+            elif arg == "t":
+                t = value.lower()
         if fmt != "chk":
             raise NotImplementedError()
 
@@ -266,18 +270,54 @@ class _FakeTahoeUriHandler(Resource, object):
 
         content_cap = request.content.read().decode("utf8")
 
-        dir_data = {} if not dir_raw_data else json.loads(dir_raw_data)
-        dir_data[segments[0]] = content_cap
+        dir_data = json.loads(dir_raw_data)
+        dir_data[1]["children"][segments[0]] = [
+            "filenode",
+            {
+                "ro_uri": content_cap,
+            }
+        ]
         self.data[dircap] = json.dumps(dir_data).encode("utf8")
         return b""
+
+    def _mkdir_data_to_internal(self, raw_data):
+        """
+        Transforms the data that Tahoe-LAFS's ?t=mkdir-immutable (and
+        ?t=mkdir) API takes into the form that it'll spit out again
+        from the JSON directory-listing API. The incoming JSON data is
+        essentially just the children of the new directory.
+        """
+        # incoming from a client is essentially just the "children"
+        # part. Internally in Tahoe-LAFS these are represented as a
+        # series of net-strings but are returned from the GET API
+        # shaped like the below:
+        data = {} if not raw_data else json.loads(raw_data)
+        return json.dumps([
+            "dirnode",
+            {
+                "children": data,
+            }
+        ])
+
+    def _add_immutable_directory(self, raw_data):
+        return self.add_data(
+            "URI:DIR2-CHK:",
+            self._mkdir_data_to_internal(raw_data),
+        )
+
+    def _add_mutable_directory(self, raw_data):
+        return self.add_mutable_data(
+            "URI:DIR2:",
+            self._mkdir_data_to_internal(raw_data),
+        )
 
     def render_POST(self, request):
         t = request.args[u"t"][0]
         data = request.content.read()
 
         type_to_handler = {
-            "mkdir-immutable": partial(self.add_data, "URI:DIR2-CHK:"),
-            "mkdir": partial(self.add_mutable_data, "URI:DIR2:"),
+            "mkdir-immutable": self._add_immutable_directory,
+            "mkdir": self._add_mutable_directory,
         }
         handler = type_to_handler[t]
         fresh, cap = handler(data)
@@ -329,34 +369,6 @@ class _FakeTahoeUriHandler(Resource, object):
             request.setResponseCode(http.GONE)
             return u"No data for '{}'".format(capability).encode("ascii")
 
-        # If you do a GET of a directory-capability, Tahoe-LAFS will
-        # return a JSON format which looks like: ["dirnode", metadata]
-        # where metadata is a dict containing information about the
-        # dir. metatdata["children"] is a dict mapping child names to
-        # lists with ["dirnode", metadata] or ["filenode", metadata].
-        if capability.startswith("URI:DIR2"):
-            # *no* trailing ":" above means we accept "URI:DIR2-RO:" too
-
-            def child_json(raw_cap):
-                u = allmydata.uri.from_string(raw_cap)
-                meta = {
-                    "mutable": (not u.is_readonly()),
-                    "verify_uri": u.get_verify_cap().to_string(),
-                    "ro_uri": u.get_readonly().to_string()
-                }
-                kind = "filenode"
-                if IDirectoryURI.providedBy(u) or IReadonlyDirectoryURI.providedBy(u):
-                    kind = "dirnode"
-                return [kind, meta]
-            our_children = json.loads(self.data[capability])
-            children = {
-                name: child_json(child_cap.encode("ascii"))
-                for name, child_cap in our_children.items()
-            }
-            entry_data = child_json(capability.encode("ascii"))
-            entry_data[1][u"children"] = children
-            return json.dumps(entry_data)
-
         return self.data[capability]
 
     def _get_child_of_directory(self, request, capability, child_name):
@@ -374,7 +386,7 @@ class _FakeTahoeUriHandler(Resource, object):
             )
         dir_data = json.loads(raw_data)
         try:
-            child_cap = dir_data[child_name]
+            child_cap = dir_data[1]["children"][child_name][1]["ro_uri"]
             child_data = self.data[child_cap]
         except KeyError:
             request.setResponseCode(http.GONE)
