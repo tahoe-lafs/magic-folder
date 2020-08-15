@@ -687,6 +687,8 @@ class MagicFolderService(MultiService):
     :ivar FilePath tahoe_nodedir: The filesystem path to the Tahoe-LAFS node
         with which to interact.
 
+    :ivar GlobalConfigDatabase config: our system configuration
+
     :ivar MagicFolderServiceState _state: The Magic Folder state in use by
         this service.
     """
@@ -732,6 +734,11 @@ class MagicFolderService(MultiService):
 
     @classmethod
     def from_config(cls, reactor, config):
+        """
+        Create a new service given a reactor and global configuration.
+
+        :param GlobalConfigDatabase config: config to use
+        """
         return cls(
             reactor,
             config,
