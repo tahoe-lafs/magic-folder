@@ -55,7 +55,7 @@ required and two decisions to be made. You need to know:
 You need to decide:
 
 - The network endpoint the API will listen on. This is how CLI
-  commands and front-ends communciate to the magic-folder daemon and
+  commands and front-ends communicate to the magic-folder daemon and
   is expressed as a Twisted "server endpoint string". For example,
   ``tcp:4321:interface=localhost`` to listen locally on port 4321.
 - If you wish to specify where to store the configuration. By default
