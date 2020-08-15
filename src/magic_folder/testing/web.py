@@ -18,9 +18,6 @@ to Tahoe-LAFS every few days.
 """
 
 import json
-from functools import (
-    partial,
-)
 
 import hashlib
 
@@ -54,8 +51,6 @@ from zope.interface import implementer
 import allmydata.uri
 from allmydata.interfaces import (
     IDirnodeURI,
-    IDirectoryURI,
-    IReadonlyDirectoryURI,
 )
 from allmydata.util import (
     base32,
@@ -224,12 +219,9 @@ class _FakeTahoeUriHandler(Resource, object):
     def render_PUT(self, request):
         uri = DecodedURL.from_text(request.uri.decode("utf8"))
         fmt = "chk"
-        t = None
         for arg, value in uri.query:
             if arg == "format":
                 fmt = value.lower()
-            elif arg == "t":
-                t = value.lower()
         if fmt != "chk":
             raise NotImplementedError()
 
