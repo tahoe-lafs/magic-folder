@@ -277,13 +277,13 @@ class TahoeClientTests(SyncTestCase):
         child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
-            succeeded(resp_d),
-            Always(),
+            resp_d,
+            succeeded(Always()),
         )
         child_content_d = resp_d.result.content()
         self.assertThat(
-            succeeded(child_content_d),
-            Always()
+            child_content_d,
+            succeeded(Always()),
         )
         self.assertThat(child_content_d.result, Equals(content))
 
@@ -291,7 +291,7 @@ class TahoeClientTests(SyncTestCase):
         child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
-            succeeded(resp_d),
-            Always(),
+            resp_d,
+            succeeded(Always()),
         )
         self.assertThat(resp_d.result.code, Equals(GONE))
