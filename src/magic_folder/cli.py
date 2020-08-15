@@ -684,8 +684,7 @@ class MagicFolderServiceState(object):
 @attr.s
 class MagicFolderService(MultiService):
     """
-    :ivar FilePath tahoe_nodedir: The filesystem path to the Tahoe-LAFS node
-        with which to interact.
+    :ivar reactor: the Twisted reactor to use
 
     :ivar GlobalConfigDatabase config: our system configuration
 
