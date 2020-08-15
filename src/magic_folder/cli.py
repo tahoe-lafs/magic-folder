@@ -179,7 +179,7 @@ class InitializeOptions(usage.Options):
     ]
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
-        "any number of magic-folders (use \"magic-folder create\" to "
+        "any number of magic-folders (use \"magic-folder add\" to "
         "create a new one."
     )
 
@@ -1096,7 +1096,7 @@ class MagicFolderCommand(BaseOptions):
     def getUsage(self, width=None):
         t = BaseOptions.getUsage(self, width)
         t += (
-            "Please run e.g. 'magic-folder create --help' for more "
+            "Please run e.g. 'magic-folder add --help' for more "
             "details on each subcommand.\n"
         )
         return t
