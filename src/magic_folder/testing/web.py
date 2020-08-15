@@ -53,6 +53,7 @@ from zope.interface import implementer
 
 import allmydata.uri
 from allmydata.interfaces import (
+    IDirnodeURI,
     IDirectoryURI,
     IReadonlyDirectoryURI,
 )
@@ -269,14 +270,22 @@ class _FakeTahoeUriHandler(Resource, object):
             )
 
         content_cap = request.content.read().decode("utf8")
+        content = allmydata.uri.from_string(content_cap.encode("ascii"))
+
+        kind = "dirnode" if IDirnodeURI.providedBy(content) else "filenode"
+
+        # so it looks like Tahoe returns "mutable=true" even if you
+        # only have a read-only capability ..
+        metadata = {
+            "mutable": content.is_mutable(),
+            "ro_uri": content_cap,
+            "verify_cap": content.get_verify_cap().to_string(),
+        }
+        if content_cap != content.get_readonly().to_string():
+            metadata["rw_uri"] = content_cap
 
         dir_data = json.loads(dir_raw_data)
-        dir_data[1]["children"][segments[0]] = [
-            "filenode",
-            {
-                "ro_uri": content_cap,
-            }
-        ]
+        dir_data[1]["children"][segments[0]] = [kind, metadata]
         self.data[dircap] = json.dumps(dir_data).encode("utf8")
         return b""
 
