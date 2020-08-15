@@ -66,7 +66,12 @@ def test_daemon_migrate(request, reactor, alice, temp_dir):
 
     node_dir = join(temp_dir, "test-daemon-migrate")
 
-    print("\n\nabout to run magic-folder migrate\n")
+    # if we're depending on a "new" tahoe (which we should) then
+    # there's no "tahoe magic-folder" to create "legacy" config for us
+    # to migrate. So, we create an (empty) config.
+    with open(join(alice.node_directory, "private", "magic_folders.yaml"), "w") as f:
+        f.write("magic-folders: {}\n")
+
     proto = util._DumpOutputProtocol(None)
     util._magic_folder_runner(
         proto, reactor, request,
