@@ -7,8 +7,6 @@ import base64
 
 import pytest_twisted
 
-from twisted.internet.error import ProcessTerminated
-
 import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")

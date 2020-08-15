@@ -751,7 +751,6 @@ def _run_magic_folder(reactor, request, temp_dir, name):
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    node_dir = join(temp_dir, name)
     config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
