@@ -910,19 +910,39 @@ class RemoteSnapshotCreator(object):
                     continue
 
 
-@attr.s
 @implementer(service.IService)
 class UploaderService(service.Service):
     """
     A service that periodically polls the database for local snapshots
     and commit them into the grid.
     """
-    _tahoe_client = attr.ib()
-    _clock = attr.ib()
-    _polling_interval = attr.ib() # in GlobalConfigdatabase
-    _remote_snapshot_creator = attr.ib(validator=attr.validators.instance_of(RemoteSnapshotCreator))
+
+    @classmethod
+    def from_config(cls, clock, tahoe_client, name, config, remote_snapshot_creator):
+        """
+        Create an UploaderService from the MagicFolder configuration.
+        """
+        mf_config = config.get_magic_folder(name)
+        polling_interval = mf_config.poll_interval
+        return cls(
+            client=tahoe_client,
+            clock=clock,
+            polling_interval=polling_interval,
+            remote_snapshot_creator=remote_snapshot_creator,
+        )
+
+    def __init__(self, client, clock, polling_interval, remote_snapshot_creator):
+        super(UploaderService, self).__init__()
+
+        self._tahoe_client = client
+        self._clock = clock
+        self._polling_interval = polling_interval
+        self._remote_snapshot_creator = remote_snapshot_creator
 
     def startService(self):
+        """
+        XXX
+        """
 
         service.Service.startService(self)
 

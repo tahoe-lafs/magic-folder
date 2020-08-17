@@ -71,7 +71,7 @@ class UploaderServiceTests(SyncTestCase):
         )
 
         self.temp = FilePath(self.mktemp())
-        self.global_db = create_global_configuration(
+        global_config = create_global_configuration(
             self.temp.child(b"global-db"),
             u"tcp:12345",
             self.temp.child(b"tahoe-node"),
@@ -80,7 +80,7 @@ class UploaderServiceTests(SyncTestCase):
         self.magic_path.makedirs()
 
         self.polling_interval = 1
-        self.state_db = self.global_db.create_magic_folder(
+        self.state_db = global_config.create_magic_folder(
             u"some-folder",
             self.magic_path,
             self.temp.child(b"state"),
@@ -95,11 +95,12 @@ class UploaderServiceTests(SyncTestCase):
             local_author = self.author,
         )
 
-        self.uploader_service = UploaderService(
-            tahoe_client=self.tahoe_client,
+        self.uploader_service = UploaderService.from_config(
+            name=u"some-folder",
+            config=global_config,
             clock=task.Clock(),
-            polling_interval=1,
             remote_snapshot_creator=self.remote_snapshot_creator,
+            tahoe_client=self.tahoe_client,
         )
 
     @given(name=path_segments(),
