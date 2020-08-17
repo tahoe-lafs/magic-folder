@@ -203,6 +203,50 @@ class SchemaTests(TestCase):
             Equals(values[current_version:]),
         )
 
+    @given(
+        lists(
+            integers(min_value=1, max_value=10),
+            min_size=2,
+            max_size=100,
+        ),
+    )
+    def test_multiple_upgrades(self, upgrade_groups):
+        """
+        A database can be upgraded repeatedly over time with newer and newer
+        schemas.
+        """
+        db = connect(":memory:")
+        cursor = db.cursor()
+
+        all_upgrades = dummy_upgrades(sum(upgrade_groups))
+        some_upgrades = []
+        for more_upgrades in upgrade_groups:
+            some_upgrades = some_upgrades + all_upgrades[:more_upgrades]
+            del all_upgrades[:more_upgrades]
+            schema = Schema(some_upgrades)
+            schema.run_upgrades(cursor)
+
+        self.assertThat(
+            schema.get_version(cursor),
+            Equals(schema.version),
+        )
+
 
 def dummy_upgrades(count):
-    return [SchemaUpgrade(["SELECT 1"])] * count
+    """
+    Create ``count`` valid, executable schema upgrade objects.
+
+    The exact schema changes made aren't meant to be significant themselves.
+    Instead, what's interesting is the fact that they can really be executed
+    against a database and that each can only ever run successfully once
+    against a particular database.
+
+    :return [SchemaUpgrade]: The requested number of upgrades.
+    """
+    return [
+        SchemaUpgrade([
+            "CREATE TABLE [foo_{}] ( [a] INT )".format(n),
+        ])
+        for n
+        in range(count)
+    ]
