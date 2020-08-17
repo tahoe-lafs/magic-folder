@@ -190,8 +190,8 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory,
             (_global_config_version, )
         )
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory) VALUES (?, ?)",
-            (api_endpoint, tahoe_node_directory.path)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
+            (api_endpoint, tahoe_node_directory.path, api_client_endpoint)
         )
 
     config = GlobalConfigDatabase(
@@ -460,7 +460,7 @@ class GlobalConfigDatabase(object):
         cursor.execute("SELECT api_client_endpoint FROM config")
         return cursor.fetchone()[0].encode("utf8")
 
-    @api_endpoint.setter
+    @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
         # confirm we have a valid endpoint-string
         from twisted.internet import reactor  # uhm...
