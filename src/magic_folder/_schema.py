@@ -5,7 +5,8 @@
 This module defines the database schema used by the model interface.
 
 :var int MAXIMUM_UPGRADES: The maximum number of upgrades that are allowed in
-    a single schema.
+    a single schema.  This is set to an arbitrary value which should allow for
+    quite a lot of schema changes but which still offers us a finite bound.
 """
 
 from __future__ import (
@@ -105,6 +106,9 @@ class Schema(object):
     @upgrades.validator
     def _validate_upgrades(self, attribute, value):
         if len(value) > MAXIMUM_UPGRADES:
+            # If you hit this case, congratulations on your epic schema.  Your
+            # prize is that you get to implement some kind of schema
+            # consolidation mechanism.
             raise ValueError(
                 "Schema has {} upgrades, greater than maximum allowed {}".format(
                     len(value),
