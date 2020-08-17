@@ -83,7 +83,18 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
     return text(
         alphabet=alphabet,
         min_size=1,
-        max_size=255,
+        # Path segments can typically be longer than this but when turned into
+        # an absolute path, the longer the path segment the greater the risk
+        # we run into a total path length limit.  We don't really know what we
+        # can get away with here.  Even this value might lead to problems if
+        # the test suite is operating on multiple path segments joined or
+        # using these path segments relative to a very long path.
+        #
+        # openat(2), at least on POSIX, might someday help with this (deal
+        # with long paths segment by segment).  Ideally something like
+        # FilePath would abstract over that.  Also it's not available from the
+        # stdlib on Python 2.x.
+        max_size=32,
     ).filter(
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
@@ -278,3 +289,31 @@ def interfaces():
         # https://en.wikipedia.org/wiki/Reserved_IP_addresses
         u"192.0.2.123",
     ])
+
+
+def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
+    """
+    Build dictionaries with keys drawn from ``keys`` and values drawn from
+    ``values``.  No value will appear more than once.
+
+    :param int min_size: The fewest number of items in the resulting
+        dictionaries.
+
+    :param int max_size: The greatest number of items in the resulting
+        dictionaries.
+    """
+    return lists(
+        keys,
+        unique=True,
+        min_size=min_size,
+        max_size=max_size,
+    ).flatmap(
+        lambda keys: lists(
+            values,
+            unique=True,
+            min_size=len(keys),
+            max_size=len(keys),
+        ).map(
+            lambda values: dict(zip(keys, values)),
+        ),
+    )

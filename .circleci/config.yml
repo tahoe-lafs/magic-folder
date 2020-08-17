@@ -11,10 +11,10 @@ workflows:
           requires:
             - "debian-9"
 
-      - "ubuntu-18.04"
-      - "ubuntu-16.04":
+      - "ubuntu-20.04"
+      - "ubuntu-18.04":
           requires:
-            - "ubuntu-18.04"
+            - "ubuntu-20.04"
 
       - "fedora-29"
       - "fedora-28":
@@ -58,8 +58,8 @@ workflows:
     jobs:
       - "build-image-debian-8"
       - "build-image-debian-9"
-      - "build-image-ubuntu-16.04"
       - "build-image-ubuntu-18.04"
+      - "build-image-ubuntu-20.04"
       - "build-image-fedora-28"
       - "build-image-fedora-29"
       - "build-image-centos-8"
@@ -225,17 +225,17 @@ jobs:
       - run: *RUN_TESTS
 
 
-  ubuntu-16.04:
-    <<: *DEBIAN
-    docker:
-      - image: "magicfolderci/ubuntu:16.04"
-        user: "nobody"
-
-
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
       - image: "magicfolderci/ubuntu:18.04"
+        user: "nobody"
+
+
+  ubuntu-20.04:
+    <<: *DEBIAN
+    docker:
+      - image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
@@ -462,20 +462,20 @@ jobs:
       TAG: "9"
 
 
-  build-image-ubuntu-16.04:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "ubuntu"
-      TAG: "16.04"
-
-
   build-image-ubuntu-18.04:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "ubuntu"
       TAG: "18.04"
+
+
+  build-image-ubuntu-20.04:
+    <<: *BUILD_IMAGE
+
+    environment:
+      DISTRO: "ubuntu"
+      TAG: "20.04"
 
 
   build-image-centos-8:

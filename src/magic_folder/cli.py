@@ -1,15 +1,19 @@
 from __future__ import print_function
+from __future__ import unicode_literals
 
-import os
 import sys
+import getpass
+import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
-from types import NoneType
-from ConfigParser import SafeConfigParser
 import json
 from collections import (
     defaultdict,
+)
+
+from nacl.encoding import (
+    Base32Encoder,
 )
 
 from appdirs import (
@@ -20,13 +24,8 @@ from zope.interface import (
     implementer,
 )
 
-from hyperlink import (
-    DecodedURL,
-)
-
-import importlib_metadata
-
 import attr
+
 from io import (
     BytesIO,
 )
@@ -47,6 +46,11 @@ from twisted.internet.endpoints import (
 from twisted.internet.task import (
     react,
 )
+from twisted.logger import (
+    globalLogBeginner,
+    FileLogObserver,
+    eventAsText,
+)
 
 from twisted.web.client import (
     Agent,
@@ -57,11 +61,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.application.service import (
-    Service,
     MultiService,
 )
 from twisted.internet.task import (
@@ -90,41 +90,28 @@ from allmydata.interfaces import (
 from allmydata.uri import (
     from_string,
 )
-from allmydata.util.assertutil import precondition
-from allmydata.util import (
-    base32,
-)
 from allmydata.util.encodingutil import (
-    argv_to_abspath,
     argv_to_unicode,
     to_str,
-    quote_local_unicode_path,
 )
-from allmydata.util import fileutil
-from allmydata.util.encodingutil import quote_output
 
-from allmydata.scripts.common import (
-    get_aliases,
-)
 from allmydata.client import (
     read_config,
 )
 
 from .magic_folder import (
     MagicFolder,
-    load_magic_folders,
-    save_magic_folders,
 )
 from .web import (
     magic_folder_web_service,
 )
 
 from .invite import (
-    magic_folder_invite as _invite
+    magic_folder_invite
 )
 
 from .create import (
-    magic_folder_create as _create
+    magic_folder_create
 )
 from .show_config import (
     magic_folder_show_config,
@@ -135,16 +122,16 @@ from .initialize import (
 from .migrate import (
     magic_folder_migrate,
 )
+from .config import (
+    load_global_configuration,
+)
+from .tahoe_client import (
+    create_tahoe_client,
+)
 
 from .join import (
-    magic_folder_join as _join
+    magic_folder_join
 )
-
-from ._coverage import (
-    coverage_service,
-)
-
-from .util.observer import ListenObserver
 
 
 _default_config_path = user_config_dir("magic-folder")
@@ -175,41 +162,29 @@ class ShowConfigOptions(usage.Options):
 @inlineCallbacks
 def show_config(options):
 
-    try:
-        rc = yield magic_folder_show_config(
-            FilePath(options['config']),
-        )
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
+    yield magic_folder_show_config(
+        FilePath(options['config']),
+    )
 
 
 class InitializeOptions(usage.Options):
     """
     Create and initialize a new Magic Folder daemon directory (which
-    will have no magic-folders in it; use "magic-folder create" for
+    will have no magic-folders in it; use "magic-folder add" for
     that).
     """
 
     optParameters = [
-        ("config", "c", None,
-         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
     ]
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
-        "any number of magic-folders (use \"magic-folder create\" to "
+        "any number of magic-folders (use \"magic-folder add\" to "
         "create a new one."
     )
 
     def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
-
         # required args
         if self['listen-endpoint'] is None:
             raise usage.UsageError("--listen-endpoint / -l is required")
@@ -217,25 +192,24 @@ class InitializeOptions(usage.Options):
             raise usage.UsageError("--node-directory / -n is required")
 
         # validate
-        if FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+        if self.parent._config_path.exists():
+            raise usage.UsageError(
+                "Directory '{}' already exists".format(self.parent._config_path.path)
+            )
 
 
 @inlineCallbacks
 def initialize(options):
 
-    try:
-        rc = yield magic_folder_initialize(
-            FilePath(options['config']),
-            options['listen-endpoint'],
-            FilePath(options['node-directory']),
-        )
-        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
+    yield magic_folder_initialize(
+        options.parent._config_path,
+        options['listen-endpoint'],
+        FilePath(options['node-directory']),
+    )
+    print(
+        "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
+        file=options.stdout,
+    )
 
 
 class MigrateOptions(usage.Options):
@@ -245,11 +219,9 @@ class MigrateOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None,
-         "A non-existant directory to contain config (default {})".format(_default_config_path)),
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "A local path which is a Tahoe-LAFS node-directory"),
-        ("author-name", "a", None, "The name for the author to use in each migrated magic-folder"),
+        ("author", "A", None, "The name for the author to use in each migrated magic-folder"),
     ]
     synopsis = (
         "\n\nCreate a new magic-folder daemon configuration in the --config "
@@ -257,23 +229,23 @@ class MigrateOptions(usage.Options):
     )
 
     def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
-
         # required args
         if self['listen-endpoint'] is None:
             raise usage.UsageError("--listen-endpoint / -l is required")
         if self['node-directory'] is None:
             raise usage.UsageError("--node-directory / -n is required")
-        if self['author-name'] is None:
-            raise usage.UsageError("--author-name / -a is required")
+        if self['author'] is None:
+            raise usage.UsageError("--author / -a is required")
 
         # validate
-        if FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' already exists".format(self['config']))
+        if self.parent._config_path.exists():
+            raise usage.UsageError(
+                "Directory '{}' already exists".format(self.parent._config_path.path)
+            )
         if not FilePath(self['node-directory']).exists():
-            raise usage.UsageError("--node-directory '{}' doesn't exist".format(self['node-directory']))
+            raise usage.UsageError(
+                "--node-directory '{}' doesn't exist".format(self['node-directory'])
+            )
         if not FilePath(self['node-directory']).child("tahoe.cfg").exists():
             raise usage.UsageError(
                 "'{}' doesn't look like a Tahoe node-directory (no tahoe.cfg)".format(self['node-directory'])
@@ -283,48 +255,56 @@ class MigrateOptions(usage.Options):
 @inlineCallbacks
 def migrate(options):
 
-    try:
-        config = yield magic_folder_migrate(
-            FilePath(options['config']),
-            options['listen-endpoint'],
-            FilePath(options['node-directory']),
-            options['author-name'],
-        )
-        print("Created Magic Folder daemon configuration in:\n     {}".format(options['config']))
-        print("\nIt contains the following magic-folders:")
-        for name in config.list_magic_folders():
-            mf = config.get_magic_folder(name)
-            print("  {}: author={}".format(name, mf.author.name))
-
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(0)
+    config = yield magic_folder_migrate(
+        options.parent._config_path,
+        options['listen-endpoint'],
+        FilePath(options['node-directory']),
+        options['author'],
+    )
+    print(
+        "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
+        file=options.stdout,
+    )
+    print("\nIt contains the following magic-folders:", file=options.stdout)
+    for name in config.list_magic_folders():
+        mf = config.get_magic_folder(name)
+        print("  {}: author={}".format(name, mf.author.name), file=options.stdout)
 
 
-class CreateOptions(usage.Options):
-    nickname = None  # NOTE: *not* the "name of this magic-folder"
+class AddOptions(usage.Options):
     local_dir = None
-    synopsis = "MAGIC_ALIAS: [NICKNAME LOCAL_DIR]"
+    synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", "default", "The name of this magic-folder"),
+        ("name", "n", None, "The name of this magic-folder"),
+        ("author", "A", None, "Our name for Snapshots authored here"),
     ]
     description = (
-        "Create a new magic-folder. If you specify NICKNAME and "
-        "LOCAL_DIR, this client will also be invited and join "
-        "using the given nickname. A new alias (see 'tahoe list-aliases') "
-        "will be added with the master folder's writecap."
+        "Create a new magic-folder."
     )
 
-    def parseArgs(self, alias, nickname=None, local_dir=None):
-        super(CreateOptions, self).parseArgs()
-        alias = argv_to_unicode(alias)
-        if not alias.endswith(u':'):
-            raise usage.UsageError("An alias must end with a ':' character.")
-        self.alias = alias[:-1]
-        self.nickname = None if nickname is None else argv_to_unicode(nickname)
+    def parseArgs(self, local_dir=None):
+        if local_dir is None:
+            raise usage.UsageError(
+                "Must specify a single argument: the local directory"
+            )
+        self.local_dir = FilePath(local_dir)
+        if not self.local_dir.exists():
+            raise usage.UsageError(
+                "'{}' doesn't exist".format(local_dir)
+            )
+        if not self.local_dir.isdir():
+            raise usage.UsageError(
+                "'{}' isn't a directory".format(local_dir)
+            )
+
+    def postOptions(self):
+        super(AddOptions, self).postOptions()
+        _fill_author_from_environment(self)
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
         try:
             if int(self['poll-interval']) <= 0:
                 raise ValueError("should be positive")
@@ -333,85 +313,113 @@ class CreateOptions(usage.Options):
                 "--poll-interval must be a positive integer"
             )
 
-        # Expand the path relative to the current directory of the CLI command, not the node.
-        self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
-
-        if self.nickname and not self.local_dir:
-            raise usage.UsageError("If NICKNAME is specified then LOCAL_DIR must also be specified.")
-
 
 @inlineCallbacks
-def create(options):
-    precondition(isinstance(options.alias, unicode), alias=options.alias)
-    precondition(isinstance(options.nickname, (unicode, NoneType)), nickname=options.nickname)
-    precondition(isinstance(options.local_dir, (unicode, NoneType)), local_dir=options.local_dir)
+def add(options):
+    """
+    Add a new Magic Folder
+    """
 
-    try:
-        from twisted.internet import reactor
-        treq = HTTPClient(Agent(reactor))
+    from twisted.internet import reactor
+    treq = HTTPClient(Agent(reactor))
+    client = create_tahoe_client(options.parent.config.tahoe_client_url, treq)
+    yield magic_folder_create(
+        options.parent.config,
+        argv_to_unicode(options["name"]),
+        argv_to_unicode(options["author"]),
+        options.local_dir,
+        options["poll-interval"],
+        client,
+    )
+    print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 
-        name = options['name']
-        nodedir = options.parent.node_directory
-        localdir = options.local_dir
-        rc = yield _create(options.alias, options.nickname, name, nodedir, localdir, options["poll-interval"], treq)
-        print("Alias %s created" % (quote_output(options.alias),), file=options.stdout)
-    except Exception as e:
-        print("%s" % str(e), file=options.stderr)
-        returnValue(1)
-
-    returnValue(rc)
 
 class ListOptions(usage.Options):
     description = (
         "List all magic-folders this client has joined"
     )
     optFlags = [
-        ("json", "", "Produce JSON output")
+        ("json", "", "Produce JSON output"),
+        ("include-secret-information", "", "Include sensitive secret data too"),
     ]
 
 
 def list_(options):
-    folders = load_magic_folders(options.parent.node_directory)
-    if options["json"]:
-        _list_json(options, folders)
-        return 0
-    _list_human(options, folders)
-    return 0
-
-
-def _list_json(options, folders):
     """
-    List our magic-folders using JSON
+    List existing magic-folders.
+    """
+    mf_info = _magic_folder_info(options)
+    if options["json"]:
+        print(json.dumps(mf_info, indent=4), file=options.stdout)
+        return
+    return _list_human(mf_info, options.stdout, options["include-secret-information"])
+
+
+def _magic_folder_info(options):
+    """
+    Get information about all magic-folders
+
+    :returns: JSON-able dict
     """
     info = dict()
-    for name, details in folders.items():
+    config = options.parent.config
+    for name in config.list_magic_folders():
+        mf = config.get_magic_folder(name)
         info[name] = {
-            u"directory": details["directory"],
+            u"author": {
+                u"name": mf.author.name,
+                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+            },
+            u"stash_path": mf.stash_path.path,
+            u"magic_path": mf.magic_path.path,
+            u"poll_interval": mf.poll_interval,
+            u"is_admin": mf.is_admin(),
         }
-    print(json.dumps(info), file=options.stdout)
-    return 0
+        if options['include-secret-information']:
+            info[name][u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+            info[name][u"collective_dircap"] = mf.collective_dircap.encode("ascii")
+            info[name][u"upload_dircap"] = mf.upload_dircap.encode("ascii")
+    return info
 
 
-def _list_human(options, folders):
+def _list_human(info, stdout, include_secrets):
     """
     List our magic-folders for a human user
     """
-    if folders:
-        print("This client has the following magic-folders:", file=options.stdout)
-        biggest = max([len(nm) for nm in folders.keys()])
-        fmt = "  {:>%d}: {}" % (biggest, )
-        for name, details in folders.items():
-            print(fmt.format(name, details["directory"]), file=options.stdout)
+    if include_secrets:
+        template = (
+            "    location: {magic_path}\n"
+            "   stash-dir: {stash_path}\n"
+            "      author: {author[name]} (private_key: {author[signing_key]})\n"
+            "  collective: {collective_dircap}\n"
+            "    personal: {upload_dircap}\n"
+            "     updates: every {poll_interval}s\n"
+            "       admin: {is_admin}\n"
+        )
     else:
-        print("No magic-folders", file=options.stdout)
+        template = (
+            "    location: {magic_path}\n"
+            "   stash-dir: {stash_path}\n"
+            "      author: {author[name]} (public_key: {author[verify_key]})\n"
+            "     updates: every {poll_interval}s\n"
+            "       admin: {is_admin}\n"
+        )
+
+    if info:
+        print("This client has the following magic-folders:", file=stdout)
+        for name, details in info.items():
+            print("{}:".format(name), file=stdout)
+            print(template.format(**details).rstrip("\n"), file=stdout)
+    else:
+        print("No magic-folders", file=stdout)
 
 
 class InviteOptions(usage.Options):
     nickname = None
-    synopsis = "MAGIC_ALIAS: NICKNAME"
+    synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
     stdin = MixedIO(u"")
     optParameters = [
-        ("name", "n", "default", "The name of this magic-folder"),
+        ("name", "n", None, "Name of an existing magic-folder"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -419,32 +427,30 @@ class InviteOptions(usage.Options):
         "transmitted securely to the invitee."
     )
 
-    def parseArgs(self, alias, nickname=None):
+    def parseArgs(self, nickname):
         super(InviteOptions, self).parseArgs()
-        alias = argv_to_unicode(alias)
-        if not alias.endswith(u':'):
-            raise usage.UsageError("An alias must end with a ':' character.")
-        self.alias = alias[:-1]
         self.nickname = argv_to_unicode(nickname)
-        aliases = get_aliases(self.parent.node_directory)
-        self.aliases = aliases
+
+    def postOptions(self):
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
+
 
 @inlineCallbacks
 def invite(options):
-    precondition(isinstance(options.alias, unicode), alias=options.alias)
-    precondition(isinstance(options.nickname, unicode), nickname=options.nickname)
-
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
 
-    try:
-        invite_code = yield _invite(options.parent.node_directory, options.alias, options.nickname, treq)
-        print("{}".format(invite_code), file=options.stdout)
-    except Exception as e:
-        print("magic-folder: {}".format(str(e)))
-        returnValue(1)
+    invite_code = yield magic_folder_invite(
+        options.parent.config,
+        options['name'],
+        options.nickname,
+        treq,
+    )
+    print(u"{}".format(invite_code), file=options.stdout)
 
-    returnValue(0)
 
 class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"
@@ -452,7 +458,7 @@ class JoinOptions(usage.Options):
     magic_readonly_cap = ""
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", "default", "Name of the magic-folder"),
+        ("name", "n", None, "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
 
@@ -466,84 +472,99 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
             )
-        # Expand the path relative to the current directory of the CLI command, not the node.
-        self.local_dir = None if local_dir is None else argv_to_abspath(local_dir, long_path=False)
+        self.local_dir = FilePath(local_dir)
+        if not self.local_dir.exists():
+            raise usage.UsageError(
+                "'{}' doesn't exist".format(local_dir)
+            )
+        if not self.local_dir.isdir():
+            raise usage.UsageError(
+                "'{}' isn't a directory".format(local_dir)
+            )
         self.invite_code = to_str(argv_to_unicode(invite_code))
-        if self['author'] is None:
-            self['author'] = os.environ.get('USERNAME', os.environ.get('USER', None))
-            if self['author'] is None:
-                raise usage.UsageError(
-                    "--author not provided and no USERNAME environment-variable"
-                )
+
+    def postOptions(self):
+        super(JoinOptions, self).postOptions()
+        _fill_author_from_environment(self)
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
 
 
 def join(options):
     """
     ``magic-folder join`` entrypoint.
     """
-    try:
-        invite_code = options.invite_code
-        node_directory = options.parent.node_directory
-        local_directory = options.local_dir
-        name = options["name"]
-        poll_interval = options["poll-interval"]
-        author = options["author"]
+    return magic_folder_join(
+        options.parent.config,
+        options.invite_code,
+        options.local_dir,
+        options["name"],
+        options["poll-interval"],
+        options["author"],
+    )
 
-        rc = _join(invite_code, node_directory, local_directory, name, poll_interval, author)
-    except Exception as e:
-        print(e, file=options.stderr)
-        return 1
 
-    return rc
+def _fill_author_from_environment(options):
+    """
+    Internal helper. Fills in an `author` option from the environment
+    if it is not already set.
+    """
+    if options['author'] is None:
+        options['author'] = getpass.getuser()
+        if options['author'] is None:
+            raise usage.UsageError(
+                "--author not provided and could not determine a username"
+            )
+
 
 class LeaveOptions(usage.Options):
     description = "Remove a magic-folder and forget all state"
+    optFlags = [
+        ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
+    ]
     optParameters = [
-        ("name", "n", "default", "Name of magic-folder to leave"),
+        ("name", "n", None, "Name of magic-folder to leave"),
     ]
 
+    def postOptions(self):
+        super(LeaveOptions, self).postOptions()
+        if self["name"] is None:
+            raise usage.UsageError(
+                "Must specify the --name option"
+            )
 
-def _leave(node_directory, name, existing_folders):
-    privdir = os.path.join(node_directory, u"private")
-    db_fname = os.path.join(privdir, u"magicfolder_{}.sqlite".format(name))
-
-    # delete from YAML file and re-write it
-    del existing_folders[name]
-    save_magic_folders(node_directory, existing_folders)
-
-    # delete the database file
-    try:
-        fileutil.remove(db_fname)
-    except Exception as e:
-        raise Exception("unable to remove %s due to %s: %s"
-                        % (quote_local_unicode_path(db_fname),
-                           e.__class__.__name__, str(e)))
-
-    # if this was the last magic-folder, disable them entirely
-    if not existing_folders:
-        parser = SafeConfigParser()
-        parser.read(os.path.join(node_directory, u"tahoe.cfg"))
-        parser.remove_section("magic_folder")
-        with open(os.path.join(node_directory, u"tahoe.cfg"), "w") as f:
-            parser.write(f)
-
-    return 0
 
 def leave(options):
-    existing_folders = load_magic_folders(options.parent.node_directory)
-
-    if not existing_folders:
-        print("No magic-folders at all", file=options.stderr)
-        return 1
-
-    if options["name"] not in existing_folders:
-        print("No such magic-folder '{}'".format(options["name"]), file=options.stderr)
-        return 1
-
     try:
-        _leave(options.parent.node_directory, options["name"], existing_folders)
-    except Exception as e:
-        print("Warning: {}".format(str(e)))
+        folder_config = options.parent.config.get_magic_folder(options["name"])
+    except ValueError:
+        raise usage.UsageError(
+            "No such magic-folder '{}'".format(options["name"])
+        )
+
+    if folder_config.is_admin():
+        if not options["really-delete-write-capability"]:
+            print(
+                "ERROR: magic folder '{}' holds a write capability"
+                ", not deleting.".format(options["name"]),
+                file=options.stderr,
+            )
+            print(
+                "If you really want to delete it, pass --really-delete-write-capability",
+                file=options.stderr,
+            )
+            return 1
+
+    fails = options.parent.config.remove_magic_folder(options["name"])
+    if fails:
+        print(
+            "ERROR: Problems while removing state directories:",
+            file=options.stderr,
+        )
+        for path, error in fails:
+            print("{}: {}".format(path, error), file=options.stderr)
         return 1
 
     return 0
@@ -551,27 +572,30 @@ def leave(options):
 
 class RunOptions(usage.Options):
     optParameters = [
-        ("web-port", None, None,
-         "String description of an endpoint on which to run the web interface (required).",
-        ),
     ]
 
-    def postOptions(self):
-        if self['web-port'] is None:
-            raise usage.UsageError("Must specify a listening endpoint with --web-port")
 
-
-def main(options):
+def run(options):
     """
     This is the long-running magic-folders function which performs
     synchronization between local and remote folders.
     """
-    from twisted.internet import  reactor
-    service = MagicFolderService.from_node_directory(
-        reactor,
-        options.parent.node_directory,
-        options["web-port"],
-    )
+    from twisted.internet import reactor
+
+    # being logging to stdout
+    def event_to_string(event):
+        # docstring seems to indicate eventAsText() includes a
+        # newline, but it .. doesn't
+        return u"{}\n".format(
+            eventAsText(event, includeSystem=False)
+        )
+    globalLogBeginner.beginLoggingTo([
+        FileLogObserver(options.stdout, event_to_string),
+    ])
+
+    # start the daemon services
+    config = options.parent.config
+    service = MagicFolderService.from_config(reactor, config)
     return service.run()
 
 
@@ -579,10 +603,11 @@ def main(options):
 def poll(label, operation, reactor):
     while True:
         print("Polling {}...".format(label))
-        if (yield operation()):
-            print("Positive result ({}), done.".format(label))
+        status, message = yield operation()
+        if status:
+            print("{}: {}, done.".format(label, message))
             break
-        print("Negative result ({}), sleeping...".format(label))
+        print("Not {}: {}".format(label, message))
         yield deferLater(reactor, 1.0, lambda: None)
 
 
@@ -660,16 +685,15 @@ class MagicFolderServiceState(object):
 @attr.s
 class MagicFolderService(MultiService):
     """
-    :ivar FilePath tahoe_nodedir: The filesystem path to the Tahoe-LAFS node
-        with which to interact.
+    :ivar reactor: the Twisted reactor to use
+
+    :ivar GlobalConfigDatabase config: our system configuration
 
     :ivar MagicFolderServiceState _state: The Magic Folder state in use by
         this service.
     """
     reactor = attr.ib()
     config = attr.ib()
-    webport = attr.ib()
-    tahoe_nodedir = attr.ib()
     _state = attr.ib(
         validator=attr.validators.instance_of(MagicFolderServiceState),
         default=attr.Factory(MagicFolderServiceState),
@@ -678,16 +702,13 @@ class MagicFolderService(MultiService):
     def __attrs_post_init__(self):
         MultiService.__init__(self)
         self.tahoe_client = TahoeClient(
-            DecodedURL.from_text(
-                self.config.get_config_from_file(b"node.url").decode("utf-8"),
-            ),
+            self.config.tahoe_client_url,
             Agent(self.reactor),
         )
-        web_endpoint = RecordLocation(
-            serverFromString(self.reactor, self.webport),
-            self._write_web_url,
+        self._listen_endpoint = serverFromString(
+            self.reactor,
+            self.config.api_endpoint,
         )
-        self._listen_endpoint = ListenObserver(web_endpoint)
         web_service = magic_folder_web_service(
             self._listen_endpoint,
             self._state,
@@ -709,54 +730,69 @@ class MagicFolderService(MultiService):
         )
 
     def _get_auth_token(self):
-        return self.config.get_private_config("api_auth_token")
+        return self.config.api_token
 
     @classmethod
-    def from_node_directory(cls, reactor, nodedir, webport):
-        config = read_config(nodedir, u"client.port")
-        return cls(reactor, config, webport, FilePath(nodedir))
+    def from_config(cls, reactor, config):
+        """
+        Create a new service given a reactor and global configuration.
+
+        :param GlobalConfigDatabase config: config to use
+        """
+        return cls(
+            reactor,
+            config,
+        )
 
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
         # enough servers
-        k = int(self.config.get_config("client", "shares.needed", 3))
-        happy = int(self.config.get_config("client", "shares.happy", 7))
-        threshold = min(k, happy + 1)
+        tahoe_config = read_config(self.config.tahoe_node_directory.path, "portnum")
+        threshold = int(tahoe_config.get_config("client", "shares.needed"))
 
         @inline_callbacks
         def enough():
             welcome = yield self.tahoe_client.get_welcome()
             if welcome.code != 200:
-                returnValue(False)
+                returnValue((False, "Failed to get welcome page"))
 
             welcome_body = json.loads((yield readBody(welcome)))
-            if len(welcome_body[u"servers"]) < threshold:
-                returnValue(False)
-            returnValue(True)
+            servers = welcome_body[u"servers"]
+            connected_servers = [
+                server
+                for server in servers
+                if server["connection_status"].startswith("Connected ")
+            ]
+
+            message = "Found {} of {} connected servers (want {})".format(
+                len(connected_servers),
+                len(servers),
+                threshold,
+            )
+
+            if len(connected_servers) < threshold:
+                returnValue((False, message))
+            returnValue((True, message))
         return poll("connected enough", enough, self.reactor)
 
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
-        d.addCallback(lambda ignored: self._listen_endpoint.observe())
         d.addCallback(lambda ignored: Deferred())
         return d
 
     def startService(self):
         MultiService.startService(self)
 
-        magic_folder_configs = load_magic_folders(self.tahoe_nodedir.path)
-
         ds = []
-        for (name, mf_config) in magic_folder_configs.items():
+        for name in self.config.list_magic_folders():
             mf = MagicFolder.from_config(
                 self.reactor,
-                ClientStandIn(self.tahoe_client, self.config),
+                self.tahoe_client,
                 name,
-                mf_config,
                 self.config,
             )
-            self._state.add_magic_folder(name, mf_config, mf)
+            self._state.add_magic_folder(name, self.config.get_magic_folder(name), mf)
             mf.setServiceParent(self)
             ds.append(mf.ready())
         # The integration tests look for this message.  You cannot get rid of
@@ -776,23 +812,6 @@ class FakeStats(object):
 
     def count(self, ctr, delta):
         pass
-
-@attr.s
-class ClientStandIn(object):
-    nickname = ""
-    stats_provider = FakeStats()
-
-    tahoe_client = attr.ib()
-    config = attr.ib()
-    convergence = attr.ib(default=None)
-
-    def __attrs_post_init__(self):
-        if self.convergence is None:
-            convergence_s = self.config.get_private_config('convergence')
-            self.convergence = base32.a2b(convergence_s)
-
-    def create_node_from_uri(self, uri, rouri=None):
-        return Node(self.tahoe_client, from_string(rouri if uri is None else uri))
 
 
 @implementer(IDirectoryNode)
@@ -996,13 +1015,37 @@ NODEDIR_HELP = (
 
 class BaseOptions(usage.Options):
     optFlags = [
-        ["quiet", "q", "Operate silently."],
         ["version", "V", "Display version numbers."],
-        ["version-and-path", None, "Display version numbers and paths to their locations."],
     ]
     optParameters = [
-        ["node-directory", "n", None, NODEDIR_HELP],
+        ("config", "c", _default_config_path,
+         "The directory containing configuration"),
     ]
+
+    _config = None  # lazy-instantiated by .config @property
+
+    @property
+    def _config_path(self):
+        """
+        The FilePath where our config is located
+        """
+        return FilePath(self['config'])
+
+    @property
+    def config(self):
+        """
+        a GlobalConfigDatabase instance representing the current
+        configuration location.
+        """
+        if self._config is None:
+            try:
+                self._config = load_global_configuration(self._config_path)
+            except Exception as e:
+                raise usage.UsageError(
+                    u"Unable to load configuration: {}".format(e)
+                )
+        return self._config
+
 
 class MagicFolderCommand(BaseOptions):
     stdin = sys.stdin
@@ -1013,12 +1056,12 @@ class MagicFolderCommand(BaseOptions):
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
-        ["create", None, CreateOptions, "Create a Magic Folder."],
+        ["add", None, AddOptions, "Add a new Magic Folder."],
         ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
         ["join", None, JoinOptions, "Join a Magic Folder."],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
-        ["run", None, RunOptions, "Run the Magic Folders synchronization process."],
+        ["run", None, RunOptions, "Run the Magic Folders daemon process."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -1032,29 +1075,6 @@ class MagicFolderCommand(BaseOptions):
         "All clients download files from all other participants using the "
         "readcaps contained in the master magic-folder directory."
     )
-
-    @property
-    def node_directory(self):
-        if self["node-directory"] is None:
-            if self.subCommand in ["init", "migrate", "show-config"]:
-                return
-            raise usage.UsageError(
-                "Must supply --node-directory (or -n)"
-            )
-        nd = self["node-directory"]
-        if not os.path.exists(nd):
-            raise usage.UsageError(
-                "'{}' does not exist".format(nd)
-            )
-        if not os.path.isdir(nd):
-            raise usage.UsageError(
-                "'{}' is not a directory".format(nd)
-            )
-        if not os.path.exists(os.path.join(nd, "tahoe.cfg")):
-            raise usage.UsageError(
-                "'{}' doesn't look like a Tahoe directory (no 'tahoe.cfg')".format(nd)
-            )
-        return nd
 
     @property
     def parent(self):
@@ -1075,8 +1095,6 @@ class MagicFolderCommand(BaseOptions):
     def postOptions(self):
         if not hasattr(self, 'subOptions'):
             raise usage.UsageError("must specify a subcommand")
-        # ensure our node-directory is valid
-        _ = self.node_directory
 
     def getSynopsis(self):
         return "Usage: magic-folder [global-options] <subcommand> [subcommand-options]"
@@ -1084,81 +1102,72 @@ class MagicFolderCommand(BaseOptions):
     def getUsage(self, width=None):
         t = BaseOptions.getUsage(self, width)
         t += (
-            "Please run e.g. 'magic-folder create --help' for more "
+            "Please run e.g. 'magic-folder add --help' for more "
             "details on each subcommand.\n"
         )
         return t
+
 
 subDispatch = {
     "init": initialize,
     "migrate": migrate,
     "show-config": show_config,
-    "create": create,
+    "add": add,
     "invite": invite,
     "join": join,
     "leave": leave,
     "list": list_,
-    "run": main,
+    "run": run,
 }
 
 
-def do_magic_folder(options):
+@inlineCallbacks
+def dispatch_magic_folder_command(args):
     """
-    :returns: a Deferred which fires with the result of doig this
-        magic-folder subcommand.
+    Run a magic-folder command with the given args
+
+    :returns: a Deferred which fires with the result of doing this
+        magic-folder (sub)command.
+    """
+    options = MagicFolderCommand()
+    try:
+        options.parseOptions(args)
+    except usage.UsageError as e:
+        print("Error: {}".format(e))
+        # if a user just typed "magic-folder" don't make them re-run
+        # with "--help" just to see the sub-commands they were
+        # supposed to use
+        if len(sys.argv) == 1:
+            print(options)
+        raise SystemExit(1)
+
+    yield run_magic_folder_options(options)
+
+
+@inlineCallbacks
+def run_magic_folder_options(options):
+    """
+    Runs a magic-folder subcommand with the provided options.
+
+    :param options: already-parsed options.
+
+    :returns: a Deferred which fires with the result of doing this
+        magic-folder (sub)command.
     """
     so = options.subOptions
     so.stdout = options.stdout
     so.stderr = options.stderr
     f = subDispatch[options.subCommand]
     try:
-        return maybeDeferred(f, so)
+        yield maybeDeferred(f, so)
     except Exception as e:
         print(u"Error: {}".format(e), file=options.stderr)
         if options['debug']:
-            raise
+            traceback.print_exc(file=options.stderr)
+        raise SystemExit(1)
 
 
-class _MagicFolderService(Service):
-    def __init__(self, options):
-        self.options = options
-
-    def startService(self):
-        d = maybeDeferred(do_magic_folder, self.options)
-        d.addBoth(_stop)
-
-def _stop(reason):
-    if isinstance(reason, Failure):
-        print(reason.getTraceback())
-    from twisted.internet import reactor
-    reactor.callWhenRunning(reactor.stop)
-
-# Provide the option parsing helper for the IServiceMaker plugin that lets us
-# have "twist magic_folder ...".
-Options = MagicFolderCommand
-
-# Provide the IService-building helper for the IServiceMaker plugin.
-def makeService(options):
-    """
-    :param MagicFolderCommand options: The parsed options for the comand
-        invocation.
-
-    :return IService: An object providing ``IService`` which performs the
-        magic-folder operation requested by ``options`` when it is started.
-    """
-    service = MultiService()
-    _MagicFolderService(options).setServiceParent(service)
-    if options["coverage"]:
-        coverage_service().setServiceParent(service)
-    return service
-
-
-def main(reactor):
-    options = MagicFolderCommand()
-    options.parseOptions(sys.argv[1:])
-    return do_magic_folder(options)
-
-def run():
+def _entry():
     """
     Implement the *magic-folder* console script declared in ``setup.py``.
 
@@ -1168,32 +1177,6 @@ def run():
     from os import getpid
     to_file(open("magic-folder-cli.{}.eliot".format(getpid()), "w"))
 
-    # for most commands that produce output for users we don't want
-    # the logging etc that 'twist' does .. only doing this for "new"
-    # commands for now
-
-    options = MagicFolderCommand()
-    try:
-        options.parseOptions(sys.argv[1:])
-    except usage.UsageError as e:
-        print("Error: {}".format(e))
-        # if a user just typed "magic-folder" don't make them re-run
-        # with "--help" just to see the sub-commands they were
-        # supposed to use
-        if len(sys.argv) == 1:
-            print(options)
-        return 1
-
-    if options.subCommand in ["init", "migrate", "show-config"]:
-        return react(main)
-
-    # run the same way as originally ported for "other" commands
-    console_scripts = importlib_metadata.entry_points()["console_scripts"]
-    magic_folder = list(
-        script
-        for script
-        in console_scripts
-        if script.name == "twist"
-    )[0]
-    argv = ["twist", "--log-level=debug", "--log-format=text", "magic_folder"] + sys.argv[1:]
-    magic_folder.load()(argv)
+    def main(reactor):
+        return dispatch_magic_folder_command(sys.argv[1:])
+    return react(main)

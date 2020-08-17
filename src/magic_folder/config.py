@@ -25,6 +25,10 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from functools import (
     wraps,
 )
@@ -45,6 +49,10 @@ from twisted.internet.endpoints import (
 )
 from twisted.python.filepath import (
     FilePath,
+)
+
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
 )
 
 from .snapshot import (
@@ -240,6 +248,7 @@ def load_global_configuration(basedir):
         )
     db_fname = basedir.child("global.sqlite")
     connection = sqlite3.connect(db_fname.path)
+
     return GlobalConfigDatabase(
         database=connection,
         api_token_path=basedir.child("api_token"),
@@ -436,6 +445,43 @@ class MagicFolderConfig(object):
                 # coerce capability strings to a bytestring
                 return row[0].encode('utf-8')
 
+    @property
+    @with_cursor
+    def magic_path(self, cursor):
+        cursor.execute("SELECT magic_directory FROM config");
+        path_raw = cursor.fetchone()[0]
+        return FilePath(path_raw)
+
+    @property
+    @with_cursor
+    def collective_dircap(self, cursor):
+        cursor.execute("SELECT collective_dircap FROM config");
+        return cursor.fetchone()[0].encode("utf8")
+
+    @property
+    @with_cursor
+    def upload_dircap(self, cursor):
+        cursor.execute("SELECT upload_dircap FROM config");
+        return cursor.fetchone()[0].encode("utf8")
+
+    @property
+    @with_cursor
+    def poll_interval(self, cursor):
+        cursor.execute("SELECT poll_interval FROM config");
+        return int(cursor.fetchone()[0])
+
+    def is_admin(self):
+        """
+        :returns: True if this device can administer this folder. That is,
+            if the collective capability we have is mutable.
+        """
+        # check if this folder has a writable collective dircap
+        collective_dmd = tahoe_uri_from_string(
+            self.collective_dircap.encode("utf8")
+        )
+        return not collective_dmd.is_readonly()
+
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
@@ -444,20 +490,19 @@ class GlobalConfigDatabase(object):
     database = attr.ib()  # sqlite3 Connection; needs validator
     api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
 
-    def __attrs_post_init__(self):
+    @with_cursor
+    def __attrs_post_init__(self, cursor):
         self._api_token = None
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            cursor.execute("SELECT version FROM version");
-            dbversion = cursor.fetchone()[0]
-            if dbversion != _global_config_version:
-                raise ConfigurationError(
-                    "Unknown configuration database version (wanted {}, got {})".format(
-                        _global_config_version,
-                        dbversion,
-                    )
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        cursor.execute("SELECT version FROM version");
+        dbversion = cursor.fetchone()[0]
+        if dbversion != _global_config_version:
+            raise ConfigurationError(
+                "Unknown configuration database version (wanted {}, got {})".format(
+                    _global_config_version,
+                    dbversion,
                 )
+            )
 
     @property
     def api_token(self):
@@ -481,14 +526,13 @@ class GlobalConfigDatabase(object):
         return self._api_token
 
     @property
-    def api_endpoint(self):
+    @with_cursor
+    def api_endpoint(self, cursor):
         """
         The twisted server-string describing our API listener
         """
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0]
+        cursor.execute("SELECT api_endpoint FROM config")
+        return cursor.fetchone()[0].encode("utf8")
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -514,7 +558,7 @@ class GlobalConfigDatabase(object):
             cursor.execute("SELECT tahoe_node_directory FROM config")
             node_dir = FilePath(cursor.fetchone()[0])
         with node_dir.child("node.url").open("rt") as f:
-            return f.read().strip()
+            return DecodedURL.from_text(f.read().strip().decode("utf8"))
 
     @property
     def tahoe_node_directory(self):
@@ -565,6 +609,60 @@ class GlobalConfigDatabase(object):
                 database=connection,
             )
             return config
+
+    def get_default_state_path(self, name):
+        """
+        :param unicode name: the name of a magic-folder (doesn't have to
+            exist yet)
+
+        :returns: a default directory-name to contain the state of a
+            magic-folder. This directory will not exist and will be
+            a sub-directory of the config location.
+        """
+        return self.api_token_path.sibling(name)
+
+    def remove_magic_folder(self, name):
+        """
+        Remove and purge all information about a magic-folder. Note that
+        if the collective_dircap is a write-capability it will be
+        impossible to administer that folder any longer.
+
+        :param unicode name: the folder to remove
+
+        :returns: a list of (path, Exception) pairs if any directory cleanup
+            failed (after removing config from the database).
+        """
+        folder_config = self.get_magic_folder(name)
+        cleanup_dirs = [
+            folder_config.stash_path,
+        ]
+        # we remove things from the database first and then give
+        # best-effort attempt to remove stuff from the
+        # filesystem. First confirm we have this folder and its
+        # state-path.
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT location FROM magic_folders WHERE name=?", (name, ))
+            folders = cursor.fetchall()
+            if not folders:
+                raise ValueError(
+                    "No magic-folder named '{}'".format(name)
+                )
+            (state_path, ) = folders[0]
+        cleanup_dirs.append(FilePath(state_path))
+
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("DELETE FROM magic_folders WHERE name=?", (name, ))
+
+        # clean-up directories, in order
+        failed_cleanups = []
+        for clean in cleanup_dirs:
+            try:
+                clean.remove()
+            except Exception as e:
+                failed_cleanups.append((clean.path, e))
+        return failed_cleanups
 
     def create_magic_folder(self, name, magic_path, state_path, author,
                             collective_dircap, upload_dircap, poll_interval):
