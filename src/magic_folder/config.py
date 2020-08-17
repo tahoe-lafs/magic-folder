@@ -190,6 +190,11 @@ def load_global_configuration(basedir):
 
     :param FilePath basedir: an existing config directory
 
+    :raise ValueError: If no database already exists at ``basedir``.
+
+    :raise DatabaseSchemaTooNew: If the database at ``basedir`` indicates a
+        newer schema version than this software can handle.
+
     :returns: a GlobalConfigDatabase instance
     """
     if not basedir.exists():

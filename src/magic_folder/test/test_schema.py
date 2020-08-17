@@ -38,6 +38,7 @@ from .._schema import (
     DatabaseSchemaTooNew,
     SchemaUpgrade,
     Schema,
+    change_user_version,
 )
 
 class SchemaTests(TestCase):
@@ -91,6 +92,18 @@ class SchemaTests(TestCase):
             ),
         )
 
+    @given(integers(min_value=0, max_value=MAXIMUM_UPGRADES))
+    def test_get_version_before_upgrades(self, num_upgrades):
+        """
+        ``Schema.get_version`` returns 0 when run against a new database.
+        """
+        db = connect(":memory:")
+        cursor = db.cursor()
+        self.assertThat(
+            Schema(upgrades=dummy_upgrades(num_upgrades)).get_version(cursor),
+            Equals(0),
+        )
+
     @given(
         integers(min_value=0, max_value=MAXIMUM_UPGRADES),
     )
@@ -112,7 +125,7 @@ class SchemaTests(TestCase):
 
     @given(
         integers(min_value=0, max_value=MAXIMUM_UPGRADES),
-        integers(min_value=1, max_value=2 ** 63),
+        integers(min_value=1, max_value=2 ** 31 - 1),
     )
     def test_database_newer_than_schema(self, num_upgrades, additional_versions):
         """
@@ -124,15 +137,12 @@ class SchemaTests(TestCase):
         db = connect(":memory:")
         cursor = db.cursor()
 
-        # Force version schema creation.
-        schema.get_version(cursor)
-
         # Advance to a version newer than we have.
-        update_version(
+        change_user_version(
             cursor,
-            # Don't overflow SQLite3 integer type.
-            min(
-                2 ** 63 - 1,
+            # Don't overflow SQLite3 user_version field.
+            lambda old_version: min(
+                2 ** 31 - 1,
                 num_upgrades + additional_versions,
             ),
         )
@@ -179,11 +189,8 @@ class SchemaTests(TestCase):
         # Create the table we're going to mess with.
         cursor.execute("CREATE TABLE [a] ([b] INTEGER)")
 
-        # Force version schema creation.
-        schema.get_version(cursor)
-
         # Fast-forward to the state we're going to pretend the database is at.
-        update_version(cursor, current_version)
+        change_user_version(cursor, lambda old_version: current_version)
 
         # Run whatever upgrades remain appropriate.
         schema.run_upgrades(cursor)
@@ -199,10 +206,3 @@ class SchemaTests(TestCase):
 
 def dummy_upgrades(count):
     return [SchemaUpgrade(["SELECT 1"])] * count
-
-
-def update_version(cursor, new_version):
-    cursor.execute(
-        "UPDATE [schema-version] SET [version] = ?",
-        (new_version,),
-    )

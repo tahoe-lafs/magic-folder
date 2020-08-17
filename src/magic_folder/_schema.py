@@ -16,25 +16,6 @@ from __future__ import (
 
 import attr
 
-_CREATE_VERSION = (
-    """
-    CREATE TABLE IF NOT EXISTS [schema-version] AS SELECT 0 AS [version]
-    """
-)
-
-_INCREMENT_VERSION = (
-    """
-    UPDATE [schema-version]
-    SET [version] = [version] + 1
-    """
-)
-
-_READ_VERSION = (
-    """
-    SELECT [version] FROM [schema-version]
-    """
-)
-
 MAXIMUM_UPGRADES = 1000
 
 @attr.s(frozen=True)
@@ -49,6 +30,39 @@ class DatabaseSchemaTooNew(Exception):
 
     def __str__(self):
         return repr(self)
+
+
+
+def change_user_version(cursor, get_new_version):
+    """
+    Increment the **user version** field in a database using the given cursor.
+
+    :param (int -> int) get_new_version: Given the current version, return the
+        new version to write to the database.  The new version must fit in a
+        signed 4 byte integer.
+
+    :see: https://www.sqlite.org/pragma.html#pragma_user_version
+    """
+    def get_version(cursor):
+        cursor.execute("PRAGMA [user_version]")
+        [(version,)] = cursor.fetchall()
+        return version
+
+    version = get_version(cursor)
+    new_version = get_new_version(version)
+    # You cannot use bind arguments with PRAGMA. :/
+    cursor.execute("PRAGMA [user_version] = {}".format(new_version))
+
+    stored_version = get_version(cursor)
+    if stored_version != new_version:
+        # If it was the wrong type or if it was out of bounds then the pragma
+        # will silently fail, possibly setting the stored version to 0.
+        raise ValueError(
+            "Failed to record new user_version {!r} (stored {!r})".format(
+                new_version,
+                stored_version,
+            ),
+        )
 
 
 @attr.s(frozen=True)
@@ -72,7 +86,7 @@ class SchemaUpgrade(object):
         """
         for statement in self.statements:
             cursor.execute(statement)
-        cursor.execute(_INCREMENT_VERSION)
+        change_user_version(cursor, lambda old: old + 1)
 
 @attr.s
 class Schema(object):
@@ -123,8 +137,7 @@ class Schema(object):
         This method does no transaction management.  It uses the cursor in
         whatever state it is in.
         """
-        cursor.execute(_CREATE_VERSION)
-        cursor.execute(_READ_VERSION)
+        cursor.execute("PRAGMA [user_version]")
         [(actual_version,)] = cursor.fetchall()
         return actual_version
 
