@@ -31,15 +31,14 @@ from allmydata.util import (
     yamlutil,
     eliotutil,
 )
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
 )
 from allmydata.util import log
-from allmydata.util.fileutil import (
-    precondition_abspath,
-    abspath_expanduser_unicode,
-)
 from allmydata.util.encodingutil import to_filepath
 
 from . import (
@@ -277,66 +276,48 @@ def save_magic_folders(node_directory, folders):
 class MagicFolder(service.MultiService):
 
     @classmethod
-    def from_config(cls, reactor, client_node, name, config, global_config):
+    def from_config(cls, reactor, tahoe_client, name, config):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
 
         :param IReactorTime reactor: the reactor to use
 
-        :param _Client client_node: The client node the magic-folder is
-            attached to.
+        :param TahoeClient tahoe_client: Access the API of the
+            Tahoe-LAFS client we're associated with.
 
-        :param dict config: Magic-folder configuration like that in the list
-            returned by ``load_magic_folders``.
-
-        :param _Config global_config: the main Tahoe config
+        :param GlobalConfigurationDatabase config: our configuration
         """
-        local_dir_config = config['directory']
-        try:
-            poll_interval = int(config["poll_interval"])
-        except ValueError:
-            raise ValueError("'poll_interval' option must be an int")
+        mf_config = config.get_magic_folder(name)
 
-        database = None
+        from .cli import Node
 
-        upload_dirnode = client_node.create_node_from_uri(config["upload_dircap"])
-        collective_dirnode = client_node.create_node_from_uri(config["collective_dircap"],)
-        participants = participants_from_collective(collective_dirnode, upload_dirnode)
-
+        initial_participants = participants_from_collective(
+            Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
+            Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
+        )
         return cls(
-            client=client_node,
-            upload_dirnode=upload_dirnode,
-            participants=participants,
-            # XXX surely a better way for this local_path_u business
-            local_path_u=abspath_expanduser_unicode(
-                local_dir_config,
-                base=client_node.config.get_config_path(),
-            ),
-            db=database,
-            umask=config["umask"],
+            client=tahoe_client,
+            config=mf_config,
             name=name,
-            downloader_delay=poll_interval,
-            clock=reactor,
+            initial_participants=initial_participants,
+            _clock=reactor,
         )
 
-    def __init__(self, client, upload_dirnode, participants, local_path_u, db, umask,
-                 name, clock=None, downloader_delay=60):
-        precondition_abspath(local_path_u)
-        if not os.path.exists(local_path_u):
-            raise ValueError("'{}' does not exist".format(local_path_u))
-        if not os.path.isdir(local_path_u):
-            raise ValueError("'{}' is not a directory".format(local_path_u))
+    def __init__(self, client, config, name, initial_participants, _clock=None):
+        super(MagicFolder, self).__init__()
         # this is used by 'service' things and must be unique in this Service hierarchy
         self.name = 'magic-folder-{}'.format(name)
+        self._clock = _clock or reactor
+        self._config = config  # a MagicFolderConfig instance
+        self._participants = initial_participants
 
-        service.MultiService.__init__(self)
-
-        clock = clock or reactor
-
-        # for tests
-        self._client = client
-        self._db = db
+    def ready(self):
+        """
+        :returns: Deferred that fires with None when this magic-folder is
+            ready to operate
+        """
+        return defer.succeed(None)
 
 
 _NICKNAME = Field.for_types(

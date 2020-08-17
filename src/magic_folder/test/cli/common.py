@@ -23,7 +23,7 @@ from eliot import (
 
 from ...cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
 
 def parse_options(basedir, command, args):
@@ -32,6 +32,7 @@ def parse_options(basedir, command, args):
     while hasattr(o, "subOptions"):
         o = o.subOptions
     return o
+
 
 @attr.s
 class ProcessOutcome(object):
@@ -43,12 +44,11 @@ class ProcessOutcome(object):
         return self.code == 0
 
 @inlineCallbacks
-def cli(node_directory, argv):
+def cli(config_directory, argv):
     """
     Perform an in-process equivalent to the given magic-folder command.
 
-    :param FilePath node_directory: The path to the Tahoe-LAFS node this
-        command will use.
+    :param FilePath config_directory: The path to our configuration
 
     :param list[bytes] argv: The magic-folder arguments which define the
         command to run.  This does not include "magic-folder" itself, just the
@@ -64,14 +64,16 @@ def cli(node_directory, argv):
         try:
             options.parseOptions([
                 b"--debug",
-                b"--node-directory",
-                node_directory.asBytesMode().path,
+                b"--config",
+                config_directory.asBytesMode().path,
             ] + argv)
         except UsageError as e:
             print(e, file=options.stderr)
             result = 1
         else:
-            result = yield do_magic_folder(options)
+            result = yield run_magic_folder_options(options)
+            if result is None:
+                result = 0
     except SystemExit as e:
         result = e.code
 

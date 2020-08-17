@@ -32,6 +32,7 @@ from testtools.twistedsupport import (
 )
 
 from hyperlink import (
+    DecodedURL,
     URL,
 )
 
@@ -113,7 +114,7 @@ class TestGlobalConfig(SyncTestCase):
             config,
             MatchesStructure(
                 api_endpoint=Equals(u"tcp:1234"),
-                tahoe_client_url=Equals(b"http://127.0.0.1:9876/"),
+                tahoe_client_url=Equals(DecodedURL.from_text(u"http://127.0.0.1:9876/")),
             )
         )
 

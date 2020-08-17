@@ -45,7 +45,7 @@ import pytest_twisted
 
 from magic_folder.cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
 
 
@@ -72,6 +72,10 @@ class MagicFolderEnabledNode(object):
     @property
     def node_directory(self):
         return join(self.temp_dir, self.name)
+
+    @property
+    def magic_config_directory(self):
+        return join(self.temp_dir, "magic-daemon-{}".format(self.name))
 
     @property
     def magic_directory(self):
@@ -129,13 +133,21 @@ class MagicFolderEnabledNode(object):
         )
         await_client_ready(tahoe)
 
-        # Make the magic folder process.
-        magic_folder = yield _run_magic_folder(
+        # Create the magic-folder daemon config
+        yield _init_magic_folder(
             reactor,
             request,
             temp_dir,
             name,
             magic_folder_web_port,
+        )
+
+        # Run the magic-folder daemon
+        magic_folder = yield _run_magic_folder(
+            reactor,
+            request,
+            temp_dir,
+            name,
         )
         returnValue(
             cls(
@@ -170,7 +182,6 @@ class MagicFolderEnabledNode(object):
                 self.request,
                 self.temp_dir,
                 self.name,
-                self.magic_folder_web_port,
             )
 
 
@@ -672,7 +683,64 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _run_magic_folder(reactor, request, temp_dir, name, web_port):
+def _init_magic_folder(reactor, request, temp_dir, name, web_port):
+    """
+    Create a new magic-folder-daemon configuration
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param name: The alias of the Tahoe-LAFS node.
+
+    :return Deferred[IProcessTransport]: The started process.
+    """
+    node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
+    # proto = _ProcessExitedProtocol()
+    proto = _CollectOutputProtocol()
+
+    coverage = request.config.getoption('coverage')
+    def optional(flag, elements):
+        if flag:
+            return elements
+        return []
+
+    args = [
+        sys.executable,
+        "-m",
+    ] + optional(coverage, [
+        "coverage",
+        "run",
+        "-m",
+    ]) + [
+        "magic_folder",
+    ] + optional(coverage, [
+        "--coverage",
+    ]) + [
+        "--config", config_dir,
+        "init",
+        "--node-directory", node_dir,
+        "--listen-endpoint", web_port,
+    ]
+    Message.log(
+        message_type=u"integration:init-magic-folder",
+        coverage=coverage,
+        args=args,
+    )
+    transport = reactor.spawnProcess(
+        proto,
+        sys.executable,
+        args,
+    )
+
+    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
+    with start_action(action_type=u"integration:init-magic-folder").context():
+        ctx = DeferredContext(proto.done)
+        ctx.addCallback(lambda ignored: transport)
+        return ctx.addActionFinish()
+
+
+def _run_magic_folder(reactor, request, temp_dir, name):
     """
     Start a magic-folder process.
 
@@ -683,7 +751,7 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
@@ -706,11 +774,9 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     ] + optional(coverage, [
         "--coverage",
     ]) + [
-        "--node-directory",
-        node_dir,
+        "--config",
+        config_dir,
         "run",
-        "--web-port",
-        web_port,
     ]
     Message.log(
         message_type=u"integration:run-magic-folder",
@@ -795,6 +861,6 @@ def _command(*args):
     o = MagicFolderCommand()
     o.stdout = BytesIO()
     o.parseOptions(args)
-    return_value = yield do_magic_folder(o)
+    return_value = yield run_magic_folder_options(o)
     assert 0 == return_value
     returnValue(o.stdout.getvalue())

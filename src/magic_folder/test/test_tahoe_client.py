@@ -33,6 +33,7 @@ from hypothesis.strategies import (
     binary,
     text,
     dictionaries,
+    just,
 )
 
 from testtools.matchers import (
@@ -50,6 +51,9 @@ from testtools.twistedsupport import (
 
 from twisted.internet.defer import (
     gatherResults,
+)
+from twisted.web.http import (
+    GONE,
 )
 
 from ..tahoe_client import (
@@ -213,7 +217,7 @@ class TahoeClientTests(SyncTestCase):
             self.tahoe_client.create_immutable_directory(children),
             succeeded(
                 AfterPreprocessing(
-                    lambda cap: loads(self.root._uri.data[cap]),
+                    lambda cap: loads(self.root._uri.data[cap])[1]["children"],
                     Equals(children),
                 ),
             ),
@@ -248,3 +252,46 @@ class TahoeClientTests(SyncTestCase):
                 ),
             ),
         )
+
+    @given(
+        just("foo"), #path_segments(),
+        just(b"test"*200), #binary(),
+    )
+    def test_mutable_directory_add_child(self, child_name, content):
+        """
+        A child can be added to a mutable directory
+        """
+        mutable_d = self.tahoe_client.create_mutable_directory()
+        child_d = self.tahoe_client.create_immutable(content)
+        self.assertThat(gatherResults([mutable_d, child_d]), Always())
+
+        mutable_cap = mutable_d.result
+        child_cap = child_d.result
+
+        self.tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap,
+            child_name,
+            child_cap,
+        )
+
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
+        resp_d = self.http_client.get(child_uri.to_text())
+        self.assertThat(
+            resp_d,
+            succeeded(Always()),
+        )
+        child_content_d = resp_d.result.content()
+        self.assertThat(
+            child_content_d,
+            succeeded(Always()),
+        )
+        self.assertThat(child_content_d.result, Equals(content))
+
+        # getting a different child fails
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
+        resp_d = self.http_client.get(child_uri.to_text())
+        self.assertThat(
+            resp_d,
+            succeeded(Always()),
+        )
+        self.assertThat(resp_d.result.code, Equals(GONE))
