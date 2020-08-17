@@ -66,7 +66,7 @@ class SchemaTests(TestCase):
     )
     def test_too_many_upgrades(self, num_upgrades):
         """
-        ``Schema`` raises `ValueError`` if initialized with a schema with more
+        ``Schema`` raises ``ValueError`` if initialized with a schema with more
         than ``MAXIMUM_UPGRADES`` upgrades.
         """
         with ExpectedException(ValueError):
