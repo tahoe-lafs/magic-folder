@@ -61,6 +61,7 @@ from .strategies import (
     relative_paths,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
+    unique_value_dictionaries,
 )
 
 from .matchers import (
@@ -112,7 +113,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         """
         collective_dirnode = Node(
             None,
-            CHKFileURI(b"", b"", 0, 0, 0),
+            DirectoryURI(),
         )
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(
@@ -146,20 +147,26 @@ class CollectiveParticipantsTests(SyncTestCase):
             )
 
     @given(
-        dictionaries(
+        unique_value_dictionaries(
             author_names(),
             tahoe_lafs_dir_capabilities(),
+            min_size=1,
         ),
         tahoe_lafs_dir_capabilities(),
-        tahoe_lafs_dir_capabilities(),
     )
-    def test_list(self, collective_contents, rw_collective_dircap, upload_dircap):
+    def test_list(self, collective_contents, rw_collective_dircap):
         """
         ``IParticipants.list`` returns a ``Deferred`` that fires with a list of
         ``IParticipant`` providers with names matching the names of the child
         directories in the collective.
         """
-        assume(rw_collective_dircap != upload_dircap)
+        # The collective can't be anyone's DMD.
+        assume(rw_collective_dircap not in collective_contents.values())
+
+        # Pick someone in the collective to be us.
+        author = sorted(collective_contents)[0]
+        upload_dircap = collective_contents[author]
+
         rw_collective_diruri = uri_from_string(rw_collective_dircap.encode("ascii"))
         upload_diruri = uri_from_string(upload_dircap.encode("ascii"))
 
@@ -210,10 +217,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                         Equals(sorted(collective_contents)),
                     ),
                     AfterPreprocessing(
-                        # There should be one self if our upload dircap found
-                        # its way into the collective, zero otherwise.
+                        # There should be exactly one participant that signals
+                        # it is us.  We know it will be there because we
+                        # selected our dircap from among all those DMDs in the
+                        # collective at the top.
                         lambda ps: len({p for p in ps if p.is_self}),
-                        Equals(int(upload_dircap in collective_contents.values())),
+                        Equals(1),
                     )
                 ),
             ),

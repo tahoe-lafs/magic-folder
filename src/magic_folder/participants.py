@@ -19,6 +19,8 @@ from twisted.internet.defer import (
 
 from allmydata.interfaces import (
     IDirectoryNode,
+    IDirectoryURI,
+    IReadonlyDirectoryURI,
 )
 from allmydata.util.eliotutil import (
     inline_callbacks,
@@ -104,24 +106,35 @@ class _CollectiveDirnodeParticipants(object):
     _upload_dirnode = attr.ib()
 
     @_collective_dirnode.validator
-    def readonly_dirnode(self, attribute, value):
+    def any_dirnode(self, attribute, value):
+        """
+        The Collective DMD must be a directory capability (but could be a
+        read-only one or a read-write one).
+        """
         ok = (
             IDirectoryNode.providedBy(value) and
-            not value.is_unknown() and
-            value.is_readonly()
+            (
+                IDirectoryURI.providedBy(value.uri) or
+                IReadonlyDirectoryURI.providedBy(value.uri)
+            ) and
+            not value.is_unknown()
         )
         if ok:
             return
         raise TypeError(
-            "Collective dirnode was {!r}, must be a read-only directory node.".format(
+            "Collective dirnode was {!r}, must be a directory node.".format(
                 value,
             ),
         )
 
     @_upload_dirnode.validator
     def mutable_dirnode(self, attribute, value):
+        """
+        The Upload DMD must be a writable directory capability
+        """
         ok = (
             IDirectoryNode.providedBy(value) and
+            IDirectoryURI.providedBy(value.uri) and
             not value.is_unknown() and
             not value.is_readonly()
         )
@@ -136,6 +149,9 @@ class _CollectiveDirnodeParticipants(object):
 
     @inline_callbacks
     def list(self):
+        """
+        IParticipants API
+        """
         result = yield self._collective_dirnode.list()
         returnValue(list(
             participant_from_dmd(

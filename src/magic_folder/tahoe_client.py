@@ -62,6 +62,40 @@ class TahoeAPIError(Exception):
         return repr(self)
 
 
+@attr.s(frozen=True)
+class CannotCreateDirectoryError(Exception):
+    """
+    Failed to create a (mutable) directory.
+    """
+    tahoe_error = attr.ib()
+
+    def __repr__(self):
+        return "Could not create directory. Error code {}".format(
+            self.tahoe_error.code,
+        )
+
+    def __str__(self):
+        return repr(self)
+
+
+@attr.s(frozen=True)
+class CannotAddDirectoryEntryError(Exception):
+    """
+    Failed to add a sub-directory or file to a mutable directory.
+    """
+    entry_name = attr.ib()
+    tahoe_error = attr.ib()
+
+    def __repr__(self):
+        return "Could add {} to directory. Error code {}".format(
+            self.entry_name,
+            self.tahoe_error.code,
+        )
+
+    def __str__(self):
+        return repr(self)
+
+
 @inlineCallbacks
 def _get_content_check_code(acceptable_codes, res):
     """
@@ -105,8 +139,7 @@ class TahoeClient(object):
 
         :returns: a capability-string
         """
-        post_uri = self.url.replace(
-            path=(u"uri",),
+        post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir-immutable")],
         )
         res = yield _request(
@@ -149,8 +182,7 @@ class TahoeClient(object):
         :return Deferred[bytes]: The write capability string for the new
             directory.
         """
-        post_uri = self.url.replace(
-            path=(u"uri",),
+        post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir")],
         )
         response = yield _request(
@@ -161,7 +193,61 @@ class TahoeClient(object):
         # Response code should probably be CREATED but it seems to be OK
         # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
         # artifact of the test double.
-        capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        try:
+            capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        except TahoeAPIError as e:
+            raise CannotCreateDirectoryError(e)
+        returnValue(capability_string)
+
+    @inlineCallbacks
+    def list_directory(self, dir_cap):
+        """
+        List the contents of a read- or read/write- directory
+
+        :param bytes dir_cap: the capability-string of the directory.
+        """
+        # https://github.com/LeastAuthority/magic-folder/issues/241
+        raise NotImplementedError
+
+    @inlineCallbacks
+    def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap):
+        """
+        Adds an entry to a mutable directory
+
+        :param bytes mutable_cap: the capability-string of a mutable
+            to add an entry into
+
+        :param unicode path_name: the name of the entry (i.e. the path
+            segment)
+
+        :param bytes entry_cap: the capability of the entry (could be
+            any sort of capability).
+
+        :return Deferred[None]: or exception on error
+        """
+
+        post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
+            query=[
+                (u"t", u"uri"),
+                (u"replace", u"false"),
+            ],
+        )
+        response = yield _request(
+            self.http_client,
+            b"PUT",
+            post_uri,
+            data=entry_cap,
+        )
+        # Response code should probably be CREATED but it seems to be OK
+        # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
+        # artifact of the test double.
+        try:
+            capability_string = yield _get_content_check_code({OK, CREATED}, response)
+        except TahoeAPIError as e:
+            raise CannotAddDirectoryEntryError(
+                entry_name=path_name,
+                tahoe_error=e,
+            )
         returnValue(capability_string)
 
     @inlineCallbacks
@@ -173,8 +259,7 @@ class TahoeClient(object):
 
         :returns: bytes
         """
-        get_uri = self.url.replace(
-            path=(u"uri",),
+        get_uri = self.url.child(u"uri").replace(
             query=[(u"uri", cap.decode("ascii"))],
         )
         res = yield _request(
@@ -198,8 +283,7 @@ class TahoeClient(object):
 
         :returns: Deferred that fires with `None`
         """
-        get_uri = self.url.replace(
-            path=(u"uri",),
+        get_uri = self.url.child(u"uri").replace(
             query=[(u"uri", cap.decode("ascii"))],
         )
         res = yield self.http_client.get(get_uri.to_text())
