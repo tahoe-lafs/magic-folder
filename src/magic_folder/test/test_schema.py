@@ -116,8 +116,9 @@ class SchemaTests(TestCase):
     )
     def test_database_newer_than_schema(self, num_upgrades, additional_versions):
         """
-        ``Schema.run_upgrades`` raises ``ValueError`` if initialized with a schema
-        with a version that is less than the version recorded in the database.
+        ``Schema.run_upgrades`` raises ``DatabaseSchemaTooNew`` if initialized
+        with a schema with a version that is less than the version recorded in
+        the database.
         """
         schema = Schema(upgrades=dummy_upgrades(num_upgrades))
         db = connect(":memory:")
