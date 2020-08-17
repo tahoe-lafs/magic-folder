@@ -178,8 +178,8 @@ class InitializeOptions(usage.Options):
         ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
         ("node-directory", "n", None, "The local path to our Tahoe-LAFS client's directory"),
         ("client-endpoint", "c", None,
-         "(Optional) the Twisted client-string for our REST API only required "
-         "if auto-converting from the listen endpoint files"),
+         "(Optional) the Twisted client-string for our REST API (only required "
+         "if auto-converting from the --listen-endpoint fails)"),
     ]
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
