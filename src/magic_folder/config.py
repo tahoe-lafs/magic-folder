@@ -190,18 +190,22 @@ def load_global_configuration(basedir):
 
     :param FilePath basedir: an existing config directory
 
-    :raise ValueError: If no database already exists at ``basedir``.
+    :raise ValueError: If no database already exists beneath at ``basedir``.
 
     :raise DatabaseSchemaTooNew: If the database at ``basedir`` indicates a
         newer schema version than this software can handle.
 
     :returns: a GlobalConfigDatabase instance
     """
-    if not basedir.exists():
-        raise ValueError(
-            "'{}' doesn't exist".format(basedir.path)
-        )
     db_fname = basedir.child("global.sqlite")
+
+    # It would be nice to pass a URI-style connect string with ?mode=rwc
+    # but this is unsupported until Python 3.4.
+    if not db_fname.exists():
+        raise ValueError(
+            "{!r} doesn't exist.".format(db_fname.path),
+        )
+
     connection = _upgraded(
         _global_config_schema,
         sqlite3.connect(db_fname.path),
