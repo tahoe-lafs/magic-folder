@@ -517,6 +517,17 @@ class ClientEndpoint(SyncTestCase):
             Equals(u"unix:/var/run/x")
         )
 
+    def test_set_client_endpoint(self):
+        """
+        setting the client endpoint succeeds with a valid endpoint
+        """
+        config = create_global_configuration(self.basedir, u"tcp:5555", self.nodedir.path)
+        config.api_client_endpoint = u"tcp:localhost:5555"
+        self.assertThat(
+            config.api_client_endpoint,
+            Equals(u"tcp:localhost:5555")
+        )
+
     def test_set_invalid_client_endpoint(self):
         """
         setting the client endpoint fails (if it is invalid)
