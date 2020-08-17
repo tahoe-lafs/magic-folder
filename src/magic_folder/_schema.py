@@ -78,9 +78,20 @@ class Schema(object):
     """
     The schema for a single database.
 
+    A ``Schema`` allows software to be written and maintained against a single
+    most up-to-date schema version.  ``Schema`` provides helpers to open a
+    database and require that it have that (most up-to-date) schema version,
+    possibly upgrading it in the process.
+
+    The empty schema, versioned as 0, is the beginning of history for all
+    schemas.  From there, upgrades can be applied which will increment the
+    schema version and make some changes to the schema.
+
     :ivar list[SchemaUpgrade] upgrades: A list of schema upgrades.  Each
         element upgrades the schema *from* the schema version with a number
-        corresponding to the index of that element.
+        corresponding to the index of that element.  For example, the first
+        element in the list is the upgrade to run against the empty version 0
+        of the schema.
     """
     upgrades = attr.ib()
 
