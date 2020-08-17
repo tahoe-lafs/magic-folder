@@ -373,33 +373,6 @@ def list_(options):
     return
 
 
-def _magic_folder_info(options):
-    """
-    Get information about all magic-folders
-
-    :returns: JSON-able dict
-    """
-    info = dict()
-    config = options.parent.config
-    for name in config.list_magic_folders():
-        mf = config.get_magic_folder(name)
-        info[name] = {
-            u"author": {
-                u"name": mf.author.name,
-                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
-            },
-            u"stash_path": mf.stash_path.path,
-            u"magic_path": mf.magic_path.path,
-            u"poll_interval": mf.poll_interval,
-            u"is_admin": mf.is_admin(),
-        }
-        if options['include-secret-information']:
-            info[name][u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
-            info[name][u"collective_dircap"] = mf.collective_dircap.encode("ascii")
-            info[name][u"upload_dircap"] = mf.upload_dircap.encode("ascii")
-    return info
-
-
 def _list_human(info, stdout, include_secrets):
     """
     List our magic-folders for a human user.
