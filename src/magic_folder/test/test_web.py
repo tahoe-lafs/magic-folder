@@ -14,6 +14,8 @@ from json import (
     loads,
 )
 
+import attr
+
 from hyperlink import (
     DecodedURL,
 )
@@ -52,6 +54,13 @@ from twisted.web.resource import (
 from twisted.web.static import (
     Data,
 )
+from twisted.python.filepath import (
+    FilePath,
+)
+
+from nacl.encoding import (
+    Base32Encoder,
+)
 
 from treq.testing import (
     StubTreq,
@@ -72,6 +81,9 @@ from .strategies import (
     tokens,
 )
 
+from ..snapshot import (
+    create_local_author,
+)
 from ..cli import (
     MagicFolderServiceState,
 )
@@ -277,8 +289,33 @@ def treq_for_folders(auth_token, folders):
     return StubTreq(root)
 
 
-def magic_folder_config_for_local_directory(local_directory):
-    return {u"directory": local_directory}
+@attr.s
+class _FakeMagicFolderConfig(object):
+    name = attr.ib()
+    author = attr.ib()
+    stash_path = attr.ib()
+    magic_path = attr.ib()
+    collective_dircap = attr.ib()
+    upload_dircap = attr.ib()
+    poll_interval = attr.ib()
+
+    def is_admin(self):
+        return True
+
+
+def magic_folder_config_for_local_directory(name, local_directory):
+    # XXX this will have to return a MagicFolderConfig (or at least
+    # something that behaves like one) and we almost certainly need to
+    # "know" way more than just the directory ..
+    return _FakeMagicFolderConfig(
+        name=name,
+        author=create_local_author("test"),
+        stash_path=FilePath(local_directory).child("stash"),
+        magic_path=FilePath(local_directory),
+        collective_dircap=b"fixme",
+        upload_dircap=b"fixme",
+        poll_interval=1,
+    )
 
 
 class ListMagicFolderTests(SyncTestCase):
@@ -327,13 +364,12 @@ class ListMagicFolderTests(SyncTestCase):
             local filesystem paths where we shall pretend the local filesystem
             state for those folders resides.
         """
-        treq = treq_for_folders(
-            auth_token, {
-                name: magic_folder_config_for_local_directory(path)
-                for (name, path)
-                in folders.items()
-            },
-        )
+        configs = {
+            name: magic_folder_config_for_local_directory(name, path)
+            for name, path
+            in folders.items()
+        }
+        treq = treq_for_folders(auth_token, configs)
 
         self.assertThat(
             authorized_request(treq, auth_token, b"GET", self.encoded_url),
@@ -347,9 +383,19 @@ class ListMagicFolderTests(SyncTestCase):
                         loads,
                         Equals({
                             u"folders": list(
-                                {u"name": name, u"local-path": path}
-                                for (name, path)
-                                in sorted(folders.items())
+                                {
+                                    u"name": name,
+                                    u"author": {
+                                        u"name": config.author.name,
+                                        u"verify_key": config.author.verify_key.encode(Base32Encoder),
+                                    },
+                                    u"magic_path": config.magic_path.path,
+                                    u"stash_path": config.stash_path.path,
+                                    u"poll_interval": config.poll_interval,
+                                    u"is_admin": config.is_admin(),
+                                }
+                                for name, config
+                                in sorted(configs.items())
                             ),
                         }),
                     )
