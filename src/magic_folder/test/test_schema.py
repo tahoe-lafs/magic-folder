@@ -17,6 +17,7 @@ from testtools import (
 from testtools.matchers import (
     Equals,
     MatchesStructure,
+    MatchesAll,
 )
 
 from hypothesis import (
@@ -43,6 +44,20 @@ class SchemaTests(TestCase):
     """
     Tests for ``Schema``.
     """
+    def test_exception_str(self):
+        """
+        ``str(DatabaseSchemaTooNew(...))`` returns a string identifying the
+        exception and its details.
+        """
+        exc = DatabaseSchemaTooNew(1, 2)
+        self.assertThat(
+            "DatabaseSchemaTooNew(software_version=1, database_version=2)",
+            MatchesAll(
+                Equals(repr(exc)),
+                Equals(str(exc)),
+            ),
+        )
+
     @given(
         integers(
             min_value=MAXIMUM_UPGRADES + 1,

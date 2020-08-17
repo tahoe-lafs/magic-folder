@@ -46,6 +46,9 @@ class DatabaseSchemaTooNew(Exception):
     software_version = attr.ib()
     database_version = attr.ib()
 
+    def __str__(self):
+        return repr(self)
+
 
 @attr.s(frozen=True)
 class SchemaUpgrade(object):
