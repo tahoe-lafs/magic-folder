@@ -30,12 +30,12 @@ by an immutable directory and contains:
 - ``metadata``: information about the Snapshot, a capability pointing
   to a JSON-serialized dict containing:
   - ``snapshot_version``: 1 currently
-  - ``name``: the name of this snapshop (a mangled relative path)
+  - ``name``: the name of this snapshot (a mangled relative path)
   - ``author``: a dict containing:
     - ``name``: arbitrary name
     - ``verify_key``: base64-encoded public key of the author
-  - additionally, in the metadata for this metadata-capability is a
-    ``magic_folder`` dict with the following keys:
+  - additionally, in the Tahoe metadata for this metadata-capability
+    is a ``magic_folder`` dict with the following keys:
     - ``author_signature``: base64-encoded signature which signs the
       content-capability, metadata-capability and name
 - ``parent0..parentN``: any number of parents, each a read-only link
@@ -136,7 +136,7 @@ The ``content`` of the ``RemoteSnapshot`` is downloaded and moved into
 a "conflict file" (see Leif Design) beside the conflicting
 content. Personal DMD is **not** updated. Once the conflict is
 "resolved" then a new Snapshot is created with two parents: the latest
-Snapshot we had at conflict time and the confliting Snapshot and our
+Snapshot we had at conflict time and the conflicting Snapshot. Our
 personal DMD is updated to point at this new Snapshot.
 
 "Resolving" a snapshot is currently noticed via more filesystem
