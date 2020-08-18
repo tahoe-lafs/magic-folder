@@ -6,10 +6,6 @@ from zope.interface import (
     implementer,
 )
 
-from eliot.testing import (
-    capture_logging,
-)
-
 from testtools.matchers import (
     MatchesPredicate,
     Always,
