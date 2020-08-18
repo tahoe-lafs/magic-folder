@@ -105,9 +105,9 @@ class TestInitialize(SyncTestCase):
     def test_good(self):
         magic_folder_initialize(
             self.temp.child("good"),
-            "tcp:1234",
+            u"tcp:1234",
             self.node_dir.path,
-            "tcp:localhost:1234",
+            u"tcp:localhost:1234",
         )
 
 
@@ -133,10 +133,10 @@ class TestMigrate(SyncTestCase):
     def test_good(self):
         magic_folder_migrate(
             self.temp.child("new_magic"),
-            "tcp:1234",
+            u"tcp:1234",
             self.node_dir.path,
             u"alice",
-            "tcp:localhost:1234",
+            u"tcp:localhost:1234",
         )
         config = load_global_configuration(self.temp.child("new_magic"))
         self.assertThat(
@@ -158,7 +158,7 @@ class TestMigrate(SyncTestCase):
         with ExpectedException(ValueError):
             magic_folder_migrate(
                 self.temp.child("new_magic"),
-                "tcp:1234",
+                u"tcp:1234",
                 self.node_dir.path,
                 u"alice",
                 "localhost:1234",
@@ -187,9 +187,9 @@ class TestShowConfig(SyncTestCase):
     def test_good(self):
         magic_folder_initialize(
             self.temp.child("good"),
-            "tcp:1234",
+            u"tcp:1234",
             self.node_dir.path,
-            "tcp:localhost:1234",
+            u"tcp:localhost:1234",
         )
         stdout = StringIO()
         magic_folder_show_config(
