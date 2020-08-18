@@ -39,10 +39,6 @@ from twisted.internet.defer import (
     succeed,
 )
 
-from twisted.web.resource import (
-    ErrorPage,
-)
-
 from treq.client import (
     HTTPClient,
     FileBodyProducer,
@@ -63,7 +59,6 @@ from allmydata.util import (
 
 __all__ = (
     "create_fake_tahoe_root",
-    "create_fake_timeout_tahoe_root",
     "create_tahoe_treq_client",
 )
 
@@ -88,13 +83,6 @@ class _FakeTahoeRoot(Resource, object):
     def add_mutable_data(self, kind, data):
         # Adding mutable data always makes a new object.
         return self._uri.add_mutable_data(kind, data)
-
-class _TimedOutResource(ErrorPage):
-    """
-    Always give a 504 timed out HTTP response.
-    """
-    def __init__(self, message="Gateway timed out."):
-        ErrorPage.__init__(self, 504, "Gateway timed out", message)
 
 KNOWN_CAPABILITIES = [
     getattr(allmydata.uri, t).BASE_STRING
@@ -423,9 +411,6 @@ def create_fake_tahoe_root():
         uri=_FakeTahoeUriHandler(),
     )
     return root
-
-def create_fake_timeout_tahoe_root():
-    return _TimedOutResource()
 
 @implementer(IBodyProducer)
 class _SynchronousProducer(object):

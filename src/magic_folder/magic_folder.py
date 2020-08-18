@@ -955,6 +955,7 @@ class UploaderService(service.Service):
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._polling_interval, now=True)
 
+
     def stopService(self):
         """
         Stop the uploader service.
