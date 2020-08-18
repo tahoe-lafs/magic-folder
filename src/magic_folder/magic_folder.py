@@ -896,36 +896,39 @@ class RemoteSnapshotCreator(object):
         # https://github.com/LeastAuthority/magic-folder/issues/197
         for name in localsnapshot_names:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
-            with action:
-                # deserialize into LocalSnapshot
-                snapshot = self._state_db.get_local_snapshot(name, self._local_author)
+            try:
+                with action:
+                    yield self._upload_one_snapshot(name)
+            except:
+                # Unable to reach Tahoe storage nodes because of network
+                # errors or because the tahoe storage nodes are
+                # offline. Retry?
+                pass
 
-                # now upload each item in the queue
-                try:
-                    remote_snapshot = yield write_snapshot_to_tahoe(
-                        snapshot,
-                        self._local_author,
-                        self._tahoe_client,
-                    )
+    @eliotutil.inline_callbacks
+    def _upload_one_snapshot(self, name):
+        """
+        Upload all of the snapshots for a particular path.
+        """
+        # deserialize into LocalSnapshot
+        snapshot = self._state_db.get_local_snapshot(name, self._local_author)
 
-                    # At this point, remote snapshot creation successful for
-                    # the given relpath.
-                    # store the remote snapshot capability in the db.
-                    yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+        remote_snapshot = yield write_snapshot_to_tahoe(
+            snapshot,
+            self._local_author,
+            self._tahoe_client,
+        )
 
-                    # Remove the local snapshot content from the stash area.
-                    snapshot.content_path.remove()
+        # At this point, remote snapshot creation successful for
+        # the given relpath.
+        # store the remote snapshot capability in the db.
+        yield self._state_db.store_remotesnapshot(name, remote_snapshot)
 
-                    # Remove the LocalSnapshot from the db.
-                    yield self._state_db.delete_localsnapshot(name)
+        # Remove the local snapshot content from the stash area.
+        snapshot.content_path.remove()
 
-                except Exception:
-                    # Unable to reach Tahoe storage nodes because of
-                    # network errors or because the tahoe storage nodes
-                    # are offline. Retry?
-                    SNAPSHOT_COMMIT_FAILURE.log()
-                    write_traceback()
-                    continue
+        # Remove the LocalSnapshot from the db.
+        yield self._state_db.delete_localsnapshot(name)
 
 
 @implementer(service.IService)

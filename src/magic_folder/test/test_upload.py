@@ -6,6 +6,10 @@ from zope.interface import (
     implementer,
 )
 
+from eliot.testing import (
+    capture_logging,
+)
+
 from testtools.matchers import (
     MatchesPredicate,
     Always,
@@ -22,9 +26,13 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
+    lists,
 )
 from twisted.python.filepath import (
     FilePath,
+)
+from twisted.web.resource import (
+    ErrorPage,
 )
 from hyperlink import (
     DecodedURL,
@@ -56,27 +64,29 @@ from magic_folder.testing.web import (
     create_tahoe_treq_client,
 )
 from magic_folder.tahoe_client import (
+    TahoeAPIError,
     create_tahoe_client,
 )
 from allmydata.uri import is_uri
 
-class RemoteSnapshotCreatorTests(SyncTestCase):
-    """
-    Tests for ``RemoteSnapshotCreator``.
-    """
-    def setUp(self):
-        super(RemoteSnapshotCreatorTests, self).setUp()
-        self.author = create_local_author("alice")
+from fixtures import (
+    Fixture,
+)
 
-    def setup_example(self):
-        self.root = create_fake_tahoe_root()
+class RemoteSnapshotCreatorFixture(Fixture):
+    def __init__(self, temp, author, root=None):
+        if root is None:
+            root = create_fake_tahoe_root()
+        self.temp = temp
+        self.author = author
+        self.root = root
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
 
-        self.temp = FilePath(self.mktemp())
+    def _setUp(self):
         self.magic_path = self.temp.child(b"magic")
         self.magic_path.makedirs()
 
@@ -104,6 +114,15 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             tahoe_client=self.tahoe_client,
         )
 
+
+class RemoteSnapshotCreatorTests(SyncTestCase):
+    """
+    Tests for ``RemoteSnapshotCreator``.
+    """
+    def setUp(self):
+        super(RemoteSnapshotCreatorTests, self).setUp()
+        self.author = create_local_author("alice")
+
     @given(name=path_segments(),
            content=binary(),
     )
@@ -113,6 +132,13 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
+        f = self.useFixture(RemoteSnapshotCreatorFixture(
+            temp=FilePath(self.mktemp()),
+            author=self.author,
+        ))
+        state_db = f.state_db
+        remote_snapshot_creator = f.remote_snapshot_creator
+
         # create a local snapshot
         data = io.BytesIO(content)
 
@@ -120,7 +146,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             name=name,
             author=self.author,
             data_producer=data,
-            snapshot_stash_dir=self.state_db.stash_path,
+            snapshot_stash_dir=state_db.stash_path,
             parents=[],
         )
 
@@ -135,15 +161,15 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # push LocalSnapshot object into the SnapshotStore.
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
-        self.state_db.store_local_snapshot(snapshots[0])
+        state_db.store_local_snapshot(snapshots[0])
 
-        d = self.remote_snapshot_creator.upload_local_snapshots()
+        d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
             d,
             succeeded(Always()),
         )
 
-        remote_snapshot_cap = self.state_db.get_remotesnapshot(name)
+        remote_snapshot_cap = state_db.get_remotesnapshot(name)
 
         # test whether we got a capability
         self.assertThat(
@@ -153,7 +179,69 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         )
 
         with ExpectedException(SnapshotNotFound, ""):
-            self.state_db.get_local_snapshot(name, self.author)
+            state_db.get_local_snapshot(name, self.author)
+
+    @given(
+        path_segments(),
+        lists(
+            binary(),
+            min_size=1,
+            max_size=2,
+        ),
+    )
+    def test_write_snapshot_to_tahoe_fails(self, name, contents):
+        """
+        If any part of a snapshot upload fails then the metadata for that snapshot
+        is retained in the local database and the snapshot content is retained
+        in the stash.
+        """
+        broken_root = ErrorPage(500, "It's broken.", "It's broken.")
+
+        f = self.useFixture(RemoteSnapshotCreatorFixture(
+            temp=FilePath(self.mktemp()),
+            author=self.author,
+            root=broken_root,
+        ))
+        state_db = f.state_db
+        remote_snapshot_creator = f.remote_snapshot_creator
+
+        snapshots = []
+        parents = []
+        for content in contents:
+            data = io.BytesIO(content)
+            d = create_snapshot(
+                name=name,
+                author=self.author,
+                data_producer=data,
+                snapshot_stash_dir=state_db.stash_path,
+                parents=parents,
+            )
+            d.addCallback(snapshots.append)
+            self.assertThat(
+                d,
+                succeeded(Always()),
+            )
+            parents = [snapshots[-1]]
+
+        local_snapshot = snapshots[-1]
+        state_db.store_local_snapshot(snapshots[-1])
+
+        d = remote_snapshot_creator.upload_local_snapshots()
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        self.eliot_logger.flushTracebacks(TahoeAPIError)
+
+        self.assertEqual(
+            local_snapshot,
+            state_db.get_local_snapshot(name, self.author),
+        )
+        self.assertThat(
+            local_snapshot.content_path.getContent(),
+            Equals(content),
+        )
 
 
 @implementer(IRemoteSnapshotCreator)
