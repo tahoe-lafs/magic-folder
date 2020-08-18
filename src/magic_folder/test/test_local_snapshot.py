@@ -214,6 +214,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             self.temp.child(b"global-db"),
             u"tcp:12345",
             self.temp.child(b"tahoe-node"),
+            u"tcp:localhost:1234",
         )
         self.magic = self.temp.child(b"magic")
         self.magic.makedirs()
