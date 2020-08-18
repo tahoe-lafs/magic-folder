@@ -307,7 +307,7 @@ class MagicFolder(service.MultiService):
     def __init__(self, client, config, name, initial_participants, _clock=None):
         super(MagicFolder, self).__init__()
         # this is used by 'service' things and must be unique in this Service hierarchy
-        self.name = 'magic-folder-{}'.format(name)
+        self.name = u"magic-folder-{}".format(name)
         self._clock = _clock or reactor
         self._config = config  # a MagicFolderConfig instance
         self._participants = initial_participants

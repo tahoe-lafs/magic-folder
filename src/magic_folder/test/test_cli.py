@@ -101,6 +101,7 @@ class TestInitialize(SyncTestCase):
             self.temp.child("good"),
             u"tcp:1234",
             self.node_dir.path,
+            u"tcp:localhost:1234",
         )
 
 
@@ -129,6 +130,7 @@ class TestMigrate(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"alice",
+            u"tcp:localhost:1234",
         )
         config = load_global_configuration(self.temp.child("new_magic"))
         self.assertThat(
@@ -161,6 +163,7 @@ class TestShowConfig(SyncTestCase):
             self.temp.child("good"),
             u"tcp:1234",
             self.node_dir.path,
+            u"tcp:localhost:1234",
         )
         stdout = StringIO()
         magic_folder_show_config(

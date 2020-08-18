@@ -45,6 +45,7 @@ from nacl.encoding import (
 
 from twisted.internet.endpoints import (
     serverFromString,
+    clientFromString,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -92,7 +93,8 @@ _global_config_schema = Schema([
         CREATE TABLE config
         (
             api_endpoint TEXT,                -- Twisted server-string for our HTTP API
-            tahoe_node_directory TEXT         -- path to our Tahoe-LAFS client state
+            tahoe_node_directory TEXT,        -- path to our Tahoe-LAFS client state
+            api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
         );
         """,
     ])
@@ -126,17 +128,21 @@ _magicfolder_config_schema = Schema([
 ## sure how to do that w/o docs here
 
 
-def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
+def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
+                                api_client_endpoint_str):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
     :param FilePath basedir: a non-existant directory
 
-    :param unicode api_endpoint: the Twisted server endpoint string
+    :param unicode api_endpoint_str: the Twisted server endpoint string
         where we will listen for API requests.
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
+
+    :param unicode api_client_endpoint_str: the Twisted client endpoint
+        string where our API can be contacted.
 
     :returns: a GlobalConfigDatabase instance
     """
@@ -171,8 +177,8 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory):
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory) VALUES (?, ?)",
-            (api_endpoint, tahoe_node_directory.path)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
         )
 
     config = GlobalConfigDatabase(
@@ -432,6 +438,28 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
+
+    @property
+    @with_cursor
+    def api_client_endpoint(self, cursor):
+        """
+        The twisted client-string describing our API listener
+        """
+        cursor.execute("SELECT api_client_endpoint FROM config")
+        return cursor.fetchone()[0].encode("utf8")
+
+    @api_client_endpoint.setter
+    def api_client_endpoint(self, ep_string):
+        # confirm we have a valid endpoint-string
+        from twisted.internet import reactor  # uhm...
+        # XXX so, having the reactor here sucks. But if we pass in an
+        # IStreamClientEndpoint instead, how can we turn that back
+        # into an endpoint-string?
+        clientFromString(reactor, ep_string)
+
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
 
     @property
     def tahoe_client_url(self):
