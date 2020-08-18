@@ -9,7 +9,6 @@ from __future__ import (
 )
 
 __all__ = [
-    "ConfigurationError",
     "MagicFolderConfig",
     "GlobalConfigDatabase",
 
@@ -64,16 +63,15 @@ from .common import (
     atomic_makedirs,
 )
 
+from ._schema import (
+    SchemaUpgrade,
+    Schema,
+)
+
 # Export this here since GlobalConfigDatabase is what it's for.
 from ._endpoint_parser import (
     endpoint_description_to_http_api_root,
 )
-
-
-class ConfigurationError(Exception):
-    """
-    The configuration is unusable for some reason
-    """
 
 
 class SnapshotNotFound(Exception):
@@ -82,53 +80,50 @@ class SnapshotNotFound(Exception):
     """
 
 
-_global_config_version = 1
+_global_config_schema = Schema([
+    SchemaUpgrade([
+        """
+        CREATE TABLE magic_folders
+        (
+            name          TEXT PRIMARY KEY,  -- UTF8 name of this folder
+            location      TEXT               -- UTF8 path to this folder's configuration/state
+        );
+        """,
+        """
+        CREATE TABLE config
+        (
+            api_endpoint TEXT,                -- Twisted server-string for our HTTP API
+            tahoe_node_directory TEXT,        -- path to our Tahoe-LAFS client state
+            api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
+        );
+        """,
+    ])
+])
 
-_global_config_schema = """
-CREATE TABLE version
-(
-    version INTEGER  -- contains one row, set to 1
-);
+_magicfolder_config_schema = Schema([
+    SchemaUpgrade([
+        """
+        CREATE TABLE config
+        (
+            author_name          TEXT PRIMARY KEY,  -- UTF8 name of the author
+            author_private_key   TEXT,              -- base32 key in UTF8
+            stash_path           TEXT,              -- local path for stash-data
+            collective_dircap    TEXT,              -- read-capability-string
+            upload_dircap        TEXT,              -- write-capability-string
+            magic_directory      TEXT,              -- local path of sync'd directory
+            poll_interval        INTEGER            -- seconds
+        )
+        """,
+        """
+        CREATE TABLE local_snapshots
+        (
+            path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
+            snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
+        )
+        """,
+    ]),
+])
 
-CREATE TABLE magic_folders
-(
-    name          TEXT PRIMARY KEY,  -- UTF8 name of this folder
-    location      TEXT               -- UTF8 path to this folder's configuration/state
-);
-
-CREATE TABLE config
-(
-    api_endpoint TEXT,                -- Twisted server-string for our HTTP API
-    tahoe_node_directory TEXT,        -- path to our Tahoe-LAFS client state
-    api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
-);
-"""
-
-_magicfolder_config_version = 1
-
-_magicfolder_config_schema = """
-CREATE TABLE version
-(
-    version INTEGER  -- contains one row, set to 1
-);
-
-CREATE TABLE config
-(
-    author_name          TEXT PRIMARY KEY,  -- UTF8 name of the author
-    author_private_key   TEXT,              -- base32 key in UTF8
-    stash_path           TEXT,              -- local path for stash-data
-    collective_dircap    TEXT,              -- read-capability-string
-    upload_dircap        TEXT,              -- write-capability-string
-    magic_directory      TEXT,              -- local path of sync'd directory
-    poll_interval        INTEGER            -- seconds
-);
-
-CREATE TABLE local_snapshots
-(
-    path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
-    snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
-);
-"""
 ## XXX "parents_local" should be IDs of other local_snapshots, not
 ## sure how to do that w/o docs here
 
@@ -175,16 +170,12 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
 
     # set up the configuration database
     db_fname = basedir.child(b"global.sqlite")
-    connection = sqlite3.connect(db_fname.path)
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(db_fname.path),
+    )
     with connection:
         cursor = connection.cursor()
-        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-        cursor.executescript(_global_config_schema)
-        connection.commit()
-        cursor.execute(
-            "INSERT INTO version (version) VALUES (?)",
-            (_global_config_version, )
-        )
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
             (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
@@ -205,15 +196,26 @@ def load_global_configuration(basedir):
 
     :param FilePath basedir: an existing config directory
 
+    :raise ValueError: If no database already exists beneath at ``basedir``.
+
+    :raise DatabaseSchemaTooNew: If the database at ``basedir`` indicates a
+        newer schema version than this software can handle.
+
     :returns: a GlobalConfigDatabase instance
     """
-    if not basedir.exists():
-        raise ValueError(
-            "'{}' doesn't exist".format(basedir.path)
-        )
     db_fname = basedir.child("global.sqlite")
-    connection = sqlite3.connect(db_fname.path)
 
+    # It would be nice to pass a URI-style connect string with ?mode=rwc
+    # but this is unsupported until Python 3.4.
+    if not db_fname.exists():
+        raise ValueError(
+            "{!r} doesn't exist.".format(db_fname.path),
+        )
+
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(db_fname.path),
+    )
     return GlobalConfigDatabase(
         database=connection,
         api_token_path=basedir.child("api_token"),
@@ -238,6 +240,24 @@ def with_cursor(f):
     return with_cursor
 
 
+def _upgraded(schema, connection):
+    """
+    Return ``connection`` fully upgraded according to ``schema``.
+
+    :param Schema schema: The schema to use to perform any necessary upgrades.
+
+    :param sqlite3.Connection connection: The database connection to possibly
+        upgrade.
+
+    :return: ``connection`` after possibly upgrading its schema.
+    """
+    with connection:
+        cursor = connection.cursor()
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        schema.run_upgrades(cursor)
+    return connection
+
+
 @attr.s
 class MagicFolderConfig(object):
     """
@@ -245,21 +265,6 @@ class MagicFolderConfig(object):
     """
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
-
-    @with_cursor
-    def __attrs_post_init__(self, cursor):
-        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-        cursor.execute("SELECT version FROM version");
-        dbversion = cursor.fetchone()[0]
-        if dbversion != _magicfolder_config_version:
-            raise ConfigurationError(
-                "Magic Folder '{}' has unknown configuration database "
-                "version (wanted {}, got {})".format(
-                    self.name,
-                    _magicfolder_config_version,
-                    dbversion,
-                )
-            )
 
     @property
     @with_cursor
@@ -389,20 +394,7 @@ class GlobalConfigDatabase(object):
     """
     database = attr.ib()  # sqlite3 Connection; needs validator
     api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
-
-    @with_cursor
-    def __attrs_post_init__(self, cursor):
-        self._api_token = None
-        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-        cursor.execute("SELECT version FROM version");
-        dbversion = cursor.fetchone()[0]
-        if dbversion != _global_config_version:
-            raise ConfigurationError(
-                "Unknown configuration database version (wanted {}, got {})".format(
-                    _global_config_version,
-                    dbversion,
-                )
-            )
+    _api_token = attr.ib(default=None)
 
     @property
     def api_token(self):
@@ -525,7 +517,11 @@ class GlobalConfigDatabase(object):
                     "No Magic Folder named '{}'".format(name)
                 )
             name, location = data
-            connection = sqlite3.connect(FilePath(location).child("state.sqlite").path)
+            connection = _upgraded(
+                _magicfolder_config_schema,
+                sqlite3.connect(FilePath(location).child("state.sqlite").path),
+            )
+
             config = MagicFolderConfig(
                 name=name,
                 database=connection,
@@ -632,19 +628,28 @@ class GlobalConfigDatabase(object):
         stash_path = state_path.child("stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
-            connection = sqlite3.connect(db_path.path)
+            connection = _upgraded(
+                _magicfolder_config_schema,
+                sqlite3.connect(db_path.path),
+            )
             with connection:
                 cursor = connection.cursor()
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-                cursor.executescript(_magicfolder_config_schema)
-                connection.commit()
                 cursor.execute(
-                    "INSERT INTO version (version) VALUES (?)",
-                    (_magicfolder_config_version, )
-                )
-                # default configuration values
-                cursor.execute(
-                    "INSERT INTO CONFIG (author_name, author_private_key, stash_path, collective_dircap, upload_dircap, magic_directory, poll_interval) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    """
+                    INSERT INTO
+                        [config]
+                        ( author_name
+                        , author_private_key
+                        , stash_path
+                        , collective_dircap
+                        , upload_dircap
+                        , magic_directory
+                        , poll_interval
+                        )
+                    VALUES
+                        (?, ?, ?, ?, ?, ?, ?)
+                    """,
                     (
                         author.name,
                         author.signing_key.encode(Base32Encoder),
@@ -653,21 +658,19 @@ class GlobalConfigDatabase(object):
                         upload_dircap,
                         magic_path.path,
                         poll_interval,
-                    )
+                    ),
                 )
-
-            config = MagicFolderConfig(
-                name=name,
-                database=connection,
-            )
 
             # add to the global config
             with self.database:
                 cursor = self.database.cursor()
+                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
                     (name, state_path.path)
                 )
-        return config
 
-
+        return MagicFolderConfig(
+            name=name,
+            database=connection,
+        )
