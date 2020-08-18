@@ -3,8 +3,7 @@ Utilities related to Twisted endpoint (and endpoint-strings)
 """
 
 from twisted.internet.endpoints import (
-    serverFromString,
-    clientFromString,
+    _parse as twisted_endpoint_parse,
 )
 
 
@@ -26,8 +25,7 @@ def server_endpoint_str_to_client(server_ep):
     """
     # so .. we could either re-create the code that splits a Twisted
     # client/server string into pieces or:
-    from twisted.internet.endpoints import _parse
-    args, kwargs = _parse(server_ep)
+    args, kwargs = twisted_endpoint_parse(server_ep)
     # the first arg is the "kind" of endpoint, e.g. tcp, ...
     kind = args[0]
     args = args[1:]

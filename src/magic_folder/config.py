@@ -63,9 +63,6 @@ from .snapshot import (
 from .common import (
     atomic_makedirs,
 )
-from .endpoints import (
-    server_endpoint_str_to_client,
-)
 
 # Export this here since GlobalConfigDatabase is what it's for.
 from ._endpoint_parser import (
