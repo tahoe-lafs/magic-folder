@@ -7,12 +7,16 @@ from testtools import (
 from testtools.content import (
     text_content,
 )
+from testtools.twistedsupport import (
+    succeeded,
+)
 from testtools.matchers import (
     Contains,
     Equals,
     AfterPreprocessing,
     Always,
     ContainsDict,
+    MatchesStructure,
 )
 
 from twisted.internet import defer
@@ -23,8 +27,14 @@ from twisted.python.filepath import (
 )
 
 from ... import cli as magic_folder_cli
+from ...initialize import (
+    magic_folder_initialize,
+)
 from ...config import (
     create_global_configuration,
+    load_global_configuration,
+)
+from ...endpoints import (
     CannotConvertEndpointError,
 )
 
@@ -61,7 +71,7 @@ class ListMagicFolder(AsyncTestCase):
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
         self.config_dir = FilePath(self.mktemp())
-        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory)
+        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory, u"tcp:localhost:4321")
 
     @defer.inlineCallbacks
     def test_list_none(self):
@@ -192,6 +202,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir,
             u"tcp:4321",
             self.client_fixture.node_directory,
+            u"tcp:localhost:4321",
         )
 
     @defer.inlineCallbacks
@@ -484,20 +495,28 @@ class ClientEndpoint(SyncTestCase):
         """
         a tcp: endpoint can be autoconverted
         """
-        config = create_global_configuration(self.basedir, u"tcp:5555", self.nodedir.path)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None)
         self.assertThat(
-            config.api_client_endpoint,
-            Equals(u"tcp:127.0.0.1:5555")
+            config_d,
+            succeeded(
+                MatchesStructure(
+                    api_client_endpoint=Equals(u"tcp:127.0.0.1:5555"),
+                )
+            )
         )
 
     def test_convert_tcp_host(self):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config = create_global_configuration(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None)
         self.assertThat(
-            config.api_client_endpoint,
-            Equals(u"tcp:127.1.2.3:5555")
+            config_d,
+            succeeded(
+                MatchesStructure(
+                    api_client_endpoint=Equals(u"tcp:127.1.2.3:5555"),
+                )
+            )
         )
 
     def test_convert_fail(self):
@@ -505,26 +524,41 @@ class ClientEndpoint(SyncTestCase):
         unknown endpoint conversion fails
         """
         with ExpectedException(CannotConvertEndpointError):
-            create_global_configuration(self.basedir, u"onion:555", self.nodedir.path)
+            magic_folder_initialize(self.basedir, u"onion:555", self.nodedir.path, None)
 
     def test_convert_unix(self):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config = create_global_configuration(self.basedir, u"unix:/var/run/x", self.nodedir.path)
+        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None)
         self.assertThat(
-            config.api_client_endpoint,
-            Equals(u"unix:/var/run/x")
+            config_d,
+            succeeded(
+                MatchesStructure(
+                    api_client_endpoint=Equals(u"unix:/var/run/x"),
+                )
+            )
         )
 
     def test_set_client_endpoint(self):
         """
         setting the client endpoint succeeds with a valid endpoint
         """
-        config = create_global_configuration(self.basedir, u"tcp:5555", self.nodedir.path)
+        config = create_global_configuration(
+            self.basedir,
+            u"tcp:5555",
+            self.nodedir.path,
+            u"tcp:localhost:1234",
+        )
         config.api_client_endpoint = u"tcp:localhost:5555"
         self.assertThat(
             config.api_client_endpoint,
+            Equals(u"tcp:localhost:5555")
+        )
+        # confirm the actual database has changed by loading again
+        config2 = load_global_configuration(self.basedir)
+        self.assertThat(
+            config2.api_client_endpoint,
             Equals(u"tcp:localhost:5555")
         )
 
@@ -532,9 +566,22 @@ class ClientEndpoint(SyncTestCase):
         """
         setting the client endpoint fails (if it is invalid)
         """
-        config = create_global_configuration(self.basedir, u"tcp:5555", self.nodedir.path)
+        config = create_global_configuration(
+            self.basedir,
+            u"tcp:5555",
+            self.nodedir.path,
+            u"tcp:localhost:1234",
+        )
         with ExpectedException(ValueError, "Unknown endpoint type.*"):
             config.api_client_endpoint = u"invalid:"
+
+        # also confirm the database *didn't* get changed and has the
+        # original value still
+        config2 = load_global_configuration(self.basedir)
+        self.assertThat(
+            config2.api_client_endpoint,
+            Equals(u"tcp:localhost:1234")
+        )
 
 
 class JoinErrors(AsyncTestCase):

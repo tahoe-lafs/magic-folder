@@ -63,6 +63,9 @@ from .snapshot import (
 from .common import (
     atomic_makedirs,
 )
+from .endpoints import (
+    server_endpoint_str_to_client,
+)
 
 # Export this here since GlobalConfigDatabase is what it's for.
 from ._endpoint_parser import (
@@ -133,31 +136,27 @@ CREATE TABLE local_snapshots
 ## sure how to do that w/o docs here
 
 
-def create_global_configuration(basedir, api_endpoint, tahoe_node_directory,
-                                api_client_endpoint=None):
+def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
+                                api_client_endpoint_str):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
     :param FilePath basedir: a non-existant directory
 
-    :param unicode api_endpoint: the Twisted server endpoint string
+    :param unicode api_endpoint_str: the Twisted server endpoint string
         where we will listen for API requests.
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
 
-    :param unicode api_client_endpoint: the Twisted client endpoint
-        string where our API can be contacted. If not provided, we
-        attempt to create one from the `api_endpoint` (or fail).
+    :param unicode api_client_endpoint_str: the Twisted client endpoint
+        string where our API can be contacted.
 
     :returns: a GlobalConfigDatabase instance
     """
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
     basedir = basedir.asBytesMode("utf8")
-
-    if api_client_endpoint is None:
-        api_client_endpoint = _server_endpoint_to_client(api_endpoint)
 
     try:
         basedir.makedirs()
@@ -191,7 +190,7 @@ def create_global_configuration(basedir, api_endpoint, tahoe_node_directory,
         )
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint, tahoe_node_directory.path, api_client_endpoint)
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
         )
 
     config = GlobalConfigDatabase(
@@ -675,54 +674,3 @@ class GlobalConfigDatabase(object):
         return config
 
 
-class CannotConvertEndpointError(Exception):
-    """
-    Failed to convert a server endpoint-string into a corresponding
-    client one.
-    """
-
-
-def _server_endpoint_to_client(server_ep):
-    """
-    Attempt to convert a Twisted server endpoint-string into the
-    corresponding client-type one.
-
-    :returns: a Twisted client endpoint-string
-
-    :raises: CannotConvertEndpointError upon failure
-    """
-    # so .. we could either re-create the code that splits a Twisted
-    # client/server string into pieces or:
-    from twisted.internet.endpoints import _parse
-    args, kwargs = _parse(server_ep)
-    # the first arg is the "kind" of endpoint, e.g. tcp, ...
-    kind = args[0]
-    args = args[1:]
-    converters = {
-        "tcp": _tcp_endpoint_to_client,
-        "unix": _unix_endpoint_to_client,
-    }
-    try:
-        converter = converters[kind]
-    except KeyError:
-        raise CannotConvertEndpointError(
-            "Cannot covert server endpoint of type '{}' to client".format(kind)
-        )
-    return converter(args, kwargs)
-
-
-def _tcp_endpoint_to_client(args, kwargs):
-    """
-    convert a 'tcp:' server endpoint-string to client
-    """
-    host = kwargs.get(u"interface", None) or u"127.0.0.1"
-    port = args[0]
-    return u"tcp:{}:{}".format(host, port)
-
-
-def _unix_endpoint_to_client(args, kwargs):
-    """
-    convert a 'unix:' server endpoint-string to client
-    """
-    address = args[0]
-    return u"unix:{}".format(address)
