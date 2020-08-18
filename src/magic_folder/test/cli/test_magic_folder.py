@@ -493,7 +493,7 @@ class ClientEndpoint(SyncTestCase):
 
     def test_convert_tcp(self):
         """
-        a tcp: endpoint can be autoconverted
+        a 'tcp:'-style endpoint can be autoconverted
         """
         config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None)
         self.assertThat(
