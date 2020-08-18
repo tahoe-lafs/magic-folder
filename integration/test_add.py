@@ -39,7 +39,6 @@ def test_add(request, reactor, temp_dir, alice):
     output = yield proto.done
     config = loads(output)
 
-    print(output)
     assert "test" in config["magic_folders"]
     mf_config = config["magic_folders"]["test"]
     assert mf_config["name"] == "test"
