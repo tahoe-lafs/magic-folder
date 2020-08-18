@@ -74,10 +74,12 @@ even if we can't communicate to Tahoe-LAFS.
 
 The upload is a multi-part process:
 
-- upload the content, yielding an immutable read-capability
+- upload the content yielding an immutable read-capability
+
+- upload the metadata yielding an immutable read-capability
 
 - use the local keypair to sign the snapshot (requires the
-  read-capability from the first step)
+  read-capabilities from from the first two steps)
 
 - create an immutable directory to represent the Snapshot (which
   encapsulates the metadata, content pointer and signature)
@@ -91,3 +93,33 @@ they next poll our mutable directory.
 We cannot sign local Snapshots because we don't yet have the
 capability-string for the content. The capability-string is only known
 after we upload the content to Tahoe-LAFS.
+
+
+Signature Details
+-----------------
+
+As above, we upload the content and metadata as two distinct immutable
+capability. There is also the "mangled" name of the file. This mangled
+name will also point at the Snapshot from the Personal DMD.
+
+The signature scheme is to concatenate all three of the above
+(separated by newlines) and then produce a signature over it using the
+author's signing key (which is a `nacl.signing.SigningKey` from the
+PyNaCl library (which uses `libsodium` under the hood). See
+https://pynacl.readthedocs.io/en/latest/signing/
+
+The resulting signature is base32-encoded and included in the "tahoe
+metadata" for the "metadata capability" entry in the Snapshot's
+immutable directory.
+
+To verify the signature, a client has the content and metadata
+capability-strings when they download the Snapshot object and the
+mangled name from that participant's Personal DMD. They can thus
+verify the signature using the participant's public-key before
+downloading the content or metadata.
+
+**Note**: "metadata" is used in two ways above; Tahoe allows you to
+add arbitrary metadata for each entry in a directory. This is where
+we locate the base32-encoded signature itself. The "metadata about
+the Snapshot" is its own capability (consisting of JSON-encoded
+metadata).
