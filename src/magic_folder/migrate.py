@@ -20,10 +20,13 @@ from .config import (
 from .snapshot import (
     create_local_author,
 )
+from .endpoints import (
+    server_endpoint_str_to_client,
+)
 
 
-def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, author_name,
-                         client_endpoint):
+def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, author_name,
+                         client_endpoint_str):
     """
     From an existing Tahoe-LAFS 1.14.0 or earlier configuration we
     initialize a new magic-folder using the relevant configuration
@@ -32,7 +35,7 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
 
     :param FilePath config_dir: a non-existant directory in which to put configuration
 
-    :param unicode listen_endpoint: a Twisted server-string where we
+    :param unicode listen_endpoint_str: a Twisted server-string where we
         will listen for REST API requests (e.g. "tcp:1234")
 
     :param FilePath tahoe_node_directory: existing Tahoe-LAFS
@@ -41,18 +44,21 @@ def magic_folder_migrate(config_dir, listen_endpoint, tahoe_node_directory, auth
     :param unicode author_name: the name of our author (will be used
         for each magic-folder we create from the "other" config)
 
-    :param unicode client_endpoint: Twisted client-string to our API
+    :param unicode client_endpoint_str: Twisted client-string to our API
         (or None to autoconvert the listen_endpoint)
 
     :return Deferred[GlobalConfigDatabase]: the newly migrated
         configuration or an exception upon error.
     """
 
+    if client_endpoint_str is None:
+        client_endpoint_str = server_endpoint_str_to_client(listen_endpoint_str)
+
     config = create_global_configuration(
         config_dir,
-        listen_endpoint,
+        listen_endpoint_str,
         tahoe_node_directory,
-        client_endpoint,
+        client_endpoint_str,
     )
 
     # now that we have the global configuration we find all the

@@ -194,6 +194,9 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         database=connection,
         api_token_path=basedir.child(b"api_token"),
     )
+    # check that these are valid by setting them
+    config.api_endpoint = api_endpoint_str
+    config.api_client_endpoint = api_client_endpoint_str
     # make sure we have an API token
     config.rotate_api_token()
     return config
