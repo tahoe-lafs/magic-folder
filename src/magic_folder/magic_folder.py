@@ -941,7 +941,8 @@ class UploaderService(service.Service):
 
     def startService(self):
         """
-        XXX
+        Start UploaderService and initiate a periodic task
+        to poll for LocalSnapshots in the database.
         """
 
         service.Service.startService(self)
