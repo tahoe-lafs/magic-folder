@@ -13,7 +13,10 @@ from twisted.python import runtime
 from twisted.application import service
 from twisted.internet import task
 
-from zope.interface import implementer
+from zope.interface import (
+    Interface,
+    implementer,
+)
 from twisted.internet.defer import (
     DeferredQueue,
     CancelledError,
@@ -853,18 +856,33 @@ class LocalSnapshotService(service.Service):
         self._queue.put((bytespath, d))
         return d
 
+
+class IRemoteSnapshotCreator(Interface):
+    """
+    An object that can create remote snapshots representing the same
+    information as some local snapshots that already exist.
+    """
+    def upload_local_snapshots():
+        """
+        Find local uncommitted snapshots and commit them to the grid.
+
+        :return Deferred[None]: A Deferred that fires when an effort has been
+            made to commit at least some local uncommitted snapshots.
+        """
+
+
+@implementer(IRemoteSnapshotCreator)
 @attr.s
 class RemoteSnapshotCreator(object):
     _state_db = attr.ib()
     _local_author = attr.ib()
+    _tahoe_client = attr.ib()
 
     @eliotutil.inline_callbacks
-    def _upload_local_snapshots(self, tahoe_client):
+    def upload_local_snapshots(self):
         """
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
-
-        :param tahoe_client: a TahoeClient instance
         """
 
         # get the mangled paths for the LocalSnapshot objects in the db
@@ -887,7 +905,7 @@ class RemoteSnapshotCreator(object):
                     remote_snapshot = yield write_snapshot_to_tahoe(
                         snapshot,
                         self._local_author,
-                        tahoe_client,
+                        self._tahoe_client,
                     )
 
                     # At this point, remote snapshot creation successful for
@@ -918,25 +936,23 @@ class UploaderService(service.Service):
     """
 
     @classmethod
-    def from_config(cls, clock, tahoe_client, name, config, remote_snapshot_creator):
+    def from_config(cls, clock, name, config, remote_snapshot_creator):
         """
         Create an UploaderService from the MagicFolder configuration.
         """
         mf_config = config.get_magic_folder(name)
-        polling_interval = mf_config.poll_interval
+        poll_interval = mf_config.poll_interval
         return cls(
-            client=tahoe_client,
             clock=clock,
-            polling_interval=polling_interval,
+            poll_interval=poll_interval,
             remote_snapshot_creator=remote_snapshot_creator,
         )
 
-    def __init__(self, client, clock, polling_interval, remote_snapshot_creator):
+    def __init__(self, clock, poll_interval, remote_snapshot_creator):
         super(UploaderService, self).__init__()
 
-        self._tahoe_client = client
         self._clock = clock
-        self._polling_interval = polling_interval
+        self._poll_interval = poll_interval
         self._remote_snapshot_creator = remote_snapshot_creator
 
     def startService(self):
@@ -949,11 +965,10 @@ class UploaderService(service.Service):
 
         # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = task.LoopingCall(
-            self._remote_snapshot_creator._upload_local_snapshots,
-            self._tahoe_client,
+            self._remote_snapshot_creator.upload_local_snapshots,
         )
         self._processing_loop.clock = self._clock
-        self._processing = self._processing_loop.start(self._polling_interval, now=True)
+        self._processing = self._processing_loop.start(self._poll_interval, now=True)
 
 
     def stopService(self):
