@@ -32,8 +32,8 @@ def test_add(request, reactor, temp_dir, alice):
     util._magic_folder_runner(
         proto, reactor, request,
         [
-            "show-config",
             "--config", alice.magic_config_directory,
+            "show-config",
         ],
     )
     output = yield proto.done
