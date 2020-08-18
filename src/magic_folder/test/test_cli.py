@@ -19,6 +19,9 @@ from zope.interface import (
 
 import attr
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     Equals,
     ContainsDict,
@@ -32,6 +35,9 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
+)
+from ..endpoints import (
+    CannotConvertEndpointError,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -99,9 +105,9 @@ class TestInitialize(SyncTestCase):
     def test_good(self):
         magic_folder_initialize(
             self.temp.child("good"),
-            u"tcp:1234",
+            "tcp:1234",
             self.node_dir.path,
-            u"tcp:localhost:1234",
+            "tcp:localhost:1234",
         )
 
 
@@ -127,16 +133,36 @@ class TestMigrate(SyncTestCase):
     def test_good(self):
         magic_folder_migrate(
             self.temp.child("new_magic"),
-            u"tcp:1234",
+            "tcp:1234",
             self.node_dir.path,
             u"alice",
-            u"tcp:localhost:1234",
+            "tcp:localhost:1234",
         )
         config = load_global_configuration(self.temp.child("new_magic"))
         self.assertThat(
             list(config.list_magic_folders()),
             Equals([u"test-folder"]),
         )
+
+    def test_bad_listen_string(self):
+        with ExpectedException(CannotConvertEndpointError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                "1234",
+                self.node_dir.path,
+                u"alice",
+                None,
+            )
+
+    def test_bad_connect_string(self):
+        with ExpectedException(ValueError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                "tcp:1234",
+                self.node_dir.path,
+                u"alice",
+                "localhost:1234",
+            )
 
 
 class TestShowConfig(SyncTestCase):
@@ -161,9 +187,9 @@ class TestShowConfig(SyncTestCase):
     def test_good(self):
         magic_folder_initialize(
             self.temp.child("good"),
-            u"tcp:1234",
+            "tcp:1234",
             self.node_dir.path,
-            u"tcp:localhost:1234",
+            "tcp:localhost:1234",
         )
         stdout = StringIO()
         magic_folder_show_config(
