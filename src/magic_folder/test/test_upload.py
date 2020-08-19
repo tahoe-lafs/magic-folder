@@ -39,7 +39,8 @@ from ..magic_folder import (
     RemoteSnapshotCreator,
 )
 from ..config import (
-    create_global_configuration,
+    SQLite3DatabaseLocation,
+    MagicFolderConfig,
     SnapshotNotFound,
 )
 from ..snapshot import (
@@ -70,7 +71,22 @@ from fixtures import (
 )
 
 class RemoteSnapshotCreatorFixture(Fixture):
+    """
+    A fixture which provides a ``RemoteSnapshotCreator`` connected to a
+    ``MagicFolderConfig``.
+    """
     def __init__(self, temp, author, root=None):
+        """
+        :param FilePath temp: A path where the fixture may write whatever it
+            likes.
+
+        :param LocalAuthor author: The author which will be used to sign
+            snapshots the ``RemoteSnapshotCreator`` creates.
+
+        :param IResource root: The root resource for the fake Tahoe-LAFS HTTP
+            API hierarchy.  The default is one created by
+            ``create_fake_tahoe_root``.
+        """
         if root is None:
             root = create_fake_tahoe_root()
         self.temp = temp
@@ -86,22 +102,19 @@ class RemoteSnapshotCreatorFixture(Fixture):
         self.magic_path = self.temp.child(b"magic")
         self.magic_path.makedirs()
 
-        global_config = create_global_configuration(
-            self.temp.child(b"global-db"),
-            u"tcp:12345",
-            self.temp.child(b"tahoe-node"),
-            u"tcp:localhost:12345",
-        )
+        self.stash_path = self.temp.child(b"stash")
+        self.stash_path.makedirs()
 
         self.poll_interval = 1
 
-        self.state_db = global_config.create_magic_folder(
+        self.state_db = MagicFolderConfig.initialize(
             u"some-folder",
-            self.magic_path,
-            self.temp.child(b"state"),
+            SQLite3DatabaseLocation.memory(),
             self.author,
+            self.stash_path,
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
+            self.magic_path,
             self.poll_interval,
         )
 
@@ -172,7 +185,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.assertThat(
             remote_snapshot_cap,
             MatchesPredicate(is_uri,
-                             "%s is not a Tahoe-LAFS URI"),
+                             "%r is not a Tahoe-LAFS URI"),
         )
 
         with ExpectedException(SnapshotNotFound, ""):
