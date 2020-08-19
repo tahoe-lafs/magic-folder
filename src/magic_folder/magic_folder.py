@@ -48,9 +48,6 @@ from allmydata.util.encodingutil import to_filepath
 from . import (
     magicpath,
 )
-from .config import (
-    SnapshotNotFound,
-)
 from .snapshot import (
     write_snapshot_to_tahoe,
     create_snapshot,
@@ -741,8 +738,8 @@ class LocalSnapshotCreator(object):
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
             try:
-                parent_snapshot = self._db.get_local_snapshot(mangled_name, self._author)
-            except SnapshotNotFound:
+                parent_snapshot = self._db.get_local_snapshot(mangled_name)
+            except KeyError:
                 parents = []
             else:
                 parents = [parent_snapshot]
@@ -911,7 +908,7 @@ class RemoteSnapshotCreator(object):
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._state_db.get_local_snapshot(name, self._local_author)
+        snapshot = self._state_db.get_local_snapshot(name)
 
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,

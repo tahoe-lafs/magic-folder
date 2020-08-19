@@ -2,6 +2,10 @@ import io
 
 import attr
 
+from re import (
+    escape,
+)
+
 from zope.interface import (
     implementer,
 )
@@ -33,9 +37,6 @@ from twisted.web.resource import (
 from ..magic_folder import (
     IRemoteSnapshotCreator,
     UploaderService,
-)
-from ..config import (
-    SnapshotNotFound,
 )
 from ..snapshot import (
     create_local_author,
@@ -122,8 +123,8 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                              "%r is not a Tahoe-LAFS URI"),
         )
 
-        with ExpectedException(SnapshotNotFound, ""):
-            state_db.get_local_snapshot(name, self.author)
+        with ExpectedException(KeyError, escape(repr(name))):
+            state_db.get_local_snapshot(name)
 
     @given(
         path_segments(),
@@ -180,7 +181,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         self.assertEqual(
             local_snapshot,
-            state_db.get_local_snapshot(name, self.author),
+            state_db.get_local_snapshot(name),
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),

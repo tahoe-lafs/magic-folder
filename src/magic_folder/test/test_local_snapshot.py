@@ -258,7 +258,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in files:
             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
-            stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
+            stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
@@ -282,7 +282,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         )
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
-        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
+        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.
         foo.asBytesMode("utf-8").setContent(content2)
@@ -292,7 +292,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
-        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
+        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)
 
         self.assertThat(
             stored_snapshot2.parents_local[0],

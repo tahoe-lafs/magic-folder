@@ -83,12 +83,6 @@ from .util.eliotutil import (
     validateSetMembership,
 )
 
-class SnapshotNotFound(Exception):
-    """
-    No snapshot for a particular requested path was found.
-    """
-
-
 _global_config_schema = Schema([
     SchemaUpgrade([
         """
@@ -430,7 +424,7 @@ class MagicFolderConfig(object):
         return FilePath(path_raw)
 
     @with_cursor
-    def get_local_snapshot(self, cursor, name, author):
+    def get_local_snapshot(self, cursor, name):
         """
         return an instance of LocalSnapshot corresponding to
         the given name and author. Traversing the parents
@@ -438,10 +432,7 @@ class MagicFolderConfig(object):
 
         :param unicode name: magicpath that represents the relative path of the file.
 
-        :param author: an instance of LocalAuthor
-
-        :raise SnapshotNotFound: If there is no matching snapshot for the
-            given path.
+        :raise KeyError: If there is no matching snapshot for the given path.
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
@@ -450,8 +441,8 @@ class MagicFolderConfig(object):
                        (name,))
         row = cursor.fetchone()
         if row:
-            return LocalSnapshot.from_json(row[0], author)
-        raise SnapshotNotFound(name)
+            return LocalSnapshot.from_json(row[0], self.author)
+        raise KeyError(name)
 
     @with_cursor
     def store_local_snapshot(self, cursor, snapshot):
