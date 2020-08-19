@@ -199,10 +199,13 @@ class EndpointDescriptionConverterTests(SyncTestCase):
         )
 
 
-class TestMagicFolderConfig(SyncTestCase):
-
+class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
+    """
+    Tests for the ``GlobalConfigDatabase`` APIs that deal with individual
+    ``MagicFolderConfig`` instances.
+    """
     def setUp(self):
-        super(TestMagicFolderConfig, self).setUp()
+        super(GlobalConfigDatabaseMagicFolderTests, self).setUp()
         self.temp = FilePath(self.mktemp())
         self.node_dir = FilePath(self.mktemp())
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
