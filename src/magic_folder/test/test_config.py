@@ -50,6 +50,8 @@ from .strategies import (
     magic_folder_filenames,
 )
 from ..config import (
+    SQLite3DatabaseLocation,
+    MagicFolderConfig,
     endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
@@ -323,25 +325,23 @@ class StoreLocalSnapshotTests(SyncTestCase):
     """
     def setUp(self):
         super(StoreLocalSnapshotTests, self).setUp()
-        self.alice = create_local_author("alice")
+        self.author = create_local_author("alice")
 
     def setup_example(self):
         self.temp = FilePath(self.mktemp())
-        self.global_db = create_global_configuration(
-            self.temp.child(b"global-db"),
-            u"tcp:12345",
-            self.temp.child(b"tahoe-node"),
-            u"tcp:localhost:12345",
-        )
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
         self.magic = self.temp.child(b"magic")
         self.magic.makedirs()
-        self.db = self.global_db.create_magic_folder(
+
+        self.db = MagicFolderConfig.initialize(
             u"some-folder",
-            self.magic,
-            self.temp.child(b"state"),
-            self.alice,
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
+            self.magic,
             60,
         )
 
@@ -358,14 +358,12 @@ class StoreLocalSnapshotTests(SyncTestCase):
         data1 = BytesIO(content1)
 
         snapshots = []
-        stash_dir = self.db.stash_path.child(stash_subdir.encode("utf-8"))
-        stash_dir.makedirs()
 
         d = create_snapshot(
             name=filename,
-            author=self.alice,
+            author=self.author,
             data_producer=data1,
-            snapshot_stash_dir=stash_dir,
+            snapshot_stash_dir=self.stash,
             parents=[],
         )
         d.addCallback(snapshots.append)
@@ -381,9 +379,9 @@ class StoreLocalSnapshotTests(SyncTestCase):
         data2 = BytesIO(content2)
         d = create_snapshot(
             name=filename,
-            author=self.alice,
+            author=self.author,
             data_producer=data2,
-            snapshot_stash_dir=stash_dir,
+            snapshot_stash_dir=self.stash,
             parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
@@ -393,7 +391,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.db.store_local_snapshot(snapshots[1])
 
         # now read back the serialized snapshot from db
-        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.alice)
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.author)
 
         self.assertThat(
             reconstructed_local_snapshot,
