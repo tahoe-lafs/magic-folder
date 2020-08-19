@@ -90,6 +90,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.temp.child(b"global-db"),
             u"tcp:12345",
             self.temp.child(b"tahoe-node"),
+            u"tcp:localhost:12345",
         )
 
         self.poll_interval = 1
