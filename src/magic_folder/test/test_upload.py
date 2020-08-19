@@ -30,17 +30,11 @@ from twisted.python.filepath import (
 from twisted.web.resource import (
     ErrorPage,
 )
-from hyperlink import (
-    DecodedURL,
-)
 from ..magic_folder import (
     IRemoteSnapshotCreator,
     UploaderService,
-    RemoteSnapshotCreator,
 )
 from ..config import (
-    SQLite3DatabaseLocation,
-    MagicFolderConfig,
     SnapshotNotFound,
 )
 from ..snapshot import (
@@ -56,74 +50,14 @@ from .strategies import (
     path_segments,
 )
 
-from magic_folder.testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
+from .fixtures import (
+    RemoteSnapshotCreatorFixture,
 )
+
 from magic_folder.tahoe_client import (
     TahoeAPIError,
-    create_tahoe_client,
 )
 from allmydata.uri import is_uri
-
-from fixtures import (
-    Fixture,
-)
-
-class RemoteSnapshotCreatorFixture(Fixture):
-    """
-    A fixture which provides a ``RemoteSnapshotCreator`` connected to a
-    ``MagicFolderConfig``.
-    """
-    def __init__(self, temp, author, root=None):
-        """
-        :param FilePath temp: A path where the fixture may write whatever it
-            likes.
-
-        :param LocalAuthor author: The author which will be used to sign
-            snapshots the ``RemoteSnapshotCreator`` creates.
-
-        :param IResource root: The root resource for the fake Tahoe-LAFS HTTP
-            API hierarchy.  The default is one created by
-            ``create_fake_tahoe_root``.
-        """
-        if root is None:
-            root = create_fake_tahoe_root()
-        self.temp = temp
-        self.author = author
-        self.root = root
-        self.http_client = create_tahoe_treq_client(self.root)
-        self.tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://example.com"),
-            self.http_client,
-        )
-
-    def _setUp(self):
-        self.magic_path = self.temp.child(b"magic")
-        self.magic_path.makedirs()
-
-        self.stash_path = self.temp.child(b"stash")
-        self.stash_path.makedirs()
-
-        self.poll_interval = 1
-
-        self.state_db = MagicFolderConfig.initialize(
-            u"some-folder",
-            SQLite3DatabaseLocation.memory(),
-            self.author,
-            self.stash_path,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
-            self.magic_path,
-            self.poll_interval,
-        )
-
-        self.remote_snapshot_creator = RemoteSnapshotCreator(
-            state_db=self.state_db,
-            local_author=self.author,
-            tahoe_client=self.tahoe_client,
-        )
-
 
 class RemoteSnapshotCreatorTests(SyncTestCase):
     """
