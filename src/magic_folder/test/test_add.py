@@ -67,6 +67,7 @@ class TestAdd(SyncTestCase):
             self.basedir,
             u"tcp:5555",
             self.node.path,
+            u"tcp:localhost:5555",
         )
 
     def test_add_folder(self):

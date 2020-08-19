@@ -36,8 +36,6 @@ from hyperlink import (
     URL,
 )
 
-import sqlite3
-
 from .common import (
     SyncTestCase,
 )
@@ -55,7 +53,6 @@ from ..config import (
     endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
-    ConfigurationError,
 )
 from ..snapshot import (
     create_local_author,
@@ -86,7 +83,7 @@ class TestGlobalConfig(SyncTestCase):
         to write the configuration.
         """
         confdir = self.temp.child(dirname)
-        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
             MatchesStructure(
@@ -101,14 +98,14 @@ class TestGlobalConfig(SyncTestCase):
         """
         self.temp.makedirs()
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
-            create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+            create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
 
     def test_load_db(self):
         """
         ``load_global_configuration`` can read the global configuration written by
         ``create_global_configuration``.
         """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config = load_global_configuration(self.temp)
         self.assertThat(
             config,
@@ -132,7 +129,7 @@ class TestGlobalConfig(SyncTestCase):
         ``GlobalConfigDatabase.rotate_api_token`` replaces the current API token
         with a new one.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         pre = config.api_token
         config.rotate_api_token()
         self.assertThat(
@@ -147,7 +144,7 @@ class TestGlobalConfig(SyncTestCase):
         available when the database is loaded again with
         ``load_global_configuration``.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
         self.assertThat(
@@ -158,22 +155,6 @@ class TestGlobalConfig(SyncTestCase):
             config2.api_endpoint,
             Equals("tcp:42")
         )
-
-    def test_database_wrong_version(self):
-        """
-        ``load_global_configuration`` raises ``ConfigurationError`` if asked to
-        load a database that has a version other than ``1``.
-        """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
-        # make the version "0", which will never happen for real
-        # because we'll keep incrementing the version from 1
-        db_fname = self.temp.child("global.sqlite")
-        with sqlite3.connect(db_fname.path) as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE version SET version=?", (0, ))
-
-        with ExpectedException(ConfigurationError):
-            load_global_configuration(self.temp)
 
 
 class EndpointDescriptionConverterTests(SyncTestCase):
@@ -225,7 +206,7 @@ class TestMagicFolderConfig(SyncTestCase):
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     def test_create_folder(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -244,7 +225,7 @@ class TestMagicFolderConfig(SyncTestCase):
         )
 
     def test_create_folder_duplicate(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -269,7 +250,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_nonexistant_magic_path(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
@@ -284,7 +265,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_state_already_exists(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -305,7 +286,7 @@ class TestMagicFolderConfig(SyncTestCase):
         """
         we can retrieve the stash-path from a magic-folder-confgi
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -330,7 +311,7 @@ class TestMagicFolderConfig(SyncTestCase):
         """
         an error to retrieve a non-existent folder
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
 
@@ -350,6 +331,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             self.temp.child(b"global-db"),
             u"tcp:12345",
             self.temp.child(b"tahoe-node"),
+            u"tcp:localhost:12345",
         )
         self.magic = self.temp.child(b"magic")
         self.magic.makedirs()
