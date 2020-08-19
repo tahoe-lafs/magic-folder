@@ -84,6 +84,7 @@ class _FakeTahoeRoot(Resource, object):
         # Adding mutable data always makes a new object.
         return self._uri.add_mutable_data(kind, data)
 
+
 KNOWN_CAPABILITIES = [
     getattr(allmydata.uri, t).BASE_STRING
     for t in dir(allmydata.uri)
@@ -411,6 +412,7 @@ def create_fake_tahoe_root():
         uri=_FakeTahoeUriHandler(),
     )
     return root
+
 
 @implementer(IBodyProducer)
 class _SynchronousProducer(object):
