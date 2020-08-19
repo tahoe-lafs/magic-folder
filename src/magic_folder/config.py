@@ -548,7 +548,7 @@ class MagicFolderConfig(object):
 
         :raise KeyError: If no snapshot exists for the given path.
 
-        :returns: An unicode string that represents the RemoteSnapshot cap.
+        :returns: A byte string that represents the RemoteSnapshot cap.
         """
         action = FETCH_REMOTE_SNAPSHOTS_FROM_DB(
             relpath=name,
@@ -559,7 +559,7 @@ class MagicFolderConfig(object):
                            (name,))
             row = cursor.fetchone()
             if row:
-                return row[0]
+                return row[0].encode("utf-8")
             raise KeyError(name)
 
     @property
