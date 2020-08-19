@@ -300,6 +300,32 @@ def _upgraded(schema, connection):
         schema.run_upgrades(cursor)
     return connection
 
+@attr.s
+class SQLite3DatabaseLocation(object):
+    """
+    A helper to allow a connection to a SQLite3 database on a filesystem or
+    in-memory.
+    """
+    location = attr.ib()
+
+    @classmethod
+    def memory(cls):
+        """
+        Get an in-memory database location.
+        """
+        return cls(":memory:")
+
+    def connect(self, *a, **kw):
+        """
+        Establish a new connection to the SQLite3 database at this location.
+
+        :param *a: Additional positional arguments for ``sqlite3.connect``.
+        :param *kw: Additional keyword arguments for ``sqlite3.connect``.
+
+        :return: A new ``sqlite3.Connection``.
+        """
+        return sqlite3.connect(self.location, *a, **kw)
+
 
 @attr.s
 class MagicFolderConfig(object):
@@ -308,6 +334,83 @@ class MagicFolderConfig(object):
     """
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
+
+    @classmethod
+    def initialize(
+            cls,
+            name,
+            db_location,
+            author,
+            stash_path,
+            collective_dircap,
+            upload_dircap,
+            magic_path,
+            poll_interval,
+    ):
+        """
+        Create the database state for a new Magic Folder and return a
+        ``MagicFolderConfig`` representing it.
+
+        :param unicode name: The human-facing name for this folder.
+
+        :param SQLite3DatabaseLocation db_location: A SQLite3 location string
+            to use to connect to the database for this folder.
+
+        :param LocalAuthor author: The author to which all local changes will
+            be attributed.
+
+        :param FilePath stash_path: The filesystem location to which to write
+            snapshot content before uploading it.
+
+        :param unicode collective_dircap: A Tahoe-LAFS directory capability
+            representing the Magic-Folder "collective" directory (where
+            participant DMDs can be found).
+
+        :param unicode upload_dircap: A Tahoe-LAFS read-write directory
+            capability representing the DMD belonging to ``author``.
+
+        :param FilePath magic_path: The local filesystem path where magic
+            folder will read and write files belonging to this folder.
+
+        :param int poll_interval: The interval, in seconds, on which to poll
+            for changes (for download?).
+
+        :return: A new ``cls`` instance populated with the given
+            configuration.
+        """
+        connection = _upgraded(
+            _magicfolder_config_schema,
+            db_location.connect(),
+        )
+        with connection:
+            cursor = connection.cursor()
+            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+            cursor.execute(
+                """
+                INSERT INTO
+                    [config]
+                    ( author_name
+                    , author_private_key
+                    , stash_path
+                    , collective_dircap
+                    , upload_dircap
+                    , magic_directory
+                    , poll_interval
+                    )
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    author.name,
+                    author.signing_key.encode(Base32Encoder),
+                    stash_path.path,
+                    collective_dircap,
+                    upload_dircap,
+                    magic_path.path,
+                    poll_interval,
+                ),
+            )
+        return cls(name, connection)
 
     @property
     @with_cursor
@@ -736,39 +839,16 @@ class GlobalConfigDatabase(object):
         stash_path = state_path.child("stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
-            connection = _upgraded(
-                _magicfolder_config_schema,
-                sqlite3.connect(db_path.path),
+            mfc = MagicFolderConfig.initialize(
+                name,
+                SQLite3DatabaseLocation(db_path.path),
+                author,
+                stash_path,
+                collective_dircap,
+                upload_dircap,
+                magic_path,
+                poll_interval,
             )
-            with connection:
-                cursor = connection.cursor()
-                cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-                cursor.execute(
-                    """
-                    INSERT INTO
-                        [config]
-                        ( author_name
-                        , author_private_key
-                        , stash_path
-                        , collective_dircap
-                        , upload_dircap
-                        , magic_directory
-                        , poll_interval
-                        )
-                    VALUES
-                        (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        author.name,
-                        author.signing_key.encode(Base32Encoder),
-                        stash_path.path,
-                        collective_dircap,
-                        upload_dircap,
-                        magic_path.path,
-                        poll_interval,
-                    ),
-                )
-
             # add to the global config
             with self.database:
                 cursor = self.database.cursor()
@@ -778,7 +858,4 @@ class GlobalConfigDatabase(object):
                     (name, state_path.path)
                 )
 
-        return MagicFolderConfig(
-            name=name,
-            database=connection,
-        )
+        return mfc
