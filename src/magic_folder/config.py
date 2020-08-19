@@ -514,12 +514,12 @@ class MagicFolderConfig(object):
     @with_cursor
     def store_remotesnapshot(self, cursor, path, remote_snapshot):
         """
-        Store or update the given remote snapshot cap for the
-        given the magicpath of the file (mangled file path).
+        Store or update the given remote snapshot cap for the given path.
 
-        :param unicode path: mangled path corresponding to the relpath of their
-            file in a particular folder.
-        :param RemoteSnapshot snapshot: RemoteSnapshot instance
+        :param unicode path: The relative path to a file in this magic folder
+            for which to store a new remote snapshot.
+
+        :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
@@ -543,7 +543,10 @@ class MagicFolderConfig(object):
         return the cap that represents the latest remote snapshot that
         the client has recorded in the db.
 
-        :param str name: magicpath that represents the relative path of the file.
+        :param unicode name: The relative path to the file in this magic
+            folder for which to retrieve the leaf remote snapshot.
+
+        :raise KeyError: If no snapshot exists for the given path.
 
         :returns: An unicode string that represents the RemoteSnapshot cap.
         """
@@ -555,11 +558,9 @@ class MagicFolderConfig(object):
                            " WHERE path=?",
                            (name,))
             row = cursor.fetchone()
-            if not row:
-                return None
-            else:
-                # coerce capability strings to a bytestring
-                return row[0].encode('utf-8')
+            if row:
+                return row[0]
+            raise KeyError(name)
 
     @property
     @with_cursor

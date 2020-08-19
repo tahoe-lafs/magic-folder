@@ -34,6 +34,7 @@ from hypothesis.strategies import (
     integers,
     floats,
     fixed_dictionaries,
+    dictionaries,
 )
 
 from allmydata.util import (
@@ -44,6 +45,7 @@ from allmydata.util.progress import (
 )
 from ..snapshot import (
     RemoteAuthor,
+    RemoteSnapshot,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -316,4 +318,19 @@ def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
         ).map(
             lambda values: dict(zip(keys, values)),
         ),
+    )
+
+
+def remote_snapshots(names=path_segments(), authors=remote_authors()):
+    """
+    Build ``RemoteSnapshot`` instances.
+    """
+    return builds(
+        RemoteSnapshot,
+        name=names,
+        author=authors,
+        metadata=dictionaries(text(), text()),
+        capability=tahoe_lafs_dir_capabilities(),
+        parents_raw=lists(tahoe_lafs_dir_capabilities()),
+        content_cap=tahoe_lafs_chk_capabilities(),
     )
