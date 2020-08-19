@@ -18,6 +18,7 @@ from base64 import (
 )
 
 from nacl.signing import (
+    SigningKey,
     VerifyKey,
 )
 
@@ -37,6 +38,10 @@ from hypothesis.strategies import (
     dictionaries,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
+
 from allmydata.util import (
     base32,
 )
@@ -45,7 +50,9 @@ from allmydata.util.progress import (
 )
 from ..snapshot import (
     RemoteAuthor,
+    LocalAuthor,
     RemoteSnapshot,
+    LocalSnapshot,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -253,11 +260,29 @@ def magic_folder_filenames():
 
 author_names = text
 
+def signing_keys():
+    """
+    Build ``SigningKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(SigningKey)
+
+
 def verify_keys():
     """
     Build ``VerifyKey`` instances.
     """
     return binary(min_size=32, max_size=32).map(VerifyKey)
+
+
+def local_authors(names=author_names(), signing_keys=signing_keys()):
+    """
+    Build ``LocalAuthor`` instances.
+    """
+    return builds(
+        LocalAuthor,
+        name=names,
+        signing_key=signing_keys,
+    )
 
 
 def remote_authors(names=author_names(), verify_keys=verify_keys()):
@@ -333,4 +358,21 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         capability=tahoe_lafs_dir_capabilities(),
         parents_raw=lists(tahoe_lafs_dir_capabilities()),
         content_cap=tahoe_lafs_chk_capabilities(),
+    )
+
+
+def local_snapshots():
+    """
+    Build ``LocalSnapshot`` instances.
+
+    Currently this builds snapshots with no local parents.
+    """
+    return builds(
+        LocalSnapshot,
+        name=relative_paths(),
+        author=local_authors(),
+        metadata=dictionaries(text(), text()),
+        content_path=absolute_paths().map(FilePath),
+        parents_local=just([]),
+        parents_remote=lists(tahoe_lafs_dir_capabilities()),
     )

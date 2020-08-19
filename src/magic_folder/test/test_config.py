@@ -53,6 +53,7 @@ from .strategies import (
     interfaces,
     magic_folder_filenames,
     remote_snapshots,
+    local_snapshots,
 )
 from ..config import (
     SQLite3DatabaseLocation,
@@ -416,6 +417,20 @@ class StoreLocalSnapshotTests(SyncTestCase):
                 parents_local=HasLength(0),
             )
         )
+
+    @given(
+        local_snapshots(),
+    )
+    def test_delete_localsnapshot(self, snapshot):
+        """
+        After a local snapshot is deleted from the database,
+        ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
+        snapshot's path.
+        """
+        self.db.store_local_snapshot(snapshot)
+        self.db.delete_localsnapshot(snapshot.name)
+        with ExpectedException(KeyError, escape(repr(snapshot.name))):
+            self.db.get_local_snapshot(snapshot.name)
 
 
 class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
