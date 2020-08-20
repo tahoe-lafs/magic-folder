@@ -199,6 +199,16 @@ def tahoe_lafs_dir_capabilities():
     )
 
 
+def tahoe_lafs_immutable_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS immutable directory
+    capability strings.
+    """
+    return tahoe_lafs_chk_capabilities().map(
+        lambda chkcap: chkcap.replace(u":CHK:", u":DIR2-CHK:"),
+    )
+
+
 def tokens():
     """
     Build byte strings which are usable as Tahoe-LAFS web API authentication
@@ -355,8 +365,8 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         name=names,
         author=authors,
         metadata=dictionaries(text(), text()),
-        capability=tahoe_lafs_dir_capabilities(),
-        parents_raw=lists(tahoe_lafs_dir_capabilities()),
+        capability=tahoe_lafs_immutable_dir_capabilities(),
+        parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
         content_cap=tahoe_lafs_chk_capabilities(),
     )
 
@@ -374,5 +384,5 @@ def local_snapshots():
         metadata=dictionaries(text(), text()),
         content_path=absolute_paths().map(FilePath),
         parents_local=just([]),
-        parents_remote=lists(tahoe_lafs_dir_capabilities()),
+        parents_remote=lists(tahoe_lafs_immutable_dir_capabilities()),
     )
