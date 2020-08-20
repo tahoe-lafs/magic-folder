@@ -896,7 +896,7 @@ class RemoteSnapshotCreator(object):
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
-                    yield self._upload_one_snapshot(name)
+                    yield self._upload_some_snapshots(name)
             except Exception:
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
@@ -904,7 +904,7 @@ class RemoteSnapshotCreator(object):
                 pass
 
     @eliotutil.inline_callbacks
-    def _upload_one_snapshot(self, name):
+    def _upload_some_snapshots(self, name):
         """
         Upload all of the snapshots for a particular path.
         """
