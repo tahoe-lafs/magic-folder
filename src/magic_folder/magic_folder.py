@@ -874,6 +874,7 @@ class RemoteSnapshotCreator(object):
     _state_db = attr.ib()
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
+    _upload_dircap = attr.ib()
 
     @eliotutil.inline_callbacks
     def upload_local_snapshots(self):
@@ -920,6 +921,14 @@ class RemoteSnapshotCreator(object):
         # the given relpath.
         # store the remote snapshot capability in the db.
         yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+
+        # update the entry in the DMD
+        yield self._tahoe_client.add_entry_to_mutable_directory(
+            self._upload_dircap,
+            name,
+            remote_snapshot.capability.encode('utf-8'),
+            replace=True,
+        )
 
         # Remove the local snapshot content from the stash area.
         snapshot.content_path.remove()

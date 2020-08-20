@@ -348,7 +348,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
     A fixture which provides a ``RemoteSnapshotCreator`` connected to a
     ``MagicFolderConfig``.
     """
-    def __init__(self, temp, author, root=None):
+    def __init__(self, temp, author, root=None, upload_dircap=None):
         """
         :param FilePath temp: A path where the fixture may write whatever it
             likes.
@@ -370,6 +370,11 @@ class RemoteSnapshotCreatorFixture(Fixture):
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
+        if upload_dircap is None:
+            d = self.tahoe_client.create_mutable_directory()
+            self.upload_dircap = d.result
+        else:
+            self.upload_dircap = upload_dircap
 
     def _setUp(self):
         self.magic_path = self.temp.child(b"magic")
@@ -395,4 +400,5 @@ class RemoteSnapshotCreatorFixture(Fixture):
             state_db=self.state_db,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
+            upload_dircap=self.upload_dircap,
         )
