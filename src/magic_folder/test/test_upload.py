@@ -55,6 +55,7 @@ from .common import (
 from .strategies import (
     path_segments,
     relative_paths,
+    tahoe_lafs_dir_capabilities,
 )
 
 from .fixtures import (
@@ -85,14 +86,14 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
     @given(
         name=relative_paths(),
         content=binary(),
+        upload_dircap=tahoe_lafs_dir_capabilities(),
     )
-    def test_commit_a_file(self, name, content):
+    def test_commit_a_file(self, name, content, upload_dircap):
         """
         Add a file into localsnapshot store, start the service which
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-        upload_dircap = "URI:DIR2:foo:bar"
         f = self.useFixture(RemoteSnapshotCreatorFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,
