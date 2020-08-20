@@ -100,11 +100,12 @@ class LocalAuthor(object):
 
 def create_local_author(name):
     """
-    Create a new local author with a freshly generated private
-    (signing) key. This author will not be saved on disk anywhere; see
-    `write_local_author` to do that.
+    Create a new local author with a freshly generated private (signing) key.
 
-    :param name: the name of this author
+    :param unicode name: the name of this author
+
+    :return LocalAuthor: A new ``LocalAuthor`` with the given name and a
+        randomly generated private key.
     """
     signing_key = SigningKey.generate()
     return LocalAuthor(
