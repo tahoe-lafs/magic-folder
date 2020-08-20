@@ -897,7 +897,7 @@ class RemoteSnapshotCreator(object):
             try:
                 with action:
                     yield self._upload_one_snapshot(name)
-            except:
+            except Exception:
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
