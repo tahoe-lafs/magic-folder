@@ -146,6 +146,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             temp=FilePath(self.mktemp()),
             author=self.author,
             root=broken_root,
+            upload_dircap="URI:DIR2:foo:bar",
         ))
         state_db = f.state_db
         remote_snapshot_creator = f.remote_snapshot_creator
