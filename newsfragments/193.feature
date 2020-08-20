@@ -1,1 +1,0 @@
-LocalSnapshots stored in the db are now committed into the grid. If the client is offline while the files were modified, they would get committed to the grid whenever the client has network connectivity to the grid.
