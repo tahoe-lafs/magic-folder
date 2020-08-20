@@ -113,57 +113,6 @@ def create_local_author(name):
     )
 
 
-def write_local_author(local_author, magic_folder_name, config):
-    """
-    Writes a LocalAuthor instance beside other magic-folder data in the node-directory
-    """
-    key_fname = "magicfolder_{}.privkey".format(magic_folder_name)
-    path = config.get_config_path("private", key_fname)
-    keydata_base64 = local_author.signing_key.encode(encoder=Base64Encoder)
-    author_data = {
-        "author_name": local_author.name,
-        "author_private_key": keydata_base64,
-    }
-    with open(path, "w") as f:
-        json.dump(author_data, f)
-
-
-def create_local_author_from_config(config, name=None):
-    """
-    :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
-
-    :param name: which Magic Folder to use (or 'default')
-
-    :returns: a LocalAuthor instance from our configuration
-    """
-    # private-keys go in "<node_dir>/private/magicfolder_<name>.privkey"
-    # to mirror where the sqlite database goes
-    if name is None:
-        name = "default"
-    nodedir = config.get_config_path()
-    import magic_folder
-    magic_folders = magic_folder.load_magic_folders(nodedir)
-    if name not in magic_folders:
-        raise RuntimeError(
-            "No magic-folder named '{}'".format(name)
-        )
-
-    # we will always have authorship information for this
-    # magic-folder; "legacy" magic-folders will go through "tahoe
-    # migrate" first and have an author created.
-
-    author_raw = config.get_private_config("magicfolder_{}.privkey".format(name))
-    author_data = json.loads(author_raw)
-
-    return LocalAuthor(
-        name=author_data[u"author_name"],
-        signing_key=SigningKey(
-            author_data[u"author_private_key"],
-            encoder=Base64Encoder,
-        ),
-    )
-
-
 def create_author(name, verify_key):
     """
     :param name: arbitrary name for this author
