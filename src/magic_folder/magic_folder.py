@@ -925,7 +925,7 @@ class RemoteSnapshotCreator(object):
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
             self._upload_dircap,
-            name,
+            magicpath.path2magic(name),
             remote_snapshot.capability.encode('utf-8'),
             replace=True,
         )

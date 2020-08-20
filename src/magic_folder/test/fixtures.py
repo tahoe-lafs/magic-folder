@@ -348,13 +348,16 @@ class RemoteSnapshotCreatorFixture(Fixture):
     A fixture which provides a ``RemoteSnapshotCreator`` connected to a
     ``MagicFolderConfig``.
     """
-    def __init__(self, temp, author, root=None, upload_dircap=None):
+    def __init__(self, temp, author, upload_dircap, root=None):
         """
         :param FilePath temp: A path where the fixture may write whatever it
             likes.
 
         :param LocalAuthor author: The author which will be used to sign
             snapshots the ``RemoteSnapshotCreator`` creates.
+
+        :param bytes upload_dircap: The Tahoe-LAFS capability for a writeable
+            directory into which new snapshots will be linked.
 
         :param IResource root: The root resource for the fake Tahoe-LAFS HTTP
             API hierarchy.  The default is one created by
@@ -364,17 +367,13 @@ class RemoteSnapshotCreatorFixture(Fixture):
             root = create_fake_tahoe_root()
         self.temp = temp
         self.author = author
+        self.upload_dircap = upload_dircap
         self.root = root
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
-        if upload_dircap is None:
-            d = self.tahoe_client.create_mutable_directory()
-            self.upload_dircap = d.result
-        else:
-            self.upload_dircap = upload_dircap
 
     def _setUp(self):
         self.magic_path = self.temp.child(b"magic")

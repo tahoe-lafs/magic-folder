@@ -1,5 +1,10 @@
 import io
 
+from json import (
+    dumps,
+    loads,
+)
+
 import attr
 
 from re import (
@@ -49,6 +54,7 @@ from .common import (
 )
 from .strategies import (
     path_segments,
+    relative_paths,
 )
 
 from .fixtures import (
@@ -58,7 +64,15 @@ from .fixtures import (
 from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
-from allmydata.uri import is_uri
+
+from ..magicpath import (
+    path2magic,
+)
+
+from allmydata.uri import (
+    is_uri,
+    from_string as uri_from_string,
+)
 
 class RemoteSnapshotCreatorTests(SyncTestCase):
     """
@@ -68,8 +82,9 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         super(RemoteSnapshotCreatorTests, self).setUp()
         self.author = create_local_author("alice")
 
-    @given(name=path_segments(),
-           content=binary(),
+    @given(
+        name=relative_paths(),
+        content=binary(),
     )
     def test_commit_a_file(self, name, content):
         """
@@ -77,12 +92,21 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
+        upload_dircap = "URI:DIR2:foo:bar"
         f = self.useFixture(RemoteSnapshotCreatorFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,
+            upload_dircap=upload_dircap,
         ))
         state_db = f.state_db
         remote_snapshot_creator = f.remote_snapshot_creator
+
+        # Make the upload dircap refer to a dirnode so the snapshot creator
+        # can link files into it.
+        f.root._uri.data[upload_dircap] = dumps([
+            u"dirnode",
+            {u"children": {}},
+        ])
 
         # create a local snapshot
         data = io.BytesIO(content)
@@ -115,6 +139,24 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         )
 
         remote_snapshot_cap = state_db.get_remotesnapshot(name)
+
+        # Verify that the new snapshot was linked in to our upload directory.
+        self.assertThat(
+            loads(f.root._uri.data[upload_dircap])[1][u"children"],
+            Equals({
+                path2magic(name): [
+                    u"dirnode", {
+                        u"ro_uri": remote_snapshot_cap,
+                        u"verify_uri": uri_from_string(
+                            remote_snapshot_cap
+                        ).get_verify_cap().to_string().decode("utf-8"),
+                        u"mutable": False,
+                        u"format": u"CHK",
+                    },
+                ],
+            }),
+        )
+
 
         # test whether we got a capability
         self.assertThat(
