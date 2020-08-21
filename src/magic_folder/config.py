@@ -73,12 +73,15 @@ from ._endpoint_parser import (
     endpoint_description_to_http_api_root,
 )
 
+from eliot import (
+    ActionType,
+    Field,
+)
 
-class SnapshotNotFound(Exception):
-    """
-    No snapshot for a particular requested path was found.
-    """
-
+from .util.eliotutil import (
+    RELPATH,
+    validateSetMembership,
+)
 
 _global_config_schema = Schema([
     SchemaUpgrade([
@@ -121,12 +124,46 @@ _magicfolder_config_schema = Schema([
             snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
         )
         """,
+        """
+        CREATE TABLE remote_snapshots
+        (
+            path          TEXT PRIMARY KEY, -- mangled name in UTF-8
+            snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
+        )
+        """,
     ]),
 ])
+
 
 ## XXX "parents_local" should be IDs of other local_snapshots, not
 ## sure how to do that w/o docs here
 
+DELETE_SNAPSHOTS = ActionType(
+    u"config:state-db:delete-local-snapshot-entry",
+    [RELPATH],
+    [],
+    u"Delete the row corresponding to the given path from the local snapshot table.",
+)
+
+FETCH_REMOTE_SNAPSHOTS_FROM_DB = ActionType(
+    u"config:state-db:get-remote-snapshot-entry",
+    [RELPATH],
+    [],
+    u"Delete the row corresponding to the given path from the local snapshot table.",
+)
+_INSERT_OR_UPDATE = Field.for_types(
+    u"insert_or_update",
+    [unicode],
+    u"An indication of whether the record for this upload was new or an update to a previous entry.",
+    validateSetMembership({u"insert", u"update"}),
+)
+
+STORE_OR_UPDATE_SNAPSHOTS = ActionType(
+    u"config:state-db:update-snapshot-entry",
+    [RELPATH],
+    [_INSERT_OR_UPDATE],
+    u"Persist local snapshot object of a relative path in the magic-folder db.",
+)
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
                                 api_client_endpoint_str):
@@ -387,7 +424,7 @@ class MagicFolderConfig(object):
         return FilePath(path_raw)
 
     @with_cursor
-    def get_local_snapshot(self, cursor, name, author):
+    def get_local_snapshot(self, cursor, name):
         """
         return an instance of LocalSnapshot corresponding to
         the given name and author. Traversing the parents
@@ -395,10 +432,7 @@ class MagicFolderConfig(object):
 
         :param unicode name: magicpath that represents the relative path of the file.
 
-        :param author: an instance of LocalAuthor
-
-        :raise SnapshotNotFound: If there is no matching snapshot for the
-            given path.
+        :raise KeyError: If there is no matching snapshot for the given path.
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
@@ -407,8 +441,8 @@ class MagicFolderConfig(object):
                        (name,))
         row = cursor.fetchone()
         if row:
-            return LocalSnapshot.from_json(row[0], author)
-        raise SnapshotNotFound(name)
+            return LocalSnapshot.from_json(row[0], self.author)
+        raise KeyError(name)
 
     @with_cursor
     def store_local_snapshot(self, cursor, snapshot):
@@ -452,6 +486,72 @@ class MagicFolderConfig(object):
         cursor.execute("SELECT [path] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
+
+    @with_cursor
+    def delete_localsnapshot(self, cursor, path):
+        """
+        remove the row corresponding to the given path from the local_snapshots table
+
+        :param unicode path: Unicode string that represents the relative path of the file.
+        """
+        action = DELETE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            cursor.execute("DELETE FROM local_snapshots"
+                           " WHERE path=?",
+                           (path,))
+
+    @with_cursor
+    def store_remotesnapshot(self, cursor, path, remote_snapshot):
+        """
+        Store or update the given remote snapshot cap for the given path.
+
+        :param unicode path: The relative path to a file in this magic folder
+            for which to store a new remote snapshot.
+
+        :param RemoteSnapshot remote_snapshot: The snapshot to store.
+        """
+        snapshot_cap = remote_snapshot.capability
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=path,
+        )
+        with action:
+            try:
+                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+                               (path, snapshot_cap))
+                action.add_success_fields(insert_or_update=u"insert")
+            except (sqlite3.IntegrityError, sqlite3.OperationalError):
+                cursor.execute("UPDATE remote_snapshots"
+                               " SET snapshot_cap=?"
+                               " WHERE path=?",
+                               (snapshot_cap, path))
+                action.add_success_fields(insert_or_update=u"update")
+
+    @with_cursor
+    def get_remotesnapshot(self, cursor, name):
+        """
+        return the cap that represents the latest remote snapshot that
+        the client has recorded in the db.
+
+        :param unicode name: The relative path to the file in this magic
+            folder for which to retrieve the leaf remote snapshot.
+
+        :raise KeyError: If no snapshot exists for the given path.
+
+        :returns: A byte string that represents the RemoteSnapshot cap.
+        """
+        action = FETCH_REMOTE_SNAPSHOTS_FROM_DB(
+            relpath=name,
+        )
+        with action:
+            cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+                           " WHERE path=?",
+                           (name,))
+            row = cursor.fetchone()
+            if row:
+                return row[0].encode("utf-8")
+            raise KeyError(name)
 
     @property
     @with_cursor

@@ -360,7 +360,7 @@ class RemoteSnapshot(object):
     :ivar parents_raw: list of capability-strings of our
         parents. Capability-strings are bytes.
 
-    :ivar author: SnapshotAuthor instance
+    :ivar RemoteAuthor author: The author of this snapshot.
 
     :ivar bytes capability: an immutable CHK:DIR2 capability-string.
 

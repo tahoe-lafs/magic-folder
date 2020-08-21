@@ -2,6 +2,9 @@
 from io import (
     BytesIO,
 )
+from re import (
+    escape,
+)
 
 from twisted.python.filepath import (
     FilePath,
@@ -14,6 +17,7 @@ from hypothesis.strategies import (
     one_of,
     just,
     binary,
+    lists,
 )
 
 from testtools import (
@@ -48,6 +52,8 @@ from .strategies import (
     port_numbers,
     interfaces,
     magic_folder_filenames,
+    remote_snapshots,
+    local_snapshots,
 )
 from ..config import (
     SQLite3DatabaseLocation,
@@ -394,7 +400,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.db.store_local_snapshot(snapshots[1])
 
         # now read back the serialized snapshot from db
-        reconstructed_local_snapshot = self.db.get_local_snapshot(filename, self.author)
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename)
 
         self.assertThat(
             reconstructed_local_snapshot,
@@ -410,4 +416,96 @@ class StoreLocalSnapshotTests(SyncTestCase):
             MatchesStructure(
                 parents_local=HasLength(0),
             )
+        )
+
+    @given(
+        local_snapshots(),
+    )
+    def test_delete_localsnapshot(self, snapshot):
+        """
+        After a local snapshot is deleted from the database,
+        ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
+        snapshot's path.
+        """
+        self.db.store_local_snapshot(snapshot)
+        self.db.delete_localsnapshot(snapshot.name)
+        with ExpectedException(KeyError, escape(repr(snapshot.name))):
+            self.db.get_local_snapshot(snapshot.name)
+
+
+class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
+    """
+    Tests for the ``MagicFolderConfig`` APIs that deal with remote snapshots.
+    """
+    def setUp(self):
+        super(MagicFolderConfigRemoteSnapshotTests, self).setUp()
+        self.author = create_local_author("alice")
+
+    def setup_example(self):
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+        )
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_remotesnapshot_roundtrips(self, snapshot):
+        """
+        The capability for a ``RemoteSnapshot`` added with
+        ``MagicFolderConfig.store_remotesnapshot`` can be read back with
+        ``MagicFolderConfig.get_remotesnapshot``.
+        """
+        self.db.store_remotesnapshot(snapshot.name, snapshot)
+        loaded = self.db.get_remotesnapshot(snapshot.name)
+        self.assertThat(
+            snapshot.capability,
+            Equals(loaded),
+        )
+
+    @given(
+        path_segments(),
+    )
+    def test_remotesnapshot_not_found(self, path):
+        """
+        ``MagicFolderConfig.get_remotesnapshot`` raises ``KeyError`` if there is
+        no known remote snapshot for the given path.
+        """
+        with ExpectedException(KeyError, escape(repr(path))):
+            self.db.get_remotesnapshot(path)
+
+    @given(
+        # Get two RemoteSnapshots with the same path.
+        path_segments().flatmap(
+            lambda path: lists(
+                remote_snapshots(names=just(path)),
+                min_size=2,
+                max_size=2,
+            ),
+        ),
+    )
+    def test_replace_remotesnapshot(self, snapshots):
+        """
+        A ``RemoteSnapshot`` for a given path can be replaced by a new
+        ``RemoteSnapshot`` for the same path.
+        """
+        path = snapshots[0].name
+        self.db.store_remotesnapshot(path, snapshots[0])
+        self.db.store_remotesnapshot(path, snapshots[1])
+        loaded = self.db.get_remotesnapshot(path)
+        self.assertThat(
+            snapshots[1].capability,
+            Equals(loaded),
         )

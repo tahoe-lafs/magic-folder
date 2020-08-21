@@ -59,14 +59,14 @@ class MemorySnapshotCreator(object):
     """
     A way to test LocalSnapshotService with an in-memory database.
 
-    :ivar [FilePath] processed: All of the paths passed to ``process_item``,
+    :ivar [FilePath] processed: All of the paths passed to ``store_local_snapshot``,
         in the order they were passed.
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def process_item(self, path):
+    def store_local_snapshot(self, path):
         Message.log(
-            message_type=u"memory-snapshot-creator:process_item",
+            message_type=u"memory-snapshot-creator:store-local-snapshot",
             path=path.asTextMode("utf-8").path,
         )
         self.processed.append(path)
@@ -251,14 +251,14 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         for (file, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.process_item(file),
+                self.snapshot_creator.store_local_snapshot(file),
                 succeeded(Always())
             )
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in files:
             mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
-            stored_snapshot = self.db.get_local_snapshot(mangled_filename, self.author)
+            stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
@@ -275,24 +275,24 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         foo = self.magic.child(filename)
         foo.asBytesMode("utf-8").setContent(content1)
 
-        # make sure the process_item() succeeds
+        # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.process_item(foo),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
 
         foo_magicname = path2magic(foo.asTextMode('utf-8').path)
-        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname, self.author)
+        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.
         foo.asBytesMode("utf-8").setContent(content2)
 
         # make sure the second call succeeds as well
         self.assertThat(
-            self.snapshot_creator.process_item(foo),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
-        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname, self.author)
+        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)
 
         self.assertThat(
             stored_snapshot2.parents_local[0],

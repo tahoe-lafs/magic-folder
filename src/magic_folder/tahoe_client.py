@@ -210,7 +210,7 @@ class TahoeClient(object):
         raise NotImplementedError
 
     @inlineCallbacks
-    def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap):
+    def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
         """
         Adds an entry to a mutable directory
 
@@ -223,13 +223,23 @@ class TahoeClient(object):
         :param bytes entry_cap: the capability of the entry (could be
             any sort of capability).
 
+        :param boolean replace: if set to True and if the entry already
+            exists in the mutable directory, then change its contents.
+
         :return Deferred[None]: or exception on error
         """
+
+        if replace == True:
+            replace_arg = u"true"
+        elif replace == False:
+            replace_arg = u"false"
+        else:
+            raise TypeError("replace value should be a boolean")
 
         post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
             query=[
                 (u"t", u"uri"),
-                (u"replace", u"false"),
+                (u"replace", replace_arg),
             ],
         )
         response = yield _request(
