@@ -72,6 +72,7 @@ from .strategies import (
     path_segments,
     folder_names,
     absolute_paths,
+    relative_paths,
     tokens,
     local_authors,
 )
@@ -82,6 +83,9 @@ from ..web import (
 )
 from ..config import (
     create_global_configuration,
+)
+from ..snapshot import (
+    create_local_author,
 )
 
 def url_to_bytes(url):
@@ -260,14 +264,14 @@ def treq_for_folders(basedir, auth_token, folders):
 
     :return: An object like the ``treq`` module.
     """
-    config = create_global_configuration(
+    global_config = create_global_configuration(
         basedir,
         u"non-endpoint:",
         FilePath(u"/non-tahoe-directory"),
         u"non-endpoint:",
     )
     for name, config in folders.items():
-        config.create_magic_folder(
+        global_config.create_magic_folder(
             name,
             config[u"magic-path"],
             config[u"state-path"],
@@ -277,7 +281,7 @@ def treq_for_folders(basedir, auth_token, folders):
             config[u"poll-interval"],
         )
 
-    v1_resource = APIv1(config)
+    v1_resource = APIv1(global_config)
     root = magic_folder_resource(lambda: auth_token, v1_resource)
     return StubTreq(root)
 
@@ -300,6 +304,10 @@ class ListMagicFolderTests(SyncTestCase):
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
     encoded_url = url_to_bytes(url)
+
+    def setUp(self):
+        super(ListMagicFolderTests, self).setUp()
+        self.author = create_local_author(u"alice")
 
     @given(
         tokens(),
@@ -325,13 +333,12 @@ class ListMagicFolderTests(SyncTestCase):
 
     @given(
         tokens(),
-        local_authors(),
         dictionaries(
             folder_names(),
-            absolute_paths(),
+            relative_paths().map(FilePath),
         ),
     )
-    def test_list_folders(self, auth_token, author, folders):
+    def test_list_folders(self, auth_token, folders):
         """
         A request for **GET /v1/magic-folder** receives a response that is a
         JSON-encoded list of Magic Folders.
@@ -340,11 +347,14 @@ class ListMagicFolderTests(SyncTestCase):
             local filesystem paths where we shall pretend the local filesystem
             state for those folders resides.
         """
-        state_path = FilePath(self.mktemp())
+        for path in folders.values():
+            if not path.exists():
+                path.makedirs()
+
         treq = treq_for_folders(
             FilePath(self.mktemp()),
             auth_token, {
-                name: magic_folder_config(author, state_path, path)
+                name: magic_folder_config(self.author, FilePath(self.mktemp()), path)
                 for (name, path)
                 in folders.items()
             },
@@ -362,7 +372,7 @@ class ListMagicFolderTests(SyncTestCase):
                         loads,
                         Equals({
                             u"folders": list(
-                                {u"name": name, u"local-path": path}
+                                {u"name": name, u"local-path": path.path}
                                 for (name, path)
                                 in sorted(folders.items())
                             ),
