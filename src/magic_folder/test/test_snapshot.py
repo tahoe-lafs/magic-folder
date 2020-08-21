@@ -35,9 +35,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from allmydata.client import (
-    read_config,
-)
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
 from magic_folder.testing.web import (
@@ -45,9 +42,6 @@ from magic_folder.testing.web import (
     create_tahoe_treq_client,
 )
 
-from .fixtures import (
-    NodeDirectory,
-)
 from .common import (
     SyncTestCase,
 )
@@ -58,10 +52,8 @@ from .strategies import (
 )
 from magic_folder.snapshot import (
     create_local_author,
-    create_local_author_from_config,
     create_author_from_json,
     create_author,
-    write_local_author,
     create_snapshot,
     create_snapshot_from_capability,
     write_snapshot_to_tahoe,
@@ -72,48 +64,6 @@ from magic_folder.snapshot import (
 from magic_folder.tahoe_client import (
     create_tahoe_client,
 )
-
-class TestLocalAuthor(SyncTestCase):
-    """
-    Functionaltiy of LocalAuthor instances
-    """
-
-    def setUp(self):
-        d = super(TestLocalAuthor, self).setUp()
-        magic_dir = FilePath(mktemp())
-        self.node = self.useFixture(NodeDirectory(FilePath(mktemp())))
-        self.node.create_magic_folder(
-            u"default",
-            u"URI:CHK2:{}:{}:1:1:256".format(u"a"*16, u"a"*32),
-            u"URI:CHK2:{}:{}:1:1:256".format(u"b"*16, u"b"*32),
-            magic_dir,
-            60,
-        )
-
-        self.config = read_config(self.node.path.path, "portnum")
-
-        return d
-
-    def test_serialize_author(self):
-        """
-        Write and then read a LocalAuthor to our node-directory
-        """
-        alice = create_local_author("alice")
-        self.assertThat(alice.name, Equals("alice"))
-
-        # serialize the author to disk
-        write_local_author(alice, "default", self.config)
-
-        # read back the author
-        alice2 = create_local_author_from_config(self.config)
-        self.assertThat(
-            alice2,
-            MatchesStructure(
-                name=Equals("alice"),
-                verify_key=Equals(alice.verify_key),
-            )
-        )
-
 
 class TestRemoteAuthor(SyncTestCase):
     """
