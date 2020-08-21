@@ -333,6 +333,8 @@ class ListMagicFolderTests(SyncTestCase):
         tokens(),
         dictionaries(
             folder_names(),
+            # We need absolute paths but at least we can make them beneath the
+            # test working directory.
             relative_paths().map(FilePath),
         ),
     )
@@ -345,15 +347,19 @@ class ListMagicFolderTests(SyncTestCase):
             local filesystem paths where we shall pretend the local filesystem
             state for those folders resides.
         """
-        for path in folders.values():
-            if not path.exists():
-                path.makedirs()
+        for path_u in folders.values():
+            # Fix it so non-ASCII works reliably. :/ This is fine here but we
+            # leave the original as text mode because that works better with
+            # the config/database APIs.
+            path_b = path_u.asBytesMode("utf-8")
+            if not path_b.exists():
+                path_b.makedirs()
 
         treq = treq_for_folders(
             FilePath(self.mktemp()),
             auth_token, {
-                name: magic_folder_config(self.author, FilePath(self.mktemp()), path)
-                for (name, path)
+                name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
+                for (name, path_u)
                 in folders.items()
             },
         )
@@ -370,8 +376,8 @@ class ListMagicFolderTests(SyncTestCase):
                         loads,
                         Equals({
                             u"folders": list(
-                                {u"name": name, u"local-path": path.path}
-                                for (name, path)
+                                {u"name": name, u"local-path": path_u.path}
+                                for (name, path_u)
                                 in sorted(folders.items())
                             ),
                         }),
