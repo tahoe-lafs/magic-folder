@@ -637,75 +637,14 @@ class RecordLocation(object):
 
 
 @attr.s
-class MagicFolderServiceState(object):
-    """
-    Represent the operational state for a group of Magic Folders.
-
-    This is intended to be easy to instantiate.  It was split off
-    ``MagicFolderService`` specifically to make testing easier.
-
-    :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} _folders:
-        The configuration and services for configured magic folders.
-    """
-    _folders = attr.ib(default=attr.Factory(dict))
-
-    def get_magic_folder(self, name):
-        """
-        Get the Magic Folder with the given name.
-
-        :param unicode name: The name of the Magic Folder.
-
-        :raise KeyError: If there is no Magic Folder by that name.
-
-        :return: The ``MagicFolder`` instance corresponding to the given name.
-        """
-        config, service = self._folders[name]
-        return service
-
-
-    def add_magic_folder(self, name, config, service):
-        """
-        Track a new Magic Folder.
-
-        :param unicode name: The name of the new Magic Folder.
-
-        :param dict config: The new Magic Folder's configuration.
-
-        :param service: The ``MagicFolder`` instance representing the new
-            Magic Folder.
-        """
-        if name in self._folders:
-            raise ValueError("Already have a Magic Folder named {!r}".format(name))
-        self._folders[name] = (config, service)
-
-
-    def iter_magic_folder_configs(self):
-        """
-        Iterate over all of the Magic Folder names and configurations.
-
-        :return: An iterator of two-tuples of a unicode name and a Magic
-            Folder configuration.
-        """
-        for (name, (config, service)) in self._folders.items():
-            yield (name, config)
-
-
-@attr.s
 class MagicFolderService(MultiService):
     """
     :ivar reactor: the Twisted reactor to use
 
     :ivar GlobalConfigDatabase config: our system configuration
-
-    :ivar MagicFolderServiceState _state: The Magic Folder state in use by
-        this service.
     """
     reactor = attr.ib()
     config = attr.ib()
-    _state = attr.ib(
-        validator=attr.validators.instance_of(MagicFolderServiceState),
-        default=attr.Factory(MagicFolderServiceState),
-    )
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -719,7 +658,7 @@ class MagicFolderService(MultiService):
         )
         web_service = magic_folder_web_service(
             self._listen_endpoint,
-            self._state,
+            self.config,
             self._get_auth_token,
         )
         web_service.setServiceParent(self)

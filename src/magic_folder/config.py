@@ -807,9 +807,6 @@ class GlobalConfigDatabase(object):
         :param unicode upload_dircap: the write-capability of the
             directory we upload data into.
 
-        :param FilePath magic_directory: local path to the folder we
-            synchronize for this magic-folder.
-
         :returns: a MagicFolderConfig instance
         """
         with self.database:
