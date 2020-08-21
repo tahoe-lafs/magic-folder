@@ -71,10 +71,8 @@ from .matchers import (
 from .strategies import (
     path_segments,
     folder_names,
-    absolute_paths,
     relative_paths,
     tokens,
-    local_authors,
 )
 
 from ..web import (
