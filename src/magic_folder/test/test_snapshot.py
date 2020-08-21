@@ -35,9 +35,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from allmydata.client import (
-    read_config,
-)
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
 from magic_folder.testing.web import (
@@ -45,9 +42,6 @@ from magic_folder.testing.web import (
     create_tahoe_treq_client,
 )
 
-from .fixtures import (
-    NodeDirectory,
-)
 from .common import (
     SyncTestCase,
 )
