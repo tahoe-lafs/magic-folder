@@ -40,6 +40,9 @@ from testtools.twistedsupport import (
     succeeded,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.web.http import (
     OK,
     UNAUTHORIZED,
@@ -68,16 +71,19 @@ from .matchers import (
 from .strategies import (
     path_segments,
     folder_names,
-    absolute_paths,
+    relative_paths,
     tokens,
 )
 
-from ..cli import (
-    MagicFolderServiceState,
-)
-
 from ..web import (
+    APIv1,
     magic_folder_resource,
+)
+from ..config import (
+    create_global_configuration,
+)
+from ..snapshot import (
+    create_local_author,
 )
 
 def url_to_bytes(url):
@@ -125,7 +131,7 @@ class AuthorizationTests(SyncTestCase):
         def get_auth_token():
             return good_token
 
-        root = magic_folder_resource(MagicFolderServiceState(), get_auth_token)
+        root = magic_folder_resource(get_auth_token, Resource())
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url_to_bytes(url)
@@ -186,9 +192,8 @@ class AuthorizationTests(SyncTestCase):
             branch = resource
 
         root = magic_folder_resource(
-            MagicFolderServiceState(),
             get_auth_token,
-            _v1_resource=branch,
+            v1_resource=branch,
         )
 
         treq = StubTreq(root)
@@ -241,25 +246,13 @@ def authorized_request(treq, auth_token, method, url):
     )
 
 
-def treq_for_folder_names(auth_token, names):
-    """
-    Construct a ``treq``-module-alike which is hooked up to a Magic Folder
-    service with Magic Folders of the given names.
-
-    :param unicode auth_token: The authorization token accepted by the
-        service.
-
-    :param [unicode] names: The names of the Magic Folders which will exist.
-
-    :return: An object like the ``treq`` module.
-    """
-    return treq_for_folders(auth_token, dict.fromkeys(names, {u"directory": None}))
-
-
-def treq_for_folders(auth_token, folders):
+def treq_for_folders(basedir, auth_token, folders):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
+
+    :param FilePath basedir: A non-existant directory to create and populate
+        with a new Magic Folder service configuration.
 
     :param unicode auth_token: The authorization token accepted by the
         service.
@@ -269,16 +262,37 @@ def treq_for_folders(auth_token, folders):
 
     :return: An object like the ``treq`` module.
     """
-    state = MagicFolderServiceState()
+    global_config = create_global_configuration(
+        basedir,
+        u"non-endpoint:",
+        FilePath(u"/non-tahoe-directory"),
+        u"non-endpoint:",
+    )
     for name, config in folders.items():
-        state.add_magic_folder(name, config, object())
+        global_config.create_magic_folder(
+            name,
+            config[u"magic-path"],
+            config[u"state-path"],
+            config[u"author"],
+            config[u"collective-dircap"],
+            config[u"upload-dircap"],
+            config[u"poll-interval"],
+        )
 
-    root = magic_folder_resource(state, lambda: auth_token)
+    v1_resource = APIv1(global_config)
+    root = magic_folder_resource(lambda: auth_token, v1_resource)
     return StubTreq(root)
 
 
-def magic_folder_config_for_local_directory(local_directory):
-    return {u"directory": local_directory}
+def magic_folder_config(author, state_path, local_directory):
+    return {
+        u"magic-path": local_directory,
+        u"state-path": state_path,
+        u"author": author,
+        u"collective-dircap": u"URI:DIR2-RO:aaaa:bbbb",
+        u"upload-dircap": u"URI:DIR2:cccc:dddd",
+        u"poll-interval": 60,
+    }
 
 
 class ListMagicFolderTests(SyncTestCase):
@@ -289,6 +303,10 @@ class ListMagicFolderTests(SyncTestCase):
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
     encoded_url = url_to_bytes(url)
 
+    def setUp(self):
+        super(ListMagicFolderTests, self).setUp()
+        self.author = create_local_author(u"alice")
+
     @given(
         tokens(),
         sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
@@ -298,7 +316,7 @@ class ListMagicFolderTests(SyncTestCase):
         A request to **/v1/magic-folder** with a method other than **GET**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folder_names(auth_token, [])
+        treq = treq_for_folders(FilePath(self.mktemp()), auth_token, {})
         self.assertThat(
             authorized_request(treq, auth_token, method, self.encoded_url),
             succeeded(
@@ -315,7 +333,9 @@ class ListMagicFolderTests(SyncTestCase):
         tokens(),
         dictionaries(
             folder_names(),
-            absolute_paths(),
+            # We need absolute paths but at least we can make them beneath the
+            # test working directory.
+            relative_paths().map(FilePath),
         ),
     )
     def test_list_folders(self, auth_token, folders):
@@ -327,10 +347,19 @@ class ListMagicFolderTests(SyncTestCase):
             local filesystem paths where we shall pretend the local filesystem
             state for those folders resides.
         """
+        for path_u in folders.values():
+            # Fix it so non-ASCII works reliably. :/ This is fine here but we
+            # leave the original as text mode because that works better with
+            # the config/database APIs.
+            path_b = path_u.asBytesMode("utf-8")
+            if not path_b.exists():
+                path_b.makedirs()
+
         treq = treq_for_folders(
+            FilePath(self.mktemp()),
             auth_token, {
-                name: magic_folder_config_for_local_directory(path)
-                for (name, path)
+                name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
+                for (name, path_u)
                 in folders.items()
             },
         )
@@ -347,8 +376,8 @@ class ListMagicFolderTests(SyncTestCase):
                         loads,
                         Equals({
                             u"folders": list(
-                                {u"name": name, u"local-path": path}
-                                for (name, path)
+                                {u"name": name, u"local-path": path_u.path}
+                                for (name, path_u)
                                 in sorted(folders.items())
                             ),
                         }),

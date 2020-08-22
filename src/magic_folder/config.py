@@ -807,9 +807,6 @@ class GlobalConfigDatabase(object):
         :param unicode upload_dircap: the write-capability of the
             directory we upload data into.
 
-        :param FilePath magic_directory: local path to the folder we
-            synchronize for this magic-folder.
-
         :returns: a MagicFolderConfig instance
         """
         with self.database:
@@ -819,11 +816,11 @@ class GlobalConfigDatabase(object):
                 raise ValueError(
                     "Already have a magic-folder named '{}'".format(name)
                 )
-        if not magic_path.exists():
+        if not magic_path.asBytesMode("utf-8").exists():
             raise ValueError(
                 "'{}' does not exist".format(magic_path.path)
             )
-        if state_path.exists():
+        if state_path.asBytesMode("utf-8").exists():
             raise ValueError(
                 "'{}' already exists".format(state_path.path)
             )
@@ -835,10 +832,10 @@ class GlobalConfigDatabase(object):
                 name,
                 SQLite3DatabaseLocation(db_path.path),
                 author,
-                stash_path,
+                stash_path.asTextMode("utf-8"),
                 collective_dircap,
                 upload_dircap,
-                magic_path,
+                magic_path.asTextMode("utf-8"),
                 poll_interval,
             )
             # add to the global config
