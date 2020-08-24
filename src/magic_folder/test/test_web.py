@@ -112,6 +112,12 @@ def url_to_bytes(url):
     return url.to_uri().to_text().encode("ascii")
 
 
+# Pick any single API token value.  Any test suite that is not specifically
+# for authorization can use this because don't need Hypothesis to
+# comprehensively explore the authorization token input space in those tests.
+AUTH_TOKEN = b"0" * 16
+
+
 class AuthorizationTests(SyncTestCase):
     """
     Tests for the authorization requirements for resources beneath ``/v1``.
@@ -344,17 +350,16 @@ class ListMagicFolderTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     @given(
-        tokens(),
         sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
     )
-    def test_method_not_allowed(self, auth_token, method):
+    def test_method_not_allowed(self, method):
         """
         A request to **/v1/magic-folder** with a method other than **GET**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), auth_token, {})
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
-            authorized_request(treq, auth_token, method, self.encoded_url),
+            authorized_request(treq, AUTH_TOKEN, method, self.encoded_url),
             succeeded(
                 matches_response(
                     code_matcher=MatchesAny(
@@ -366,7 +371,6 @@ class ListMagicFolderTests(SyncTestCase):
         )
 
     @given(
-        tokens(),
         dictionaries(
             folder_names(),
             # We need absolute paths but at least we can make them beneath the
@@ -374,7 +378,7 @@ class ListMagicFolderTests(SyncTestCase):
             relative_paths().map(FilePath),
         ),
     )
-    def test_list_folders(self, auth_token, folders):
+    def test_list_folders(self, folders):
         """
         A request for **GET /v1/magic-folder** receives a response that is a
         JSON-encoded list of Magic Folders.
@@ -394,7 +398,7 @@ class ListMagicFolderTests(SyncTestCase):
         treq = treq_for_folders(
             object(),
             FilePath(self.mktemp()),
-            auth_token, {
+            AUTH_TOKEN, {
                 name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
                 for (name, path_u)
                 in folders.items()
@@ -402,7 +406,7 @@ class ListMagicFolderTests(SyncTestCase):
         )
 
         self.assertThat(
-            authorized_request(treq, auth_token, b"GET", self.encoded_url),
+            authorized_request(treq, AUTH_TOKEN, b"GET", self.encoded_url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
@@ -432,15 +436,14 @@ class CreateSnapshotTests(SyncTestCase):
     url = DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
 
     @given(
-        tokens(),
         local_authors(),
         folder_names(),
         relative_paths(),
         binary(),
     )
-    def test_create_snapshot(self, auth_token, author, folder_name, path_in_folder, some_content):
+    def test_create_snapshot(self, author, folder_name, path_in_folder, some_content):
         """
-        **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
         creates a new local snapshot for the file at the given path in the
         named folder.
         """
@@ -455,13 +458,13 @@ class CreateSnapshotTests(SyncTestCase):
         treq = treq_for_folders(
             object(),
             FilePath(self.mktemp()),
-            auth_token,
+            AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
         )
         self.assertThat(
             authorized_request(
                 treq,
-                auth_token,
+                AUTH_TOKEN,
                 b"POST",
                 url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
             ),
@@ -475,7 +478,7 @@ class CreateSnapshotTests(SyncTestCase):
         self.assertThat(
             authorized_request(
                 treq,
-                auth_token,
+                AUTH_TOKEN,
                 b"GET",
                 url_to_bytes(self.url),
             ),
