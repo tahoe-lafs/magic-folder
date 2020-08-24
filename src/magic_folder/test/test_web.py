@@ -392,8 +392,7 @@ class ListMagicFolderTests(SyncTestCase):
             # leave the original as text mode because that works better with
             # the config/database APIs.
             path_b = path_u.asBytesMode("utf-8")
-            if not path_b.exists():
-                path_b.makedirs()
+            path_b.makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
             object(),
@@ -451,8 +450,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
-        if not some_file.parent().exists():
-            some_file.parent().makedirs()
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
         treq = treq_for_folders(
