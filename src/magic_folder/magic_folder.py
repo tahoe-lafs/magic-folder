@@ -818,6 +818,7 @@ class LocalSnapshotService(service.Service):
             except CancelledError:
                 break
             except Exception:
+                # XXX Probably should fire d here, someone might be waiting.
                 write_traceback()
 
     def stopService(self):
