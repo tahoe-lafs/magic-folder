@@ -198,25 +198,22 @@ def list_all_folder_snapshots(folder_config):
         yield relative_path, list_all_path_snapshots(folder_config, snapshot_path)
 
 
-def snapshot_to_json(snapshot, get_next_identifier):
+def snapshot_to_json(snapshot):
     result = {
         u"type": u"local",
         # XXX Probably want to populate parents with something ...
         u"parents": [],
         u"content-path": snapshot.content_path.path,
-        u"identifier": get_next_identifier(),
+        u"identifier": unicode(snapshot.identifier),
         u"author": snapshot.author.to_remote_author().to_json(),
     }
     return result
 
 
 def list_all_path_snapshots(folder_config, snapshot_path):
-    from itertools import count
-    get_next_identifier = iter(count()).next
-
     top_snapshot = folder_config.get_local_snapshot(snapshot_path)
     snapshots = list(
-        snapshot_to_json(snapshot, get_next_identifier)
+        snapshot_to_json(snapshot)
         for snapshot
         in unwind_snapshots(top_snapshot)
     )

@@ -73,6 +73,7 @@ from .common import (
 from .matchers import (
     matches_response,
     header_contains,
+    is_hex_uuid,
 )
 
 from .strategies import (
@@ -491,7 +492,7 @@ class CreateSnapshotTests(SyncTestCase):
                                 path_in_folder: MatchesListwise([
                                     MatchesDict({
                                         u"type": Equals(u"local"),
-                                        u"identifier": Equals(0),
+                                        u"identifier": is_hex_uuid(),
                                         # XXX It would be nice to see some
                                         # parents if there are any.
                                         u"parents": Equals([]),

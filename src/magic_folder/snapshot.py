@@ -11,7 +11,10 @@ import time
 import json
 import base64
 from tempfile import mkstemp
-
+from uuid import (
+    UUID,
+    uuid4,
+)
 import attr
 
 from twisted.python.filepath import (
@@ -234,6 +237,10 @@ class LocalSnapshot(object):
         default=attr.Factory(list),
         validator=attr.validators.instance_of(list),
     )
+    identifier = attr.ib(
+        validator=attr.validators.instance_of(UUID),
+        default=attr.Factory(uuid4),
+    )
 
     def get_content_producer(self):
         """
@@ -255,8 +262,13 @@ class LocalSnapshot(object):
             serialized = {
                 'name' : local_snapshot.name,
                 'metadata' : local_snapshot.metadata,
+                'identifier': unicode(local_snapshot.identifier),
                 'content_path' : local_snapshot.content_path.path,
-                'parents_local' : [ _serialized_dict(parent) for parent in local_snapshot.parents_local ]
+                'parents_local' : [
+                    _serialized_dict(parent)
+                    for parent
+                    in local_snapshot.parents_local
+                ],
             }
 
             return serialized
@@ -285,9 +297,14 @@ class LocalSnapshot(object):
             return cls(
                 name=name,
                 author=author,
+                identifier=UUID(hex=snapshot_dict["identifier"]),
                 metadata=snapshot_dict["metadata"],
                 content_path=FilePath(snapshot_dict["content_path"]),
-                parents_local=[ deserialize_dict(parent, author) for parent in snapshot_dict["parents_local"] ],
+                parents_local=[
+                    deserialize_dict(parent, author)
+                    for parent
+                    in snapshot_dict["parents_local"]
+                ],
             )
 
         return deserialize_dict(local_snapshot_dict, author)
