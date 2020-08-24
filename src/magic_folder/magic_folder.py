@@ -276,6 +276,10 @@ def save_magic_folders(node_directory, folders):
 
 
 class MagicFolder(service.MultiService):
+    """
+    :ivar LocalSnapshotService local_snapshot_service: A child service
+        responsible for creating new local snapshots for files in this folder.
+    """
 
     @classmethod
     def from_config(cls, reactor, tahoe_client, name, config):
@@ -298,21 +302,36 @@ class MagicFolder(service.MultiService):
             Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
             Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
         )
+
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
+            local_snapshot_service=LocalSnapshotService(
+                mf_config.magic_path,
+                LocalSnapshotCreator(
+                    mf_config,
+                    mf_config.author,
+                    mf_config.stash_path,
+                ),
+            ),
             initial_participants=initial_participants,
-            _clock=reactor,
+            clock=reactor,
         )
 
-    def __init__(self, client, config, name, initial_participants, _clock=None):
-        super(MagicFolder, self).__init__()
+    @property
+    def name(self):
         # this is used by 'service' things and must be unique in this Service hierarchy
-        self.name = u"magic-folder-{}".format(name)
-        self._clock = _clock or reactor
+        return u"magic-folder-{}".format(self.folder_name)
+
+    def __init__(self, client, config, name, local_snapshot_service, initial_participants, clock):
+        super(MagicFolder, self).__init__()
+        self.folder_name = name
+        self._clock = clock
         self._config = config  # a MagicFolderConfig instance
         self._participants = initial_participants
+        self.local_snapshot_service = local_snapshot_service
+        local_snapshot_service.setServiceParent(self)
 
     def ready(self):
         """

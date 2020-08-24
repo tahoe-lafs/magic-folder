@@ -35,6 +35,8 @@ from testtools.matchers import (
     AfterPreprocessing,
     MatchesAny,
     Equals,
+    MatchesDict,
+    MatchesListwise,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -45,6 +47,7 @@ from twisted.python.filepath import (
 )
 from twisted.web.http import (
     OK,
+    CREATED,
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
@@ -58,6 +61,10 @@ from twisted.web.static import (
 
 from treq.testing import (
     StubTreq,
+)
+
+from allmydata.util.base32 import (
+    b2a,
 )
 
 from .common import (
@@ -75,6 +82,9 @@ from .strategies import (
     tokens,
 )
 
+from ..cli import (
+    MagicFolderService,
+)
 from ..web import (
     APIv1,
     magic_folder_resource,
@@ -84,6 +94,9 @@ from ..config import (
 )
 from ..snapshot import (
     create_local_author,
+)
+from .strategies import (
+    local_authors,
 )
 
 def url_to_bytes(url):
@@ -246,7 +259,7 @@ def authorized_request(treq, auth_token, method, url):
     )
 
 
-def treq_for_folders(basedir, auth_token, folders):
+def treq_for_folders(reactor, basedir, auth_token, folders):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
@@ -264,9 +277,15 @@ def treq_for_folders(basedir, auth_token, folders):
     """
     global_config = create_global_configuration(
         basedir,
-        u"non-endpoint:",
+        # Make this endpoint string and the one below parse but make them
+        # invalid, too, because we don't want anything to start listening on
+        # these during this set of tests.
+        u"tcp:-1",
+        # It wants to know where the Tahoe-LAFS node directory is but we don't
+        # have one and we don't want to invoke any functionality that requires
+        # one.  Give it something bogus.
         FilePath(u"/non-tahoe-directory"),
-        u"non-endpoint:",
+        u"tcp:-1",
     )
     for name, config in folders.items():
         global_config.create_magic_folder(
@@ -279,7 +298,23 @@ def treq_for_folders(basedir, auth_token, folders):
             config[u"poll-interval"],
         )
 
-    v1_resource = APIv1(global_config)
+    global_service = MagicFolderService(
+        reactor,
+        global_config,
+        # Pass in *something* to override the default TahoeClient so that it
+        # doesn't try to look up a Tahoe-LAFS node URL in the non-existent
+        # directory we supplied above.
+        object(),
+    )
+
+    # Reach in and start the individual service for the folder we're going to
+    # interact with.  This is required for certain functionality, eg snapshot
+    # creation.  We avoid starting the whole global_service because it wants
+    # to do error-prone things like bind ports.
+    for name in folders:
+        global_service.get_folder_service(name).startService()
+
+    v1_resource = APIv1(global_config, global_service)
     root = magic_folder_resource(lambda: auth_token, v1_resource)
     return StubTreq(root)
 
@@ -289,8 +324,8 @@ def magic_folder_config(author, state_path, local_directory):
         u"magic-path": local_directory,
         u"state-path": state_path,
         u"author": author,
-        u"collective-dircap": u"URI:DIR2-RO:aaaa:bbbb",
-        u"upload-dircap": u"URI:DIR2:cccc:dddd",
+        u"collective-dircap": u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
+        u"upload-dircap": u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
         u"poll-interval": 60,
     }
 
@@ -316,7 +351,7 @@ class ListMagicFolderTests(SyncTestCase):
         A request to **/v1/magic-folder** with a method other than **GET**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folders(FilePath(self.mktemp()), auth_token, {})
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), auth_token, {})
         self.assertThat(
             authorized_request(treq, auth_token, method, self.encoded_url),
             succeeded(
@@ -356,6 +391,7 @@ class ListMagicFolderTests(SyncTestCase):
                 path_b.makedirs()
 
         treq = treq_for_folders(
+            object(),
             FilePath(self.mktemp()),
             auth_token, {
                 name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
@@ -382,6 +418,93 @@ class ListMagicFolderTests(SyncTestCase):
                             ),
                         }),
                     )
+                ),
+            ),
+        )
+
+
+class CreateSnapshotTests(SyncTestCase):
+    """
+    Tests for creating a new snapshot in an existing Magic Folder using a
+    **POST**.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
+
+    @given(
+        tokens(),
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_create_snapshot(self, auth_token, author, folder_name, path_in_folder, some_content):
+        """
+        **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        creates a new local snapshot for the file at the given path in the
+        named folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder)
+        if not some_file.parent().exists():
+            some_file.parent().makedirs()
+        some_file.setContent(some_content)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            auth_token,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                auth_token,
+                b"POST",
+                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                ),
+            ),
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                auth_token,
+                b"GET",
+                url_to_bytes(self.url),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            folder_name: MatchesDict({
+                                path_in_folder: MatchesListwise([
+                                    MatchesDict({
+                                        u"type": Equals(u"local"),
+                                        u"identifier": Equals(0),
+                                        # XXX It would be nice to see some
+                                        # parents if there are any.
+                                        u"parents": Equals([]),
+                                        u"content-path": AfterPreprocessing(
+                                            lambda path: FilePath(path).getContent(),
+                                            Equals(some_content),
+                                        ),
+                                        u"author": Equals(author.to_remote_author().to_json()),
+                                    }),
+                                ]),
+                            }),
+                        }),
+                    ),
                 ),
             ),
         )
