@@ -1,4 +1,11 @@
 
+from io import (
+    BytesIO,
+)
+from re import (
+    escape,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
@@ -9,6 +16,8 @@ from hypothesis import (
 from hypothesis.strategies import (
     one_of,
     just,
+    binary,
+    lists,
 )
 
 from testtools import (
@@ -19,13 +28,17 @@ from testtools.matchers import (
     NotEquals,
     Contains,
     MatchesStructure,
+    Always,
+    HasLength,
+)
+from testtools.twistedsupport import (
+    succeeded,
 )
 
 from hyperlink import (
+    DecodedURL,
     URL,
 )
-
-import sqlite3
 
 from .common import (
     SyncTestCase,
@@ -34,18 +47,24 @@ from .fixtures import (
     NodeDirectory,
 )
 from .strategies import (
+    path_segments,
     path_segments_without_dotfiles,
     port_numbers,
     interfaces,
+    magic_folder_filenames,
+    remote_snapshots,
+    local_snapshots,
 )
 from ..config import (
+    SQLite3DatabaseLocation,
+    MagicFolderConfig,
     endpoint_description_to_http_api_root,
     create_global_configuration,
     load_global_configuration,
-    ConfigurationError,
 )
 from ..snapshot import (
     create_local_author,
+    create_snapshot,
 )
 
 
@@ -72,7 +91,7 @@ class TestGlobalConfig(SyncTestCase):
         to write the configuration.
         """
         confdir = self.temp.child(dirname)
-        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
             MatchesStructure(
@@ -87,20 +106,20 @@ class TestGlobalConfig(SyncTestCase):
         """
         self.temp.makedirs()
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
-            create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+            create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
 
     def test_load_db(self):
         """
         ``load_global_configuration`` can read the global configuration written by
         ``create_global_configuration``.
         """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config = load_global_configuration(self.temp)
         self.assertThat(
             config,
             MatchesStructure(
                 api_endpoint=Equals(u"tcp:1234"),
-                tahoe_client_url=Equals(b"http://127.0.0.1:9876/"),
+                tahoe_client_url=Equals(DecodedURL.from_text(u"http://127.0.0.1:9876/")),
             )
         )
 
@@ -118,7 +137,7 @@ class TestGlobalConfig(SyncTestCase):
         ``GlobalConfigDatabase.rotate_api_token`` replaces the current API token
         with a new one.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         pre = config.api_token
         config.rotate_api_token()
         self.assertThat(
@@ -133,7 +152,7 @@ class TestGlobalConfig(SyncTestCase):
         available when the database is loaded again with
         ``load_global_configuration``.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
         self.assertThat(
@@ -144,22 +163,6 @@ class TestGlobalConfig(SyncTestCase):
             config2.api_endpoint,
             Equals("tcp:42")
         )
-
-    def test_database_wrong_version(self):
-        """
-        ``load_global_configuration`` raises ``ConfigurationError`` if asked to
-        load a database that has a version other than ``1``.
-        """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
-        # make the version "0", which will never happen for real
-        # because we'll keep incrementing the version from 1
-        db_fname = self.temp.child("global.sqlite")
-        with sqlite3.connect(db_fname.path) as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE version SET version=?", (0, ))
-
-        with ExpectedException(ConfigurationError):
-            load_global_configuration(self.temp)
 
 
 class EndpointDescriptionConverterTests(SyncTestCase):
@@ -202,16 +205,19 @@ class EndpointDescriptionConverterTests(SyncTestCase):
         )
 
 
-class TestMagicFolderConfig(SyncTestCase):
-
+class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
+    """
+    Tests for the ``GlobalConfigDatabase`` APIs that deal with individual
+    ``MagicFolderConfig`` instances.
+    """
     def setUp(self):
-        super(TestMagicFolderConfig, self).setUp()
+        super(GlobalConfigDatabaseMagicFolderTests, self).setUp()
         self.temp = FilePath(self.mktemp())
         self.node_dir = FilePath(self.mktemp())
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     def test_create_folder(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -230,7 +236,7 @@ class TestMagicFolderConfig(SyncTestCase):
         )
 
     def test_create_folder_duplicate(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -255,7 +261,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_nonexistant_magic_path(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
@@ -270,7 +276,7 @@ class TestMagicFolderConfig(SyncTestCase):
             )
 
     def test_folder_state_already_exists(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -291,7 +297,7 @@ class TestMagicFolderConfig(SyncTestCase):
         """
         we can retrieve the stash-path from a magic-folder-confgi
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author("alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -316,6 +322,190 @@ class TestMagicFolderConfig(SyncTestCase):
         """
         an error to retrieve a non-existent folder
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
+
+
+class StoreLocalSnapshotTests(SyncTestCase):
+    """
+    Tests for the ``MagicFolderConfig`` APIs which store and load
+    ``LocalSnapshot`` objects.
+    """
+    def setUp(self):
+        super(StoreLocalSnapshotTests, self).setUp()
+        self.author = create_local_author("alice")
+
+    def setup_example(self):
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+        )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, stash_subdir):
+        """
+        create a new snapshot (this will have no parent snapshots).
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        self.db.store_local_snapshot(snapshots[0])
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        self.db.store_local_snapshot(snapshots[1])
+
+        # now read back the serialized snapshot from db
+        reconstructed_local_snapshot = self.db.get_local_snapshot(filename)
+
+        self.assertThat(
+            reconstructed_local_snapshot,
+            MatchesStructure(
+                name=Equals(filename),
+                parents_local=HasLength(1)
+            )
+        )
+
+        # the initial snapshot does not have parent snapshots
+        self.assertThat(
+            reconstructed_local_snapshot.parents_local[0],
+            MatchesStructure(
+                parents_local=HasLength(0),
+            )
+        )
+
+    @given(
+        local_snapshots(),
+    )
+    def test_delete_localsnapshot(self, snapshot):
+        """
+        After a local snapshot is deleted from the database,
+        ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
+        snapshot's path.
+        """
+        self.db.store_local_snapshot(snapshot)
+        self.db.delete_localsnapshot(snapshot.name)
+        with ExpectedException(KeyError, escape(repr(snapshot.name))):
+            self.db.get_local_snapshot(snapshot.name)
+
+
+class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
+    """
+    Tests for the ``MagicFolderConfig`` APIs that deal with remote snapshots.
+    """
+    def setUp(self):
+        super(MagicFolderConfigRemoteSnapshotTests, self).setUp()
+        self.author = create_local_author("alice")
+
+    def setup_example(self):
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+        )
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_remotesnapshot_roundtrips(self, snapshot):
+        """
+        The capability for a ``RemoteSnapshot`` added with
+        ``MagicFolderConfig.store_remotesnapshot`` can be read back with
+        ``MagicFolderConfig.get_remotesnapshot``.
+        """
+        self.db.store_remotesnapshot(snapshot.name, snapshot)
+        loaded = self.db.get_remotesnapshot(snapshot.name)
+        self.assertThat(
+            snapshot.capability,
+            Equals(loaded),
+        )
+
+    @given(
+        path_segments(),
+    )
+    def test_remotesnapshot_not_found(self, path):
+        """
+        ``MagicFolderConfig.get_remotesnapshot`` raises ``KeyError`` if there is
+        no known remote snapshot for the given path.
+        """
+        with ExpectedException(KeyError, escape(repr(path))):
+            self.db.get_remotesnapshot(path)
+
+    @given(
+        # Get two RemoteSnapshots with the same path.
+        path_segments().flatmap(
+            lambda path: lists(
+                remote_snapshots(names=just(path)),
+                min_size=2,
+                max_size=2,
+            ),
+        ),
+    )
+    def test_replace_remotesnapshot(self, snapshots):
+        """
+        A ``RemoteSnapshot`` for a given path can be replaced by a new
+        ``RemoteSnapshot`` for the same path.
+        """
+        path = snapshots[0].name
+        self.db.store_remotesnapshot(path, snapshots[0])
+        self.db.store_remotesnapshot(path, snapshots[1])
+        loaded = self.db.get_remotesnapshot(path)
+        self.assertThat(
+            snapshots[1].capability,
+            Equals(loaded),
+        )

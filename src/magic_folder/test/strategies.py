@@ -18,6 +18,7 @@ from base64 import (
 )
 
 from nacl.signing import (
+    SigningKey,
     VerifyKey,
 )
 
@@ -34,6 +35,11 @@ from hypothesis.strategies import (
     integers,
     floats,
     fixed_dictionaries,
+    dictionaries,
+)
+
+from twisted.python.filepath import (
+    FilePath,
 )
 
 from allmydata.util import (
@@ -44,6 +50,9 @@ from allmydata.util.progress import (
 )
 from ..snapshot import (
     RemoteAuthor,
+    LocalAuthor,
+    RemoteSnapshot,
+    LocalSnapshot,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -83,7 +92,18 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
     return text(
         alphabet=alphabet,
         min_size=1,
-        max_size=255,
+        # Path segments can typically be longer than this but when turned into
+        # an absolute path, the longer the path segment the greater the risk
+        # we run into a total path length limit.  We don't really know what we
+        # can get away with here.  Even this value might lead to problems if
+        # the test suite is operating on multiple path segments joined or
+        # using these path segments relative to a very long path.
+        #
+        # openat(2), at least on POSIX, might someday help with this (deal
+        # with long paths segment by segment).  Ideally something like
+        # FilePath would abstract over that.  Also it's not available from the
+        # stdlib on Python 2.x.
+        max_size=32,
     ).filter(
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
@@ -179,6 +199,16 @@ def tahoe_lafs_dir_capabilities():
     )
 
 
+def tahoe_lafs_immutable_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS immutable directory
+    capability strings.
+    """
+    return tahoe_lafs_chk_capabilities().map(
+        lambda chkcap: chkcap.replace(u":CHK:", u":DIR2-CHK:"),
+    )
+
+
 def tokens():
     """
     Build byte strings which are usable as Tahoe-LAFS web API authentication
@@ -240,11 +270,29 @@ def magic_folder_filenames():
 
 author_names = text
 
+def signing_keys():
+    """
+    Build ``SigningKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(SigningKey)
+
+
 def verify_keys():
     """
     Build ``VerifyKey`` instances.
     """
     return binary(min_size=32, max_size=32).map(VerifyKey)
+
+
+def local_authors(names=author_names(), signing_keys=signing_keys()):
+    """
+    Build ``LocalAuthor`` instances.
+    """
+    return builds(
+        LocalAuthor,
+        name=names,
+        signing_key=signing_keys,
+    )
 
 
 def remote_authors(names=author_names(), verify_keys=verify_keys()):
@@ -278,3 +326,63 @@ def interfaces():
         # https://en.wikipedia.org/wiki/Reserved_IP_addresses
         u"192.0.2.123",
     ])
+
+
+def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
+    """
+    Build dictionaries with keys drawn from ``keys`` and values drawn from
+    ``values``.  No value will appear more than once.
+
+    :param int min_size: The fewest number of items in the resulting
+        dictionaries.
+
+    :param int max_size: The greatest number of items in the resulting
+        dictionaries.
+    """
+    return lists(
+        keys,
+        unique=True,
+        min_size=min_size,
+        max_size=max_size,
+    ).flatmap(
+        lambda keys: lists(
+            values,
+            unique=True,
+            min_size=len(keys),
+            max_size=len(keys),
+        ).map(
+            lambda values: dict(zip(keys, values)),
+        ),
+    )
+
+
+def remote_snapshots(names=path_segments(), authors=remote_authors()):
+    """
+    Build ``RemoteSnapshot`` instances.
+    """
+    return builds(
+        RemoteSnapshot,
+        name=names,
+        author=authors,
+        metadata=dictionaries(text(), text()),
+        capability=tahoe_lafs_immutable_dir_capabilities(),
+        parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
+        content_cap=tahoe_lafs_chk_capabilities(),
+    )
+
+
+def local_snapshots():
+    """
+    Build ``LocalSnapshot`` instances.
+
+    Currently this builds snapshots with no local parents.
+    """
+    return builds(
+        LocalSnapshot,
+        name=relative_paths(),
+        author=local_authors(),
+        metadata=dictionaries(text(), text()),
+        content_path=absolute_paths().map(FilePath),
+        parents_local=just([]),
+        parents_remote=lists(tahoe_lafs_immutable_dir_capabilities()),
+    )

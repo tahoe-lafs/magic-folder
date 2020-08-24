@@ -25,8 +25,6 @@ from twisted.web.client import (
     FileBodyProducer,
 )
 
-import magic_folder
-
 from eliot import (
     start_action,
     register_exception_extractor,
@@ -102,66 +100,17 @@ class LocalAuthor(object):
 
 def create_local_author(name):
     """
-    Create a new local author with a freshly generated private
-    (signing) key. This author will not be saved on disk anywhere; see
-    `write_local_author` to do that.
+    Create a new local author with a freshly generated private (signing) key.
 
-    :param name: the name of this author
+    :param unicode name: the name of this author
+
+    :return LocalAuthor: A new ``LocalAuthor`` with the given name and a
+        randomly generated private key.
     """
     signing_key = SigningKey.generate()
     return LocalAuthor(
         name,
         signing_key,
-    )
-
-
-def write_local_author(local_author, magic_folder_name, config):
-    """
-    Writes a LocalAuthor instance beside other magic-folder data in the node-directory
-    """
-    key_fname = "magicfolder_{}.privkey".format(magic_folder_name)
-    path = config.get_config_path("private", key_fname)
-    keydata_base64 = local_author.signing_key.encode(encoder=Base64Encoder)
-    author_data = {
-        "author_name": local_author.name,
-        "author_private_key": keydata_base64,
-    }
-    with open(path, "w") as f:
-        json.dump(author_data, f)
-
-
-def create_local_author_from_config(config, name=None):
-    """
-    :param config: a Tahoe config instance (created via `allmydata.client.read_config`)
-
-    :param name: which Magic Folder to use (or 'default')
-
-    :returns: a LocalAuthor instance from our configuration
-    """
-    # private-keys go in "<node_dir>/private/magicfolder_<name>.privkey"
-    # to mirror where the sqlite database goes
-    if name is None:
-        name = "default"
-    nodedir = config.get_config_path()
-    magic_folders = magic_folder.load_magic_folders(nodedir)
-    if name not in magic_folders:
-        raise RuntimeError(
-            "No magic-folder named '{}'".format(name)
-        )
-
-    # we will always have authorship information for this
-    # magic-folder; "legacy" magic-folders will go through "tahoe
-    # migrate" first and have an author created.
-
-    author_raw = config.get_private_config("magicfolder_{}.privkey".format(name))
-    author_data = json.loads(author_raw)
-
-    return LocalAuthor(
-        name=author_data[u"author_name"],
-        signing_key=SigningKey(
-            author_data[u"author_private_key"],
-            encoder=Base64Encoder,
-        ),
     )
 
 
@@ -361,7 +310,7 @@ class RemoteSnapshot(object):
     :ivar parents_raw: list of capability-strings of our
         parents. Capability-strings are bytes.
 
-    :ivar author: SnapshotAuthor instance
+    :ivar RemoteAuthor author: The author of this snapshot.
 
     :ivar bytes capability: an immutable CHK:DIR2 capability-string.
 
@@ -419,7 +368,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     )
     with action:
         snapshot_json = yield tahoe_client.download_capability(snapshot_cap)
-        snapshot = json.loads(snapshot_json)
+        snapshot = json.loads(snapshot_json)[1]["children"]
 
         # create SnapshotAuthor
         author_cap = snapshot["author"][1]["ro_uri"]
@@ -557,6 +506,83 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     )
 
 
+def format_filenode(cap, metadata):
+    """
+    Create the data structure Tahoe-LAFS uses to represent a filenode.
+
+    :param bytes cap: The read-only capability string for the content of the
+        filenode.
+
+    :param dict: Any metadata to associate with the filenode.
+
+    :return: The Tahoe-LAFS representation of a filenode with this
+        information.
+    """
+    return [
+        "filenode", {
+            "ro_uri": cap,
+            "metadata": metadata,
+        },
+    ]
+
+
+def format_author_filenode(cap):
+    """
+    Create a Tahoe-LAFS filenode data structure that represents a Magic-Folder
+    author.
+
+    :param bytes cap: The read-only capability string to the object containing
+        the author information.
+
+    :return: The Tahoe-LAFS representation of a filenode with this
+        information.
+    """
+    return format_filenode(cap, {})
+
+
+def format_snapshot_filenode(cap, metadata):
+    """
+    Create a Tahoe-LAFS filenode data structure that represents a Magic-Folder
+    snapshot.
+
+    :param bytes cap: The read-only capability string to the object containing
+        the snapshot content.
+
+    :return: The Tahoe-LAFS representation of a filenode with this
+        information.
+    """
+    return format_filenode(
+        cap,
+        {
+            # XXX FIXME timestamps are bogus
+            "ctime": 1202777696.7564139,
+            "mtime": 1202777696.7564139,
+            "magic_folder": metadata,
+            "tahoe": {
+                "linkcrtime": 1202777696.7564139,
+                "linkmotime": 1202777696.7564139
+            }
+        },
+    )
+
+
+def format_dirnode(cap):
+    """
+    Create the data structure Tahoe-LAFS uses to represent a dirnode.
+
+    :param bytes cap: The read-only capability string for the object holding
+        the directory information.
+
+    :return: The Tahoe-LAFS representation of a dirnode.
+    """
+    return [
+        "dirnode", {
+            "ro_uri": cap,
+            # is not having "metadata" permitted?
+            # (ram) Yes, looks like.
+        }
+    ]
+
 @inlineCallbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
@@ -624,7 +650,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # maybe? that might just be extra complexity for no gain, but
     # "parents/0", "parents/1" aesthetically seems a bit nicer.
 
-    # XXX FIXME timestamps are bogus
 
     content_metadata = {
         "snapshot_version": SNAPSHOT_VERSION,
@@ -632,44 +657,13 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "author_signature": author_signature_base64,
     }
     data = {
-        "content": [
-            "filenode", {
-                "ro_uri": content_cap,
-                "metadata": {
-                    "ctime": 1202777696.7564139,
-                    "mtime": 1202777696.7564139,
-                    "magic_folder": content_metadata,
-                    "tahoe": {
-                        "linkcrtime": 1202777696.7564139,
-                        "linkmotime": 1202777696.7564139
-                    }
-                }
-            },
-        ],
-        "author": [
-            "filenode", {
-                "ro_uri": author_cap,
-                "metadata": {
-                    "ctime": 1202777696.7564139,
-                    "mtime": 1202777696.7564139,
-                    "tahoe": {
-                        "linkcrtime": 1202777696.7564139,
-                        "linkmotime": 1202777696.7564139
-                    }
-                }
-            }
-        ],
+        "content": format_snapshot_filenode(content_cap, content_metadata),
+        "author": format_author_filenode(author_cap),
     }
 
     # XXX 'parents_remote1 are just Tahoe capability-strings for now
     for idx, parent_cap in enumerate(parents_raw):
-        data[u"parent{}".format(idx)] = [
-            "dirnode", {
-                "ro_uri": parent_cap,
-                # is not having "metadata" permitted?
-                # (ram) Yes, looks like.
-            }
-        ]
+        data[u"parent{}".format(idx)] = format_dirnode(parent_cap)
 
     # print("data: {}".format(data))
     snapshot_cap = yield tahoe_client.create_immutable_directory(data)
