@@ -9,6 +9,7 @@ from twisted.application.internet import (
     StreamServerEndpointService,
 )
 from twisted.web.server import (
+    NOT_DONE_YET,
     Site,
 )
 from twisted.web import (
@@ -130,8 +131,8 @@ class SnapshotAPIv1(Resource, object):
         Respond with all of the snapshots for all of the files in all of the
         folders.
         """
-        application_json(request)
-        return json.dumps(dict(list_all_snapshots(self._global_config)))
+        _application_json(request)
+        return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
     def getChild(self, name, request):
         name_u = name.decode("utf-8")
@@ -165,23 +166,50 @@ class MagicFolderSnapshotAPIv1(Resource, object):
 
         # TODO error handling?
         adding = self._folder_service.local_snapshot_service.add_file(path)
+        def added(ignored):
+            request.setResponseCode(http.CREATED)
+            _application_json(request)
+            request.write(b"{}")
+            request.finish()
+        adding.addCallback(added)
+        return NOT_DONE_YET
 
-        request.setResponseCode(http.CREATED)
-        application_json(request)
-        return b"{}"
 
-
-def application_json(request):
+def _application_json(request):
     request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
 
 
-def list_all_snapshots(global_config):
+def _list_all_snapshots(global_config):
+    """
+    Get all snapshots for all files in all magic folders known to the given
+    configuration.
+
+    :param GlobalConfigDatabase global_config: The Magic Folder daemon
+        configuration to inspect.
+
+    :return: A generator of two-tuples.  The first element of each tuple is a
+        unicode string giving the name of a magic-folder.  The second element
+        is a dictionary mapping relative paths to snapshot lists.
+    """
     for name in global_config.list_magic_folders():
         folder_config = global_config.get_magic_folder(name)
-        yield name, dict(list_all_folder_snapshots(folder_config))
+        yield name, dict(_list_all_folder_snapshots(folder_config))
 
 
-def list_all_folder_snapshots(folder_config):
+def _list_all_folder_snapshots(folder_config):
+    """
+    Get all snapshots for all files contained by the given folder.
+
+    XXX This only returns local snapshots.
+
+    :param MagicFolderConfig folder_config: The magic-folder for which to look
+        up snapshots.
+
+    :return: A generator of two-tuples.  The first element of each tuple is a
+        unicode string giving a path relative to the local filesystem
+        container for ``folder_config``.  The second element is a list
+        representing all snapshots for that file.
+    """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
         absolute_path = magic2path(snapshot_path)
         if not absolute_path.startswith(folder_config.magic_path.path):
@@ -195,10 +223,53 @@ def list_all_folder_snapshots(folder_config):
             )
         relative_segments = FilePath(absolute_path).segmentsFrom(folder_config.magic_path)
         relative_path = u"/".join(relative_segments)
-        yield relative_path, list_all_path_snapshots(folder_config, snapshot_path)
+        yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
 
 
-def snapshot_to_json(snapshot):
+def _list_all_path_snapshots(folder_config, snapshot_path):
+    """
+    Get all snapshots for the given path in the given folder.
+
+    :param MagicFolderConfig folder_config: The magic-folder to consider.
+
+    :param FilePath snapshot_path: The path of a file within the magic-folder.
+
+    :return list: A JSON-compatible representation of all discovered
+        snapshots.
+    """
+    top_snapshot = folder_config.get_local_snapshot(snapshot_path)
+    snapshots = list(
+        _snapshot_to_json(snapshot)
+        for snapshot
+        in _flatten_snapshots(top_snapshot)
+    )
+    return snapshots
+
+
+def _flatten_snapshots(snapshot):
+    """
+    Yield ``snapshot`` and all of its ancestors.
+
+    :param LocalSnapshot snapshot: The starting snapshot.
+
+    :return: A generator that starts with ``snapshot`` and then proceeds to
+        its parents, and the parents of those snapshots, and so on.
+    """
+    yield snapshot
+    for p in snapshot.parents_local:
+        for parent_snapshot in _flatten_snapshots(p):
+            yield parent_snapshot
+
+
+def _snapshot_to_json(snapshot):
+    """
+    Create a JSON-compatible representation of a single snapshot.
+
+    :param LocalSnapshot snapshot: The snapshot to represent.
+
+    :return dict: A dictionary which can be mapped to JSON which completely
+        represents the given snapshot.
+    """
     result = {
         u"type": u"local",
         # XXX Probably want to populate parents with something ...
@@ -208,23 +279,6 @@ def snapshot_to_json(snapshot):
         u"author": snapshot.author.to_remote_author().to_json(),
     }
     return result
-
-
-def list_all_path_snapshots(folder_config, snapshot_path):
-    top_snapshot = folder_config.get_local_snapshot(snapshot_path)
-    snapshots = list(
-        snapshot_to_json(snapshot)
-        for snapshot
-        in unwind_snapshots(top_snapshot)
-    )
-    return snapshots
-
-
-def unwind_snapshots(snapshot):
-    yield snapshot
-    for p in snapshot.parents_local:
-        for parent_snapshot in unwind_snapshots(p):
-            yield parent_snapshot
 
 
 @attr.s
@@ -244,7 +298,7 @@ class MagicFolderAPIv1(Resource, object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        application_json(request)
+        _application_json(request)
         def magic_folder_details():
             for name in sorted(self._global_config.list_magic_folders()):
                 config = self._global_config.get_magic_folder(name)

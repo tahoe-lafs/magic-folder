@@ -40,6 +40,7 @@ from testtools.matchers import (
 )
 from testtools.twistedsupport import (
     succeeded,
+    has_no_result,
 )
 
 from twisted.python.filepath import (
@@ -438,6 +439,43 @@ class CreateSnapshotTests(SyncTestCase):
     **POST**.
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_wait_for_completion(self, author, folder_name, path_in_folder, some_content):
+        """
+        A **POST** request to **/v1/snapshot/:folder-name** does not receive a
+        response before the snapshot has been created in the local database.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder)
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+            ),
+            has_no_result(),
+        )
+
 
     @given(
         local_authors(),
