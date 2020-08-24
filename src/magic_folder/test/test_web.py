@@ -266,7 +266,7 @@ def authorized_request(treq, auth_token, method, url):
     )
 
 
-def treq_for_folders(reactor, basedir, auth_token, folders):
+def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
@@ -279,6 +279,9 @@ def treq_for_folders(reactor, basedir, auth_token, folders):
 
     :param folders: A mapping from Magic Folder names to their configurations.
         These are the folders which will appear to exist.
+
+    :param bool start_folder_services: If ``True``, start the Magic Folder
+        service objects.  Otherwise, don't.
 
     :return: An object like the ``treq`` module.
     """
@@ -314,12 +317,13 @@ def treq_for_folders(reactor, basedir, auth_token, folders):
         object(),
     )
 
-    # Reach in and start the individual service for the folder we're going to
-    # interact with.  This is required for certain functionality, eg snapshot
-    # creation.  We avoid starting the whole global_service because it wants
-    # to do error-prone things like bind ports.
-    for name in folders:
-        global_service.get_folder_service(name).startService()
+    if start_folder_services:
+        # Reach in and start the individual service for the folder we're going
+        # to interact with.  This is required for certain functionality, eg
+        # snapshot creation.  We avoid starting the whole global_service
+        # because it wants to do error-prone things like bind ports.
+        for name in folders:
+            global_service.get_folder_service(name).startService()
 
     v1_resource = APIv1(global_config, global_service)
     root = magic_folder_resource(lambda: auth_token, v1_resource)
@@ -402,6 +406,7 @@ class ListMagicFolderTests(SyncTestCase):
                 for (name, path_u)
                 in folders.items()
             },
+            False,
         )
 
         self.assertThat(
@@ -458,6 +463,7 @@ class CreateSnapshotTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            True,
         )
         self.assertThat(
             authorized_request(
