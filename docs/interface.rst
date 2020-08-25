@@ -42,15 +42,18 @@ The response body follows the form of this example::
 ``GET /v1/snapshot``
 ~~~~~~~~~~~~~~~~~~~~
 
-This endpoint returns information about all snapshots known to exist.
+Retrieve information about all snapshots known to exist.
 
 The response is **OK** with an ``application/json`` **Content-Type**::
 
   {"folder name": {
       "foo/bar": [
         { "type": "local"
-        , "identifier": 2
-        , "parents": [{"local": 1}, {"remote": "URI:CHK:..."}]
+        , "identifier": "06be2d83-2d86-402d-ae2a-81b3779d72d9"
+        , "parents":
+	  [ {"local": "30803885-ef3c-4645-85e6-6b1c9dfd50c3"}
+	  , {"remote": "URI:CHK:..."}
+	  ]
         }
       ]
   }}
