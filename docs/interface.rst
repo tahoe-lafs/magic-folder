@@ -80,12 +80,14 @@ The values for the ``local`` property can be resolved against the ``identifier``
 ``GET /v1/snapshot/:folder-name``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        Get all snapshots for one folder:
+Not yet implemented.
+Get all snapshots for one folder.
 
 ``GET /v1/snapshot/:folder-name?path=:some-path``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        Get all snapshots for one folder beneath a certain path:
+Not yet implemented.
+Get all snapshots for one folder beneath a certain path.
 
 ``POST /v1/snapshot/:folder-name?path=:some-path``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
