@@ -28,11 +28,15 @@ the client should re-read the token from the filesystem to determine if the valu
 ``GET /v1/magic-folder``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-This endpoint returns ...
+This endpoint returns a list of all individual magic-folders managed by this daemon.
 
-The response is **OK** with an ``application/json`` **Content-Type**::
+The response code **OK** and the **Content-Type** is ``application/json``.
+The response body follows the form of this example::
 
-  { ...
+  { "folders":
+    [ { "name": "Alice's music", "local-path": "/home/alice/Music" }
+    , { "name": "Secret docs", "local-path": /home/alice/secrets" }
+    ]
   }
 
 ``GET /v1/snapshot``
