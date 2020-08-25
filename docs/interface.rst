@@ -92,4 +92,15 @@ Get all snapshots for one folder beneath a certain path.
 ``POST /v1/snapshot/:folder-name?path=:some-path``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        Create a new snapshot for a file at a certain path in a certain folder:
+Create a new snapshot for a certain file in a certain magic-folder.
+
+The ``path`` query argument is required.
+It must be a filesystem path relative to the selected magic-folder.
+A new snapshot will be created for the file it identifies.
+
+The response is delayed until the local state tracking the snapshot has been created.
+
+The response code **CREATED** and the **Content-Type** is ``application/json``.
+The response body follows the form of this example::
+
+  {}
