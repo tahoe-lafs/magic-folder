@@ -1,10 +1,29 @@
 Interface
 =========
 
-HTTP Blah Blah
---------------
+HTTP API
+--------
 
-When enabled ...
+Magic-Folder exposes all of its supported functionality in an HTTP API.
+The address of the HTTP server is part of the `daemon configuration`_.
+
+Authorization
+~~~~~~~~~~~~~
+
+The HTTP API is protected by Bearer token-style authorization scheme.
+Only requests which include the correct token will receive successful responses.
+Other requests will receive **401 Unauthorized** responses which omit the requested resource.
+The token value should be included with the **Bearer** scheme in the **Authorization** header element.
+For example::
+
+  Authorization: Bearer abcdefghijklmnopqrstuvwxyz
+
+The correct token value can be found in the *api_token* file inside the Magic-Folder daemon configuration directory.
+The token value is periodically rotated so clients must be prepared to receive an **Unauthorized** response even when supplying the token.
+In this case,
+the client should re-read the token from the filesystem to determine if the value held in memory has become stale.
+
+.. _`daemon configuration`: :ref:`config`
 
 ``GET /v1/magic-folder``
 ~~~~~~~~~~~~~~~~~~~~~~~~
