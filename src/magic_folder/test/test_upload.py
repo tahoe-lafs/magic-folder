@@ -99,7 +99,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             author=self.author,
             upload_dircap=upload_dircap,
         ))
-        state_db = f.state_db
+        config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
@@ -116,7 +116,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             name=name,
             author=self.author,
             data_producer=data,
-            snapshot_stash_dir=state_db.stash_path,
+            snapshot_stash_dir=config.stash_path,
             parents=[],
         )
 
@@ -131,7 +131,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # push LocalSnapshot object into the SnapshotStore.
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
-        state_db.store_local_snapshot(snapshots[0])
+        config.store_local_snapshot(snapshots[0])
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
@@ -139,7 +139,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        remote_snapshot_cap = state_db.get_remotesnapshot(name)
+        remote_snapshot_cap = config.get_remotesnapshot(name)
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
@@ -167,7 +167,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         )
 
         with ExpectedException(KeyError, escape(repr(name))):
-            state_db.get_local_snapshot(name)
+            config.get_local_snapshot(name)
 
     @given(
         path_segments(),
@@ -191,7 +191,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             root=broken_root,
             upload_dircap="URI:DIR2:foo:bar",
         ))
-        state_db = f.state_db
+        config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
         snapshots = []
@@ -202,7 +202,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 name=name,
                 author=self.author,
                 data_producer=data,
-                snapshot_stash_dir=state_db.stash_path,
+                snapshot_stash_dir=config.stash_path,
                 parents=parents,
             )
             d.addCallback(snapshots.append)
@@ -213,7 +213,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]
-        state_db.store_local_snapshot(snapshots[-1])
+        config.store_local_snapshot(snapshots[-1])
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
@@ -225,7 +225,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         self.assertEqual(
             local_snapshot,
-            state_db.get_local_snapshot(name),
+            config.get_local_snapshot(name),
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),

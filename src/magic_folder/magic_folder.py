@@ -322,7 +322,7 @@ class MagicFolder(service.MultiService):
                 clock=reactor,
                 config=mf_config,
                 remote_snapshot_creator=RemoteSnapshotCreator(
-                    state_db=mf_config,
+                    config=mf_config,
                     local_author=mf_config.author,
                     tahoe_client=tahoe_client,
                     upload_dircap=mf_config.upload_dircap,

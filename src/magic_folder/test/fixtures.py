@@ -384,7 +384,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
 
         self.poll_interval = 1
 
-        self.state_db = MagicFolderConfig.initialize(
+        self.config = MagicFolderConfig.initialize(
             u"some-folder",
             SQLite3DatabaseLocation.memory(),
             self.author,
@@ -396,7 +396,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
         )
 
         self.remote_snapshot_creator = RemoteSnapshotCreator(
-            state_db=self.state_db,
+            config=self.config,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
