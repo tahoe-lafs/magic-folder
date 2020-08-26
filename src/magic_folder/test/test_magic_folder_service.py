@@ -19,7 +19,8 @@ from twisted.application.service import (
 )
 from twisted.internet import task
 from hypothesis import (
-    given
+    given,
+    find,
 )
 from hypothesis.strategies import (
     binary,
@@ -43,6 +44,9 @@ from .common import (
 )
 from .strategies import (
     relative_paths,
+    local_authors,
+    tahoe_lafs_dir_capabilities,
+    tahoe_lafs_immutable_dir_capabilities,
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator as LocalMemorySnapshotCreator,
@@ -173,21 +177,64 @@ class MagicFolderServiceTests(SyncTestCase):
             Equals(True),
         )
 
-        )
-        self.assertThat(
-            adding,
-            succeeded(Always()),
+
+LOCAL_AUTHOR = find(local_authors(), lambda x: True)
+
+class MagicFolderFromConfigTests(SyncTestCase):
+    """
+    Tests for ``MagicFolder.from_config``.
+    """
+    @given(
+        folder_names(),
+        relative_paths(),
+        just(LOCAL_AUTHOR),
+        one_of(
+            tahoe_lafs_immutable_dir_capabilities(),
+            tahoe_lafs_dir_capabilities(),
+        ),
+        tahoe_lafs_dir_capabilities(),
+        integers(min_value=1),
+    )
+    def test_uploader_service(self, name, relative_magic_path, author, collective_dircap, upload_dircap, poll_interval):
+        """
+        ``MagicFolder.from_config`` creates an ``UploaderService``
+        which will sometimes upload snapshots using the given Tahoe
+        client object.
+        """
+        reactor = Clock()
+
+        root = create_fake_tahoe_root()
+        http_client = create_tahoe_treq_client(root)
+        tahoe_client = TahoeClient(
+            DecodedURL.from_text(U"http://example.invalid./"),
+            http_client,
         )
 
-        self.assertThat(
-            local_snapshot_creator.processed,
-            Equals([target_path]),
+        global_config = create_global_configuration(
+            basedir,
+            u"tcp:-1",
+            FilePath(u"/non-tahoe-directory"),
+            u"tcp:-1",
         )
 
-        # advance the clock and assert that the remote snapshot got
-        # created.
-        clock.advance(poll_interval)
-        self.assertThat(
-            remote_snapshot_creator._uploaded,
-            Equals(2),
+        basedir = FilePath(self.mktemp())
+        magic_path = basedir.preauthChild(relative_magic_path.asBytesMode("utf-8"))
+        state_path = basedir.preauthChild(relative_state_path.asBytesMode("utf-8"))
+
+        global_config.create_magic_folder(
+            name,
+            magic_path,
+            state_path,
+            author,
+            collective_dircap,
+            upload_dircap,
+            poll_interval,
         )
+
+        service = MagicFolder.from_config(
+            reactor,
+            tahoe_client,
+            name,
+            config,
+        )
+
