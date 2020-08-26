@@ -264,9 +264,9 @@ def treq_for_folders(basedir, auth_token, folders):
     """
     global_config = create_global_configuration(
         basedir,
-        u"non-endpoint:",
+        u"tcp:-1",
         FilePath(u"/non-tahoe-directory"),
-        u"non-endpoint:",
+        u"tcp:127.0.0.1:-1",
     )
     for name, config in folders.items():
         global_config.create_magic_folder(
