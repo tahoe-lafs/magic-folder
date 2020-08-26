@@ -708,6 +708,10 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "snapshot_version": SNAPSHOT_VERSION,
         "name": snapshot.name,
         "author": snapshot.author.to_remote_author().to_json(),
+        "parents": [
+            parent_cap.encode("utf8")
+            for parent_cap in parents_raw
+        ]
     }
     metadata_cap = yield tahoe_client.create_immutable(
         json.dumps(snapshot_metadata)
@@ -721,9 +725,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # create the actual snapshot: an immutable directory with
     # some children:
     # - "content" -> RO cap (arbitrary data)
-    # - "author" -> RO cap (json)
-    # - "parent0" -> RO cap to a Snapshot
-    # - "parentN" -> RO cap to a Snapshot
+    # - "metadata" -> RO cap (json)
 
     data = {
         u"content": [
@@ -743,22 +745,16 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         ],
     }
 
-    # XXX 'parents_remote' are just Tahoe capability-strings for now
-    for idx, parent_cap in enumerate(parents_raw):
-        data[u"parent{}".format(idx)] = format_dirnode(parent_cap)
-
-    # print("data: {}".format(data))
     snapshot_cap = yield tahoe_client.create_immutable_directory(data)
 
-    # XXX *now* is the moment we can remove the LocalSnapshot from our
-    # local database -- so if at any moment before now there's a
-    # failure, we'll try again.
+    # Note: we still haven't updated our Personal DMD to point at this
+    # snapshot, so we shouldn't yet delete the LocalSnapshot
     returnValue(
         RemoteSnapshot(
             name=snapshot.name,
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
-            parents_raw=parents_raw,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't ork yet)
+            parents_raw=parents_raw,
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
         )
