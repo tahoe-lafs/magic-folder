@@ -202,7 +202,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
     """
     def setUp(self):
         super(LocalSnapshotCreatorTests, self).setUp()
-        self.author = create_local_author("alice")
+        self.author = create_local_author(u"alice")
 
     def setup_example(self):
         """

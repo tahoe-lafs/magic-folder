@@ -122,7 +122,7 @@ class TestLocalSnapshot(SyncTestCase):
     """
     def setUp(self):
         super(TestLocalSnapshot, self).setUp()
-        self.alice = create_local_author("alice")
+        self.alice = create_local_author(u"alice")
 
     def setup_example(self):
         """
@@ -283,7 +283,7 @@ class TestRemoteSnapshot(SyncTestCase):
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
-        self.alice = create_local_author("alice")
+        self.alice = create_local_author(u"alice")
         self.stash_dir = FilePath(mktemp())
         self.stash_dir.makedirs()  # 'trial' will delete this when done
 

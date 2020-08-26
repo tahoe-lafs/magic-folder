@@ -218,7 +218,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
 
     def test_create_folder(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        alice = create_local_author("alice")
+        alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         magic.makedirs()
         magic_folder = config.create_magic_folder(
@@ -237,7 +237,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
 
     def test_create_folder_duplicate(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        alice = create_local_author("alice")
+        alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         magic.makedirs()
         config.create_magic_folder(
@@ -262,7 +262,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
 
     def test_folder_nonexistant_magic_path(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        alice = create_local_author("alice")
+        alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
             config.create_magic_folder(
@@ -277,7 +277,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
 
     def test_folder_state_already_exists(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        alice = create_local_author("alice")
+        alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
         magic.makedirs()
@@ -298,7 +298,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         we can retrieve the stash-path from a magic-folder-confgi
         """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        alice = create_local_author("alice")
+        alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
         magic.makedirs()
@@ -334,7 +334,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
     """
     def setUp(self):
         super(StoreLocalSnapshotTests, self).setUp()
-        self.author = create_local_author("alice")
+        self.author = create_local_author(u"alice")
 
     def setup_example(self):
         self.temp = FilePath(self.mktemp())
@@ -439,7 +439,7 @@ class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
     """
     def setUp(self):
         super(MagicFolderConfigRemoteSnapshotTests, self).setUp()
-        self.author = create_local_author("alice")
+        self.author = create_local_author(u"alice")
 
     def setup_example(self):
         self.temp = FilePath(self.mktemp())
