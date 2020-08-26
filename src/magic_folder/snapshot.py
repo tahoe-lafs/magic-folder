@@ -75,8 +75,7 @@ class LocalAuthor(object):
 
     :ivar nacl.signing.SigningKey signing_key: author's private key
     """
-
-    name = attr.ib()
+    name = attr.ib(validator=[attr.validators.instance_of(unicode)])
     signing_key = attr.ib(validator=[attr.validators.instance_of(SigningKey)])
 
     # NOTE: this should not be converted to JSON or serialized
