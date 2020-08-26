@@ -56,6 +56,9 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+from .config import (
+    MagicFolderConfig,
+)
 
 if six.PY3:
     long = int
@@ -903,7 +906,7 @@ class IRemoteSnapshotCreator(Interface):
 @implementer(IRemoteSnapshotCreator)
 @attr.s
 class RemoteSnapshotCreator(object):
-    _state_db = attr.ib()
+    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
@@ -916,7 +919,7 @@ class RemoteSnapshotCreator(object):
         """
 
         # get the mangled paths for the LocalSnapshot objects in the db
-        localsnapshot_names = self._state_db.get_all_localsnapshot_paths()
+        localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
@@ -941,7 +944,7 @@ class RemoteSnapshotCreator(object):
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._state_db.get_local_snapshot(name)
+        snapshot = self._config.get_local_snapshot(name)
 
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
@@ -952,7 +955,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+        yield self._config.store_remotesnapshot(name, remote_snapshot)
 
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
@@ -966,7 +969,7 @@ class RemoteSnapshotCreator(object):
         snapshot.content_path.remove()
 
         # Remove the LocalSnapshot from the db.
-        yield self._state_db.delete_localsnapshot(name)
+        yield self._config.delete_localsnapshot(name)
 
 
 @implementer(service.IService)
