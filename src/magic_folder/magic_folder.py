@@ -315,6 +315,16 @@ class MagicFolder(service.MultiService):
                     mf_config.stash_path,
                 ),
             ),
+            uploader_service=UploaderService.from_config(
+                clock=reactor,
+                config=mf_config,
+                remote_snapshot_creator=RemoteSnapshotCreator(
+                    state_db=mf_config,
+                    local_author=mf_config.author,
+                    tahoe_client=tahoe_client,
+                    upload_dircap=mf_config.upload_dircap,
+                ),
+            ),
             initial_participants=initial_participants,
             clock=reactor,
         )
@@ -324,14 +334,16 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
         self._config = config  # a MagicFolderConfig instance
         self._participants = initial_participants
         self.local_snapshot_service = local_snapshot_service
+        self.uploader_service = uploader_service
         local_snapshot_service.setServiceParent(self)
+        uploader_service.setServiceParent(self)
 
     def ready(self):
         """
@@ -965,11 +977,11 @@ class UploaderService(service.Service):
     """
 
     @classmethod
-    def from_config(cls, clock, name, config, remote_snapshot_creator):
+    def from_config(cls, clock, config, remote_snapshot_creator):
         """
         Create an UploaderService from the MagicFolder configuration.
         """
-        mf_config = config.get_magic_folder(name)
+        mf_config = config
         poll_interval = mf_config.poll_interval
         return cls(
             clock=clock,
