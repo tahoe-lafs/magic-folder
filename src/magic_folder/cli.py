@@ -143,27 +143,15 @@ class ShowConfigOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
     ]
     description = (
         "Dump magic-folder configuration as JSON"
     )
 
-    def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
 
-        # validate
-        if not FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' doesn't exist".format(self['config']))
-
-
-@inlineCallbacks
 def show_config(options):
-
-    yield magic_folder_show_config(
-        FilePath(options['config']),
+    return magic_folder_show_config(
+        options.parent.config,
     )
 
 
