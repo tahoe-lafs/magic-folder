@@ -53,6 +53,7 @@ from twisted.web.http import (
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
 )
+from twisted.internet.task import Clock
 from twisted.web.resource import (
     Resource,
 )
@@ -496,9 +497,8 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
-        from twisted.internet import reactor
         treq = treq_for_folders(
-            reactor,
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
