@@ -22,10 +22,6 @@ from twisted.internet.defer import (
     succeed,
 )
 
-from .config import (
-    load_global_configuration,
-)
-
 
 def magic_folder_show_config(config, stdout=None):
     """
