@@ -8,7 +8,7 @@ import ConfigParser
 
 from twisted.python.filepath import FilePath
 from twisted.python.monkey import MonkeyPatcher
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.python import runtime
 from twisted.application import service
 from twisted.internet import task
