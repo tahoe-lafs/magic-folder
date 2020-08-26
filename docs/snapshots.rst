@@ -41,6 +41,24 @@ signed. The signature, metadata and pointer to the content constitutes
 the Remote Snapshot and itself is uploaded into the Tahoe Grid,
 represented as an immutable directory.
 
+Content and Metadata
+--------------------
+
+Snapshots consist of two main pieces: the content and the
+metadata. Both of these are immutable documents in Tahoe-LAFS. The
+content is straightforward: it is an immutable-capabiltiy of the bytes
+that the user had on disk when the Snapshot was created.
+
+The "metadata" is a JSON valid document which is a dict. It is also
+represented as an immutable capability. Contained in the metadata dict
+is the following information:
+
+- snapshot_version: 1
+- name: same as LocalSnapshot.now (usually the relative path)
+- author: a dict containing:
+  - name: arbitrary name of the author
+  - verify_key: base32-encoded public-key of the author
+
 
 Implementation Details
 ----------------------
@@ -99,14 +117,25 @@ Signature Details
 -----------------
 
 As above, we upload the content and metadata as two distinct immutable
-capability. There is also the "mangled" name of the file. This mangled
-name will also point at the Snapshot from the Personal DMD.
+capabilities. There is also the "mangled" name of the file. This
+mangled name is also used to point at the Snapshot from the
+Personal DMD.
 
-The signature scheme is to concatenate all three of the above
-(separated by newlines) and then produce a signature over it using the
-author's signing key (which is a `nacl.signing.SigningKey` from the
-PyNaCl library (which uses `libsodium` under the hood). See
+The signature scheme is to concatenate a fixed string
+(``magic-folder-snapshot-v1``), then the content capability, then the
+metadata capability, then the name all with trailing newlines). This
+is encoded to bytes with UTF8 and the author's signing key is used to
+produce a signature. The signing key is a `nacl.signing.SigningKey`
+from the PyNaCl library (using ``libsodium`` under the hood). See
 https://pynacl.readthedocs.io/en/latest/signing/
+
+For example, a particular Snapshot might be represented like this for
+signing (the newlines are shown escaped for clarity)::
+
+    magic-folder-snapshot-v1\n
+    URI:CHK2:aaaaaaaaaaaaaaaa:bbbbbbbbbbbbbbbb:1:1:256\n
+    URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256\n
+    arbitrary_name\n
 
 The resulting signature is base32-encoded and included in the "tahoe
 metadata" for the "metadata capability" entry in the Snapshot's
@@ -115,8 +144,8 @@ immutable directory.
 To verify the signature, a client has the content and metadata
 capability-strings when they download the Snapshot object and the
 mangled name from that participant's Personal DMD. They can thus
-verify the signature using the participant's public-key before
-downloading the content or metadata.
+re-form the above text and verify the signature using the
+participant's public-key before downloading the content or metadata.
 
 **Note**: "metadata" is used in two ways above; Tahoe allows you to
 add arbitrary metadata for each entry in a directory. This is where
