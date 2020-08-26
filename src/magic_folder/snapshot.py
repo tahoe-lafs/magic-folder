@@ -216,6 +216,31 @@ def create_author_from_json(data):
     return create_author(data["name"], verify_key)
 
 
+def _snapshot_signature_string(name, content_capability, metadata_capability):
+    """
+    Formats snapshot information into bytes to sign
+
+    :param unicode name: arbitrary snapshot name
+
+    :param bytes content_capability: Tahoe immutable capability-string
+
+    :param bytes metadata_capability: Tahoe immutable capability-string
+
+    :returns: bytes
+    """
+    snapshot_string = (
+        u"magic-folder-snapshot-v1\n"
+        u"{content_capability}\n"
+        u"{metadata_capability}\n"
+        u"{name}\n"
+    ).format(
+        content_capability=content_capability.decode("ascii"),
+        metadata_capability=metadata_capability.decode("ascii"),
+        name=snapshot.name,
+    )
+    return snapshot_string.encode("utf8")
+
+
 def sign_snapshot(local_author, snapshot, content_capability, metadata_capability):
     """
     Signs the given snapshot with provided author
@@ -233,19 +258,14 @@ def sign_snapshot(local_author, snapshot, content_capability, metadata_capabilit
     :returns: bytes representing the signature (or exception on
         error).
     """
-    # XXX See
-    # https://github.com/LeastAuthority/magic-folder/issues/190 as
-    # this hasn't been looked at by our cryptograhphers yet).
-    data_to_sign = (
-        u"{content_capability}\n"
-        u"{metadata_capability}\n"
-        u"{name}\n"
-    ).format(
-        content_capability=content_capability,
-        metadata_capability=metadata_capability,
-        name=snapshot.name,
+    # XXX Our cryptographers should look at this scheme; see
+    # https://github.com/LeastAuthority/magic-folder/issues/190
+    data_to_sign = _snapshot_signature_string(
+        snapshot.name,
+        content_capability,
+        metadata_capability,
     )
-    return local_author.signing_key.sign(data_to_sign.encode("utf8"))
+    return local_author.signing_key.sign(data_to_sign)
 
 
 def verify_snapshot_signature(remote_author, alleged_signature, content_capability, metadata_capability, snapshot_name):
@@ -255,17 +275,13 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
     :returns: True on success or exception otherwise
     """
     # See comments about "data_to_sign" in sign_snapshot
-    data_to_verify = (
-        u"{content_capability}\n"
-        u"{metadata_capability}\n"
-        u"{name}\n"
-    ).format(
-        content_capability=content_capability,
-        metadata_capability=metadata_capability,
-        name=snapshot_name,
+    data_to_verify = _snapshot_signature_string(
+        snapshot_name,
+        content_capability,
+        metadata_capability,
     )
     return remote_author.verify_key.verify(
-        data_to_verify.encode("utf8"),
+        data_to_verify,
         alleged_signature,
     )
 
