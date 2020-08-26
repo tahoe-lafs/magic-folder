@@ -756,10 +756,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     returnValue(
         RemoteSnapshot(
             name=snapshot.name,
-            author=create_author(  # remove signing_key, doesn't make sense on remote snapshots
-                name=snapshot.author.name,
-                verify_key=snapshot.author.verify_key,
-            ),
+            author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
             parents_raw=parents_raw,  # XXX FIXME (at this point, will have parents' immutable caps .. parents don't ork yet)
             capability=snapshot_cap.decode("ascii"),
