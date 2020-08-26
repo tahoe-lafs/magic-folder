@@ -726,17 +726,17 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # - "parentN" -> RO cap to a Snapshot
 
     data = {
-        "content": [
-            "filenode", {
-                "ro_uri": content_cap,
+        u"content": [
+            u"filenode", {
+                u"ro_uri": content_cap,
             },
         ],
-        "metadata": [
-            "filenode", {
-                "ro_uri": metadata_cap,
-                "metadata": {
-                    "magic_folder": {
-                        "author_signature": author_signature_base64,
+        u"metadata": [
+            u"filenode", {
+                u"ro_uri": metadata_cap,
+                u"metadata": {
+                    u"magic_folder": {
+                        u"author_signature": author_signature_base64,
                     },
                 },
             },
