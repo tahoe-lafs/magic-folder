@@ -236,7 +236,7 @@ def _snapshot_signature_string(name, content_capability, metadata_capability):
     ).format(
         content_capability=content_capability.decode("ascii"),
         metadata_capability=metadata_capability.decode("ascii"),
-        name=snapshot.name,
+        name=name,
     )
     return snapshot_string.encode("utf8")
 
