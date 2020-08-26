@@ -134,7 +134,8 @@ class MagicFolderServiceTests(SyncTestCase):
     )
     def test_create_remote_snapshot(self, relative_target_path, content):
         """
-        XXX
+        MagicFolder.uploader_service creates a new remote snapshot
+        when a file is added into the folder.
         """
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
@@ -149,11 +150,7 @@ class MagicFolderServiceTests(SyncTestCase):
 
         # create RemoteSnapshotCreator and UploaderService
         remote_snapshot_creator = RemoteMemorySnapshotCreator()
-        uploader_service = UploaderService(
-            poll_interval=poll_interval,
-            clock=clock,
-            remote_snapshot_creator=remote_snapshot_creator,
-        )
+        uploader_service = Service()
 
         tahoe_client = object()
         name = u"local-snapshot-service-test"
@@ -171,14 +168,11 @@ class MagicFolderServiceTests(SyncTestCase):
         magic_folder.startService()
         self.addCleanup(magic_folder.stopService)
 
-        # One upload attempt at the service start
         self.assertThat(
-            remote_snapshot_creator._uploaded,
-            Equals(1),
+            uploader_service.running,
+            Equals(True),
         )
 
-        adding = magic_folder.local_snapshot_service.add_file(
-            target_path,
         )
         self.assertThat(
             adding,
