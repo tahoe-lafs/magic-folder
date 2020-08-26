@@ -57,7 +57,7 @@ is the following information:
 - name: same as LocalSnapshot.now (usually the relative path)
 - author: a dict containing:
   - name: arbitrary name of the author
-  - verify_key: base32-encoded public-key of the author
+  - verify_key: base64-encoded public-key of the author
 
 
 Implementation Details
@@ -137,7 +137,7 @@ signing (the newlines are shown escaped for clarity)::
     URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256\n
     arbitrary_name\n
 
-The resulting signature is base32-encoded and included in the "tahoe
+The resulting signature is base64-encoded and included in the "tahoe
 metadata" for the "metadata capability" entry in the Snapshot's
 immutable directory.
 
@@ -149,6 +149,6 @@ participant's public-key before downloading the content or metadata.
 
 **Note**: "metadata" is used in two ways above; Tahoe allows you to
 add arbitrary metadata for each entry in a directory. This is where
-we locate the base32-encoded signature itself. The "metadata about
+we locate the base64-encoded signature itself. The "metadata about
 the Snapshot" is its own capability (consisting of JSON-encoded
 metadata).
