@@ -798,7 +798,7 @@ class MagicFolderConfig(object):
                     [parent_identifier]
                 )
             VALUES
-                (?, ?, False, ?)
+                (?, ?, 0, ?)
             """,
             list(
                 (unicode(snapshot.identifier), index, parent_identifier)
@@ -826,7 +826,7 @@ class MagicFolderConfig(object):
                     [parent_identifier]
                 )
             VALUES
-                (?, ?, True, ?)
+                (?, ?, 1, ?)
             """,
             list(
                 (unicode(snapshot.identifier), index, unicode(parent.identifier))
