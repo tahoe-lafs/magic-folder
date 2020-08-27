@@ -99,7 +99,7 @@ The upload is a multi-part process:
 - upload the metadata yielding an immutable read-capability
 
 - use the local keypair to sign the snapshot (requires the
-  read-capabilities from from the first two steps)
+  read-capabilities from the first two steps)
 
 - create an immutable directory to represent the Snapshot (which
   encapsulates the metadata, content pointer and signature)
