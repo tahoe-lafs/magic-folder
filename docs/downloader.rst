@@ -1,14 +1,14 @@
 
 .. -*- coding: utf-8 -*-
 
-.. _config:
+.. _downloader:
 
-Downloader Design
-=================
+Downloader Operation
+====================
 
-This describes code to accomplish remote to local synchronization in
-"the Leif Design" (see :ref:`Leif's Proposal: Magic-Folder
-"single-file" snapshot design`).
+This describes the general operation of the remote to local
+synchronization as outlined in "the Leif Design" (see :ref:`Leif's
+Proposal: Magic-Folder "single-file" snapshot design`).
 
 We do not describe the synchronization of the list of participants in
 a magic-folder. This list will consist of at least:
@@ -34,28 +34,30 @@ by an immutable directory and contains:
   - ``author``: a dict containing:
     - ``name``: arbitrary name
     - ``verify_key``: base64-encoded public key of the author
+  - ``parents``: a list of immutable capability-strings of any parent Snapshots
   - additionally, in the Tahoe metadata for this metadata-capability
     is a ``magic_folder`` dict with the following keys:
     - ``author_signature``: base64-encoded signature which signs the
       content-capability, metadata-capability and name
-- ``parent0..parentN``: any number of parents, each a read-only link
-  to another Snapshot. With no parent, this is the first version of a
-  file. Otherwise, it is a modification. If there are two or more
-  parents this version is the resolution of a conflict.
 
-In code, there is a method ``create_snapshot_from_capability`` which
-downloads a capability-string from Tahoe and returns a
-``RemoteSnapshot`` instance (after verifying signatures).
+If there are zero parents, this is the first version of a
+file. Otherwise, it is a modification. If there are two or more
+parents this version is the resolution of a conflict.
+
+When reading the code, there is a method
+``create_snapshot_from_capability`` which downloads a
+capability-string from Tahoe and returns a ``RemoteSnapshot`` instance
+(after verifying signatures).
 
 
 General Operation
 -----------------
 
-There shall be a service responsible for deciding which Snapshots to
-download. The capability strings of snapshots to download will be
-given to a second service that is responsible for actually downloading
-them. These will be written into a local database (as well as
-affecting the content of the magic-folder).
+There is a service responsible for deciding which Snapshots to
+download. The capability strings of snapshots to download are given to
+a second service that is responsible for actually downloading
+them. Downloading new Snapshots from other participants causes changes
+to the local filesystem (in the magic-folder).
 
 
 What Snapshots to Download
@@ -70,17 +72,17 @@ In either case, the capability can be downloaded. It will be a Tahoe
 directory containing a series of sub-directories; these are the
 participants. The directory name is their name and points at a
 read-capability where all the files in their magic-folder are
-stored. This is known as the "personal DMD", where DMD stands for
+stored. This is known as the "Personal DMD", where DMD stands for
 "Distributed Mutable Directory".
 
-The entries in a user's personal DMD are flat (no subdirectories) and
+The entries in a user's Personal DMD are flat (no subdirectories) and
 point a (mangled) relative path-name to a Snapshot.
 
 So, Snapshots to download can be discovered by:
 
-- reading the collective DMD
+- reading the Collective DMD
 - for each user in it:
-  - read their personal DMD
+  - read their Personal DMD
   - for each entry in that directory:
     - queue the Snapshot for download (unless already cached)
 - any newly-downloaded Snapshot should be examined; if any of its
@@ -94,7 +96,7 @@ A service awaits capability-strings of Snapshots to download. For each
 one, the function ``create_snapshot_from_capability`` is used to
 download the capability and return a ``RemoteSnapshot`` instance.
 
-This ``RemoteSnapshot`` should be serialized to a local cache in the
+This ``RemoteSnapshot`` is serialized to a local cache in the
 magic-folder's state database.
 
 We also arrange to make local filesystem changes. This might require
@@ -113,20 +115,14 @@ On Overwrite
 ------------
 
 The ``content`` of the ``RemoteSnapshot`` is downloaded and moved into
-place in our Magic Folder. Our personal DMD is updated to point at
+place in our Magic Folder. Our Personal DMD is updated to point at
 this Snapshot.
 
-(XXX we probably want to download to a scratch place, do the DMD
-update, then move the file into place? Then update remote-snapshot
-database to say "done"?)
+In case there is no ``content`` this is a delete and we simply remove
+the corresponding local file.
 
-XXX Need to think about what happens if the daemon dies during any of
-the above steps and how we recover on re-start.
-
-A "delete" and a "create" can be considered just special cases of
-"overwrite".  Simply delete the file on an un-conflicted delete. An
-un-conflicted "create" (meaning we don't already have a local file by
-that name) simply makes the content appear in the given (un-mangled) name.
+Note that a completely new file (a "create") is the same as a normal
+overwrite (except of course there's no possibility of a conflict).
 
 
 On Conflict
@@ -134,10 +130,10 @@ On Conflict
 
 The ``content`` of the ``RemoteSnapshot`` is downloaded and moved into
 a "conflict file" (see Leif Design) beside the conflicting
-content. Personal DMD is **not** updated. Once the conflict is
+content. The Personal DMD is **not** updated. Once the conflict is
 "resolved" then a new Snapshot is created with two parents: the latest
 Snapshot we had at conflict time and the conflicting Snapshot. Our
-personal DMD is updated to point at this new Snapshot.
+Personal DMD is updated to point at this new Snapshot.
 
 "Resolving" a snapshot is currently noticed via more filesystem
 manipulation: the ``.confict`` file is deleted or moved (and the
