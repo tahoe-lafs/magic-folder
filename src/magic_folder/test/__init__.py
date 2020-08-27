@@ -52,8 +52,15 @@ def _configure_hypothesis():
         settings,
     )
 
+    # if you add more profiles here, note that profile names aren't
+    # namespaced in any way and Hypothesis allows profile name
+    # collisions to pass silently, then more or less randomly picks
+    # one definition to use when you try to activate the name. So
+    # please prefix any other profiles in here with "magic-folder-"
+    # for a somewhat lower chance of collision.
+
     settings.register_profile(
-        "fast",
+        "magic-folder-fast",
         max_examples=1,
     )
 
