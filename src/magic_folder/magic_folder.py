@@ -44,6 +44,7 @@ from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
     validateInstanceOf,
+    log_call_deferred,
 )
 from allmydata.util import log
 from allmydata.util.encodingutil import to_filepath
@@ -834,6 +835,7 @@ class LocalSnapshotService(service.Service):
         self._service_d = None
         return d
 
+    @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
         """
         Add the given path of type FilePath to our queue. If the path
@@ -868,7 +870,7 @@ class LocalSnapshotService(service.Service):
         # exceptions
         if bytespath.isdir():
             raise ValueError(
-                "expected a file, {!r} is a directory".format(bytespath.path),
+                "expected a regular file, {!r} is a directory".format(bytespath.path),
             )
 
         # add file into the queue

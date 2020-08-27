@@ -167,7 +167,6 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         # code accepting user input, instead of deeper in the model.
         path = self._folder_config.magic_path.preauthChild(path_u)
 
-        # TODO error handling?
         adding = maybeDeferred(
             self._folder_service.local_snapshot_service.add_file,
             path,
@@ -176,8 +175,18 @@ class MagicFolderSnapshotAPIv1(Resource, object):
             request.setResponseCode(http.CREATED)
             _application_json(request)
             request.write(b"{}")
-            request.finish()
-        adding.addCallback(added)
+
+        def failed(reason):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            request.write(json.dumps({u"reason": reason.getErrorMessage()}))
+
+        adding.addCallbacks(
+            added,
+            failed,
+        ).addCallback(
+            lambda ignored: request.finish(),
+        )
         return NOT_DONE_YET
 
 
