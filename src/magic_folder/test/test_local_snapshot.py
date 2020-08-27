@@ -100,7 +100,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Start the service, add a file and check if the operation succeeded.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.parent().makedirs(ignoreExistingDirectory=True)
+        to_add.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         to_add.asBytesMode("utf-8").setContent(content)
 
         self.snapshot_service.startService()
@@ -183,7 +183,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         to a directory.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.makedirs()
+        to_add.asBytesMode("utf-8").makedirs()
 
         self.assertThat(
             self.snapshot_service.add_file(to_add),
