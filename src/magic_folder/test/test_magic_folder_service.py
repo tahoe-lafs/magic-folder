@@ -59,6 +59,7 @@ from .common import (
 )
 from .strategies import (
     relative_paths,
+    path_segments,
     local_authors,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_readonly_dir_capabilities,
@@ -191,7 +192,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
     @given(
         folder_names(),
         relative_paths(),
-        relative_paths(),
+        path_segments(),
         relative_paths(),
         just(LOCAL_AUTHOR),
         one_of(
