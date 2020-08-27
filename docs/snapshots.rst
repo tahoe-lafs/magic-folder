@@ -51,15 +51,15 @@ content is straightforward: it is an immutable-capability of the bytes
 that the user had on disk when the Snapshot was created.
 
 The "metadata" is a valid JSON document which is a dict. It is also
-represented as an immutable capability. Contained in the metadata dict
-is the following information:
+represented as an immutable capability. The metadata dict must contain
+the following information:
 
 - snapshot_version: an integer, 1 or bigger
-- name: same as LocalSnapshot.name (usually the relative path)
+- name: same as LocalSnapshot.name
 - author: a dict containing:
   - name: arbitrary name of the author
   - verify_key: base64-encoded public-key of the author
-- parents: a list containing immutable directory capability-strings, one for each parent
+- parents: a list containing immutable directory capability-strings, one for each parent (will be empty if there are no parents)
 
 
 Implementation Details
