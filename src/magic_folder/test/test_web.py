@@ -294,6 +294,8 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         # Make this endpoint string and the one below parse but make them
         # invalid, too, because we don't want anything to start listening on
         # these during this set of tests.
+        #
+        # https://github.com/LeastAuthority/magic-folder/issues/276
         u"tcp:-1",
         # It wants to know where the Tahoe-LAFS node directory is but we don't
         # have one and we don't want to invoke any functionality that requires
