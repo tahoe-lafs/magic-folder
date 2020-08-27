@@ -124,24 +124,22 @@ class IMagicFolderFilesystem(Interface):
 
 
 
-@implements(IFilesystemMutator)
-class LocalFilesystemMutator(object):
+@implements(IMagicFolderFilesystem)
+@attr.s
+class LocalMagicFolderFilesystem(object):
     """
     Makes changes to a local directory.
     """
 
-    def __init__(self, magic_path, staging_path):
-        """
-        :param FilePath magic_path: the magic-folder
-
-        :param FilePath staging_path: a temporary work area
-        """
+    magic_path = attr.ib(validator=instance_of(FilePath))
+    staging_path = attr.ib(validator=instance_of(FilePath))
 
 
-@implements(IFilesystemMutator)
-class InMemoryFilesystemMutator(object):
+@implements(IMagicFolderFilesystem)
+class InMemoryMagicFolderFilesystem(object):
     """
-    Simply remembers the changes that would have been made.
+    Simply remembers the changes that would be made to a local
+    filesystem. Generally for testing.
     """
 
     def __init__(self):
