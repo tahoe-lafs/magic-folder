@@ -5,6 +5,9 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    maybeDeferred,
+)
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
@@ -165,7 +168,10 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         path = self._folder_config.magic_path.preauthChild(path_u)
 
         # TODO error handling?
-        adding = self._folder_service.local_snapshot_service.add_file(path)
+        adding = maybeDeferred(
+            self._folder_service.local_snapshot_service.add_file,
+            path,
+        )
         def added(ignored):
             request.setResponseCode(http.CREATED)
             _application_json(request)
