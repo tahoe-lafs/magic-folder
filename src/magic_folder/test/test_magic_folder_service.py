@@ -149,25 +149,17 @@ class MagicFolderServiceTests(SyncTestCase):
             Equals([target_path]),
         )
 
-    @given(
-        relative_target_path=relative_paths(),
-        content=binary(),
-    )
-    def test_create_remote_snapshot(self, relative_target_path, content):
+    def test_start_uploader_service(self):
         """
         MagicFolder.uploader_service creates a new remote snapshot
         when a file is added into the folder.
         """
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
-        target_path.parent().makedirs(ignoreExistingDirectory=True)
-        target_path.setContent(content)
 
         local_snapshot_creator = LocalMemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
         clock = task.Clock()
-        poll_interval = 1  # XXX: this would come from config.
 
         # create RemoteSnapshotCreator and UploaderService
         remote_snapshot_creator = RemoteMemorySnapshotCreator()
