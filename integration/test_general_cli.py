@@ -42,8 +42,8 @@ def test_daemon_inititialize(request, reactor, temp_dir):
     util._magic_folder_runner(
         proto, reactor, request,
         [
-            "show-config",
             "--config", node_dir,
+            "show-config",
         ],
     )
     output = yield proto.done
@@ -87,8 +87,8 @@ def test_daemon_migrate(request, reactor, alice, temp_dir):
     util._magic_folder_runner(
         proto, reactor, request,
         [
-            "show-config",
             "--config", node_dir,
+            "show-config",
         ],
     )
     output = yield proto.done

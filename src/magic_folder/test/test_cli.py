@@ -205,8 +205,9 @@ class TestShowConfig(SyncTestCase):
             u"tcp:localhost:1234",
         )
         stdout = StringIO()
+        config = load_global_configuration(self.temp.child("good"))
         magic_folder_show_config(
-            self.temp.child("good"),
+            config,
             stdout=stdout,
         )
         self.assertThat(

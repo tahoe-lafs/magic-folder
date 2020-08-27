@@ -3,6 +3,7 @@ from __future__ import print_function
 import attr
 
 from hypothesis import (
+    assume,
     given,
 )
 from hypothesis.strategies import (
@@ -22,12 +23,13 @@ from testtools.matchers import (
     Always,
     HasLength,
     MatchesStructure,
+    AfterPreprocessing,
+    MatchesListwise,
+    MatchesPredicate,
 )
 from testtools.twistedsupport import (
     succeeded,
-)
-from testtools import (
-    ExpectedException,
+    failed,
 )
 
 from eliot import (
@@ -52,6 +54,8 @@ from .common import (
 )
 from .strategies import (
     path_segments,
+    relative_paths,
+    absolute_paths,
 )
 
 @attr.s
@@ -76,16 +80,13 @@ class LocalSnapshotServiceTests(SyncTestCase):
     """
     Tests for ``LocalSnapshotService``.
     """
-    def setUp(self):
-        super(LocalSnapshotServiceTests, self).setUp()
-        self.magic_path = FilePath(self.mktemp())
-        self.magic_path.makedirs()
-
     def setup_example(self):
         """
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
+        self.magic_path = FilePath(self.mktemp())
+        self.magic_path.makedirs()
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
@@ -93,12 +94,13 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
 
 
-    @given(path_segments(), binary())
-    def test_add_single_file(self, name, content):
+    @given(relative_paths(), binary())
+    def test_add_single_file(self, relative_path, content):
         """
         Start the service, add a file and check if the operation succeeded.
         """
-        to_add = self.magic_path.child(name)
+        to_add = self.magic_path.preauthChild(relative_path)
+        to_add.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         to_add.asBytesMode("utf-8").setContent(content)
 
         self.snapshot_service.startService()
@@ -156,44 +158,74 @@ class LocalSnapshotServiceTests(SyncTestCase):
             Equals(sorted(files))
         )
 
-    @given(path_segments(), binary())
-    def test_add_file_failures(self, name, content):
+    @given(relative_paths())
+    def test_add_file_not_a_filepath(self, relative_path):
         """
-        Test with bad inputs to check failure paths.
+        ``LocalSnapshotService.add_file`` returns a ``Deferred`` that fires with a
+        ``Failure`` wrapping ``TypeError`` if called with something other than
+        a ``FilePath``.
         """
-        to_add = self.magic_path.child(name)
-        to_add.asBytesMode("utf-8").setContent(content)
+        self.assertThat(
+            self.snapshot_service.add_file(relative_path),
+            failed(
+                AfterPreprocessing(
+                    lambda f: (f.type, f.value.args),
+                    Equals((TypeError, ("argument must be a FilePath",))),
+                ),
+            ),
+        )
 
-        self.snapshot_service.startService()
-
-        # try adding a string that represents the path
-        with ExpectedException(TypeError,
-                               "argument must be a FilePath"):
-            self.snapshot_service.add_file(to_add.path)
-
-        # try adding a directory
-        tmpdir = FilePath(self.mktemp())
-        bar_dir = self.magic_path.child(tmpdir.basename())
-        bar_dir.makedirs()
-
-        with ExpectedException(ValueError,
-                               "expected a file"):
-            self.snapshot_service.add_file(bar_dir)
-
-
-        # try adding a file outside the magic folder directory
-        tmpfile = FilePath(self.mktemp())
-        with tmpfile.open("wb") as f:
-            f.write(content)
-
-        with ExpectedException(ValueError,
-                               "The path being added .*"):
-            self.snapshot_service.add_file(tmpfile)
+    @given(relative_paths())
+    def test_add_file_directory(self, relative_path):
+        """
+        ``LocalSnapshotService.add_file`` returns a ``Deferred`` that fires with a
+        ``Failure`` wrapping ``ValueError`` if called with a path that refers
+        to a directory.
+        """
+        to_add = self.magic_path.preauthChild(relative_path)
+        to_add.asBytesMode("utf-8").makedirs()
 
         self.assertThat(
-            self.snapshot_service.stopService(),
-            succeeded(Always())
+            self.snapshot_service.add_file(to_add),
+            failed(
+                AfterPreprocessing(
+                    lambda f: (f.type, f.value.args),
+                    MatchesListwise([
+                        Equals(ValueError),
+                        Equals((
+                            "expected a regular file, {!r} is a directory".format(
+                                to_add.asBytesMode("utf-8").path,
+                            ),
+                        )),
+                    ]),
+                ),
+            ),
         )
+
+    @given(absolute_paths())
+    def test_add_file_outside_magic_directory(self, to_add):
+        """
+        ``LocalSnapshotService.add_file`` returns a ``Deferred`` that fires with a
+        ``Failure`` wrapping ``ValueError`` if called with a path that is not
+        contained by the Magic-Folder's magic directory.
+        """
+        assume(not to_add.startswith(self.magic_path.path))
+        self.assertThat(
+            self.snapshot_service.add_file(FilePath(to_add)),
+            failed(
+                AfterPreprocessing(
+                    lambda f: (f.type, f.value.args),
+                    MatchesListwise([
+                        Equals(ValueError),
+                        MatchesPredicate(
+                            lambda args: args[0].startswith("The path being added "),
+                            "%r does not start with 'The path being added '.",
+                        ),
+                    ]),
+                ),
+            ),
+        )
+
 
 class LocalSnapshotCreatorTests(SyncTestCase):
     """

@@ -3,6 +3,9 @@ Testtools-style matchers useful to the Tahoe-LAFS test suite.
 """
 
 import base64
+from uuid import (
+    UUID,
+)
 from nacl.exceptions import (
     BadSignatureError,
 )
@@ -233,3 +236,23 @@ def provides(*interfaces):
         for iface
         in interfaces
     ))
+
+
+def is_hex_uuid():
+    """
+    Match unicode strings giving a hex representation of a UUID.
+
+    :return: A matcher.
+    """
+    def _is_hex_uuid(value):
+        if not isinstance(value, unicode):
+            return False
+        try:
+            UUID(hex=value)
+        except ValueError:
+            return False
+        return True
+    return MatchesPredicate(
+        _is_hex_uuid,
+        "%r is not a UUID hex representation.",
+    )

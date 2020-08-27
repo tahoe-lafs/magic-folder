@@ -9,6 +9,10 @@ from os.path import (
     join,
 )
 
+from uuid import (
+    UUID,
+)
+
 from unicodedata import (
     normalize,
 )
@@ -371,6 +375,16 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
     )
 
 
+def uuids():
+    """
+    Build ``uuid.UUID`` instances.
+    """
+    return binary(
+        min_size=16,
+        max_size=16,
+    ).map(lambda bs: UUID(bytes=bs))
+
+
 def local_snapshots():
     """
     Build ``LocalSnapshot`` instances.
@@ -385,4 +399,5 @@ def local_snapshots():
         content_path=absolute_paths().map(FilePath),
         parents_local=just([]),
         parents_remote=lists(tahoe_lafs_immutable_dir_capabilities()),
+        identifier=uuids(),
     )
