@@ -11,6 +11,9 @@ from __future__ import (
     print_function,
     division,
 )
+from hyperlink import (
+    DecodedURL,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -24,6 +27,9 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
+    just,
+    one_of,
+    integers,
 )
 from testtools.matchers import (
     Is,
@@ -38,6 +44,16 @@ from ..magic_folder import (
     LocalSnapshotService,
     UploaderService,
 )
+from ..config import (
+    create_global_configuration,
+)
+from ..tahoe_client import (
+    TahoeClient,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 
 from .common import (
     SyncTestCase,
@@ -47,6 +63,7 @@ from .strategies import (
     local_authors,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_immutable_dir_capabilities,
+    folder_names,
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator as LocalMemorySnapshotCreator,
@@ -201,7 +218,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         which will sometimes upload snapshots using the given Tahoe
         client object.
         """
-        reactor = Clock()
+        reactor = task.Clock()
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
