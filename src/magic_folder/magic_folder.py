@@ -28,12 +28,14 @@ from eliot import (
     MessageType,
     write_traceback,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from allmydata.util import (
     fileutil,
     configutil,
     yamlutil,
-    eliotutil,
 )
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
@@ -41,6 +43,7 @@ from allmydata.uri import (
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
+    validateInstanceOf,
 )
 from allmydata.util import log
 from allmydata.util.encodingutil import to_filepath
@@ -443,7 +446,7 @@ PENDING = Field(
     u"pending",
     lambda s: list(s),
     u"The paths which are pending processing.",
-    eliotutil.validateInstanceOf(set),
+    validateInstanceOf(set),
 )
 
 REMOVE_FROM_PENDING = ActionType(
@@ -457,7 +460,7 @@ PATH = Field(
     u"path",
     lambda fp: fp.asTextMode().path,
     u"A local filesystem path.",
-    eliotutil.validateInstanceOf(FilePath),
+    validateInstanceOf(FilePath),
 )
 
 NOTIFIED_OBJECT_DISAPPEARED = MessageType(
@@ -606,7 +609,7 @@ _REASON = Field(
     u"reason",
     lambda e: str(e),
     u"An exception which may describe the form of the conflict.",
-    eliotutil.validateInstanceOf(Exception),
+    validateInstanceOf(Exception),
 )
 
 OVERWRITE_BECOMES_CONFLICT = MessageType(
@@ -645,7 +648,7 @@ _BATCH = Field(
     # also be useful, though?  Consider it.
     lambda batch: batch.keys(),
     u"A batch of scanned items.",
-    eliotutil.validateInstanceOf(dict),
+    validateInstanceOf(dict),
 )
 
 SCAN_BATCH = MessageType(
@@ -744,7 +747,7 @@ class LocalSnapshotCreator(object):
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
-    @eliotutil.inline_callbacks
+    @inline_callbacks
     def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
@@ -804,7 +807,7 @@ class LocalSnapshotService(service.Service):
         service.Service.startService(self)
         self._service_d = self._process_queue()
 
-    @eliotutil.inline_callbacks
+    @inline_callbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -896,7 +899,7 @@ class RemoteSnapshotCreator(object):
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
 
-    @eliotutil.inline_callbacks
+    @inline_callbacks
     def upload_local_snapshots(self):
         """
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
@@ -923,7 +926,7 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 pass
 
-    @eliotutil.inline_callbacks
+    @inline_callbacks
     def _upload_some_snapshots(self, name):
         """
         Upload all of the snapshots for a particular path.
