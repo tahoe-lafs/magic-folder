@@ -154,6 +154,19 @@ class TestMigrate(SyncTestCase):
                 None,
             )
 
+    def test_invalid_listen_string(self):
+        """
+        Pass the wrong type of object for listen-string
+        """
+        with ExpectedException(ValueError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                b"1234",  # only accepts unicode
+                self.node_dir.path,
+                u"alice",
+                b"invalid",
+            )
+
     def test_bad_connect_string(self):
         with ExpectedException(ValueError):
             magic_folder_migrate(
