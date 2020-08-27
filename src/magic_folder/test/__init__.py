@@ -17,6 +17,7 @@ from sys import (
 
 from foolscap.logging.incident import IncidentQualifier
 
+
 class NonQualifier(IncidentQualifier, object):
     def check_event(self, ev):
         return False
@@ -49,6 +50,11 @@ def _configure_hypothesis():
     from hypothesis import (
         HealthCheck,
         settings,
+    )
+
+    settings.register_profile(
+        "fast",
+        max_examples=1,
     )
 
     settings.register_profile(
