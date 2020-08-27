@@ -204,7 +204,7 @@ def sign_snapshot(local_author, snapshot, content_capability, metadata_capabilit
     :param bytes metadata capability: the Tahoe immutable
         capability-string of the metadata (which is serialized JSON)
 
-    :returns: bytes representing the signature (or exception on
+    :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
     # XXX Our cryptographers should look at this scheme; see
