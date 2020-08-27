@@ -252,10 +252,17 @@ class MagicFolderFromConfigTests(SyncTestCase):
             poll_interval,
         )
 
-        service = MagicFolder.from_config(
+        magic_folder = MagicFolder.from_config(
             reactor,
             tahoe_client,
             name,
             global_config,
         )
 
+        magic_folder.startService()
+        self.addCleanup(magic_folder.stopService)
+
+        self.assertThat(
+            magic_folder.uploader_service.running,
+            Equals(True),
+        )
