@@ -212,6 +212,15 @@ def tahoe_lafs_immutable_dir_capabilities():
         lambda chkcap: chkcap.replace(u":CHK:", u":DIR2-CHK:"),
     )
 
+def tahoe_lafs_readonly_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS read-only directory
+    capability strings.
+    """
+    return tahoe_lafs_dir_capabilities().map(
+        lambda chkcap: chkcap.replace(u":DIR2:", u":DIR2-RO:"),
+    )
+
 
 def tokens():
     """

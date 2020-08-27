@@ -62,7 +62,7 @@ from .strategies import (
     relative_paths,
     local_authors,
     tahoe_lafs_dir_capabilities,
-    tahoe_lafs_immutable_dir_capabilities,
+    tahoe_lafs_readonly_dir_capabilities,
     folder_names,
 )
 from .test_local_snapshot import (
@@ -206,7 +206,10 @@ class MagicFolderFromConfigTests(SyncTestCase):
         relative_paths(),
         relative_paths(),
         just(LOCAL_AUTHOR),
-        tahoe_lafs_dir_capabilities(),
+        one_of(
+            tahoe_lafs_dir_capabilities(),
+            tahoe_lafs_readonly_dir_capabilities(),
+        ),
         tahoe_lafs_dir_capabilities(),
         integers(min_value=1, max_value=10000),
     )
