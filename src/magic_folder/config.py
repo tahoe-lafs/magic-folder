@@ -825,7 +825,7 @@ class GlobalConfigDatabase(object):
                 "'{}' already exists".format(state_path.path)
             )
 
-        stash_path = state_path.child("stash").asBytesMode("utf-8")
+        stash_path = state_path.child(u"stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
             mfc = MagicFolderConfig.initialize(
