@@ -844,7 +844,7 @@ class GlobalConfigDatabase(object):
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
-                    (name, state_path.path)
+                    (name, state_path.asTextMode("utf-8").path)
                 )
 
         return mfc

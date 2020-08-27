@@ -228,11 +228,11 @@ class MagicFolderFromConfigTests(SyncTestCase):
             u"tcp:-1",
         )
 
-        magic_path = basedir.preauthChild(relative_magic_path)
+        magic_path = basedir.preauthChild(relative_magic_path).asBytesMode("utf-8")
         magic_path.makedirs()
 
         statedir = basedir.child(u"state")
-        state_path = statedir.preauthChild(relative_state_path)
+        state_path = statedir.preauthChild(relative_state_path).asBytesMode("utf-8")
 
         config = global_config.create_magic_folder(
             name,
