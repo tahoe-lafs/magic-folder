@@ -204,6 +204,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
     @given(
         folder_names(),
         relative_paths(),
+        relative_paths(),
         just(LOCAL_AUTHOR),
         one_of(
             tahoe_lafs_immutable_dir_capabilities(),
@@ -212,7 +213,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         tahoe_lafs_dir_capabilities(),
         integers(min_value=1),
     )
-    def test_uploader_service(self, name, relative_magic_path, author, collective_dircap, upload_dircap, poll_interval):
+    def test_uploader_service(self, name, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval):
         """
         ``MagicFolder.from_config`` creates an ``UploaderService``
         which will sometimes upload snapshots using the given Tahoe
