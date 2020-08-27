@@ -19,27 +19,23 @@ from allmydata.util.hashutil import (
 )
 
 
-def magic_folder_resource(magic_folder_state, get_auth_token, _v1_resource=None):
+def magic_folder_resource(get_auth_token, v1_resource):
     """
     Create the root resource for the Magic Folder HTTP API.
 
-    :param magic_folder_state: See ``magic_folder_web_service``.
     :param get_auth_token: See ``magic_folder_web_service``.
 
-    :param IResource _v1_resource: A resource which will take the place of the
-        usual bearer-token-authorized `/v1` resource.  This is intended to
-        make testing easier.
+    :param IResource v1_resource: A resource which will be protected by a
+        bearer-token authorization scheme at the `v1` child of the resulting
+        resource.
 
     :return IResource: The resource that is the root of the HTTP API.
     """
-    if _v1_resource is None:
-        _v1_resource = APIv1(magic_folder_state)
-
     root = Resource()
     root.putChild(
         b"v1",
         BearerTokenAuthorization(
-            _v1_resource,
+            v1_resource,
             get_auth_token,
         ),
     )
@@ -96,14 +92,14 @@ class APIv1(Resource, object):
     """
     Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
-        to serve.
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
     """
-    _magic_folder_state = attr.ib()
+    _global_config = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
-        self.putChild(b"magic-folder", MagicFolderAPIv1(self._magic_folder_state))
+        self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
 
 
 @attr.s
@@ -111,10 +107,10 @@ class MagicFolderAPIv1(Resource, object):
     """
     Implement the ``/v1/magic-folder`` HTTP API hierarchy.
 
-    :ivar MagicFolderServiceState _magic_folder_state: The Magic Folder state
-        to serve.
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
     """
-    _magic_folder_state = attr.ib()
+    _global_config = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
@@ -124,12 +120,16 @@ class MagicFolderAPIv1(Resource, object):
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
         request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+        def magic_folder_details():
+            for name in sorted(self._global_config.list_magic_folders()):
+                config = self._global_config.get_magic_folder(name)
+                yield {
+                    u"name": name,
+                    u"local-path": config.magic_path.path,
+                }
+
         return json.dumps({
-            u"folders": list(
-                {u"name": name, u"local-path": config[u"directory"]}
-                for (name, config)
-                in sorted(self._magic_folder_state.iter_magic_folder_configs())
-            ),
+            u"folders": list(magic_folder_details()),
         })
 
 
@@ -152,18 +152,19 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, magic_folder_state, get_auth_token):
+def magic_folder_web_service(web_endpoint, global_config, get_auth_token):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
-    :param MagicFolderServiceState magic_folder_state: A reference to the
-        shared magic folder state defining the service.
+    :param GlobalConfigDatabase global_config: A reference to the shared magic
+        folder state defining the service.
 
     :param get_auth_token: a callable that returns the current authentication token
 
     :returns: a StreamServerEndpointService instance
     """
-    root = magic_folder_resource(magic_folder_state, get_auth_token)
+    v1_resource = APIv1(global_config)
+    root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),
