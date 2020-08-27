@@ -231,7 +231,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         statedir = basedir.child(u"state")
         state_path = statedir.preauthChild(relative_state_path)
 
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path = magic_path.preauthChild(relative_target_path).asTextMode("utf-8")
         target_path.parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
