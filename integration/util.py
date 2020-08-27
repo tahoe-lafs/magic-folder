@@ -15,6 +15,9 @@ from twisted.internet.defer import (
     Deferred,
     succeed,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.internet.protocol import (
     ProcessProtocol,
 )
@@ -23,7 +26,7 @@ from twisted.internet.error import (
     ProcessDone,
 )
 
-import requests
+import treq
 
 from eliot import (
     Message,
@@ -131,7 +134,7 @@ class MagicFolderEnabledNode(object):
             happy=1,
             total=1,
         )
-        await_client_ready(tahoe)
+        yield await_client_ready(reactor, tahoe)
 
         # Create the magic-folder daemon config
         yield _init_magic_folder(
@@ -593,39 +596,33 @@ def _check_status(response):
     """
     Check the response code is a 2xx (raise an exception otherwise)
     """
-    if response.status_code < 200 or response.status_code >= 300:
+    if response.code < 200 or response.code >= 300:
         raise ValueError(
-            "Expected a 2xx code, got {}".format(response.status_code)
+            "Expected a 2xx code, got {}".format(response.code)
         )
 
 
+@inlineCallbacks
 def web_get(tahoe, uri_fragment, **kwargs):
     """
     Make a GET request to the webport of `tahoe` (a `TahoeProcess`,
     usually from a fixture (e.g. `alice`). This will look like:
     `http://localhost:<webport>/<uri_fragment>`. All `kwargs` are
-    passed on to `requests.get`
+    passed on to `treq.get`
     """
     url = node_url(tahoe.node_dir, uri_fragment)
-    resp = requests.get(url, **kwargs)
+    resp = yield treq.get(url, **kwargs)
     _check_status(resp)
-    return resp.content
+    body = yield resp.content()
+    returnValue(body)
 
 
-def web_post(tahoe, uri_fragment, **kwargs):
-    """
-    Make a POST request to the webport of `node` (a `TahoeProcess,
-    usually from a fixture e.g. `alice`). This will look like:
-    `http://localhost:<webport>/<uri_fragment>`. All `kwargs` are
-    passed on to `requests.post`
-    """
-    url = node_url(tahoe.node_dir, uri_fragment)
-    resp = requests.post(url, **kwargs)
-    _check_status(resp)
-    return resp.content
+def twisted_sleep(reactor, timeout):
+    return deferLater(reactor, timeout, lambda: None)
 
 
-def await_client_ready(tahoe, timeout=10, liveness=60*2):
+@inlineCallbacks
+def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     """
     Uses the status API to wait for a client-type node (in `tahoe`, a
     `TahoeProcess` instance usually from a fixture e.g. `alice`) to be
@@ -639,19 +636,19 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
     We will try for up to `timeout` seconds for the above conditions
     to be true. Otherwise, an exception is raised
     """
-    start = time.time()
-    while (time.time() - start) < float(timeout):
+    start = reactor.seconds()
+    while (reactor.seconds() - start) < float(timeout):
         try:
-            data = web_get(tahoe, u"", params={u"t": u"json"})
+            data = yield web_get(tahoe, u"", params={u"t": u"json"})
             js = json.loads(data)
         except Exception as e:
             print("waiting because '{}'".format(e))
-            time.sleep(1)
+            yield twisted_sleep(reactor, 1)
             continue
 
         if len(js['servers']) == 0:
             print("waiting because no servers at all")
-            time.sleep(1)
+            twisted_sleep(reactor, 1)
             continue
         server_times = [
             server['last_received_data']
@@ -661,19 +658,19 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
         # contacted (so it's down still, probably)
         if any(t is None for t in server_times):
             print("waiting because at least one server not contacted")
-            time.sleep(1)
+            twisted_sleep(reactor, 1)
             continue
 
         # check that all times are 'recent enough'
         if any([time.time() - t > liveness for t in server_times]):
             print("waiting because at least one server too old")
-            time.sleep(1)
+            twisted_sleep(reactor, 1)
             continue
 
         print("finished waiting for client")
         # we have a status with at least one server, and all servers
         # have been contacted recently
-        return True
+        returnValue(True)
     # we only fall out of the loop when we've timed out
     raise RuntimeError(
         "Waited {} seconds for {} to be 'ready' but it never was".format(
