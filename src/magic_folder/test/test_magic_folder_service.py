@@ -203,7 +203,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         integers(min_value=1, max_value=10000),
         binary(),
     )
-    def test_uploader_service(self, name, relative_target_path, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval, content):
+    def test_uploader_service(self, name, file_path, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval, content):
         """
         ``MagicFolder.from_config`` creates an ``UploaderService``
         which will sometimes upload snapshots using the given Tahoe
@@ -232,7 +232,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         statedir = basedir.child(u"state")
         state_path = statedir.preauthChild(relative_state_path)
 
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path = magic_path.preauthChild(file_path).asBytesMode("utf-8")
         target_path.parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
