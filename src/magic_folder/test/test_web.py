@@ -459,7 +459,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder)
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -497,7 +497,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder)
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
