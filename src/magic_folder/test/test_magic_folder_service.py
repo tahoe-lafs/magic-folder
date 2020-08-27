@@ -192,6 +192,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         folder_names(),
         relative_paths(),
         relative_paths(),
+        relative_paths(),
         just(LOCAL_AUTHOR),
         one_of(
             tahoe_lafs_dir_capabilities(),
@@ -199,8 +200,9 @@ class MagicFolderFromConfigTests(SyncTestCase):
         ),
         tahoe_lafs_dir_capabilities(),
         integers(min_value=1, max_value=10000),
+        binary(),
     )
-    def test_uploader_service(self, name, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval):
+    def test_uploader_service(self, name, relative_target_path, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval, content):
         """
         ``MagicFolder.from_config`` creates an ``UploaderService``
         which will sometimes upload snapshots using the given Tahoe
@@ -229,7 +231,11 @@ class MagicFolderFromConfigTests(SyncTestCase):
         statedir = basedir.child(u"state")
         state_path = statedir.preauthChild(relative_state_path).asBytesMode("utf-8")
 
-        config = global_config.create_magic_folder(
+        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path.parent().makedirs(ignoreExistingDirectory=True)
+        target_path.setContent(content)
+
+        global_config.create_magic_folder(
             name,
             magic_path,
             state_path,
@@ -252,4 +258,26 @@ class MagicFolderFromConfigTests(SyncTestCase):
         self.assertThat(
             magic_folder.uploader_service.running,
             Equals(True),
+        )
+
+        # check if uploader service actually got the parameters that
+        # was passed
+        self.assertThat(
+            magic_folder.uploader_service._poll_interval,
+            Equals(poll_interval),
+        )
+
+        self.assertThat(
+            magic_folder.uploader_service._remote_snapshot_creator._local_author,
+            Equals(author),
+        )
+
+        # add a file
+        d = magic_folder.local_snapshot_service.add_file(
+            target_path,
+        )
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
         )
