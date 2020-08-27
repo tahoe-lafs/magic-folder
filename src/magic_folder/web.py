@@ -338,11 +338,15 @@ class MagicFolderAPIv1(Resource, object):
                 info[u"upload_dircap"] = mf.upload_dircap.encode("ascii")
             return info
 
+        def all_folder_configs():
+            for name in sorted(self._global_config.list_magic_folders()):
+                yield (name, self._global_config.get_magic_folder(name))
+
         return json.dumps({
             u"folders": list(
                 get_folder_info(name, config)
-                for (name, config)
-                in sorted(self._magic_folder_state.iter_magic_folder_configs())
+                for name, config
+                in all_folder_configs()
             ),
         })
 

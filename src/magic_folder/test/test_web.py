@@ -457,7 +457,7 @@ class ListMagicFolderTests(SyncTestCase):
                                     u"is_admin": config.is_admin(),
                                 }
                                 for name, config
-                                in sorted(configs.items())
+                                in sorted(folders.items())
                             ),
                         }),
                     )
