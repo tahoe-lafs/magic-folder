@@ -529,82 +529,30 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     )
 
 
-def format_filenode(cap, metadata):
+def format_filenode(cap, metadata=None):
     """
     Create the data structure Tahoe-LAFS uses to represent a filenode.
 
     :param bytes cap: The read-only capability string for the content of the
         filenode.
 
-    :param dict: Any metadata to associate with the filenode.
+    :param dict: Any metadata to associate with the filenode (or None
+        to exclude it entirely).
 
     :return: The Tahoe-LAFS representation of a filenode with this
         information.
     """
+    node = {
+        u"ro_uri": cap,
+    }
+    if metadata is not None:
+        node[u"metadata"] = metadata
     return [
-        "filenode", {
-            "ro_uri": cap,
-            "metadata": metadata,
-        },
+        u"filenode",
+        node,
     ]
 
 
-def format_author_filenode(cap):
-    """
-    Create a Tahoe-LAFS filenode data structure that represents a Magic-Folder
-    author.
-
-    :param bytes cap: The read-only capability string to the object containing
-        the author information.
-
-    :return: The Tahoe-LAFS representation of a filenode with this
-        information.
-    """
-    return format_filenode(cap, {})
-
-
-def format_snapshot_filenode(cap, metadata):
-    """
-    Create a Tahoe-LAFS filenode data structure that represents a Magic-Folder
-    snapshot.
-
-    :param bytes cap: The read-only capability string to the object containing
-        the snapshot content.
-
-    :return: The Tahoe-LAFS representation of a filenode with this
-        information.
-    """
-    return format_filenode(
-        cap,
-        {
-            # XXX FIXME timestamps are bogus
-            "ctime": 1202777696.7564139,
-            "mtime": 1202777696.7564139,
-            "magic_folder": metadata,
-            "tahoe": {
-                "linkcrtime": 1202777696.7564139,
-                "linkmotime": 1202777696.7564139
-            }
-        },
-    )
-
-
-def format_dirnode(cap):
-    """
-    Create the data structure Tahoe-LAFS uses to represent a dirnode.
-
-    :param bytes cap: The read-only capability string for the object holding
-        the directory information.
-
-    :return: The Tahoe-LAFS representation of a dirnode.
-    """
-    return [
-        "dirnode", {
-            "ro_uri": cap,
-            # is not having "metadata" permitted?
-            # (ram) Yes, looks like.
-        }
-    ]
 
 @inlineCallbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
@@ -677,21 +625,14 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # - "metadata" -> RO cap (json)
 
     data = {
-        u"content": [
-            u"filenode", {
-                u"ro_uri": content_cap,
-            },
-        ],
-        u"metadata": [
-            u"filenode", {
-                u"ro_uri": metadata_cap,
-                u"metadata": {
-                    u"magic_folder": {
-                        u"author_signature": author_signature_base64,
-                    },
+        u"content": format_filenode(content_cap),
+        u"metadata": format_filenode(
+            metadata_cap, {
+                u"magic_folder": {
+                    u"author_signature": author_signature_base64,
                 },
             },
-        ],
+        ),
     }
 
     snapshot_cap = yield tahoe_client.create_immutable_directory(data)
