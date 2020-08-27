@@ -256,6 +256,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             reactor,
             tahoe_client,
             name,
-            config,
+            global_config,
         )
 
