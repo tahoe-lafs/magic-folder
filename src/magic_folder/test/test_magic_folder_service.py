@@ -42,7 +42,6 @@ from testtools.twistedsupport import (
 from ..magic_folder import (
     MagicFolder,
     LocalSnapshotService,
-    UploaderService,
 )
 from ..config import (
     create_global_configuration,
@@ -67,9 +66,6 @@ from .strategies import (
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator as LocalMemorySnapshotCreator,
-)
-from .test_upload import (
-    MemorySnapshotCreator as RemoteMemorySnapshotCreator,
 )
 
 class MagicFolderServiceTests(SyncTestCase):
@@ -162,7 +158,6 @@ class MagicFolderServiceTests(SyncTestCase):
         clock = task.Clock()
 
         # create RemoteSnapshotCreator and UploaderService
-        remote_snapshot_creator = RemoteMemorySnapshotCreator()
         uploader_service = Service()
 
         tahoe_client = object()
