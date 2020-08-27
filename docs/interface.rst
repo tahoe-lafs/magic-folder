@@ -85,20 +85,20 @@ A remote snapshot reference in this list is represented like this::
 
 The value is a Tahoe-LAFS capability string for a stored object representing the snapshot.
 
-``GET /v1/snapshot/:folder-name``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``GET /v1/snapshot/<folder-name>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Not yet implemented.
 Get all snapshots for one folder.
 
-``GET /v1/snapshot/:folder-name?path=:some-path``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``GET /v1/snapshot/<folder-name>?path=<some-path>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Not yet implemented.
 Get all snapshots for one folder beneath a certain path.
 
-``POST /v1/snapshot/:folder-name?path=:some-path``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``POST /v1/snapshot/<folder-name>?path=<some-path>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new snapshot for a certain file in a certain magic-folder.
 
