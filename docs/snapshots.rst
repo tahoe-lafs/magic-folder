@@ -47,7 +47,7 @@ Content and Metadata
 
 Snapshots consist of two main pieces: the content and the
 metadata. Both of these are immutable documents in Tahoe-LAFS. The
-content is straightforward: it is an immutable-capabilitiy of the bytes
+content is straightforward: it is an immutable-capability of the bytes
 that the user had on disk when the Snapshot was created.
 
 The "metadata" is a valid JSON document which is a dict. It is also
