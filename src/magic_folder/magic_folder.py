@@ -8,11 +8,15 @@ import ConfigParser
 
 from twisted.python.filepath import FilePath
 from twisted.python.monkey import MonkeyPatcher
-from twisted.internet import defer, reactor
+from twisted.internet import defer
 from twisted.python import runtime
 from twisted.application import service
+from twisted.internet import task
 
-from zope.interface import implementer
+from zope.interface import (
+    Interface,
+    implementer,
+)
 from twisted.internet.defer import (
     DeferredQueue,
     CancelledError,
@@ -24,12 +28,14 @@ from eliot import (
     MessageType,
     write_traceback,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from allmydata.util import (
     fileutil,
     configutil,
     yamlutil,
-    eliotutil,
 )
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
@@ -37,6 +43,8 @@ from allmydata.uri import (
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
+    validateInstanceOf,
+    log_call_deferred,
 )
 from allmydata.util import log
 from allmydata.util.encodingutil import to_filepath
@@ -44,10 +52,8 @@ from allmydata.util.encodingutil import to_filepath
 from . import (
     magicpath,
 )
-from .config import (
-    SnapshotNotFound,
-)
 from .snapshot import (
+    write_snapshot_to_tahoe,
     create_snapshot,
     LocalAuthor,
 )
@@ -274,6 +280,10 @@ def save_magic_folders(node_directory, folders):
 
 
 class MagicFolder(service.MultiService):
+    """
+    :ivar LocalSnapshotService local_snapshot_service: A child service
+        responsible for creating new local snapshots for files in this folder.
+    """
 
     @classmethod
     def from_config(cls, reactor, tahoe_client, name, config):
@@ -296,21 +306,36 @@ class MagicFolder(service.MultiService):
             Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
             Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
         )
+
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
+            local_snapshot_service=LocalSnapshotService(
+                mf_config.magic_path,
+                LocalSnapshotCreator(
+                    mf_config,
+                    mf_config.author,
+                    mf_config.stash_path,
+                ),
+            ),
             initial_participants=initial_participants,
-            _clock=reactor,
+            clock=reactor,
         )
 
-    def __init__(self, client, config, name, initial_participants, _clock=None):
-        super(MagicFolder, self).__init__()
+    @property
+    def name(self):
         # this is used by 'service' things and must be unique in this Service hierarchy
-        self.name = u"magic-folder-{}".format(name)
-        self._clock = _clock or reactor
+        return u"magic-folder-{}".format(self.folder_name)
+
+    def __init__(self, client, config, name, local_snapshot_service, initial_participants, clock):
+        super(MagicFolder, self).__init__()
+        self.folder_name = name
+        self._clock = clock
         self._config = config  # a MagicFolderConfig instance
         self._participants = initial_participants
+        self.local_snapshot_service = local_snapshot_service
+        local_snapshot_service.setServiceParent(self)
 
     def ready(self):
         """
@@ -422,7 +447,7 @@ PENDING = Field(
     u"pending",
     lambda s: list(s),
     u"The paths which are pending processing.",
-    eliotutil.validateInstanceOf(set),
+    validateInstanceOf(set),
 )
 
 REMOVE_FROM_PENDING = ActionType(
@@ -436,7 +461,7 @@ PATH = Field(
     u"path",
     lambda fp: fp.asTextMode().path,
     u"A local filesystem path.",
-    eliotutil.validateInstanceOf(FilePath),
+    validateInstanceOf(FilePath),
 )
 
 NOTIFIED_OBJECT_DISAPPEARED = MessageType(
@@ -585,7 +610,7 @@ _REASON = Field(
     u"reason",
     lambda e: str(e),
     u"An exception which may describe the form of the conflict.",
-    eliotutil.validateInstanceOf(Exception),
+    validateInstanceOf(Exception),
 )
 
 OVERWRITE_BECOMES_CONFLICT = MessageType(
@@ -624,7 +649,7 @@ _BATCH = Field(
     # also be useful, though?  Consider it.
     lambda batch: batch.keys(),
     u"A batch of scanned items.",
-    eliotutil.validateInstanceOf(dict),
+    validateInstanceOf(dict),
 )
 
 SCAN_BATCH = MessageType(
@@ -686,6 +711,20 @@ SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
     u"Local snapshot creator is processing an input.",
 )
 
+UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS = ActionType(
+    u"magic-folder:uploader-service:upload-local-snapshot",
+    [RELPATH],
+    [],
+    u"Uploader service is uploading a local snapshot",
+)
+
+SNAPSHOT_COMMIT_FAILURE = MessageType(
+    u"magic-folder:uploader-service:snapshot-commit-failure",
+    [],
+    u"Uploader service is unable to commit the LocalSnapshot.",
+)
+
+
 ADD_FILE_FAILURE = MessageType(
     u"magic-folder:local-snapshot-creator:add-file-failure",
     [RELPATH],
@@ -705,15 +744,14 @@ class LocalSnapshotCreator(object):
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
     """
-    db = attr.ib()  # our database
-    author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
-    stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _db = attr.ib()  # our database
+    _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
-    @eliotutil.inline_callbacks
-    def process_item(self, path):
+    @inline_callbacks
+    def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
-
         :param FilePath path: a single file inside our magic-folder dir
         """
 
@@ -723,8 +761,8 @@ class LocalSnapshotCreator(object):
             # If so, we use that as the parent.
             mangled_name = magicpath.mangle_path(path)
             try:
-                parent_snapshot = self.db.get_local_snapshot(mangled_name, self.author)
-            except SnapshotNotFound:
+                parent_snapshot = self._db.get_local_snapshot(mangled_name)
+            except KeyError:
                 parents = []
             else:
                 parents = [parent_snapshot]
@@ -740,15 +778,14 @@ class LocalSnapshotCreator(object):
             with action:
                 snapshot = yield create_snapshot(
                     name=mangled_name,
-                    author=self.author,
+                    author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self.stash_dir,
+                    snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                 )
 
                 # store the local snapshot to the disk
-                self.db.store_local_snapshot(snapshot)
-
+                self._db.store_local_snapshot(snapshot)
 
 @attr.s
 @implementer(service.IService)
@@ -771,7 +808,7 @@ class LocalSnapshotService(service.Service):
         service.Service.startService(self)
         self._service_d = self._process_queue()
 
-    @eliotutil.inline_callbacks
+    @inline_callbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -780,11 +817,12 @@ class LocalSnapshotService(service.Service):
             try:
                 (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.process_item(item)
+                    yield self._snapshot_creator.store_local_snapshot(item)
                     d.callback(None)
             except CancelledError:
                 break
             except Exception:
+                # XXX Probably should fire d here, someone might be waiting.
                 write_traceback()
 
     def stopService(self):
@@ -797,6 +835,7 @@ class LocalSnapshotService(service.Service):
         self._service_d = None
         return d
 
+    @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
         """
         Add the given path of type FilePath to our queue. If the path
@@ -831,10 +870,148 @@ class LocalSnapshotService(service.Service):
         # exceptions
         if bytespath.isdir():
             raise ValueError(
-                "expected a file, {!r} is a directory".format(bytespath.path),
+                "expected a regular file, {!r} is a directory".format(bytespath.path),
             )
 
         # add file into the queue
         d = defer.Deferred()
         self._queue.put((bytespath, d))
+        return d
+
+
+class IRemoteSnapshotCreator(Interface):
+    """
+    An object that can create remote snapshots representing the same
+    information as some local snapshots that already exist.
+    """
+    def upload_local_snapshots():
+        """
+        Find local uncommitted snapshots and commit them to the grid.
+
+        :return Deferred[None]: A Deferred that fires when an effort has been
+            made to commit at least some local uncommitted snapshots.
+        """
+
+
+@implementer(IRemoteSnapshotCreator)
+@attr.s
+class RemoteSnapshotCreator(object):
+    _state_db = attr.ib()
+    _local_author = attr.ib()
+    _tahoe_client = attr.ib()
+    _upload_dircap = attr.ib()
+
+    @inline_callbacks
+    def upload_local_snapshots(self):
+        """
+        Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
+        format to LocalSnapshot objects and commit them into the grid.
+        """
+
+        # get the mangled paths for the LocalSnapshot objects in the db
+        localsnapshot_names = self._state_db.get_all_localsnapshot_paths()
+
+        # XXX: processing this table should be atomic. i.e. While the upload is
+        # in progress, a new snapshot can be created on a file we already uploaded
+        # but not removed from the db and if it gets removed from the table later,
+        # the new snapshot gets lost. Perhaps this can be solved by storing each
+        # LocalSnapshot in its own row than storing everything in a blob?
+        # https://github.com/LeastAuthority/magic-folder/issues/197
+        for name in localsnapshot_names:
+            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
+            try:
+                with action:
+                    yield self._upload_some_snapshots(name)
+            except Exception:
+                # Unable to reach Tahoe storage nodes because of network
+                # errors or because the tahoe storage nodes are
+                # offline. Retry?
+                pass
+
+    @inline_callbacks
+    def _upload_some_snapshots(self, name):
+        """
+        Upload all of the snapshots for a particular path.
+        """
+        # deserialize into LocalSnapshot
+        snapshot = self._state_db.get_local_snapshot(name)
+
+        remote_snapshot = yield write_snapshot_to_tahoe(
+            snapshot,
+            self._local_author,
+            self._tahoe_client,
+        )
+
+        # At this point, remote snapshot creation successful for
+        # the given relpath.
+        # store the remote snapshot capability in the db.
+        yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+
+        # update the entry in the DMD
+        yield self._tahoe_client.add_entry_to_mutable_directory(
+            self._upload_dircap,
+            magicpath.path2magic(name),
+            remote_snapshot.capability.encode('utf-8'),
+            replace=True,
+        )
+
+        # Remove the local snapshot content from the stash area.
+        snapshot.content_path.remove()
+
+        # Remove the LocalSnapshot from the db.
+        yield self._state_db.delete_localsnapshot(name)
+
+
+@implementer(service.IService)
+class UploaderService(service.Service):
+    """
+    A service that periodically polls the database for local snapshots
+    and commit them into the grid.
+    """
+
+    @classmethod
+    def from_config(cls, clock, name, config, remote_snapshot_creator):
+        """
+        Create an UploaderService from the MagicFolder configuration.
+        """
+        mf_config = config.get_magic_folder(name)
+        poll_interval = mf_config.poll_interval
+        return cls(
+            clock=clock,
+            poll_interval=poll_interval,
+            remote_snapshot_creator=remote_snapshot_creator,
+        )
+
+    def __init__(self, clock, poll_interval, remote_snapshot_creator):
+        super(UploaderService, self).__init__()
+
+        self._clock = clock
+        self._poll_interval = poll_interval
+        self._remote_snapshot_creator = remote_snapshot_creator
+
+    def startService(self):
+        """
+        Start UploaderService and initiate a periodic task
+        to poll for LocalSnapshots in the database.
+        """
+
+        service.Service.startService(self)
+
+        # do a looping call that polls the db for LocalSnapshots.
+        self._processing_loop = task.LoopingCall(
+            self._remote_snapshot_creator.upload_local_snapshots,
+        )
+        self._processing_loop.clock = self._clock
+        self._processing = self._processing_loop.start(self._poll_interval, now=True)
+
+
+    def stopService(self):
+        """
+        Stop the uploader service.
+        """
+        service.Service.stopService(self)
+        d = self._processing
+        self._processing_loop.stop()
+        self._processing = None
+        self._processing_loop = None
         return d

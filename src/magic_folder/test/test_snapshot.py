@@ -1,4 +1,5 @@
 import io
+import json
 from tempfile import mktemp
 
 from testtools.matchers import (
@@ -25,6 +26,8 @@ from hypothesis import (
 from hypothesis.strategies import (
     binary,
     text,
+    just,
+    one_of,
 )
 
 from hyperlink import (
@@ -35,9 +38,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from allmydata.client import (
-    read_config,
-)
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
 from magic_folder.testing.web import (
@@ -45,9 +45,6 @@ from magic_folder.testing.web import (
     create_tahoe_treq_client,
 )
 
-from .fixtures import (
-    NodeDirectory,
-)
 from .common import (
     SyncTestCase,
 )
@@ -58,62 +55,19 @@ from .strategies import (
 )
 from magic_folder.snapshot import (
     create_local_author,
-    create_local_author_from_config,
     create_author_from_json,
     create_author,
-    write_local_author,
     create_snapshot,
     create_snapshot_from_capability,
     write_snapshot_to_tahoe,
     LocalSnapshot,
     UnknownPropertyError,
     MissingPropertyError,
+    format_filenode,
 )
 from magic_folder.tahoe_client import (
     create_tahoe_client,
 )
-
-class TestLocalAuthor(SyncTestCase):
-    """
-    Functionaltiy of LocalAuthor instances
-    """
-
-    def setUp(self):
-        d = super(TestLocalAuthor, self).setUp()
-        magic_dir = FilePath(mktemp())
-        self.node = self.useFixture(NodeDirectory(FilePath(mktemp())))
-        self.node.create_magic_folder(
-            u"default",
-            u"URI:CHK2:{}:{}:1:1:256".format(u"a"*16, u"a"*32),
-            u"URI:CHK2:{}:{}:1:1:256".format(u"b"*16, u"b"*32),
-            magic_dir,
-            60,
-        )
-
-        self.config = read_config(self.node.path.path, "portnum")
-
-        return d
-
-    def test_serialize_author(self):
-        """
-        Write and then read a LocalAuthor to our node-directory
-        """
-        alice = create_local_author("alice")
-        self.assertThat(alice.name, Equals("alice"))
-
-        # serialize the author to disk
-        write_local_author(alice, "default", self.config)
-
-        # read back the author
-        alice2 = create_local_author_from_config(self.config)
-        self.assertThat(
-            alice2,
-            MatchesStructure(
-                name=Equals("alice"),
-                verify_key=Equals(alice.verify_key),
-            )
-        )
-
 
 class TestRemoteAuthor(SyncTestCase):
     """
@@ -172,7 +126,7 @@ class TestLocalSnapshot(SyncTestCase):
     """
     def setUp(self):
         super(TestLocalSnapshot, self).setUp()
-        self.alice = create_local_author("alice")
+        self.alice = create_local_author(u"alice")
 
     def setup_example(self):
         """
@@ -333,7 +287,7 @@ class TestRemoteSnapshot(SyncTestCase):
             DecodedURL.from_text(u"http://example.com"),
             self.http_client,
         )
-        self.alice = create_local_author("alice")
+        self.alice = create_local_author(u"alice")
         self.stash_dir = FilePath(mktemp())
         self.stash_dir.makedirs()  # 'trial' will delete this when done
 
@@ -591,3 +545,58 @@ class TestRemoteSnapshot(SyncTestCase):
                 parents_raw=Equals([]),
             )
         )
+
+    @given(
+        one_of(
+            just({}),
+            just({"snapshot_version": 2**31 - 1}),
+            just({"snapshot_version": "foo"}),
+        )
+    )
+    def test_snapshot_bad_metadata(self, raw_metadata):
+        """
+        Test error-handling cases when de-serializing a snapshot. If the
+        snapshot version is missing or wrong we should error.
+        """
+
+        # arbitrary (but valid) content-cap
+        contents = []
+        content_cap_d = self.tahoe_client.create_immutable(b"0" * 256)
+        content_cap_d.addCallback(contents.append)
+        self.assertThat(content_cap_d, succeeded(Always()))
+        content_cap = contents[0]
+
+        # invalid metadata cap (we use Hypothesis to give us two
+        # definitely-invalid versions)
+        metadata_caps = []
+
+        d = self.tahoe_client.create_immutable(json.dumps(raw_metadata))
+        d.addCallback(metadata_caps.append)
+        self.assertThat(d, succeeded(Always()))
+
+        # create a Snapshot using the wrong metadata
+        raw_snapshot_data = {
+            u"content": format_filenode(content_cap),
+            u"metadata": format_filenode(
+                metadata_caps[0], {
+                    u"magic_folder": {
+                        u"author_signature": u"not valid",
+                    },
+                },
+            ),
+        }
+
+        snapshot_cap = []
+        d = self.tahoe_client.create_immutable_directory(raw_snapshot_data)
+        d.addCallback(snapshot_cap.append)
+        self.assertThat(d, succeeded(Always()))
+
+        # now when we read back the snapshot with incorrect metadata,
+        # it should fail
+        snapshot_d = create_snapshot_from_capability(snapshot_cap[0], self.tahoe_client)
+
+        self.assertThat(snapshot_d, failed(
+            MatchesStructure(
+                value=AfterPreprocessing(str, Contains("snapshot_version")),
+            )
+        ))

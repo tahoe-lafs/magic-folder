@@ -32,14 +32,13 @@ def test_add(request, reactor, temp_dir, alice):
     util._magic_folder_runner(
         proto, reactor, request,
         [
-            "show-config",
             "--config", alice.magic_config_directory,
+            "show-config",
         ],
     )
     output = yield proto.done
     config = loads(output)
 
-    print(output)
     assert "test" in config["magic_folders"]
     mf_config = config["magic_folders"]["test"]
     assert mf_config["name"] == "test"

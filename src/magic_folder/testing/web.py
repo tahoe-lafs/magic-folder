@@ -139,6 +139,26 @@ def capability_generator(kind):
         yield cap.encode("ascii")
 
 
+def _get_node_format(cap):
+    """
+    Determine a plausible data format for the object references by the given
+    capability.
+
+    Some capabilities have multiple possible data formats behind them.  We
+    don't have enough deep knowledge of Tahoe-LAFS data structures or enough
+    state represented in this fake to actually have *any* data format (we just
+    have strings in memory).  But make something up to satisfy the interface.
+
+    :param IURI cap: The capability to consider.
+
+    :return unicode: A string describing a *possible* data format for the
+        object referenced by the given capability.
+    """
+    if cap.is_mutable():
+        return u"SDMF"
+    return u"CHK"
+
+
 @attr.s
 class _FakeTahoeUriHandler(Resource, object):
     """
@@ -266,15 +286,22 @@ class _FakeTahoeUriHandler(Resource, object):
 
         kind = "dirnode" if IDirnodeURI.providedBy(content) else "filenode"
 
-        # so it looks like Tahoe returns "mutable=true" even if you
-        # only have a read-only capability ..
+        # Objects can be mutable or immutable.  Capabilities can be read-only
+        # or write-only.  Don't mix up mutability with writeability.  You
+        # might have a read-only cap for a mutable object.  In this case,
+        # someone *else* might be able to change the object even though you
+        # can't.
         metadata = {
             "mutable": content.is_mutable(),
             "ro_uri": content_cap,
-            "verify_cap": content.get_verify_cap().to_string(),
+            "verify_uri": content.get_verify_cap().to_string(),
+            "format": _get_node_format(content),
         }
         if content_cap != content.get_readonly().to_string():
             metadata["rw_uri"] = content_cap
+
+        if kind == "filenode" and content.get_size() is not None:
+            metadata["size"] = content.get_size()
 
         dir_data = json.loads(dir_raw_data)
         dir_data[1]["children"][segments[0]] = [kind, metadata]

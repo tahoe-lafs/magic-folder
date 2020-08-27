@@ -22,19 +22,13 @@ from twisted.internet.defer import (
     succeed,
 )
 
-from .config import (
-    load_global_configuration,
-)
 
-
-def magic_folder_show_config(config_dir, stdout=None):
+def magic_folder_show_config(config, stdout=None):
     """
     Dump configuration as JSON.
 
-    :param FilePath config_dir: an existing magic-folder config directory
+    :param GlobalConfigDatabase config: a magic-folder config directory
     """
-
-    config = load_global_configuration(config_dir)
 
     def folder_json(mf):
         return {

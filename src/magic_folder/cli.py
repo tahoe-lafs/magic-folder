@@ -147,27 +147,15 @@ class ShowConfigOptions(usage.Options):
     """
 
     optParameters = [
-        ("config", "c", None, "An existing config directory (default {}".format(_default_config_path)),
     ]
     description = (
         "Dump magic-folder configuration as JSON"
     )
 
-    def postOptions(self):
-        # defaults
-        if self['config'] is None:
-            self['config'] = _default_config_path
 
-        # validate
-        if not FilePath(self['config']).exists():
-            raise usage.UsageError("Directory '{}' doesn't exist".format(self['config']))
-
-
-@inlineCallbacks
 def show_config(options):
-
-    yield magic_folder_show_config(
-        FilePath(options['config']),
+    return magic_folder_show_config(
+        options.parent.config,
     )
 
 
@@ -620,92 +608,62 @@ class RecordLocation(object):
 
 
 @attr.s
-class MagicFolderServiceState(object):
-    """
-    Represent the operational state for a group of Magic Folders.
-
-    This is intended to be easy to instantiate.  It was split off
-    ``MagicFolderService`` specifically to make testing easier.
-
-    :ivar {unicode: (dict, magic_folder.magic_folder.MagicFolder)} _folders:
-        The configuration and services for configured magic folders.
-    """
-    _folders = attr.ib(default=attr.Factory(dict))
-
-    def get_magic_folder(self, name):
-        """
-        Get the Magic Folder with the given name.
-
-        :param unicode name: The name of the Magic Folder.
-
-        :raise KeyError: If there is no Magic Folder by that name.
-
-        :return: The ``MagicFolder`` instance corresponding to the given name.
-        """
-        config, service = self._folders[name]
-        return service
-
-
-    def add_magic_folder(self, name, config, service):
-        """
-        Track a new Magic Folder.
-
-        :param unicode name: The name of the new Magic Folder.
-
-        :param dict config: The new Magic Folder's configuration.
-
-        :param service: The ``MagicFolder`` instance representing the new
-            Magic Folder.
-        """
-        if name in self._folders:
-            raise ValueError("Already have a Magic Folder named {!r}".format(name))
-        self._folders[name] = (config, service)
-
-
-    def iter_magic_folder_configs(self):
-        """
-        Iterate over all of the Magic Folder names and configurations.
-
-        :return: An iterator of two-tuples of a unicode name and a Magic
-            Folder configuration.
-        """
-        for (name, (config, service)) in self._folders.items():
-            yield (name, config)
-
-
-@attr.s
 class MagicFolderService(MultiService):
     """
     :ivar reactor: the Twisted reactor to use
 
     :ivar GlobalConfigDatabase config: our system configuration
-
-    :ivar MagicFolderServiceState _state: The Magic Folder state in use by
-        this service.
     """
     reactor = attr.ib()
     config = attr.ib()
-    _state = attr.ib(
-        validator=attr.validators.instance_of(MagicFolderServiceState),
-        default=attr.Factory(MagicFolderServiceState),
-    )
+    tahoe_client = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
-        self.tahoe_client = TahoeClient(
-            self.config.tahoe_client_url,
-            Agent(self.reactor),
-        )
+        if self.tahoe_client is None:
+            self.tahoe_client = TahoeClient(
+                self.config.tahoe_client_url,
+                Agent(self.reactor),
+            )
         self._listen_endpoint = serverFromString(
             self.reactor,
             self.config.api_endpoint,
         )
         web_service = magic_folder_web_service(
             self._listen_endpoint,
-            self._state,
+            self.config,
+            self,
             self._get_auth_token,
         )
         web_service.setServiceParent(self)
+
+        # We can create the services for all configured folders right now.
+        # They won't do anything until they are started which won't happen
+        # until this service is started.
+        self._create_magic_folder_services()
+
+    def _create_magic_folder_services(self):
+        """
+        Create all of the child magic folder services and attach them to this
+        service.
+        """
+        for name in self.config.list_magic_folders():
+            mf = MagicFolder.from_config(
+                self.reactor,
+                self.tahoe_client,
+                name,
+                self.config,
+            )
+            mf.setServiceParent(self)
+
+    def _iter_magic_folder_services(self):
+        """
+        Iterate over all of the magic folder services which are children of this
+        service.
+        """
+        for service in self:
+            if isinstance(service, MagicFolder):
+                yield service
 
     def _write_web_url(self, host):
         """
@@ -719,6 +677,21 @@ class MagicFolderService(MultiService):
             u"magic-folder.url",
             "http://{}:{}/".format(host.host, host.port),
         )
+
+    def get_folder_service(self, folder_name):
+        """
+        Look up a ``MagicFolder`` by its name.
+
+        :param unicode folder_name: The name of the magic-folder to retrieve.
+
+        :raise KeyError: If no magic-folder with a matching name is found.
+
+        :return MagicFolder: The service for the matching magic-folder.
+        """
+        for service in self._iter_magic_folder_services():
+            if service.folder_name == folder_name:
+                return service
+        raise KeyError(folder_name)
 
     def _get_auth_token(self):
         return self.config.api_token
@@ -776,16 +749,8 @@ class MagicFolderService(MultiService):
         MultiService.startService(self)
 
         ds = []
-        for name in self.config.list_magic_folders():
-            mf = MagicFolder.from_config(
-                self.reactor,
-                self.tahoe_client,
-                name,
-                self.config,
-            )
-            self._state.add_magic_folder(name, self.config.get_magic_folder(name), mf)
-            mf.setServiceParent(self)
-            ds.append(mf.ready())
+        for magic_folder in self._iter_magic_folder_services():
+            ds.append(magic_folder.ready())
         # The integration tests look for this message.  You cannot get rid of
         # it.
         print("Completed initial Magic Folder setup")
