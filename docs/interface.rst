@@ -52,7 +52,7 @@ The response is **OK** with an ``application/json`` **Content-Type**::
         , "identifier": "06be2d83-2d86-402d-ae2a-81b3779d72d9"
         , "parents":
 	  [ {"local": "30803885-ef3c-4645-85e6-6b1c9dfd50c3"}
-	  , {"remote": "URI:CHK:..."}
+	  , {"remote": "URI:..."}
 	  ]
         }
       ]
@@ -76,6 +76,14 @@ A local snapshot reference in this list is represented like this::
   { "local": "a3eb3d57-5272-45f3-ba5f-04a52024785b" }
 
 The values for the ``local`` property can be resolved against the ``identifier`` described above.
+
+In the future,
+this this may also contain remote snapshot references.
+A remote snapshot reference in this list is represented like this::
+
+  { "remote": "URI:..." }
+
+The value is a Tahoe-LAFS capability string for a stored object representing the snapshot.
 
 ``GET /v1/snapshot/:folder-name``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
