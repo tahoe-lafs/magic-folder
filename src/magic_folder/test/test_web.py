@@ -468,7 +468,14 @@ class CreateSnapshotTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
-            False,
+            # The interesting behavior of this test hinges on this flag.  We
+            # decline to start the folder services here.  Therefore, no local
+            # snapshots will ever be created.  This lets us observe the
+            # request in a state where it is waiting to receive its response.
+            # This demonstrates that the response is not delivered before the
+            # local snapshot is created.  See test_create_snapshot for the
+            # alternative case.
+            start_folder_services=False,
         )
 
         self.assertThat(
@@ -506,7 +513,10 @@ class CreateSnapshotTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
-            True,
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
         )
         self.assertThat(
             authorized_request(
