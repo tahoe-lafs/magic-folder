@@ -33,7 +33,7 @@ The difference is that a Remote Snapshot has been signed and uploaded
 into the Tahoe-LAFS Grid. A Local Snapshot exists only on one device's
 local disk (so other participants cannot see it yet).
 
-A Snapshot has zero or more parents, forming a Directed Asyclic Graph
+A Snapshot has zero or more parents, forming a Directed Acyclic Graph
 (DAG). Snapshots are signed "as" they are uploaded into the Grid:
 first the actual content is uploaded as an immutable, yielding a
 read-only capability-string; then this string and other metadata is
