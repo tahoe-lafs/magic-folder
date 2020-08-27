@@ -317,8 +317,8 @@ class MagicFolderAPIv1(Resource, object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        _application_json(request)  # set reply headers
         include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        _application_json(request)  # set reply headers
 
         def get_folder_info(name, mf):
             info = {
