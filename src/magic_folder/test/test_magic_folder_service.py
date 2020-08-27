@@ -206,12 +206,9 @@ class MagicFolderFromConfigTests(SyncTestCase):
         relative_paths(),
         relative_paths(),
         just(LOCAL_AUTHOR),
-        one_of(
-            tahoe_lafs_immutable_dir_capabilities(),
-            tahoe_lafs_dir_capabilities(),
-        ),
         tahoe_lafs_dir_capabilities(),
-        integers(min_value=1),
+        tahoe_lafs_dir_capabilities(),
+        integers(min_value=1, max_value=10000),
     )
     def test_uploader_service(self, name, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval):
         """
