@@ -272,6 +272,9 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
 
+    :param reactor: A reactor to give to the ``MagicFolderService`` which will
+        back the HTTP interface.
+
     :param FilePath basedir: A non-existant directory to create and populate
         with a new Magic Folder service configuration.
 
