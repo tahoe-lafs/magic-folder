@@ -81,7 +81,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
     """
     def setUp(self):
         super(RemoteSnapshotCreatorTests, self).setUp()
-        self.author = create_local_author("alice")
+        self.author = create_local_author(u"alice")
 
     @given(
         name=relative_paths(),
