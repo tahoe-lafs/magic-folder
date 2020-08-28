@@ -66,10 +66,6 @@ from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
 
-from ..magicpath import (
-    path2magic,
-)
-
 from allmydata.uri import (
     is_uri,
     from_string as uri_from_string,

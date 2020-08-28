@@ -306,7 +306,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             children(),
             Equals({}),
         )
-        
+
         reactor.advance(1)
 
         self.assertThat(
