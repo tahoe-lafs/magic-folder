@@ -1,6 +1,3 @@
-from json import (
-    loads,
-)
 
 import pytest_twisted
 
