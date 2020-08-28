@@ -630,8 +630,7 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
 
       - it answers `http://<node_url>/statistics/?t=json/`
       - there is at least one storage-server connected
-      - every storage-server has a "last_received_data" and it is
-        within the last `liveness` seconds
+      - it has a "last_received_data" within the last `liveness` seconds
 
     We will try for up to `timeout` seconds for the above conditions
     to be true. Otherwise, an exception is raised
@@ -648,28 +647,22 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
 
         if len(js['servers']) == 0:
             print("waiting because no servers at all")
-            twisted_sleep(reactor, 1)
+            yield twisted_sleep(reactor, 1)
             continue
         server_times = [
             server['last_received_data']
             for server in js['servers']
+            if server['last_received_data'] is not None
         ]
-        # if any times are null/None that server has never been
-        # contacted (so it's down still, probably)
-        if any(t is None for t in server_times):
-            print("waiting because at least one server not contacted")
-            twisted_sleep(reactor, 1)
-            continue
 
         # check that all times are 'recent enough'
-        if any([time.time() - t > liveness for t in server_times]):
-            print("waiting because at least one server too old")
-            twisted_sleep(reactor, 1)
+        if all([time.time() - t > liveness for t in server_times]):
+            print("waiting because no server new enough")
+            yield twisted_sleep(reactor, 1)
             continue
 
         print("finished waiting for client")
-        # we have a status with at least one server, and all servers
-        # have been contacted recently
+        # we have a status with at least one recently-contacted server
         returnValue(True)
     # we only fall out of the loop when we've timed out
     raise RuntimeError(
