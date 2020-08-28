@@ -44,6 +44,7 @@ class ClientError(Exception):
     Base class for all exceptions in this module
     """
 
+
 class CannotAccessApiError(ClientError):
     """
     The Magic Folder HTTP API can't be reached at all

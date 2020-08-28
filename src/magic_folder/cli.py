@@ -100,6 +100,9 @@ from .magic_folder import (
 from .web import (
     magic_folder_web_service,
 )
+from .client import (
+    CannotAccessApiError,
+)
 
 from .invite import (
     magic_folder_invite
@@ -1109,13 +1112,25 @@ def run_magic_folder_options(options):
     so.stdout = options.stdout
     so.stderr = options.stderr
     f = subDispatch[options.subCommand]
-    try:
+
+    # we want to let exceptions out to the top level if --debug is on
+    # because this gives better stack-traces
+    if options['debug']:
         yield maybeDeferred(f, so)
-    except Exception as e:
-        print(u"Error: {}".format(e), file=options.stderr)
-        if options['debug']:
-            traceback.print_exc(file=options.stderr)
-        raise SystemExit(1)
+
+    else:
+        try:
+            yield maybeDeferred(f, so)
+
+        except CannotAccessApiError as e:
+            # give user more information if we can't find the daemon at all
+            print(u"Error: {}".format(e), file=options.stderr)
+            print(u"   Attempted access via {}".format(options.config.api_client_endpoint))
+            raise SystemExit(1)
+
+        except Exception as e:
+            print(u"Error: {}".format(e), file=options.stderr)
+            raise SystemExit(1)
 
 
 def _entry():
