@@ -108,9 +108,10 @@ class MagicFolderServiceTests(SyncTestCase):
         snapshot for a file in the folder.
         """
         magic_path = FilePath(self.mktemp())
-        magic_path.makedirs()
+        magic_path.asBytesMode("utf-8").makedirs()
+
         target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
-        target_path.parent().makedirs(ignoreExistingDirectory=True)
+        target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
         local_snapshot_creator = LocalMemorySnapshotCreator()
@@ -152,7 +153,7 @@ class MagicFolderServiceTests(SyncTestCase):
         when a file is added into the folder.
         """
         magic_path = FilePath(self.mktemp())
-        magic_path.makedirs()
+        magic_path.asBytesMode("utf-8").makedirs()
 
         local_snapshot_creator = LocalMemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
@@ -226,15 +227,15 @@ class MagicFolderFromConfigTests(SyncTestCase):
             u"tcp:-1",
         )
 
-        magic_path = basedir.preauthChild(relative_magic_path).asBytesMode("utf-8")
-        magic_path.makedirs()
+        magic_path = basedir.preauthChild(relative_magic_path)
+        magic_path.asBytesMode("utf-8").makedirs()
 
         statedir = basedir.child(u"state")
-        state_path = statedir.preauthChild(relative_state_path)
+        state_path = statedir.asTextMode("utf-8").preauthChild(relative_state_path)
 
-        target_path = magic_path.preauthChild(file_path).asBytesMode("utf-8")
-        target_path.parent().makedirs(ignoreExistingDirectory=True)
-        target_path.setContent(content)
+        target_path = magic_path.asTextMode("utf-8").preauthChild(file_path)
+        target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
+        target_path.asBytesMode("utf-8").setContent(content)
 
         global_config.create_magic_folder(
             name,

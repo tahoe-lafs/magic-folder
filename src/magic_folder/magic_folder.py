@@ -767,10 +767,11 @@ class LocalSnapshotCreator(object):
     def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
+
         :param FilePath path: a single file inside our magic-folder dir
         """
 
-        with path.open('rb') as input_stream:
+        with path.asBytesMode("utf-8").open('rb') as input_stream:
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
@@ -788,14 +789,14 @@ class LocalSnapshotCreator(object):
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
 
-            relpath_u = path.asTextMode(encoding="utf-8").path
+            relpath_u = path.asTextMode("utf-8").path
             action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
             with action:
                 snapshot = yield create_snapshot(
                     name=mangled_name,
                     author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self._stash_dir,
+                    snapshot_stash_dir=self._stash_dir.asBytesMode("utf-8"),
                     parents=parents,
                 )
 
@@ -832,7 +833,7 @@ class LocalSnapshotService(service.Service):
             try:
                 (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.store_local_snapshot(item)
+                    yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
                     d.callback(None)
             except CancelledError:
                 break
