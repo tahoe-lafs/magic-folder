@@ -274,7 +274,13 @@ class MagicFolderFromConfigTests(SyncTestCase):
             Equals(author),
         )
 
-        # add a file
+        self.assertThat(
+            magic_folder.folder_name,
+            Equals(name),
+        )
+
+        # add a file. This won't actually add a file until we advance
+        # the clock.
         d = magic_folder.local_snapshot_service.add_file(
             target_path,
         )
