@@ -436,23 +436,21 @@ class ListMagicFolderTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({
-                            u"folders": list(
-                                {
-                                    u"name": name,
-                                    u"author": {
-                                        u"name": config.author.name,
-                                        u"verify_key": config.author.verify_key.encode(Base32Encoder),
-                                    },
-                                    u"magic_path": config.magic_path.path,
-                                    u"stash_path": config.stash_path.path,
-                                    u"poll_interval": config.poll_interval,
-                                    u"is_admin": config.is_admin(),
-                                }
-                                for name, config
-                                in sorted(folders.items())
-                            ),
+                            name: {
+                                u"name": name,
+                                u"author": {
+                                    u"name": config.author.name,
+                                    u"verify_key": config.author.verify_key.encode(Base32Encoder),
+                                },
+                                u"magic_path": config.magic_path.path,
+                                u"stash_path": config.stash_path.path,
+                                u"poll_interval": config.poll_interval,
+                                u"is_admin": config.is_admin(),
+                            }
+                            for name, config
+                            in sorted(folders.items())
                         }),
-                    )
+                    ),
                 ),
             ),
         )
