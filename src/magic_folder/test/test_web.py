@@ -14,8 +14,6 @@ from json import (
     loads,
 )
 
-import attr
-
 from hyperlink import (
     DecodedURL,
 )
@@ -47,9 +45,6 @@ from testtools.twistedsupport import (
     has_no_result,
 )
 
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.web.http import (
     OK,
     CREATED,
@@ -108,9 +103,6 @@ from ..web import (
 )
 from ..config import (
     create_global_configuration,
-)
-from ..snapshot import (
-    create_local_author,
 )
 from .strategies import (
     local_authors,

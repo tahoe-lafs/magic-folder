@@ -3,17 +3,12 @@ from __future__ import unicode_literals
 
 import sys
 import getpass
-import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
 import json
 from collections import (
     defaultdict,
-)
-
-from nacl.encoding import (
-    Base32Encoder,
 )
 
 from appdirs import (
