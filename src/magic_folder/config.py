@@ -50,6 +50,20 @@ from twisted.internet.endpoints import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.web.client import (
+    Agent,
+)
+from twisted.web.iweb import (
+    IAgentEndpointFactory,
+)
+
+from treq.client import (
+    HTTPClient,
+)
+
+from zope.interface import (
+    implementer,
+)
 
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
@@ -222,6 +236,75 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         database=connection,
         api_token_path=basedir.child(b"api_token"),
     )
+    # make sure we have an API token
+    config.rotate_api_token()
+    return config
+
+
+def create_testing_configuration(basedir, tahoe_node_directory, global_service):
+    """
+    Create a new global configuration that is in-memory and routes all
+    API requests through http_root_resource.
+
+    :param FilePath basedir: a non-existant directory
+
+    :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
+        client uses.
+
+    :param global_service: an object providing get_folder_service(name)
+
+    :returns: a GlobalConfigDatabase instance
+    """
+    # note that we put *bytes* in .child() calls after this so we
+    # don't convert again..
+    basedir = basedir.asBytesMode("utf8")
+
+    try:
+        basedir.makedirs()
+    except OSError as e:
+        raise ValueError(
+            "'{}' already exists: {}".format(basedir.path, e)
+        )
+
+    # set up the configuration database
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(":memory:"),
+    )
+    api_endpoint_str = "tcp:-1"
+    api_client_endpoint_str = "tcp:127.0.0.1:-1"
+    with connection:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+        )
+
+    config = GlobalConfigDatabase(
+        database=connection,
+        api_token_path=basedir.child(b"api_token"),
+    )
+
+    # to use the magic_folder_web_service() API, we need a
+    # listen-endpoint .. and then would need to "reach inside"
+    # anyway and pull out the root resource .. so we just make one
+    # ourselves.
+
+    from treq.testing import RequestTraversalAgent
+    from .testing.web import _SynchronousProducer
+
+    def create_http_client(reactor):
+        # avoiding circular imports
+        from .web import APIv1, magic_folder_resource
+        v1_resource = APIv1(config, global_service)
+        root = magic_folder_resource(lambda: config.api_token, v1_resource)
+        client = HTTPClient(
+            agent=RequestTraversalAgent(root),
+            data_to_body_producer=_SynchronousProducer,
+        )
+        return client
+    config.create_http_client = create_http_client
+
     # make sure we have an API token
     config.rotate_api_token()
     return config
@@ -848,3 +931,33 @@ class GlobalConfigDatabase(object):
                 )
 
         return mfc
+
+    def create_http_client(self, reactor):
+        """
+        :returns treq.HTTPClient: an HTTP client pointing at the
+            client-endpoint for this configuration.
+        """
+        return HTTPClient(
+            agent=Agent.usingEndpointFactory(
+                reactor,
+                _StaticEndpointFactory(
+                    clientFromString(reactor, self.api_client_endpoint),
+                ),
+            ),
+        )
+
+
+@implementer(IAgentEndpointFactory)
+@attr.s
+class _StaticEndpointFactory(object):
+    """
+    Return the same endpoint for every request. This is the endpoint
+    factory used by `create_http_client`.
+
+    :ivar endpoint: the endpoint returned for every request
+    """
+
+    endpoint = attr.ib()
+
+    def endpointForURI(self, uri):
+        return self.endpoint

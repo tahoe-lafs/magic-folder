@@ -17,16 +17,6 @@ from twisted.internet.error import (
 from twisted.web import (
     http,
 )
-from twisted.web.client import (
-    Agent,
-)
-from twisted.web.iweb import (
-    IAgentEndpointFactory,
-)
-
-from zope.interface import (
-    implementer,
-)
 
 from hyperlink import (
     DecodedURL,
@@ -131,24 +121,6 @@ class MagicFolderClient(object):
         returnValue(json.loads(body))
 
 
-
-
-
-@implementer(IAgentEndpointFactory)
-@attr.s
-class _StaticEndpointFactory(object):
-    """
-    An endpoint factory used by `create_magic_folder_client`
-
-    :ivar endpoint: the endpoint returned for every request
-    """
-
-    endpoint = attr.ib()
-
-    def endpointForURI(self, uri):
-        return self.endpoint
-
-
 def create_magic_folder_client(reactor, config):
     """
     Create a new MagicFolderClient instance that is speaking to the
@@ -163,14 +135,7 @@ def create_magic_folder_client(reactor, config):
         with config.api_token_path.open('rb') as f:
             return f.read()
 
-    endpoint = clientFromString(reactor, config.api_client_endpoint)
-
     return MagicFolderClient(
-        http_client=HTTPClient(
-            Agent.usingEndpointFactory(
-                reactor,
-                _StaticEndpointFactory(endpoint),
-            ),
-        ),
+        http_client=config.create_http_client(reactor),
         get_api_token=get_api_token,
     )
