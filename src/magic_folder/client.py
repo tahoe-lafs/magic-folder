@@ -7,9 +7,6 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
-from twisted.internet.endpoints import (
-    clientFromString,
-)
 from twisted.internet.error import (
     ConnectError,
 )

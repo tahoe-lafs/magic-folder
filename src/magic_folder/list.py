@@ -9,7 +9,6 @@ import json
 
 from twisted.internet.defer import (
     inlineCallbacks,
-    returnValue,
 )
 
 from .client import (

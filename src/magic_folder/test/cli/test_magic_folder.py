@@ -140,7 +140,7 @@ class ListMagicFolder(AsyncTestCase):
         folder_path = FilePath(self.mktemp())
         folder_path.makedirs()
 
-        mf_config = self.config.create_magic_folder(
+        self.config.create_magic_folder(
             u"list-some-folder",
             folder_path,
             folder_path.child(u".state"),
@@ -164,7 +164,7 @@ class ListMagicFolder(AsyncTestCase):
         folder_path = FilePath(self.mktemp())
         folder_path.makedirs()
 
-        mf_config = self.config.create_magic_folder(
+        self.config.create_magic_folder(
             u"list-some-json-folder",
             folder_path,
             folder_path.child(u".state"),
