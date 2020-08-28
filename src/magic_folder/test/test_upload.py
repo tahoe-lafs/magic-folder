@@ -145,9 +145,9 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.assertThat(
             loads(f.root._uri.data[upload_dircap])[1][u"children"],
             Equals({
-                path2magic(name): [
+                name: [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap,
+                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
                         u"verify_uri": uri_from_string(
                             remote_snapshot_cap
                         ).get_verify_cap().to_string().decode("utf-8"),
