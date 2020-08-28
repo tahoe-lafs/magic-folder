@@ -1,4 +1,10 @@
 
+import json
+
+from twisted.python.filepath import (
+    FilePath,
+)
+
 import pytest_twisted
 
 from eliot import (
@@ -40,3 +46,41 @@ def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
     output = yield proto.done
     assert output.strip() == "No magic-folders"
 
+    magic_dir = FilePath(temp_dir).child("zelda-magic")
+    magic_dir.makedirs()
+
+    proto = util._CollectOutputProtocol()
+    util._magic_folder_runner(
+        proto, reactor, request,
+        [
+            "--config", zelda.magic_config_directory,
+            "add",
+            "--author", "laptop",
+            "--name", "workstuff",
+            magic_dir.path,
+        ],
+    )
+    output = yield proto.done
+
+    proto = util._CollectOutputProtocol()
+    util._magic_folder_runner(
+        proto, reactor, request,
+        [
+            "--config", zelda.magic_config_directory,
+            "list",
+            "--json",
+        ],
+    )
+    output = yield proto.done
+    data = json.loads(output)
+
+    assert list(data.keys()) == ["workstuff"]
+    assert data["workstuff"]["name"] == "workstuff"
+    assert int(data["workstuff"]["poll_interval"]) == 60
+    assert data["workstuff"]["magic_path"] == magic_dir.path
+    assert data["workstuff"]["is_admin"] == True
+
+    # make sure we didn't reveal secrets
+    assert "signing_key" not in data["workstuff"]["author"]
+    assert "upload_dircap" not in data["workstuff"]
+    assert "collective_dircap" not in data["workstuff"]
