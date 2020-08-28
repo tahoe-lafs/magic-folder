@@ -103,6 +103,7 @@ from ..web import (
 )
 from ..config import (
     create_global_configuration,
+    load_global_configuration,
 )
 from .strategies import (
     local_authors,
@@ -413,9 +414,10 @@ class ListMagicFolderTests(SyncTestCase):
             path_b = path_u.asBytesMode("utf-8")
             path_b.makedirs(ignoreExistingDirectory=True)
 
+        basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
             object(),
-            FilePath(self.mktemp()),
+            basedir,
             AUTH_TOKEN,
             {
                 name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
@@ -424,6 +426,12 @@ class ListMagicFolderTests(SyncTestCase):
             },
             False,
         )
+
+        config = load_global_configuration(basedir)
+        expected_folders = {
+            name: config.get_magic_folder(name)
+            for name in config.list_magic_folders()
+        }
 
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, b"GET", self.encoded_url),
@@ -448,7 +456,7 @@ class ListMagicFolderTests(SyncTestCase):
                                 u"is_admin": config.is_admin(),
                             }
                             for name, config
-                            in sorted(folders.items())
+                            in expected_folders.items()
                         }),
                     ),
                 ),
