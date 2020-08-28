@@ -35,6 +35,7 @@ from functools import (
 import attr
 from attr.validators import (
     provides,
+    instance_of,
 )
 
 import sqlite3
@@ -700,7 +701,7 @@ class FilesystemTokenProvider(object):
     """
     Keep a token on the filesystem
     """
-    api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
+    api_token_path = attr.ib(validator=instance_of(FilePath))
     _api_token = attr.ib(default=None)
 
     def get(self):
@@ -755,8 +756,9 @@ class GlobalConfigDatabase(object):
     """
     Low-level access to the global configuration database
     """
-    basedir = attr.ib()  # where magic-folder state goes
-    database = attr.ib()  # sqlite3 Connection; needs validator
+    # where magic-folder state goes
+    basedir = attr.ib(validator=instance_of(FilePath))
+    database = attr.ib(validator=instance_of(sqlite3.Connection))
     _token_provider = attr.ib(validator=provides(ITokenProvider))
 
     @property
