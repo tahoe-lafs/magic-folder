@@ -38,7 +38,6 @@ def magic_folder_list(config, output, as_json=False, include_secret_information=
     client = create_magic_folder_client(reactor, config)
 
     mf_info = yield client.list_folders(include_secret_information)
-    mf_info = mf_info["folders"]
 
     if as_json:
         output.write(u"{}\n".format(json.dumps(mf_info, indent=4)))
@@ -71,8 +70,8 @@ def _list_human(info, output, include_secrets):
 
     if info:
         output.write(u"Configured magic-folders:\n")
-        for details in info:
-            output.write(u"{}:\n".format(details["name"]))
+        for name, details in info.items():
+            output.write(u"{}:\n".format(name))
             output.write(template.format(**details))
     else:
-        output.write("No magic-folders")
+        output.write(u"No magic-folders")

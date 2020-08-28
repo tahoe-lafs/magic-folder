@@ -343,11 +343,9 @@ class MagicFolderAPIv1(Resource, object):
                 yield (name, self._global_config.get_magic_folder(name))
 
         return json.dumps({
-            u"folders": list(
-                get_folder_info(name, config)
-                for name, config
-                in all_folder_configs()
-            ),
+            name: get_folder_info(name, config)
+            for name, config
+            in all_folder_configs()
         })
 
 
