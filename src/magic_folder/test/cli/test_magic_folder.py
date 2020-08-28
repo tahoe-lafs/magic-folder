@@ -80,7 +80,6 @@ class ListMagicFolder(AsyncTestCase):
 
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
-        self.config_dir = FilePath(self.mktemp())
 
         # the Web APIs need a reference to a "global_service" .. which
         # is cli.MagicFolderService (a MultiService in fact). It
@@ -100,7 +99,7 @@ class ListMagicFolder(AsyncTestCase):
                 return self.magic_folders[name]
 
         self.config = create_testing_configuration(
-            self.config_dir,
+            FilePath(self.mktemp()),
             self.node_directory,
             GlobalService(),
         )
@@ -313,10 +312,10 @@ class CreateMagicFolder(AsyncTestCase):
                 magic_folder.asBytesMode().path,
             ],
         )
-
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
+            str(outcome),
         )
 
         outcome = yield cli(

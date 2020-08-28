@@ -129,8 +129,7 @@ def create_magic_folder_client(reactor, config):
     :returns: a MagicFolderclient instance
     """
     def get_api_token():
-        with config.api_token_path.open("r") as f:
-            return f.read()
+        return config.api_token
 
     return MagicFolderClient(
         http_client=config.create_http_client(reactor),

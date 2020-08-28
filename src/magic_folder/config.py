@@ -33,6 +33,9 @@ from functools import (
 )
 
 import attr
+from attr.validators import (
+    provides,
+)
 
 import sqlite3
 
@@ -60,9 +63,13 @@ from twisted.web.iweb import (
 from treq.client import (
     HTTPClient,
 )
+from treq.testing import (
+    RequestTraversalAgent,
+)
 
 from zope.interface import (
     implementer,
+    Interface,
 )
 
 from allmydata.uri import (
@@ -76,7 +83,9 @@ from .snapshot import (
 from .common import (
     atomic_makedirs,
 )
-
+from .testing.web import (
+    _SynchronousProducer,
+)
 from ._schema import (
     SchemaUpgrade,
     Schema,
@@ -233,8 +242,11 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         )
 
     config = GlobalConfigDatabase(
+        basedir=basedir,
         database=connection,
-        api_token_path=basedir.child(b"api_token"),
+        token_provider=FilesystemTokenProvider(
+            basedir.child(b"api_token"),
+        )
     )
     # make sure we have an API token
     config.rotate_api_token()
@@ -246,7 +258,8 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
     Create a new global configuration that is in-memory and routes all
     API requests through http_root_resource.
 
-    :param FilePath basedir: a non-existant directory
+    :param FilePath basedir: a directory where magic-folder state goes
+        (only used if a magic-folder is created)
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
@@ -255,17 +268,6 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
 
     :returns: a GlobalConfigDatabase instance
     """
-    # note that we put *bytes* in .child() calls after this so we
-    # don't convert again..
-    basedir = basedir.asBytesMode("utf8")
-
-    try:
-        basedir.makedirs()
-    except OSError as e:
-        raise ValueError(
-            "'{}' already exists: {}".format(basedir.path, e)
-        )
-
     # set up the configuration database
     connection = _upgraded(
         _global_config_schema,
@@ -280,9 +282,12 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
             (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
         )
 
+    tokens = MemoryTokenProvider()
+
     config = GlobalConfigDatabase(
+        basedir=basedir,
         database=connection,
-        api_token_path=basedir.child(b"api_token"),
+        token_provider=tokens,
     )
 
     # to use the magic_folder_web_service() API, we need a
@@ -290,14 +295,11 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
     # anyway and pull out the root resource .. so we just make one
     # ourselves.
 
-    from treq.testing import RequestTraversalAgent
-    from .testing.web import _SynchronousProducer
-
     def create_http_client(reactor):
         # avoiding circular imports
         from .web import APIv1, magic_folder_resource
         v1_resource = APIv1(config, global_service)
-        root = magic_folder_resource(lambda: config.api_token, v1_resource)
+        root = magic_folder_resource(tokens.get, v1_resource)
         client = HTTPClient(
             agent=RequestTraversalAgent(root),
             data_to_body_producer=_SynchronousProducer,
@@ -337,8 +339,11 @@ def load_global_configuration(basedir):
         sqlite3.connect(db_fname.path),
     )
     return GlobalConfigDatabase(
+        basedir=basedir,
         database=connection,
-        api_token_path=basedir.child("api_token"),
+        token_provider=FilesystemTokenProvider(
+            basedir.child("api_token"),
+        )
     )
 
 
@@ -673,28 +678,43 @@ class MagicFolderConfig(object):
         return not collective_dmd.is_readonly()
 
 
+class ITokenProvider(Interface):
+    """
+    How the configuration retrieves and sets API access tokens.
+    """
+
+    def get():
+        """
+        Retrieve the current token.
+        """
+
+    def rotate():
+        """
+        Change the current token to a new random one.
+        """
+
+
 @attr.s
-class GlobalConfigDatabase(object):
+@implementer(ITokenProvider)
+class FilesystemTokenProvider(object):
     """
-    Low-level access to the global configuration database
+    Keep a token on the filesystem
     """
-    database = attr.ib()  # sqlite3 Connection; needs validator
     api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
     _api_token = attr.ib(default=None)
 
-    @property
-    def api_token(self):
+    def get(self):
         """
-        Current API token
+        Retrieve the current token.
         """
         if self._api_token is None:
             with self.api_token_path.open('rb') as f:
                 self._api_token = f.read()
         return self._api_token
 
-    def rotate_api_token(self):
+    def rotate(self):
         """
-        Record a new random API token and then return it
+        Change the current token to a new random one.
         """
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
@@ -702,6 +722,55 @@ class GlobalConfigDatabase(object):
         with self.api_token_path.open('wb') as f:
             f.write(self._api_token)
         return self._api_token
+
+
+@attr.s
+@implementer(ITokenProvider)
+class MemoryTokenProvider(object):
+    """
+    Keep an in-memory token.
+    """
+    _api_token = attr.ib(default=None)
+
+    def get(self):
+        """
+        Retrieve the current token.
+        """
+        if self._api_token is None:
+            self.rotate()
+        return self._api_token
+
+    def rotate(self):
+        """
+        Change the current token to a new random one.
+        """
+        # this goes directly into Web headers, so we use the same
+        # encoding as Tahoe uses.
+        self._api_token = urlsafe_b64encode(urandom(32))
+        return self._api_token
+
+
+@attr.s
+class GlobalConfigDatabase(object):
+    """
+    Low-level access to the global configuration database
+    """
+    basedir = attr.ib()  # where magic-folder state goes
+    database = attr.ib()  # sqlite3 Connection; needs validator
+    _token_provider = attr.ib(validator=provides(ITokenProvider))
+
+    @property
+    def api_token(self):
+        """
+        Current API token
+        """
+        return self._token_provider.get()
+
+    def rotate_api_token(self):
+        """
+        Record a new random API token and then return it
+        """
+        return self._token_provider.rotate()
 
     @property
     @with_cursor
@@ -823,7 +892,7 @@ class GlobalConfigDatabase(object):
             magic-folder. This directory will not exist and will be
             a sub-directory of the config location.
         """
-        return self.api_token_path.sibling(name)
+        return self.basedir.child(name)
 
     def remove_magic_folder(self, name):
         """
