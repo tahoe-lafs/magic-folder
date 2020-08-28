@@ -350,45 +350,12 @@ def list_(options):
     """
     List existing magic-folders.
     """
-    mf_info = yield magic_folder_list(options.parent.config, options["include-secret-information"])
-    mf_info = mf_info["folders"]
-    if options["json"]:
-        print(json.dumps(mf_info, indent=4), file=options.stdout)
-        return
-    _list_human(mf_info, options.stdout, options["include-secret-information"])
-    return
-
-
-def _list_human(info, stdout, include_secrets):
-    """
-    List our magic-folders for a human user.
-    """
-    if include_secrets:
-        template = (
-            "    location: {magic_path}\n"
-            "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} (private_key: {author[signing_key]})\n"
-            "  collective: {collective_dircap}\n"
-            "    personal: {upload_dircap}\n"
-            "     updates: every {poll_interval}s\n"
-            "       admin: {is_admin}\n"
-        )
-    else:
-        template = (
-            "    location: {magic_path}\n"
-            "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} (public_key: {author[verify_key]})\n"
-            "     updates: every {poll_interval}s\n"
-            "       admin: {is_admin}\n"
-        )
-
-    if info:
-        print("Configured magic-folders:", file=stdout)
-        for details in info:
-            print("{}:".format(details["name"]), file=stdout)
-            print(template.format(**details).rstrip("\n"), file=stdout)
-    else:
-        print("No magic-folders", file=stdout)
+    yield magic_folder_list(
+        options.parent.config,
+        options.stdout,
+        options["json"],
+        options["include-secret-information"],
+    )
 
 
 class InviteOptions(usage.Options):

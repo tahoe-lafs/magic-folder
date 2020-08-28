@@ -5,6 +5,8 @@
 Implements ```magic-folder list``` command.
 """
 
+import json
+
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -16,11 +18,15 @@ from .client import (
 
 
 @inlineCallbacks
-def magic_folder_list(config, include_secret_information=False):
+def magic_folder_list(config, output, as_json=False, include_secret_information=False):
     """
     List folders associated with a node.
 
     :param GlobalConfigDatabase config: our configuration
+
+    :param output: a file-like object to which the output will be written
+
+    :param bool as_json: return answer in JSON
 
     :param bool include_secret_information: include sensitive private
         information (such as long-term keys) if True (default: False).
@@ -30,5 +36,43 @@ def magic_folder_list(config, include_secret_information=False):
     from twisted.internet import reactor
 
     client = create_magic_folder_client(reactor, config)
-    result = yield client.list_folders(include_secret_information)
-    returnValue(result)
+
+    mf_info = yield client.list_folders(include_secret_information)
+    mf_info = mf_info["folders"]
+
+    if as_json:
+        output.write(u"{}\n".format(json.dumps(mf_info, indent=4)))
+        return
+    _list_human(mf_info, output, include_secret_information)
+
+
+def _list_human(info, output, include_secrets):
+    """
+    List our magic-folders for a human user.
+    """
+    if include_secrets:
+        template = (
+            u"    location: {magic_path}\n"
+            u"   stash-dir: {stash_path}\n"
+            u"      author: {author[name]} (private_key: {author[signing_key]})\n"
+            u"  collective: {collective_dircap}\n"
+            u"    personal: {upload_dircap}\n"
+            u"     updates: every {poll_interval}s\n"
+            u"       admin: {is_admin}\n"
+        )
+    else:
+        template = (
+            u"    location: {magic_path}\n"
+            u"   stash-dir: {stash_path}\n"
+            u"      author: {author[name]} (public_key: {author[verify_key]})\n"
+            u"     updates: every {poll_interval}s\n"
+            u"       admin: {is_admin}\n"
+        )
+
+    if info:
+        output.write(u"Configured magic-folders:\n")
+        for details in info:
+            output.write(u"{}:\n".format(details["name"]))
+            output.write(template.format(**details))
+    else:
+        output.write("No magic-folders")
