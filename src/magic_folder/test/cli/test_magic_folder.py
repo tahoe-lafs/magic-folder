@@ -1,5 +1,8 @@
 import json
 import os.path
+from io import (
+    StringIO,
+)
 
 from testtools import (
     ExpectedException,
@@ -32,10 +35,17 @@ from ...initialize import (
 )
 from ...config import (
     create_global_configuration,
+    create_testing_configuration,
     load_global_configuration,
 )
 from ...endpoints import (
     CannotConvertEndpointError,
+)
+from ...snapshot import (
+    create_local_author,
+)
+from ...list import (
+    magic_folder_list,
 )
 
 from ..common_util import (
@@ -71,7 +81,29 @@ class ListMagicFolder(AsyncTestCase):
         self.tempdir = self.client_fixture.tempdir
         self.node_directory = self.client_fixture.node_directory
         self.config_dir = FilePath(self.mktemp())
-        create_global_configuration(self.config_dir, u"tcp:4321", self.node_directory, u"tcp:localhost:4321")
+
+        # the Web APIs need a reference to a "global_service" .. which
+        # is cli.MagicFolderService (a MultiService in fact). It
+        # doesn't declare an interface, but only uses
+        # "get_folder_service(folder_name)" .. so we'll duck-type it
+        # instead
+
+        # inside create_testing_configuration, the GlobalService is
+        # hooked up to an in-process HTTP API root which is
+        # interrogated for information. So, we want to control which
+        # magic-folders it sees
+
+        self.magic_folders = {}
+
+        class GlobalService(object):
+            def get_folder_service(s, name):
+                return self.magic_folders[name]
+
+        self.config = create_testing_configuration(
+            self.config_dir,
+            self.node_directory,
+            GlobalService(),
+        )
 
     @defer.inlineCallbacks
     def test_list_none(self):
@@ -79,11 +111,12 @@ class ListMagicFolder(AsyncTestCase):
         When there are no Magic Folders at all, the output of the list command
         reports this.
         """
-        outcome = yield cli(
-            self.config_dir,
-            [b"list"],
+        output = StringIO()
+        yield magic_folder_list(self.config, output)
+        self.assertThat(
+            output.getvalue(),
+            Contains(u"No magic-folders")
         )
-        self.assertThat(outcome.stdout, Contains(u"No magic-folders"))
 
     @defer.inlineCallbacks
     def test_list_none_json(self):
@@ -91,11 +124,12 @@ class ListMagicFolder(AsyncTestCase):
         When there are no Magic Folders at all, the output of the list command
         reports this in JSON format if given ``--json``.
         """
-        outcome = yield cli(
-            self.config_dir,
-            [b"list", b"--json"],
+        output = StringIO()
+        yield magic_folder_list(self.config, output, as_json=True)
+        self.assertThat(
+            output.getvalue(),
+            AfterPreprocessing(json.loads, Equals({}))
         )
-        self.assertThat(outcome.stdout, AfterPreprocessing(json.loads, Equals({})))
 
     @defer.inlineCallbacks
     def test_list_some(self):
@@ -103,29 +137,23 @@ class ListMagicFolder(AsyncTestCase):
         When there are Magic Folders, the output of the list command describes
         them.
         """
-        # Get a magic folder.
-        folder_path = self.tempdir.child(u"magic-folder")
+        folder_path = FilePath(self.mktemp())
         folder_path.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
-                b"add",
-                b"--name", b"list-some-folder",
-                b"--author", b"alice",
-                folder_path.asBytesMode().path,
-            ],
-        )
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
+        mf_config = self.config.create_magic_folder(
+            u"list-some-folder",
+            folder_path,
+            folder_path.child(u".state"),
+            create_local_author(u"alice"),
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            1,
         )
 
-        outcome = yield cli(
-            self.config_dir,
-            [b"list"],
-        )
-        self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
-        self.expectThat(outcome.stdout, Contains(folder_path.path))
+        output = StringIO()
+        yield magic_folder_list(self.config, output)
+        self.expectThat(output.getvalue(), Contains(b"list-some-folder"))
+        self.expectThat(output.getvalue(), Contains(folder_path.path))
 
     @defer.inlineCallbacks
     def test_list_some_json(self):
@@ -133,35 +161,31 @@ class ListMagicFolder(AsyncTestCase):
         When there are Magic Folders, the output of the list command describes
         them in JSON format if given ``--json``.
         """
-        # Get a magic folder.
-        folder_path = self.tempdir.child(u"magic-folder")
+        folder_path = FilePath(self.mktemp())
         folder_path.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
-                b"add",
-                b"--author", b"test",
-                b"--name", b"list-some-json-folder",
-                folder_path.asBytesMode().path,
-            ],
+        mf_config = self.config.create_magic_folder(
+            u"list-some-json-folder",
+            folder_path,
+            folder_path.child(u".state"),
+            create_local_author(u"alice"),
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            1,
         )
-        self.assertThat(
-            outcome.succeeded(),
-            Equals(True),
-        )
-        outcome = yield cli(
-            self.config_dir,
-            [b"list", b"--json", b"--include-secret-information"],
-        )
+
+        output = StringIO()
+        yield magic_folder_list(self.config, output, as_json=True, include_secret_information=True)
+
         self.expectThat(
-            outcome.stdout,
+            output.getvalue(),
             AfterPreprocessing(
                 json.loads,
                 ContainsDict({
                     u"list-some-json-folder": ContainsDict({
                         u"magic_path": Equals(folder_path.path),
-                        u"poll_interval": Equals(60),
-                        u"is_admin": Equals(True),
+                        u"poll_interval": Equals(1),
+                        u"is_admin": Equals(False),
                         u"collective_dircap": Always(),
                         u"upload_dircap": Always(),
                     }),
