@@ -965,14 +965,14 @@ class RemoteSnapshotCreator(object):
 
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
-            self._upload_dircap,
-            magicpath.path2magic(name),
+            self._upload_dircap.encode("utf-8"),
+            name,
             remote_snapshot.capability.encode('utf-8'),
             replace=True,
         )
 
         # Remove the local snapshot content from the stash area.
-        snapshot.content_path.remove()
+        snapshot.content_path.asBytesMode("utf-8").remove()
 
         # Remove the LocalSnapshot from the db.
         yield self._config.delete_localsnapshot(name)
