@@ -5,12 +5,12 @@
 Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
-
 from __future__ import (
     absolute_import,
     print_function,
     division,
 )
+import json
 from hyperlink import (
     DecodedURL,
 )
@@ -35,6 +35,7 @@ from testtools.matchers import (
     Is,
     Always,
     Equals,
+    ContainsDict,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -42,6 +43,9 @@ from testtools.twistedsupport import (
 from ..magic_folder import (
     MagicFolder,
     LocalSnapshotService,
+)
+from ..magicpath import (
+    path2magic,
 )
 from ..config import (
     create_global_configuration,
@@ -219,6 +223,16 @@ class MagicFolderFromConfigTests(SyncTestCase):
             http_client,
         )
 
+        root._uri.data[upload_dircap] = json.dumps([
+            u"dirnode",
+            {u"children": {}},
+        ])
+
+        root._uri.data[collective_dircap] = json.dumps([
+            u"dirnode",
+            {u"children": {}},
+        ])
+
         basedir = FilePath(self.mktemp())
         global_config = create_global_configuration(
             basedir,
@@ -262,13 +276,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             Equals(True),
         )
 
-        # check if uploader service actually got the parameters that
-        # was passed
-        self.assertThat(
-            magic_folder.uploader_service._poll_interval,
-            Equals(poll_interval),
-        )
-
         self.assertThat(
             magic_folder.uploader_service._remote_snapshot_creator._local_author,
             Equals(author),
@@ -288,4 +295,24 @@ class MagicFolderFromConfigTests(SyncTestCase):
         self.assertThat(
             d,
             succeeded(Always()),
+        )
+
+        def children():
+            return json.loads(root._uri.data[upload_dircap])[1][u"children"]
+
+        reactor.advance(poll_interval - 1)
+
+        self.assertThat(
+            children(),
+            Equals({}),
+        )
+        
+        reactor.advance(1)
+
+        self.assertThat(
+            children(),
+            ContainsDict({path2magic(target_path.path): Always()}),
+            "Children dictionary {!r} did not contain expected path".format(
+                children,
+            ),
         )
