@@ -19,8 +19,6 @@ def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
     'magic-folder list' happy-path works
     """
 
-    print("-"*80)
-    print("create zelda")
     with start_action(action_type=u"integration:test_list:zelda", include_args=[], include_result=False):
         zelda = yield util.MagicFolderEnabledNode.create(
             reactor,
@@ -33,7 +31,6 @@ def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
             magic_folder_web_port="tcp:19982:interface=localhost",
             storage=True,
         )
-    print("zelda", zelda)
 
     proto = util._CollectOutputProtocol()
     util._magic_folder_runner(
@@ -44,8 +41,5 @@ def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
         ],
     )
     output = yield proto.done
-    print("-" * 80)
-    print(output)
-    print("-" * 80)
     assert output.strip() == "No magic-folders"
 
