@@ -52,7 +52,7 @@ The response is **OK** with an ``application/json`` **Content-Type**::
         , "identifier": "06be2d83-2d86-402d-ae2a-81b3779d72d9"
         , "parents":
 	  [ {"local": "30803885-ef3c-4645-85e6-6b1c9dfd50c3"}
-	  , {"remote": "URI:CHK:..."}
+	  , {"remote": "URI:..."}
 	  ]
         }
       ]
@@ -77,20 +77,28 @@ A local snapshot reference in this list is represented like this::
 
 The values for the ``local`` property can be resolved against the ``identifier`` described above.
 
-``GET /v1/snapshot/:folder-name``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In the future,
+this this may also contain remote snapshot references.
+A remote snapshot reference in this list is represented like this::
+
+  { "remote": "URI:..." }
+
+The value is a Tahoe-LAFS capability string for a stored object representing the snapshot.
+
+``GET /v1/snapshot/<folder-name>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Not yet implemented.
 Get all snapshots for one folder.
 
-``GET /v1/snapshot/:folder-name?path=:some-path``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``GET /v1/snapshot/<folder-name>?path=<some-path>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Not yet implemented.
 Get all snapshots for one folder beneath a certain path.
 
-``POST /v1/snapshot/:folder-name?path=:some-path``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``POST /v1/snapshot/<folder-name>?path=<some-path>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new snapshot for a certain file in a certain magic-folder.
 

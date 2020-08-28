@@ -37,6 +37,8 @@ from testtools.matchers import (
     Equals,
     MatchesDict,
     MatchesListwise,
+    ContainsDict,
+    IsInstance,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -52,6 +54,7 @@ from twisted.web.http import (
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
+    INTERNAL_SERVER_ERROR,
 )
 from twisted.internet.task import Clock
 from twisted.web.resource import (
@@ -273,6 +276,9 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
 
+    :param reactor: A reactor to give to the ``MagicFolderService`` which will
+        back the HTTP interface.
+
     :param FilePath basedir: A non-existant directory to create and populate
         with a new Magic Folder service configuration.
 
@@ -292,6 +298,8 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         # Make this endpoint string and the one below parse but make them
         # invalid, too, because we don't want anything to start listening on
         # these during this set of tests.
+        #
+        # https://github.com/LeastAuthority/magic-folder/issues/276
         u"tcp:-1",
         # It wants to know where the Tahoe-LAFS node directory is but we don't
         # have one and we don't want to invoke any functionality that requires
@@ -464,7 +472,14 @@ class CreateSnapshotTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
-            False,
+            # The interesting behavior of this test hinges on this flag.  We
+            # decline to start the folder services here.  Therefore, no local
+            # snapshots will ever be created.  This lets us observe the
+            # request in a state where it is waiting to receive its response.
+            # This demonstrates that the response is not delivered before the
+            # local snapshot is created.  See test_create_snapshot for the
+            # alternative case.
+            start_folder_services=False,
         )
 
         self.assertThat(
@@ -477,6 +492,58 @@ class CreateSnapshotTests(SyncTestCase):
             has_no_result(),
         )
 
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+    )
+    def test_create_fails(self, author, folder_name, path_in_folder):
+        """
+        If a local snapshot cannot be created, a **POST** to
+        **/v1/snapshot/<folder-name>** receives a response with an HTTP error
+        code.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        # You may not create a snapshot of a directory.
+        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file.makedirs(ignoreExistingDirectory=True)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # This test carefully targets a failure mode that doesn't require
+            # the service to be running.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+            ),
+            succeeded(
+                matches_response(
+                    # Maybe this could be BAD_REQUEST instead, sometimes, if
+                    # the path argument was bogus somehow.
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            u"reason": IsInstance(unicode),
+                        }),
+                    ),
+                ),
+            ),
+        )
 
     @given(
         local_authors(),
@@ -502,7 +569,10 @@ class CreateSnapshotTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
-            True,
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
         )
         self.assertThat(
             authorized_request(
