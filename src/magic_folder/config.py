@@ -185,7 +185,7 @@ _magicfolder_config_schema = Schema([
         """
         CREATE TABLE remote_snapshots
         (
-            path          TEXT PRIMARY KEY, -- mangled name in UTF-8
+            name          TEXT PRIMARY KEY, -- mangled name in UTF-8
             snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
         )
         """,
@@ -862,29 +862,28 @@ class MagicFolderConfig(object):
                            (name,))
 
     @with_cursor
-    def store_remotesnapshot(self, cursor, path, remote_snapshot):
+    def store_remotesnapshot(self, cursor, name, remote_snapshot):
         """
-        Store or update the given remote snapshot cap for the given path.
+        Store or update the given remote snapshot cap for the given name.
 
-        :param unicode path: The relative path to a file in this magic folder
-            for which to store a new remote snapshot.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=path,
+            relpath=name,
         )
         with action:
             try:
                 cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
-                               (path, snapshot_cap))
+                               (name, snapshot_cap))
                 action.add_success_fields(insert_or_update=u"insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute("UPDATE remote_snapshots"
                                " SET snapshot_cap=?"
-                               " WHERE path=?",
-                               (snapshot_cap, path))
+                               " WHERE [name]=?",
+                               (snapshot_cap, name))
                 action.add_success_fields(insert_or_update=u"update")
 
     @with_cursor
@@ -893,10 +892,9 @@ class MagicFolderConfig(object):
         return the cap that represents the latest remote snapshot that
         the client has recorded in the db.
 
-        :param unicode name: The relative path to the file in this magic
-            folder for which to retrieve the leaf remote snapshot.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
-        :raise KeyError: If no snapshot exists for the given path.
+        :raise KeyError: If no snapshot exists for the given name.
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
@@ -905,7 +903,7 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
-                           " WHERE path=?",
+                           " WHERE [name]=?",
                            (name,))
             row = cursor.fetchone()
             if row:
