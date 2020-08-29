@@ -165,6 +165,10 @@ _magicfolder_config_schema = Schema([
             -- The index of this parent in the snapshot's ordered parent list.
             -- Offer marginal additional data integrity by requiring it to be
             -- 0 or greater.
+            --
+            -- It's possible parent order is irrelevant in which case we can
+            -- eventually drop this column and all the associated logic to
+            -- impose a particular order.
             [index]                 INTEGER CHECK ([index] >= 0) NOT NULL,
 
             -- If this parent is local only then its identifier is only
