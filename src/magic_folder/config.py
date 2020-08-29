@@ -172,6 +172,11 @@ _magicfolder_config_schema = Schema([
             -- database.  If it is not only local then its identifier is a
             -- capability refering to a remote snapshot which we may or may
             -- not have a local cache of.
+            --
+            -- Perhaps a better representation of this would involve two
+            -- tables (or two columns in this table?).  It will be slightly
+            -- easier to reason about once the implementation can actually
+            -- create snapshots with remote parents.
             [local_only]            BOOL NOT NULL,
 
             -- The actual parent identifier.  This is either a reference to
