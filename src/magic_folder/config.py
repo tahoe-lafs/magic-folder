@@ -133,7 +133,7 @@ _magicfolder_config_schema = Schema([
 
             -- The magicpath-mangled name of the file this snapshot is for,
             -- UTF-8-encoded.
-            [path]             TEXT,
+            [name]             TEXT,
 
             -- A local filesystem path where the content can be found.
             [content_path]     TEXT
@@ -405,7 +405,7 @@ def _get_snapshots(cursor, path):
         FROM
             [local_snapshots]
         WHERE
-            path = ?
+            [name] = ?
         """,
         (path,),
     )
@@ -435,7 +435,7 @@ def _get_metadata(cursor, path):
         WHERE
             [metadata].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[path] = ?
+            [local_snapshots].[name] = ?
         """,
         (path,),
     )
@@ -472,7 +472,7 @@ def _get_parents(cursor, path):
         WHERE
             [parents].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[path] = ?
+            [local_snapshots].[name] = ?
         """,
         (path,),
     )
@@ -755,7 +755,7 @@ class MagicFolderConfig(object):
             cursor.execute(
                 """
                 INSERT INTO
-                    [local_snapshots] ([identifier], [path], [content_path])
+                    [local_snapshots] ([identifier], [name], [content_path])
                 VALUES
                     (?, ?, ?)
                 """,
@@ -841,7 +841,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [path] FROM [local_snapshots]")
+        cursor.execute("SELECT [name] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -856,8 +856,8 @@ class MagicFolderConfig(object):
             relpath=path,
         )
         with action:
-            cursor.execute("DELETE FROM local_snapshots"
-                           " WHERE path=?",
+            cursor.execute("DELETE FROM [local_snapshots]"
+                           " WHERE [name]=?",
                            (path,))
 
     @with_cursor
