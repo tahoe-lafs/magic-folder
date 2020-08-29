@@ -389,11 +389,11 @@ class SQLite3DatabaseLocation(object):
         return sqlite3.connect(self.location, *a, **kw)
 
 
-def _get_snapshots(cursor, path):
+def _get_snapshots(cursor, name):
     """
-    Load all of the snapshots associated with the given path.
+    Load all of the snapshots associated with the given name.
 
-    :param unicode path: The path.
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
     :return dict[unicode, unicode]: A mapping from unicode snapshot
         identifiers to unicode snapshot content path strings.
@@ -407,20 +407,20 @@ def _get_snapshots(cursor, path):
         WHERE
             [name] = ?
         """,
-        (path,),
+        (name,),
     )
     snapshots = cursor.fetchall()
     if len(snapshots) == 0:
-        raise KeyError(path)
+        raise KeyError(name)
     return dict(snapshots)
 
 
-def _get_metadata(cursor, path):
+def _get_metadata(cursor, name):
     """
     Load all of the metadata for all of the snapshots associated with the
-    given path.
+    given name.
 
-    :param unicode path: The path.
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
     :return dict[unicode, dict[unicode, unicode]]: A mapping from unicode
         snapshot identifiers to dicts of key/value metadata associated with
@@ -437,7 +437,7 @@ def _get_metadata(cursor, path):
         AND
             [local_snapshots].[name] = ?
         """,
-        (path,),
+        (name,),
     )
     metadata_rows = cursor.fetchall()
     metadata = {}
@@ -446,12 +446,12 @@ def _get_metadata(cursor, path):
     return metadata
 
 
-def _get_parents(cursor, path):
+def _get_parents(cursor, name):
     """
     Load all of the parent points for all of the snapshots associated with the
-    given path.
+    given name.
 
-    :param unicode path: The path.
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
     :return dict[unicode, [(int, bool, unicode)]]: A mapping from unicode
         snapshot identifiers to lists of associated parent pointer
@@ -474,7 +474,7 @@ def _get_parents(cursor, path):
         AND
             [local_snapshots].[name] = ?
         """,
-        (path,),
+        (name,),
     )
     parent_rows = cursor.fetchall()
     parents = {}
@@ -570,13 +570,13 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
-def _construct_local_snapshot(identifier, path, author, content_paths, metadata, parents):
+def _construct_local_snapshot(identifier, name, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
 
     :param unicode identifier: The identifier of the snapshot to instantiate.
 
-    :param unicode path: The path associated with the snapshot.
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
     :param LocalAuthor author: The author associated with the snapshot.
 
@@ -593,7 +593,7 @@ def _construct_local_snapshot(identifier, path, author, content_paths, metadata,
     """
     return LocalSnapshot(
         identifier=UUID(hex=identifier),
-        name=path,
+        name=name,
         author=author,
         content_path=FilePath(content_paths[identifier]),
         metadata=metadata.get(identifier, {}),
@@ -603,7 +603,7 @@ def _construct_local_snapshot(identifier, path, author, content_paths, metadata,
             parents,
             partial(
                 _construct_local_snapshot,
-                path=path,
+                name=name,
                 author=author,
                 content_paths=content_paths,
                 metadata=metadata,
@@ -721,13 +721,14 @@ class MagicFolderConfig(object):
         the given name and author. Traversing the parents
         would give the entire history of local snapshots.
 
-        :param unicode name: magicpath that represents the relative path of the file.
+        :param unicode name: The name of the snapshot to find.  See
+            ``LocalSnapshot.name``.
 
         :raise KeyError: If there is no matching snapshot for the given path.
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
-        # Read all the state for this path from the database.
+        # Read all the state for this name from the database.
         snapshots = _get_snapshots(cursor, name)
         metadata = _get_metadata(cursor, name)
         parents = _get_parents(cursor, name)
@@ -846,19 +847,19 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, path):
+    def delete_localsnapshot(self, cursor, name):
         """
-        remove the row corresponding to the given path from the local_snapshots table
+        remove the row corresponding to the given name from the local_snapshots table
 
-        :param unicode path: Unicode string that represents the relative path of the file.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
         """
         action = DELETE_SNAPSHOTS(
-            relpath=path,
+            relpath=name,
         )
         with action:
             cursor.execute("DELETE FROM [local_snapshots]"
                            " WHERE [name]=?",
-                           (path,))
+                           (name,))
 
     @with_cursor
     def store_remotesnapshot(self, cursor, path, remote_snapshot):
