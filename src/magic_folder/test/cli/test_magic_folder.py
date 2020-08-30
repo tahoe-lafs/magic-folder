@@ -151,7 +151,7 @@ class ListMagicFolder(AsyncTestCase):
 
         output = StringIO()
         yield magic_folder_list(self.config, output)
-        self.expectThat(output.getvalue(), Contains(b"list-some-folder"))
+        self.expectThat(output.getvalue(), Contains(u"list-some-folder"))
         self.expectThat(output.getvalue(), Contains(folder_path.path))
 
     @defer.inlineCallbacks
