@@ -687,6 +687,9 @@ class ITokenProvider(Interface):
     def get():
         """
         Retrieve the current token.
+
+        :returns: url-safe base64 encoded token (which decodes to
+            32-bytes of random binary data).
         """
 
     def rotate():
