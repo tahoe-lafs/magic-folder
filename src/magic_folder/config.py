@@ -712,8 +712,11 @@ class FilesystemTokenProvider(object):
         Retrieve the current token.
         """
         if self._api_token is None:
-            with self.api_token_path.open('rb') as f:
-                self._api_token = f.read()
+            try:
+                self._load_token()
+            except OSError:
+                self.rotate()
+                self._load_token()
         return self._api_token
 
     def rotate(self):
@@ -726,6 +729,13 @@ class FilesystemTokenProvider(object):
         with self.api_token_path.open('wb') as f:
             f.write(self._api_token)
         return self._api_token
+
+    def _load_token(self):
+        """
+        Internal helper. Reads the token file into _api_token
+        """
+        with self.api_token_path.open('rb') as f:
+            self._api_token = f.read()
 
 
 @attr.s
