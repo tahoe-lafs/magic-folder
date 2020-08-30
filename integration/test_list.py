@@ -7,6 +7,9 @@ from twisted.python.filepath import (
 
 import pytest_twisted
 
+from eliot.twisted import (
+    inline_callbacks,
+)
 from eliot import (
     start_action,
 )
@@ -15,7 +18,10 @@ import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
+# we need the eliot decorator too so that start_action works properly;
+# the pytest decorator actually only "marks" the function
 
+@inline_callbacks
 @pytest_twisted.inlineCallbacks
 def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
     """
