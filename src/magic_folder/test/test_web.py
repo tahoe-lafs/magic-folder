@@ -427,6 +427,7 @@ class ListMagicFolderTests(SyncTestCase):
             False,
         )
 
+        # note that treq_for_folders() will end up creating a configuration here
         config = load_global_configuration(basedir)
         expected_folders = {
             name: config.get_magic_folder(name)
