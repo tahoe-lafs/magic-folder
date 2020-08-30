@@ -334,8 +334,8 @@ class MagicFolderAPIv1(Resource, object):
             }
             if include_secret_information:
                 info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
-                info[u"collective_dircap"] = mf.collective_dircap.encode("ascii")
-                info[u"upload_dircap"] = mf.upload_dircap.encode("ascii")
+                info[u"collective_dircap"] = mf.collective_dircap
+                info[u"upload_dircap"] = mf.upload_dircap
             return info
 
         def all_folder_configs():
