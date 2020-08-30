@@ -17,7 +17,7 @@ from .client import (
 
 
 @inlineCallbacks
-def magic_folder_list(config, output, as_json=False, include_secret_information=False):
+def magic_folder_list(reactor, config, output, as_json=False, include_secret_information=False):
     """
     List folders associated with a node.
 
@@ -32,8 +32,6 @@ def magic_folder_list(config, output, as_json=False, include_secret_information=
 
     :return: JSON response from `GET /v1/magic-folder`.
     """
-    from twisted.internet import reactor
-
     client = create_magic_folder_client(reactor, config)
 
     mf_info = yield client.list_folders(include_secret_information)

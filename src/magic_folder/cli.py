@@ -347,7 +347,9 @@ def list_(options):
     """
     List existing magic-folders.
     """
+    from twisted.internet import reactor
     yield magic_folder_list(
+        reactor,
         options.parent.config,
         options.stdout,
         options["json"],

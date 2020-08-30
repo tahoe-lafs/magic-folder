@@ -111,7 +111,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this.
         """
         output = StringIO()
-        yield magic_folder_list(self.config, output)
+        yield magic_folder_list(reactor, self.config, output)
         self.assertThat(
             output.getvalue(),
             Contains(u"No magic-folders")
@@ -124,7 +124,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this in JSON format if given ``--json``.
         """
         output = StringIO()
-        yield magic_folder_list(self.config, output, as_json=True)
+        yield magic_folder_list(reactor, self.config, output, as_json=True)
         self.assertThat(
             output.getvalue(),
             AfterPreprocessing(json.loads, Equals({}))
@@ -150,7 +150,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         output = StringIO()
-        yield magic_folder_list(self.config, output)
+        yield magic_folder_list(reactor, self.config, output)
         self.expectThat(output.getvalue(), Contains(u"list-some-folder"))
         self.expectThat(output.getvalue(), Contains(folder_path.path))
 
@@ -174,7 +174,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         output = StringIO()
-        yield magic_folder_list(self.config, output, as_json=True, include_secret_information=True)
+        yield magic_folder_list(reactor, self.config, output, as_json=True, include_secret_information=True)
 
         self.expectThat(
             output.getvalue(),
