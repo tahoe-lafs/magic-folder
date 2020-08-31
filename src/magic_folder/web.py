@@ -2,6 +2,10 @@ import json
 
 import attr
 
+from nacl.encoding import (
+    Base32Encoder,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
@@ -313,17 +317,35 @@ class MagicFolderAPIv1(Resource, object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        _application_json(request)
-        def magic_folder_details():
+        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        _application_json(request)  # set reply headers
+
+        def get_folder_info(name, mf):
+            info = {
+                u"name": name,
+                u"author": {
+                    u"name": mf.author.name,
+                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                },
+                u"stash_path": mf.stash_path.path,
+                u"magic_path": mf.magic_path.path,
+                u"poll_interval": mf.poll_interval,
+                u"is_admin": mf.is_admin(),
+            }
+            if include_secret_information:
+                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+                info[u"collective_dircap"] = mf.collective_dircap
+                info[u"upload_dircap"] = mf.upload_dircap
+            return info
+
+        def all_folder_configs():
             for name in sorted(self._global_config.list_magic_folders()):
-                config = self._global_config.get_magic_folder(name)
-                yield {
-                    u"name": name,
-                    u"local-path": config.magic_path.path,
-                }
+                yield (name, self._global_config.get_magic_folder(name))
 
         return json.dumps({
-            u"folders": list(magic_folder_details()),
+            name: get_folder_info(name, config)
+            for name, config
+            in all_folder_configs()
         })
 
 

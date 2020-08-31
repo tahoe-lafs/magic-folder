@@ -63,7 +63,6 @@ def cli(config_directory, argv):
     try:
         try:
             options.parseOptions([
-                b"--debug",
                 b"--config",
                 config_directory.asBytesMode().path,
             ] + argv)

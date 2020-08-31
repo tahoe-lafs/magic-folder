@@ -28,16 +28,33 @@ the client should re-read the token from the filesystem to determine if the valu
 ``GET /v1/magic-folder``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-This endpoint returns a list of all individual magic-folders managed by this daemon.
+This endpoint returns a dict of all individual magic-folders managed
+by this daemon. The keys of the dict are the folder name and the
+values are themselves dicts.
+
+You may include the query argument ``?include_secret_information=1`` to
+include values for each folder which should be kept hidden (and are
+not shown by default). These are: ``upload_dircap``,
+``collective_dircap``, and the ``signing_key`` inside ``author``.
 
 The response code **OK** and the **Content-Type** is ``application/json``.
-The response body follows the form of this example::
+The response body follows the form of this example (containing a single
+magic-folder named "documents")::
 
-  { "folders":
-    [ { "name": "Alice's music", "local-path": "/home/alice/Music" }
-    , { "name": "Secret docs", "local-path": /home/alice/secrets" }
-    ]
-  }
+    {
+        "documents": {
+            "name": "documents",
+            "author": {
+                "name": "alice",
+                "verify_key": "OY7FCVPCOJXDNHQLSDTTJFONTROMQQED5Q6K33T3NBGGQHKLV73Q===="
+            },
+            "poll_interval": 60,
+            "is_admin": true,
+            "stash_path": "/home/alice/.config/magic-folder/documents",
+            "magic_path": "/home/alice/Documents"
+        }
+    }
+
 
 ``GET /v1/snapshot``
 ~~~~~~~~~~~~~~~~~~~~
