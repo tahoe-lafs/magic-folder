@@ -55,7 +55,7 @@ class ClientError(Exception):
     """
 
 
-class CannotAccessApiError(ClientError):
+class CannotAccessAPIError(ClientError):
     """
     The Magic Folder HTTP API can't be reached at all
     """
@@ -137,7 +137,7 @@ class MagicFolderClient(object):
             )
 
         except ConnectError:
-            raise CannotAccessApiError(
+            raise CannotAccessAPIError(
                 "Can't reach the magic folder daemon at all"
             )
 

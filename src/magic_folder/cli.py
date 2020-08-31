@@ -102,7 +102,7 @@ from .web import (
 )
 from .client import (
     create_http_client,
-    CannotAccessApiError,
+    CannotAccessAPIError,
 )
 
 from .invite import (
@@ -1090,7 +1090,7 @@ def run_magic_folder_options(options):
         try:
             yield maybeDeferred(f, so)
 
-        except CannotAccessApiError as e:
+        except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
             print(u"Error: {}".format(e), file=options.stderr)
             print(u"   Attempted access via {}".format(options.config.api_client_endpoint))
