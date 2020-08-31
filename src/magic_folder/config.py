@@ -825,7 +825,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.path),
+                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.asTextMode("utf-8").path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
