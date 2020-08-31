@@ -19,6 +19,9 @@ from zope.interface import (
 
 import attr
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     Equals,
     ContainsDict,
@@ -32,6 +35,9 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
+)
+from ..endpoints import (
+    CannotConvertEndpointError,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -137,6 +143,46 @@ class TestMigrate(SyncTestCase):
             list(config.list_magic_folders()),
             Equals([u"test-folder"]),
         )
+
+    def test_bad_listen_string(self):
+        """
+        Passing a completely invalid 'endpoint listen string' (not even a
+        string) is an error
+        """
+        with ExpectedException(CannotConvertEndpointError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                "1234",
+                self.node_dir.path,
+                u"alice",
+                None,
+            )
+
+    def test_invalid_listen_string(self):
+        """
+        Passing a non-string (bytes) for the listen-endpoint is an error
+        """
+        with ExpectedException(ValueError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                b"1234",  # only accepts unicode
+                self.node_dir.path,
+                u"alice",
+                b"invalid",
+            )
+
+    def test_bad_connect_string(self):
+        """
+        Passing an un-parsable connect-endpoint-string is an error
+        """
+        with ExpectedException(ValueError):
+            magic_folder_migrate(
+                self.temp.child("new_magic"),
+                u"tcp:1234",
+                self.node_dir.path,
+                u"alice",
+                "localhost:1234",
+            )
 
 
 class TestShowConfig(SyncTestCase):

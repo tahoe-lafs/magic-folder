@@ -197,7 +197,7 @@ def initialize(options):
 
     yield magic_folder_initialize(
         options.parent._config_path,
-        options['listen-endpoint'],
+        options['listen-endpoint'].decode("utf8"),
         FilePath(options['node-directory']),
         options['client-endpoint'],
     )
@@ -255,7 +255,7 @@ def migrate(options):
 
     config = yield magic_folder_migrate(
         options.parent._config_path,
-        options['listen-endpoint'],
+        options['listen-endpoint'].decode("utf8"),
         FilePath(options['node-directory']),
         options['author'],
         options['client-endpoint'],

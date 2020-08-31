@@ -62,6 +62,9 @@ from twisted.internet.endpoints import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.compat import (
+    nativeString,
+)
 
 from zope.interface import (
     implementer,
@@ -267,6 +270,21 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
 
     :returns: a GlobalConfigDatabase instance
     """
+
+    # our APIs insist on endpoint-strings being unicode, but Twisted
+    # only accepts "str" .. so we have to convert on py2. When we
+    # support python3 this check only needs to happen on py2
+    if not isinstance(api_endpoint_str, unicode):
+        raise ValueError(
+            "'api_endpoint_str' must be unicode"
+        )
+    if not isinstance(api_client_endpoint_str, unicode):
+        raise ValueError(
+            "'api_client_endpoint_str' must be unicode"
+        )
+    api_endpoint_str = nativeString(api_endpoint_str)
+    api_client_endpoint_str = nativeString(api_client_endpoint_str)
+
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
     basedir = basedir.asBytesMode("utf8")
@@ -309,6 +327,9 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
             basedir.child(b"api_token"),
         )
     )
+    # check that these are valid by setting them
+    config.api_endpoint = api_endpoint_str
+    config.api_client_endpoint = api_client_endpoint_str
     # make sure we have an API token
     config.rotate_api_token()
     return config

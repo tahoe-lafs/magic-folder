@@ -275,7 +275,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         # have one and we don't want to invoke any functionality that requires
         # one.  Give it something bogus.
         FilePath(u"/non-tahoe-directory"),
-        u"tcp:-1",
+        u"tcp:127.0.0.1:-1",
     )
     for name, config in folders.items():
         global_config.create_magic_folder(
