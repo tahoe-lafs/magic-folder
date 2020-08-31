@@ -589,7 +589,7 @@ class MagicFolderService(MultiService):
         if self.tahoe_client is None:
             self.tahoe_client = TahoeClient(
                 self.config.tahoe_client_url,
-                Agent(self.reactor),
+                HTTPClient(Agent(self.reactor)),
             )
         self._listen_endpoint = serverFromString(
             self.reactor,
@@ -787,11 +787,10 @@ class Node(object):
 @attr.s(frozen=True)
 class TahoeClient(object):
     node_uri = attr.ib()
-    agent = attr.ib()
+    treq = attr.ib()
 
     def get_welcome(self):
-        return self.agent.request(
-            b"GET",
+        return self.treq.get(
             self.node_uri.add(u"t", u"json").to_uri().to_text().encode("ascii"),
         )
 
@@ -810,8 +809,7 @@ class TahoeClient(object):
             api_uri=api_uri,
         )
         with action.context():
-            response = yield self.agent.request(
-                b"GET",
+            response = yield self.treq.get(
                 api_uri,
             )
             if response.code != 200:
@@ -847,8 +845,7 @@ class TahoeClient(object):
         ).to_uri().to_text().encode("ascii")
 
         with start_action(action_type=u"magic-folder:cli:download", uri=uri):
-            response = yield self.agent.request(
-                b"GET",
+            response = yield self.treq.get(
                 uri,
             )
             if response.code != 200:
@@ -873,8 +870,7 @@ class TahoeClient(object):
             size=size,
         )
         with action:
-            upload_response = yield self.agent.request(
-                b"PUT",
+            upload_response = yield self.treq.put(
                 uri,
                 bodyProducer=FileBodyProducer(BytesIO(contents)),
             )
@@ -904,8 +900,7 @@ class TahoeClient(object):
             uri=uri,
         )
         with action:
-            response = yield self.agent.request(
-                b"POST",
+            response = yield self.treq.post(
                 uri,
                 bodyProducer=FileBodyProducer(
                     BytesIO(
