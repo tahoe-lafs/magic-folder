@@ -106,22 +106,12 @@ from ..config import (
 )
 from ..client import (
     create_testing_http_client,
+    authorized_request,
+    url_to_bytes,
 )
 from .strategies import (
     local_authors,
 )
-
-def url_to_bytes(url):
-    """
-    Serialize a ``DecodedURL`` to an ASCII-only bytes string.  This result is
-    suitable for use as an HTTP request path
-
-    :param DecodedURL url: The URL to encode.
-
-    :return bytes: The encoded URL.
-    """
-    return url.to_uri().to_text().encode("ascii")
-
 
 # Pick any single API token value.  Any test suite that is not specifically
 # for authorization can use this because don't need Hypothesis to
@@ -251,32 +241,6 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def authorized_request(treq, auth_token, method, url):
-    """
-    Perform a request of the given url with the given client, request method,
-    and authorization.
-
-    :param treq: A ``treq``-module-alike.
-
-    :param unicode auth_token: The Magic Folder authorization token to
-        present.
-
-    :param bytes method: The HTTP request method to use.
-
-    :param bytes url: The request URL.
-
-    :return: Whatever ``treq.request`` returns.
-    """
-    headers = {
-        b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
-    }
-    return treq.request(
-        method,
-        url,
-        headers=headers,
-    )
-
-
 def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
@@ -363,7 +327,6 @@ class ListMagicFolderTests(SyncTestCase):
     ``V1MagicFolderAPI``.
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
-    encoded_url = url_to_bytes(url)
 
     def setUp(self):
         super(ListMagicFolderTests, self).setUp()
@@ -379,7 +342,7 @@ class ListMagicFolderTests(SyncTestCase):
         """
         treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, method, self.encoded_url),
+            authorized_request(treq, AUTH_TOKEN, method, self.url),
             succeeded(
                 matches_response(
                     code_matcher=MatchesAny(
@@ -435,7 +398,7 @@ class ListMagicFolderTests(SyncTestCase):
         }
 
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, b"GET", self.encoded_url),
+            authorized_request(treq, AUTH_TOKEN, b"GET", self.url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
@@ -510,7 +473,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+                self.url.child(folder_name).set(u"path", path_in_folder),
             ),
             has_no_result(),
         )
@@ -548,7 +511,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+                self.url.child(folder_name).set(u"path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -602,7 +565,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                url_to_bytes(self.url.child(folder_name).set(u"path", path_in_folder)),
+                self.url.child(folder_name).set(u"path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -616,7 +579,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
-                url_to_bytes(self.url),
+                self.url,
             ),
             succeeded(
                 matches_response(

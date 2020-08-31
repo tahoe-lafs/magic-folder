@@ -118,19 +118,24 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
         if include_secret_information:
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
-        return self._make_token_authenticated_request(api_url)
+        return self._authorized_request("GET", api_url)
+
 
     @inlineCallbacks
-    def _make_token_authenticated_request(self, url):
-        headers = {
-            b"Authorization": u"Bearer {}".format(self.get_api_token()).encode("ascii"),
-        }
+    def _authorized_request(self, method, url):
+        """
+        :param str method: GET, POST etc http verb
 
+        :param DecodedURL url: the url to request
+        """
         try:
-            response = yield self.http_client.get(
-                url.to_uri().to_text().encode('ascii'),
-                headers=headers,
+            response = yield authorized_request(
+                self.http_client,
+                self.get_api_token(),
+                method,
+                url,
             )
+
         except ConnectError:
             raise CannotAccessApiError(
                 "Can't reach the magic folder daemon at all"
@@ -218,4 +223,42 @@ def create_magic_folder_client(reactor, config, http_client):
     return MagicFolderClient(
         http_client=http_client,
         get_api_token=get_api_token,
+    )
+
+
+def url_to_bytes(url):
+    """
+    Serialize a ``DecodedURL`` to an ASCII-only bytes string.  This result is
+    suitable for use as an HTTP request path
+
+    :param DecodedURL url: The URL to encode.
+
+    :return bytes: The encoded URL.
+    """
+    return url.to_uri().to_text().encode("ascii")
+
+
+def authorized_request(http_client, auth_token, method, url):
+    """
+    Perform a request of the given url with the given client, request method,
+    and authorization.
+
+    :param http_client: A treq.HTTPClient instance
+
+    :param unicode auth_token: The Magic Folder authorization token to
+        present.
+
+    :param bytes method: The HTTP request method to use.
+
+    :param bytes url: The request URL.
+
+    :return: Whatever ``treq.request`` returns.
+    """
+    headers = {
+        b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+    }
+    return http_client.request(
+        method,
+        url_to_bytes(url),
+        headers=headers,
     )
