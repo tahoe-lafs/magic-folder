@@ -145,6 +145,10 @@ class TestMigrate(SyncTestCase):
         )
 
     def test_bad_listen_string(self):
+        """
+        Passing a completely invalid 'endpoint listen string' (not even a
+        string) is an error
+        """
         with ExpectedException(CannotConvertEndpointError):
             magic_folder_migrate(
                 self.temp.child("new_magic"),
@@ -156,7 +160,7 @@ class TestMigrate(SyncTestCase):
 
     def test_invalid_listen_string(self):
         """
-        Pass the wrong type of object for listen-string
+        Passing a non-string (bytes) for the listen-endpoint is an error
         """
         with ExpectedException(ValueError):
             magic_folder_migrate(
@@ -168,6 +172,9 @@ class TestMigrate(SyncTestCase):
             )
 
     def test_bad_connect_string(self):
+        """
+        Passing an un-parsable connect-endpoint-string is an error
+        """
         with ExpectedException(ValueError):
             magic_folder_migrate(
                 self.temp.child("new_magic"),
