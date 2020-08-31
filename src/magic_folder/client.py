@@ -7,12 +7,21 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
+from twisted.internet.endpoints import (
+    clientFromString,
+)
 from twisted.internet.error import (
     ConnectError,
 )
 
 from twisted.web import (
     http,
+)
+from twisted.web.client import (
+    Agent,
+)
+from twisted.web.iweb import (
+    IAgentEndpointFactory,
 )
 
 from hyperlink import (
@@ -22,8 +31,22 @@ from hyperlink import (
 from treq.client import (
     HTTPClient,
 )
+from treq.testing import (
+    RequestTraversalAgent,
+)
+from zope.interface import (
+    implementer,
+)
 
 import attr
+
+from .web import (
+    APIv1,
+    magic_folder_resource,
+)
+from .testing.web import (
+    _SynchronousProducer,
+)
 
 
 class ClientError(Exception):
@@ -118,7 +141,65 @@ class MagicFolderClient(object):
         returnValue(json.loads(body))
 
 
-def create_magic_folder_client(reactor, config):
+@implementer(IAgentEndpointFactory)
+@attr.s
+class _StaticEndpointFactory(object):
+    """
+    Return the same endpoint for every request. This is the endpoint
+    factory used by `create_http_client`.
+
+    :ivar endpoint: the endpoint returned for every request
+    """
+
+    endpoint = attr.ib()
+
+    def endpointForURI(self, uri):
+        return self.endpoint
+
+
+def create_http_client(reactor, api_client_endpoint_str):
+    """
+    :param reactor: Twisted reactor
+
+    :param unicode api_client_endpoint_str: a Twisted client endpoint-string
+
+    :returns: a Treq HTTPClient which will do all requests to the
+        indicated endpoint
+    """
+    return HTTPClient(
+        agent=Agent.usingEndpointFactory(
+            reactor,
+            _StaticEndpointFactory(
+                clientFromString(reactor, api_client_endpoint_str),
+            ),
+        ),
+    )
+
+
+# See https://github.com/LeastAuthority/magic-folder/issues/280
+# global_service should expect/demand an Interface
+def create_testing_http_client(reactor, config, global_service, get_api_token):
+    """
+    :param global_service: an object providing the API of the global
+        magic-folder service
+
+    :param callable get_api_token: a no-argument callable that returns
+        the current API token.
+
+    :returns: a Treq HTTPClient which will do all requests to
+        in-memory objects. These objects obtain their data from the
+        service provided
+    """
+    v1_resource = APIv1(config, global_service)
+    root = magic_folder_resource(get_api_token, v1_resource)
+    client = HTTPClient(
+        agent=RequestTraversalAgent(root),
+        data_to_body_producer=_SynchronousProducer,
+    )
+    return client
+
+
+def create_magic_folder_client(reactor, config, http_client):
     """
     Create a new MagicFolderClient instance that is speaking to the
     magic-folder defined by ``config``.
@@ -126,12 +207,15 @@ def create_magic_folder_client(reactor, config):
     :param GlobalConfigurationDatabase config: a Magic Folder global
         configuration
 
+    :param treq.HTTPClient http_client: the client used to make all
+        requests.
+
     :returns: a MagicFolderclient instance
     """
     def get_api_token():
         return config.api_token
 
     return MagicFolderClient(
-        http_client=config.create_http_client(reactor),
+        http_client=http_client,
         get_api_token=get_api_token,
     )

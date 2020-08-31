@@ -101,6 +101,7 @@ from .web import (
     magic_folder_web_service,
 )
 from .client import (
+    create_http_client,
     CannotAccessApiError,
 )
 
@@ -351,6 +352,7 @@ def list_(options):
     yield magic_folder_list(
         reactor,
         options.parent.config,
+        create_http_client(reactor, options.parent.config.api_client_endpoint),
         options.stdout,
         options["json"],
         options["include-secret-information"],

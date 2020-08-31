@@ -54,19 +54,6 @@ from twisted.internet.endpoints import (
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.web.client import (
-    Agent,
-)
-from twisted.web.iweb import (
-    IAgentEndpointFactory,
-)
-
-from treq.client import (
-    HTTPClient,
-)
-from treq.testing import (
-    RequestTraversalAgent,
-)
 
 from zope.interface import (
     implementer,
@@ -83,9 +70,6 @@ from .snapshot import (
 )
 from .common import (
     atomic_makedirs,
-)
-from .testing.web import (
-    _SynchronousProducer,
 )
 from ._schema import (
     SchemaUpgrade,
@@ -290,23 +274,6 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
         database=connection,
         token_provider=tokens,
     )
-
-    # to use the magic_folder_web_service() API, we need a
-    # listen-endpoint .. and then would need to "reach inside"
-    # anyway and pull out the root resource .. so we just make one
-    # ourselves.
-
-    def create_http_client(reactor):
-        # avoiding circular imports
-        from .web import APIv1, magic_folder_resource
-        v1_resource = APIv1(config, global_service)
-        root = magic_folder_resource(tokens.get, v1_resource)
-        client = HTTPClient(
-            agent=RequestTraversalAgent(root),
-            data_to_body_producer=_SynchronousProducer,
-        )
-        return client
-    config.create_http_client = create_http_client
 
     # make sure we have an API token
     config.rotate_api_token()
@@ -1015,33 +982,3 @@ class GlobalConfigDatabase(object):
                 )
 
         return mfc
-
-    def create_http_client(self, reactor):
-        """
-        :returns treq.HTTPClient: an HTTP client pointing at the
-            client-endpoint for this configuration.
-        """
-        return HTTPClient(
-            agent=Agent.usingEndpointFactory(
-                reactor,
-                _StaticEndpointFactory(
-                    clientFromString(reactor, self.api_client_endpoint),
-                ),
-            ),
-        )
-
-
-@implementer(IAgentEndpointFactory)
-@attr.s
-class _StaticEndpointFactory(object):
-    """
-    Return the same endpoint for every request. This is the endpoint
-    factory used by `create_http_client`.
-
-    :ivar endpoint: the endpoint returned for every request
-    """
-
-    endpoint = attr.ib()
-
-    def endpointForURI(self, uri):
-        return self.endpoint

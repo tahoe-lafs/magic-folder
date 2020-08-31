@@ -38,6 +38,9 @@ from ...config import (
     create_testing_configuration,
     load_global_configuration,
 )
+from ...client import (
+    create_testing_http_client,
+)
 from ...endpoints import (
     CannotConvertEndpointError,
 )
@@ -98,10 +101,18 @@ class ListMagicFolder(AsyncTestCase):
             def get_folder_service(s, name):
                 return self.magic_folders[name]
 
+        self.service = GlobalService()
+
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             self.node_directory,
-            GlobalService(),
+            self.service,
+        )
+        self.http_client = create_testing_http_client(
+            reactor,
+            self.config,
+            self.service,
+            lambda: self.config.api_token,
         )
 
     @defer.inlineCallbacks
@@ -111,7 +122,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this.
         """
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, output)
+        yield magic_folder_list(reactor, self.config, self.http_client, output)
         self.assertThat(
             output.getvalue(),
             Contains(u"No magic-folders")
@@ -124,7 +135,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this in JSON format if given ``--json``.
         """
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, output, as_json=True)
+        yield magic_folder_list(reactor, self.config, self.http_client, output, as_json=True)
         self.assertThat(
             output.getvalue(),
             AfterPreprocessing(json.loads, Equals({}))
@@ -150,7 +161,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, output)
+        yield magic_folder_list(reactor, self.config, self.http_client, output)
         self.expectThat(output.getvalue(), Contains(u"list-some-folder"))
         self.expectThat(output.getvalue(), Contains(folder_path.path))
 
@@ -174,7 +185,14 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, output, as_json=True, include_secret_information=True)
+        yield magic_folder_list(
+            reactor,
+            self.config,
+            self.http_client,
+            output,
+            as_json=True,
+            include_secret_information=True,
+        )
 
         self.expectThat(
             output.getvalue(),
