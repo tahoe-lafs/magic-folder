@@ -129,7 +129,7 @@ class TahoeClient(object):
 
     url = attr.ib(validator=attr.validators.instance_of(DecodedURL))
 
-    # treq should provider an interface but it doesn't ...  HTTPClient and
+    # treq should provide an interface but it doesn't ...  HTTPClient and
     # StubTreq are both the same kind of thing.  HTTPClient is the one that
     # does real networking, StubTreq is the one that operates in-memory on a
     # local resource object.
