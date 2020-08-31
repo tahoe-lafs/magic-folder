@@ -7,9 +7,6 @@ from six.moves import (
     StringIO as MixedIO,
 )
 import json
-from collections import (
-    defaultdict,
-)
 
 from appdirs import (
     user_config_dir,
@@ -32,9 +29,6 @@ from eliot.twisted import (
     DeferredContext,
 )
 
-from twisted.internet.interfaces import (
-    IStreamServerEndpoint,
-)
 from twisted.internet.endpoints import (
     serverFromString,
 )
@@ -557,23 +551,6 @@ def poll(label, operation, reactor):
 
 
 @attr.s
-@implementer(IStreamServerEndpoint)
-class RecordLocation(object):
-    """
-    An endpoint wrapper which supports an observer which gets called with the
-    address of the listening port whenever one is created.
-    """
-    _endpoint = attr.ib()
-    _recorder = attr.ib()
-
-    @inlineCallbacks
-    def listen(self, protocolFactory):
-        port = yield self._endpoint.listen(protocolFactory)
-        self._recorder(port.getHost())
-        returnValue(port)
-
-
-@attr.s
 class MagicFolderService(MultiService):
     """
     :ivar reactor: the Twisted reactor to use
@@ -630,19 +607,6 @@ class MagicFolderService(MultiService):
         for service in self:
             if isinstance(service, MagicFolder):
                 yield service
-
-    def _write_web_url(self, host):
-        """
-        Write a state file to the Tahoe-LAFS node directory containing a URL
-        pointing to our web server listening at the given address.
-
-        :param twisted.internet.address.IPv4Address host: The address where
-            our web server is listening.
-        """
-        self.config.write_config_file(
-            u"magic-folder.url",
-            "http://{}:{}/".format(host.host, host.port),
-        )
 
     def get_folder_service(self, folder_name):
         """
@@ -726,14 +690,6 @@ class MagicFolderService(MultiService):
         self._starting.cancel()
         MultiService.stopService(self)
         return self._starting
-
-
-@attr.s
-class FakeStats(object):
-    counters = attr.ib(default=attr.Factory(lambda: defaultdict(int)))
-
-    def count(self, ctr, delta):
-        pass
 
 
 @implementer(IDirectoryNode)
@@ -927,12 +883,6 @@ class TahoeClient(object):
                 ))
         returnValue(Node(self, from_string(filecap)))
 
-
-
-NODEDIR_HELP = (
-    "Specify which Tahoe node directory should be used. The "
-    "directory should contain a full Tahoe node."
-)
 
 
 class BaseOptions(usage.Options):
