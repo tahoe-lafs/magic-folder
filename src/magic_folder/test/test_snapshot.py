@@ -1,4 +1,5 @@
 import io
+import json
 from tempfile import mktemp
 
 from testtools.matchers import (
@@ -25,6 +26,8 @@ from hypothesis import (
 from hypothesis.strategies import (
     binary,
     text,
+    just,
+    one_of,
 )
 
 from hyperlink import (
@@ -60,6 +63,7 @@ from magic_folder.snapshot import (
     LocalSnapshot,
     UnknownPropertyError,
     MissingPropertyError,
+    format_filenode,
 )
 from magic_folder.tahoe_client import (
     create_tahoe_client,
@@ -541,3 +545,58 @@ class TestRemoteSnapshot(SyncTestCase):
                 parents_raw=Equals([]),
             )
         )
+
+    @given(
+        one_of(
+            just({}),
+            just({"snapshot_version": 2**31 - 1}),
+            just({"snapshot_version": "foo"}),
+        )
+    )
+    def test_snapshot_bad_metadata(self, raw_metadata):
+        """
+        Test error-handling cases when de-serializing a snapshot. If the
+        snapshot version is missing or wrong we should error.
+        """
+
+        # arbitrary (but valid) content-cap
+        contents = []
+        content_cap_d = self.tahoe_client.create_immutable(b"0" * 256)
+        content_cap_d.addCallback(contents.append)
+        self.assertThat(content_cap_d, succeeded(Always()))
+        content_cap = contents[0]
+
+        # invalid metadata cap (we use Hypothesis to give us two
+        # definitely-invalid versions)
+        metadata_caps = []
+
+        d = self.tahoe_client.create_immutable(json.dumps(raw_metadata))
+        d.addCallback(metadata_caps.append)
+        self.assertThat(d, succeeded(Always()))
+
+        # create a Snapshot using the wrong metadata
+        raw_snapshot_data = {
+            u"content": format_filenode(content_cap),
+            u"metadata": format_filenode(
+                metadata_caps[0], {
+                    u"magic_folder": {
+                        u"author_signature": u"not valid",
+                    },
+                },
+            ),
+        }
+
+        snapshot_cap = []
+        d = self.tahoe_client.create_immutable_directory(raw_snapshot_data)
+        d.addCallback(snapshot_cap.append)
+        self.assertThat(d, succeeded(Always()))
+
+        # now when we read back the snapshot with incorrect metadata,
+        # it should fail
+        snapshot_d = create_snapshot_from_capability(snapshot_cap[0], self.tahoe_client)
+
+        self.assertThat(snapshot_d, failed(
+            MatchesStructure(
+                value=AfterPreprocessing(str, Contains("snapshot_version")),
+            )
+        ))

@@ -29,10 +29,22 @@ from hyperlink import (
 )
 
 from functools import (
+    partial,
     wraps,
+)
+from itertools import (
+    chain,
+)
+
+from uuid import (
+    UUID,
 )
 
 import attr
+from attr.validators import (
+    provides,
+    instance_of,
+)
 
 import sqlite3
 
@@ -54,6 +66,11 @@ from twisted.python.compat import (
     nativeString,
 )
 
+from zope.interface import (
+    implementer,
+    Interface,
+)
+
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
 )
@@ -65,7 +82,6 @@ from .snapshot import (
 from .common import (
     atomic_makedirs,
 )
-
 from ._schema import (
     SchemaUpgrade,
     Schema,
@@ -121,16 +137,75 @@ _magicfolder_config_schema = Schema([
         )
         """,
         """
-        CREATE TABLE local_snapshots
+        CREATE TABLE [local_snapshots]
         (
-            path          TEXT PRIMARY KEY,  -- the (mangled) name in UTF8
-            snapshot_blob BLOB               -- a JSON blob representing the snapshot instance
+            -- A random, unique identifier for this particular snapshot.
+            [identifier]       TEXT PRIMARY KEY,
+
+            -- The magicpath-mangled name of the file this snapshot is for,
+            -- UTF-8-encoded.
+            [name]             TEXT,
+
+            -- A local filesystem path where the content can be found.
+            [content_path]     TEXT
+        )
+        """,
+        """
+        CREATE TABLE [local_snapshot_metadata]
+        (
+            -- The identifier of the snapshot which this metadata row belongs to.
+            [snapshot_identifier]   TEXT NOT NULL,
+
+            -- The metadata key for this row.
+            [key]                   TEXT NOT NULL,
+
+            -- The handy SQLite3 "BLOB" storage class allows us to store a
+            -- value of any supported type, even differing from row to row.
+            [value]                 BLOB NOT NULL,
+
+            -- The referenced local snapshot must exist.
+            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
+        )
+        """,
+        """
+        CREATE TABLE [local_snapshot_parent]
+        (
+            -- The identifier of the snapshot to which this parent belongs.
+            [snapshot_identifier]   TEXT NOT NULL,
+
+            -- The index of this parent in the snapshot's ordered parent list.
+            -- Offer marginal additional data integrity by requiring it to be
+            -- 0 or greater.
+            --
+            -- It's possible parent order is irrelevant in which case we can
+            -- eventually drop this column and all the associated logic to
+            -- impose a particular order.
+            [index]                 INTEGER CHECK ([index] >= 0) NOT NULL,
+
+            -- If this parent is local only then its identifier is only
+            -- meaningful for looking up local snapshots in our local
+            -- database.  If it is not only local then its identifier is a
+            -- capability refering to a remote snapshot which we may or may
+            -- not have a local cache of.
+            --
+            -- Perhaps a better representation of this would involve two
+            -- tables (or two columns in this table?).  It will be slightly
+            -- easier to reason about once the implementation can actually
+            -- create snapshots with remote parents.
+            [local_only]            BOOL NOT NULL,
+
+            -- The actual parent identifier.  This is either a reference to
+            -- [local_snapshot]([identifier]) or a Tahoe-LAFS cap.
+            [parent_identifier]     TEXT NOT NULL,
+
+            -- The referenced local snapshot must exist.
+            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
         )
         """,
         """
         CREATE TABLE remote_snapshots
         (
-            path          TEXT PRIMARY KEY, -- mangled name in UTF-8
+            name          TEXT PRIMARY KEY, -- mangled name in UTF-8
             snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
         )
         """,
@@ -167,6 +242,15 @@ STORE_OR_UPDATE_SNAPSHOTS = ActionType(
     [_INSERT_OR_UPDATE],
     u"Persist local snapshot object of a relative path in the magic-folder db.",
 )
+
+
+class LocalSnapshotCollision(Exception):
+    """
+    An attempt was made to insert a local snapshot into the database but the
+    snapshot's identifier was already associated with a snapshot in the
+    database.
+    """
+
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
                                 api_client_endpoint_str):
@@ -237,12 +321,57 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         )
 
     config = GlobalConfigDatabase(
+        basedir=basedir,
         database=connection,
-        api_token_path=basedir.child(b"api_token"),
+        token_provider=FilesystemTokenProvider(
+            basedir.child(b"api_token"),
+        )
     )
     # check that these are valid by setting them
     config.api_endpoint = api_endpoint_str
     config.api_client_endpoint = api_client_endpoint_str
+    # make sure we have an API token
+    config.rotate_api_token()
+    return config
+
+
+def create_testing_configuration(basedir, tahoe_node_directory, global_service):
+    """
+    Create a new global configuration that is in-memory and routes all
+    API requests through http_root_resource.
+
+    :param FilePath basedir: a directory where magic-folder state goes
+        (only used if a magic-folder is created)
+
+    :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
+        client uses.
+
+    :param global_service: an object providing get_folder_service(name)
+
+    :returns: a GlobalConfigDatabase instance
+    """
+    # set up the configuration database
+    connection = _upgraded(
+        _global_config_schema,
+        sqlite3.connect(":memory:"),
+    )
+    api_endpoint_str = "tcp:-1"
+    api_client_endpoint_str = "tcp:127.0.0.1:-1"
+    with connection:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+        )
+
+    tokens = MemoryTokenProvider()
+
+    config = GlobalConfigDatabase(
+        basedir=basedir,
+        database=connection,
+        token_provider=tokens,
+    )
+
     # make sure we have an API token
     config.rotate_api_token()
     return config
@@ -275,8 +404,11 @@ def load_global_configuration(basedir):
         sqlite3.connect(db_fname.path),
     )
     return GlobalConfigDatabase(
+        basedir=basedir,
         database=connection,
-        api_token_path=basedir.child("api_token"),
+        token_provider=FilesystemTokenProvider(
+            basedir.child("api_token"),
+        )
     )
 
 
@@ -315,6 +447,7 @@ def _upgraded(schema, connection):
         schema.run_upgrades(cursor)
     return connection
 
+
 @attr.s
 class SQLite3DatabaseLocation(object):
     """
@@ -341,6 +474,229 @@ class SQLite3DatabaseLocation(object):
         """
         return sqlite3.connect(self.location, *a, **kw)
 
+
+def _get_snapshots(cursor, name):
+    """
+    Load all of the snapshots associated with the given name.
+
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+    :return dict[unicode, unicode]: A mapping from unicode snapshot
+        identifiers to unicode snapshot content path strings.
+    """
+    cursor.execute(
+        """
+        SELECT
+            [identifier], [content_path]
+        FROM
+            [local_snapshots]
+        WHERE
+            [name] = ?
+        """,
+        (name,),
+    )
+    snapshots = cursor.fetchall()
+    if len(snapshots) == 0:
+        raise KeyError(name)
+    return dict(snapshots)
+
+
+def _get_metadata(cursor, name):
+    """
+    Load all of the metadata for all of the snapshots associated with the
+    given name.
+
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+    :return dict[unicode, dict[unicode, unicode]]: A mapping from unicode
+        snapshot identifiers to dicts of key/value metadata associated with
+        that snapshot.
+    """
+    cursor.execute(
+        """
+        SELECT
+            [snapshot_identifier], [key], [value]
+        FROM
+            [local_snapshot_metadata] AS [metadata], [local_snapshots]
+        WHERE
+            [metadata].[snapshot_identifier] = [local_snapshots].[identifier]
+        AND
+            [local_snapshots].[name] = ?
+        """,
+        (name,),
+    )
+    metadata_rows = cursor.fetchall()
+    metadata = {}
+    for (snapshot_identifier, key, value) in metadata_rows:
+        metadata.setdefault(snapshot_identifier, {})[key] = value
+    return metadata
+
+
+def _get_parents(cursor, name):
+    """
+    Load all of the parent points for all of the snapshots associated with the
+    given name.
+
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+    :return dict[unicode, [(int, bool, unicode)]]: A mapping from unicode
+        snapshot identifiers to lists of associated parent pointer
+        information.  Each list contains all of the associated snapshots
+        parents.  The first element of each tuple in the list gives the parent
+        index.  The second element is ``True`` if the parent is a local
+        snapshot and ``False`` if it is a remote snapshot.  The third element
+        is a unique identifier for that parent (either an opaque unicode
+        string for local snapshots or a Tahoe-LAFS capability string for
+        remote snapshots).
+    """
+    cursor.execute(
+        """
+        SELECT
+            [snapshot_identifier], [index], [local_only], [parent_identifier]
+        FROM
+            [local_snapshot_parent] AS [parents], [local_snapshots]
+        WHERE
+            [parents].[snapshot_identifier] = [local_snapshots].[identifier]
+        AND
+            [local_snapshots].[name] = ?
+        """,
+        (name,),
+    )
+    parent_rows = cursor.fetchall()
+    parents = {}
+    for (snapshot_identifier, index, local_only, parent_identifier) in parent_rows:
+        parents.setdefault(snapshot_identifier, []).append((
+            index,
+            local_only,
+            parent_identifier,
+        ))
+    for parent in parents.values():
+        parent.sort()
+
+    return parents
+
+
+def _find_leaf_snapshot(leaf_candidates, parents):
+    """
+    From a group of snapshots which are related to each other by parent/child
+    edges in a tree structure, find the single leaf snapshot (the snapshot
+    which is not the parent of any other snapshot).
+
+    :param set[unicode] leaf_candidates: The set of identifiers of snapshots
+        to consider.
+
+    :param dict[unicode, [(int, bool, unicode)]] parents: Information about
+        the parent/child relationships between the snapshots.  See
+        ``_get_parents`` for details.
+
+    :raise ValueError: If there is not exactly one leaf snapshot.
+
+    :return unicode: The identifier of the leaf snapshot.
+    """
+    to_discard = set()
+    for (ignored, local_only, parent_identifier) in chain.from_iterable(parents.values()):
+        if local_only:
+            # Allow a parent to be discarded more than once in case we have
+            # snapshots that share a parent.
+            to_discard.add(parent_identifier)
+
+    remaining = leaf_candidates - to_discard
+    if len(remaining) != 1:
+        raise ValueError(
+            "Database state inconsistent when loading local snapshot.  "
+            "Leaf candidates: {!r}".format(
+                remaining,
+            ),
+        )
+    [leaf_identifier] = remaining
+    return leaf_identifier
+
+
+def _get_remote_parents(identifier, parents):
+    """
+    Get the identifiers for remote parents for the given snapshot.
+
+    :param unicode identifier: The identifier of the snapshot about which to
+        retrieve information.
+
+    :param dict[unicode, [(int, bool, unicode)]] parents: Information about
+        the parent/child relationships between the snapshots.  See
+        ``_get_parents`` for details.
+
+    :return [unicode]: Identifiers for the remote parents of the identified
+        snapshot.
+    """
+    return list(
+        parent_identifier
+        for (ignored, only_local, parent_identifier)
+        in parents.get(identifier, [])
+        if not only_local
+    )
+
+
+def _get_local_parents(identifier, parents, construct_parent_snapshot):
+    """
+    Get the identifiers for local parents for the given snapshot.
+
+    :param unicode identifier: The identifier of the snapshot about which to
+        retrieve information.
+
+    :param dict[unicode, [(int, bool, unicode)]] parents: Information about
+        the parent/child relationships between the snapshots.  See
+        ``_get_parents`` for details.
+
+    :return [unicode]: Identifiers for the local parents of the identified
+        snapshot.
+    """
+    return list(
+        construct_parent_snapshot(parent_identifier)
+        for (ignored, only_local, parent_identifier)
+        in parents.get(identifier, [])
+        if only_local
+    )
+
+
+def _construct_local_snapshot(identifier, name, author, content_paths, metadata, parents):
+    """
+    Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
+
+    :param unicode identifier: The identifier of the snapshot to instantiate.
+
+    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+    :param LocalAuthor author: The author associated with the snapshot.
+
+    :param dict[unicode, unicode] content_paths: A mapping from snapshot
+        identifiers to the filesystem location of the content for that
+        snapshot.
+
+    :param metadata: See ``_get_metadata``.
+
+    :param parents: See ``_get_parents``.
+
+    :return LocalSnapshot: The requested snapshot, populated with information
+        from the given parameters, including fully initialized local parents.
+    """
+    return LocalSnapshot(
+        identifier=UUID(hex=identifier),
+        name=name,
+        author=author,
+        content_path=FilePath(content_paths[identifier]),
+        metadata=metadata.get(identifier, {}),
+        parents_remote=_get_remote_parents(identifier, parents),
+        parents_local=_get_local_parents(
+            identifier,
+            parents,
+            partial(
+                _construct_local_snapshot,
+                name=name,
+                author=author,
+                content_paths=content_paths,
+                metadata=metadata,
+                parents=parents,
+            ),
+        ),
+    )
 
 @attr.s
 class MagicFolderConfig(object):
@@ -451,19 +807,28 @@ class MagicFolderConfig(object):
         the given name and author. Traversing the parents
         would give the entire history of local snapshots.
 
-        :param unicode name: magicpath that represents the relative path of the file.
+        :param unicode name: The name of the snapshot to find.  See
+            ``LocalSnapshot.name``.
 
         :raise KeyError: If there is no matching snapshot for the given path.
 
         :returns: An instance of LocalSnapshot for the given magicpath.
         """
-        cursor.execute("SELECT snapshot_blob FROM local_snapshots"
-                       " WHERE path=?",
-                       (name,))
-        row = cursor.fetchone()
-        if row:
-            return LocalSnapshot.from_json(row[0], self.author)
-        raise KeyError(name)
+        # Read all the state for this name from the database.
+        snapshots = _get_snapshots(cursor, name)
+        metadata = _get_metadata(cursor, name)
+        parents = _get_parents(cursor, name)
+
+        # Turn it into the desired in-memory representation.
+        leaf_identifier = _find_leaf_snapshot(set(snapshots), parents)
+        return _construct_local_snapshot(
+            leaf_identifier,
+            name,
+            self.author,
+            snapshots,
+            metadata,
+            parents,
+        )
 
     @with_cursor
     def store_local_snapshot(self, cursor, snapshot):
@@ -472,31 +837,90 @@ class MagicFolderConfig(object):
 
         :param LocalSnapshot snapshot: The snapshot to store.
         """
-        # insert a new row or update an existing row with the new blob.
         try:
+            # Create the primary row.
             cursor.execute(
                 """
                 INSERT INTO
-                    [local_snapshots] ([path], [snapshot_blob])
+                    [local_snapshots] ([identifier], [name], [content_path])
                 VALUES
-                    (?, ?)
+                    (?, ?, ?)
                 """,
-                (snapshot.name, snapshot.to_json()),
+                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.path),
             )
         except sqlite3.IntegrityError:
-            # There is already a row with the given path.  Once we can depend
-            # on a newer SQLite3 we can use an UPSERT instead.  Meanwhile,
-            cursor.execute(
-                """
-                UPDATE
-                    [local_snapshots]
-                SET
-                    [snapshot_blob] = ?
-                WHERE
-                    [path] = ?
-                """,
-                (snapshot.to_json(), snapshot.name),
-            )
+            # The UNIQUE constraint on `identifier` failed - which *should*
+            # mean we already have a row representing this snapshot.
+            raise LocalSnapshotCollision(snapshot.identifier)
+
+        # Associate all of the metadata with it.
+        cursor.executemany(
+            """
+            INSERT INTO
+                [local_snapshot_metadata] ([snapshot_identifier], [key], [value])
+            VALUES
+                (?, ?, ?)
+            """,
+            list(
+                (unicode(snapshot.identifier), k, v)
+                for (k, v)
+                in snapshot.metadata.items()
+            ),
+        )
+        # Associate all of the parents with it.  First remote, then local.
+        #
+        # XXX What is the relative ordering of parents_local and
+        # parents_remote?  It's not preserved in `LocalSnapshot`.  Since local
+        # parents turn into remote parents I guess I'll put remote parents
+        # first here.  That way as local snapshots disappear they'll disappear
+        # from the middle and appear at the end of the remote snapshots list,
+        # also in the middle?
+        cursor.executemany(
+            """
+            INSERT INTO
+                [local_snapshot_parent] (
+                    [snapshot_identifier],
+                    [index],
+                    [local_only],
+                    [parent_identifier]
+                )
+            VALUES
+                (?, ?, 0, ?)
+            """,
+            list(
+                (unicode(snapshot.identifier), index, parent_identifier)
+                for (index, parent_identifier)
+                in enumerate(snapshot.parents_remote)
+            ),
+        )
+
+        # Create any implied local parents that don't exist already.
+        for local_parent in snapshot.parents_local:
+            try:
+                self.store_local_snapshot(local_parent)
+            except LocalSnapshotCollision:
+                # If it exists already, fine.
+                pass
+
+        # Now insert references to them.
+        cursor.executemany(
+            """
+            INSERT INTO
+                [local_snapshot_parent] (
+                    [snapshot_identifier],
+                    [index],
+                    [local_only],
+                    [parent_identifier]
+                )
+            VALUES
+                (?, ?, 1, ?)
+            """,
+            list(
+                (unicode(snapshot.identifier), index, unicode(parent.identifier))
+                for (index, parent)
+                in enumerate(snapshot.parents_local, len(snapshot.parents_remote))
+            ),
+        )
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
@@ -504,49 +928,48 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [path] FROM [local_snapshots]")
+        cursor.execute("SELECT [name] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, path):
+    def delete_localsnapshot(self, cursor, name):
         """
-        remove the row corresponding to the given path from the local_snapshots table
+        remove the row corresponding to the given name from the local_snapshots table
 
-        :param unicode path: Unicode string that represents the relative path of the file.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
         """
         action = DELETE_SNAPSHOTS(
-            relpath=path,
+            relpath=name,
         )
         with action:
-            cursor.execute("DELETE FROM local_snapshots"
-                           " WHERE path=?",
-                           (path,))
+            cursor.execute("DELETE FROM [local_snapshots]"
+                           " WHERE [name]=?",
+                           (name,))
 
     @with_cursor
-    def store_remotesnapshot(self, cursor, path, remote_snapshot):
+    def store_remotesnapshot(self, cursor, name, remote_snapshot):
         """
-        Store or update the given remote snapshot cap for the given path.
+        Store or update the given remote snapshot cap for the given name.
 
-        :param unicode path: The relative path to a file in this magic folder
-            for which to store a new remote snapshot.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=path,
+            relpath=name,
         )
         with action:
             try:
                 cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
-                               (path, snapshot_cap))
+                               (name, snapshot_cap))
                 action.add_success_fields(insert_or_update=u"insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute("UPDATE remote_snapshots"
                                " SET snapshot_cap=?"
-                               " WHERE path=?",
-                               (snapshot_cap, path))
+                               " WHERE [name]=?",
+                               (snapshot_cap, name))
                 action.add_success_fields(insert_or_update=u"update")
 
     @with_cursor
@@ -555,10 +978,9 @@ class MagicFolderConfig(object):
         return the cap that represents the latest remote snapshot that
         the client has recorded in the db.
 
-        :param unicode name: The relative path to the file in this magic
-            folder for which to retrieve the leaf remote snapshot.
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
 
-        :raise KeyError: If no snapshot exists for the given path.
+        :raise KeyError: If no snapshot exists for the given name.
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
@@ -567,7 +989,7 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
-                           " WHERE path=?",
+                           " WHERE [name]=?",
                            (name,))
             row = cursor.fetchone()
             if row:
@@ -611,28 +1033,49 @@ class MagicFolderConfig(object):
         return not collective_dmd.is_readonly()
 
 
+class ITokenProvider(Interface):
+    """
+    How the configuration retrieves and sets API access tokens.
+    """
+
+    def get():
+        """
+        Retrieve the current token.
+
+        :returns: url-safe base64 encoded token (which decodes to
+            32-bytes of random binary data).
+        """
+
+    def rotate():
+        """
+        Change the current token to a new random one.
+        """
+
+
 @attr.s
-class GlobalConfigDatabase(object):
+@implementer(ITokenProvider)
+class FilesystemTokenProvider(object):
     """
-    Low-level access to the global configuration database
+    Keep a token on the filesystem
     """
-    database = attr.ib()  # sqlite3 Connection; needs validator
-    api_token_path = attr.ib(validator=attr.validators.instance_of(FilePath))
+    api_token_path = attr.ib(validator=instance_of(FilePath))
     _api_token = attr.ib(default=None)
 
-    @property
-    def api_token(self):
+    def get(self):
         """
-        Current API token
+        Retrieve the current token.
         """
         if self._api_token is None:
-            with self.api_token_path.open('rb') as f:
-                self._api_token = f.read()
+            try:
+                self._load_token()
+            except OSError:
+                self.rotate()
+                self._load_token()
         return self._api_token
 
-    def rotate_api_token(self):
+    def rotate(self):
         """
-        Record a new random API token and then return it
+        Change the current token to a new random one.
         """
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
@@ -640,6 +1083,63 @@ class GlobalConfigDatabase(object):
         with self.api_token_path.open('wb') as f:
             f.write(self._api_token)
         return self._api_token
+
+    def _load_token(self):
+        """
+        Internal helper. Reads the token file into _api_token
+        """
+        with self.api_token_path.open('rb') as f:
+            self._api_token = f.read()
+
+
+@attr.s
+@implementer(ITokenProvider)
+class MemoryTokenProvider(object):
+    """
+    Keep an in-memory token.
+    """
+    _api_token = attr.ib(default=None)
+
+    def get(self):
+        """
+        Retrieve the current token.
+        """
+        if self._api_token is None:
+            self.rotate()
+        return self._api_token
+
+    def rotate(self):
+        """
+        Change the current token to a new random one.
+        """
+        # this goes directly into Web headers, so we use the same
+        # encoding as Tahoe uses.
+        self._api_token = urlsafe_b64encode(urandom(32))
+        return self._api_token
+
+
+@attr.s
+class GlobalConfigDatabase(object):
+    """
+    Low-level access to the global configuration database
+    """
+    # where magic-folder state goes
+    basedir = attr.ib(validator=instance_of(FilePath))
+    database = attr.ib(validator=instance_of(sqlite3.Connection))
+    _token_provider = attr.ib(validator=provides(ITokenProvider))
+
+    @property
+    def api_token(self):
+        """
+        Current API token
+        """
+        return self._token_provider.get()
+
+    def rotate_api_token(self):
+        """
+        Record a new random API token and then return it
+        """
+        return self._token_provider.rotate()
 
     @property
     @with_cursor
@@ -761,7 +1261,7 @@ class GlobalConfigDatabase(object):
             magic-folder. This directory will not exist and will be
             a sub-directory of the config location.
         """
-        return self.api_token_path.sibling(name)
+        return self.basedir.child(name)
 
     def remove_magic_folder(self, name):
         """

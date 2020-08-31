@@ -267,7 +267,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
            data())
-    def test_create_snapshots(self, filenames, data):
+    def test_create_snapshots(self, filenames, data_strategy):
         """
         Create a list of filenames and random content as input and for each
         of the (filename, content) mapping, create and store the snapshot in
@@ -276,7 +276,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         files = []
         for filename in filenames :
             file = self.magic.child(filename)
-            content = data.draw(binary())
+            content = data_strategy.draw(binary())
             file.asBytesMode("utf-8").setContent(content)
 
             files.append((file, content))

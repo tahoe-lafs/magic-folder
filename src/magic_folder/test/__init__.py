@@ -17,6 +17,7 @@ from sys import (
 
 from foolscap.logging.incident import IncidentQualifier
 
+
 class NonQualifier(IncidentQualifier, object):
     def check_event(self, ev):
         return False
@@ -49,6 +50,18 @@ def _configure_hypothesis():
     from hypothesis import (
         HealthCheck,
         settings,
+    )
+
+    # if you add more profiles here, note that profile names aren't
+    # namespaced in any way and Hypothesis allows profile name
+    # collisions to pass silently, then more or less randomly picks
+    # one definition to use when you try to activate the name. So
+    # please prefix any other profiles in here with "magic-folder-"
+    # for a somewhat lower chance of collision.
+
+    settings.register_profile(
+        "magic-folder-fast",
+        max_examples=1,
     )
 
     settings.register_profile(

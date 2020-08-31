@@ -3,17 +3,12 @@ from __future__ import unicode_literals
 
 import sys
 import getpass
-import traceback
 from six.moves import (
     StringIO as MixedIO,
 )
 import json
 from collections import (
     defaultdict,
-)
-
-from nacl.encoding import (
-    Base32Encoder,
 )
 
 from appdirs import (
@@ -105,9 +100,17 @@ from .magic_folder import (
 from .web import (
     magic_folder_web_service,
 )
+from .client import (
+    create_http_client,
+    CannotAccessAPIError,
+)
 
 from .invite import (
     magic_folder_invite
+)
+
+from .list import (
+    magic_folder_list
 )
 
 from .create import (
@@ -340,74 +343,20 @@ class ListOptions(usage.Options):
     ]
 
 
+@inlineCallbacks
 def list_(options):
     """
     List existing magic-folders.
     """
-    mf_info = _magic_folder_info(options)
-    if options["json"]:
-        print(json.dumps(mf_info, indent=4), file=options.stdout)
-        return
-    return _list_human(mf_info, options.stdout, options["include-secret-information"])
-
-
-def _magic_folder_info(options):
-    """
-    Get information about all magic-folders
-
-    :returns: JSON-able dict
-    """
-    info = dict()
-    config = options.parent.config
-    for name in config.list_magic_folders():
-        mf = config.get_magic_folder(name)
-        info[name] = {
-            u"author": {
-                u"name": mf.author.name,
-                u"verify_key": mf.author.verify_key.encode(Base32Encoder),
-            },
-            u"stash_path": mf.stash_path.path,
-            u"magic_path": mf.magic_path.path,
-            u"poll_interval": mf.poll_interval,
-            u"is_admin": mf.is_admin(),
-        }
-        if options['include-secret-information']:
-            info[name][u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
-            info[name][u"collective_dircap"] = mf.collective_dircap.encode("ascii")
-            info[name][u"upload_dircap"] = mf.upload_dircap.encode("ascii")
-    return info
-
-
-def _list_human(info, stdout, include_secrets):
-    """
-    List our magic-folders for a human user
-    """
-    if include_secrets:
-        template = (
-            "    location: {magic_path}\n"
-            "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} (private_key: {author[signing_key]})\n"
-            "  collective: {collective_dircap}\n"
-            "    personal: {upload_dircap}\n"
-            "     updates: every {poll_interval}s\n"
-            "       admin: {is_admin}\n"
-        )
-    else:
-        template = (
-            "    location: {magic_path}\n"
-            "   stash-dir: {stash_path}\n"
-            "      author: {author[name]} (public_key: {author[verify_key]})\n"
-            "     updates: every {poll_interval}s\n"
-            "       admin: {is_admin}\n"
-        )
-
-    if info:
-        print("This client has the following magic-folders:", file=stdout)
-        for name, details in info.items():
-            print("{}:".format(name), file=stdout)
-            print(template.format(**details).rstrip("\n"), file=stdout)
-    else:
-        print("No magic-folders", file=stdout)
+    from twisted.internet import reactor
+    yield magic_folder_list(
+        reactor,
+        options.parent.config,
+        create_http_client(reactor, options.parent.config.api_client_endpoint),
+        options.stdout,
+        options["json"],
+        options["include-secret-information"],
+    )
 
 
 class InviteOptions(usage.Options):
@@ -1131,13 +1080,25 @@ def run_magic_folder_options(options):
     so.stdout = options.stdout
     so.stderr = options.stderr
     f = subDispatch[options.subCommand]
-    try:
+
+    # we want to let exceptions out to the top level if --debug is on
+    # because this gives better stack-traces
+    if options['debug']:
         yield maybeDeferred(f, so)
-    except Exception as e:
-        print(u"Error: {}".format(e), file=options.stderr)
-        if options['debug']:
-            traceback.print_exc(file=options.stderr)
-        raise SystemExit(1)
+
+    else:
+        try:
+            yield maybeDeferred(f, so)
+
+        except CannotAccessAPIError as e:
+            # give user more information if we can't find the daemon at all
+            print(u"Error: {}".format(e), file=options.stderr)
+            print(u"   Attempted access via {}".format(options.config.api_client_endpoint))
+            raise SystemExit(1)
+
+        except Exception as e:
+            print(u"Error: {}".format(e), file=options.stderr)
+            raise SystemExit(1)
 
 
 def _entry():
