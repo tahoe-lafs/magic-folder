@@ -284,6 +284,9 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         )
     api_endpoint_str = nativeString(api_endpoint_str)
     api_client_endpoint_str = nativeString(api_client_endpoint_str)
+    # check that the endpoints are valid (will raise exception if not)
+    _validate_listen_endpoint_str(api_endpoint_str)
+    _validate_connect_endpoint_str(api_client_endpoint_str)
 
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
@@ -327,9 +330,6 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
             basedir.child(b"api_token"),
         )
     )
-    # check that these are valid by setting them
-    config.api_endpoint = api_endpoint_str
-    config.api_client_endpoint = api_client_endpoint_str
     # make sure we have an API token
     config.rotate_api_token()
     return config
@@ -1152,13 +1152,7 @@ class GlobalConfigDatabase(object):
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
-        # confirm we have a valid endpoint-string
-        from twisted.internet import reactor  # uhm...
-        # XXX so, having the reactor here sucks. But if we pass in an
-        # IStreamServerEndpoint instead, how can we turn that back
-        # into an endpoint-string?
-        serverFromString(reactor, ep_string)
-
+        _validate_listen_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
@@ -1174,13 +1168,7 @@ class GlobalConfigDatabase(object):
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
-        # confirm we have a valid endpoint-string
-        from twisted.internet import reactor  # uhm...
-        # XXX so, having the reactor here sucks. But if we pass in an
-        # IStreamClientEndpoint instead, how can we turn that back
-        # into an endpoint-string?
-        clientFromString(reactor, ep_string)
-
+        _validate_connect_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
@@ -1369,3 +1357,25 @@ class GlobalConfigDatabase(object):
                 )
 
         return mfc
+
+
+def _validate_listen_endpoint_str(ep_string):
+    """
+    confirm we have a valid endpoint-string
+    """
+    from twisted.internet import reactor  # uhm...
+    # XXX so, having the reactor here sucks. But if we pass in an
+    # IStreamServerEndpoint instead, how can we turn that back
+    # into an endpoint-string?
+    serverFromString(reactor, ep_string)
+
+
+def _validate_connect_endpoint_str(ep_string):
+    """
+    confirm we have a valid client-type endpoint-string
+    """
+    from twisted.internet import reactor  # uhm...
+    # XXX so, having the reactor here sucks. But if we pass in an
+    # IStreamClientEndpoint instead, how can we turn that back
+    # into an endpoint-string?
+    clientFromString(reactor, ep_string)
