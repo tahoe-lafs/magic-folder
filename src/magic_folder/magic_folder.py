@@ -296,18 +296,37 @@ class MagicFolder(service.MultiService):
 
         :param IReactorTime reactor: the reactor to use
 
-        :param TahoeClient tahoe_client: Access the API of the
-            Tahoe-LAFS client we're associated with.
+        :param magic_folder.cli.TahoeClient tahoe_client: Access the API of
+            the Tahoe-LAFS client we're associated with.
 
         :param GlobalConfigurationDatabase config: our configuration
         """
         mf_config = config.get_magic_folder(name)
 
-        from .cli import Node
+        from .cli import (
+            Node,
+            TahoeClient,
+        )
+        from .tahoe_client import (
+            TahoeClient as OtherTahoeClient,
+        )
+
+        if not isinstance(tahoe_client, TahoeClient):
+            raise TypeError(
+                "tahoe_client must be an instance of {}, received instance of {} instead.".format(
+                    TahoeClient, type(tahoe_client),
+                ),
+            )
 
         initial_participants = participants_from_collective(
             Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
             Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
+        )
+
+        # Make the *other* kind of TahoeClient ...
+        other_tahoe_client = OtherTahoeClient(
+            tahoe_client.node_uri,
+            tahoe_client.treq,
         )
 
         return cls(
@@ -328,7 +347,7 @@ class MagicFolder(service.MultiService):
                 remote_snapshot_creator=RemoteSnapshotCreator(
                     config=mf_config,
                     local_author=mf_config.author,
-                    tahoe_client=tahoe_client,
+                    tahoe_client=other_tahoe_client,
                     upload_dircap=mf_config.upload_dircap,
                 ),
             ),

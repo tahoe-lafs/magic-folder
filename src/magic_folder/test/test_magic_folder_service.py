@@ -50,9 +50,10 @@ from ..magicpath import (
 from ..config import (
     create_global_configuration,
 )
-from ..tahoe_client import (
+from ..cli import (
     TahoeClient,
 )
+
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,

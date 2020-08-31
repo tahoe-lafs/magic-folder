@@ -97,6 +97,7 @@ from ..snapshot import (
 )
 from ..cli import (
     MagicFolderService,
+    TahoeClient,
 )
 from ..web import (
     magic_folder_resource,
@@ -292,10 +293,10 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     global_service = MagicFolderService(
         reactor,
         global_config,
-        # Pass in *something* to override the default TahoeClient so that it
-        # doesn't try to look up a Tahoe-LAFS node URL in the non-existent
-        # directory we supplied above.
-        object(),
+        # Provide a TahoeClient so MagicFolderService doesn't try to look up a
+        # Tahoe-LAFS node URL in the non-existent directory we supplied above
+        # in its efforts to create one itself.
+        TahoeClient(DecodedURL.from_text(u""), StubTreq(Resource())),
     )
 
     if start_folder_services:
