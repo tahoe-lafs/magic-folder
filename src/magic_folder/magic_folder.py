@@ -795,7 +795,6 @@ class LocalSnapshotService(service.Service):
     deliver it to the snapshot creator.
     """
     _magic_path = attr.ib(
-        converter=lambda fp: fp.asBytesMode("utf-8"),
         validator=attr.validators.instance_of(FilePath),
     )
     _snapshot_creator = attr.ib()
@@ -816,7 +815,7 @@ class LocalSnapshotService(service.Service):
         while True:
             try:
                 (item, d) = yield self._queue.get()
-                with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
+                with PROCESS_FILE_QUEUE(relpath=item.path):
                     yield self._snapshot_creator.store_local_snapshot(item)
                     d.callback(None)
             except CancelledError:
@@ -851,16 +850,15 @@ class LocalSnapshotService(service.Service):
             raise TypeError(
                 "argument must be a FilePath"
             )
-        bytespath = path.asBytesMode("utf-8")
-        textpath = path.asTextMode("utf-8")
+        textpath = path.asTextMode()
 
         try:
-            bytespath.segmentsFrom(self._magic_path)
+            textpath.segmentsFrom(self._magic_path)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=textpath.path)
             raise ValueError(
                 "The path being added '{!r}' is not within '{!r}'".format(
-                    bytespath.path,
+                    textpath.path,
                     self._magic_path.path,
                 )
             )
@@ -868,14 +866,16 @@ class LocalSnapshotService(service.Service):
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if bytespath.isdir():
+        if path.isdir():
             raise ValueError(
-                "expected a regular file, {!r} is a directory".format(bytespath.path),
+                b"expected a regular file, {!r} is a directory".format(
+                    textpath.asBytesMode().path,
+                ).encode("ascii"),
             )
 
         # add file into the queue
         d = defer.Deferred()
-        self._queue.put((bytespath, d))
+        self._queue.put((textpath, d))
         return d
 
 

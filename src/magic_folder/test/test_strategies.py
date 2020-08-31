@@ -76,5 +76,5 @@ class StrategyTests(SyncTestCase):
         temp.makedirs()
 
         # Now ask the platform if this path is alright or not.
-        with temp.child(name).asBytesMode("utf-8").open("w"):
+        with temp.child(name).open("w"):
             pass

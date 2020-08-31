@@ -85,7 +85,7 @@ class MagicFolderServiceTests(SyncTestCase):
         """
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path = magic_path.preauthChild(relative_target_path)
         target_path.parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 

@@ -371,11 +371,7 @@ class ListMagicFolderTests(SyncTestCase):
             state for those folders resides.
         """
         for path_u in folders.values():
-            # Fix it so non-ASCII works reliably. :/ This is fine here but we
-            # leave the original as text mode because that works better with
-            # the config/database APIs.
-            path_b = path_u.asBytesMode("utf-8")
-            path_b.makedirs(ignoreExistingDirectory=True)
+            path_u.makedirs(ignoreExistingDirectory=True)
 
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
@@ -449,7 +445,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -493,7 +489,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         # You may not create a snapshot of a directory.
-        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file = local_path.preauthChild(path_in_folder)
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
@@ -546,7 +542,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 

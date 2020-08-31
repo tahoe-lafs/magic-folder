@@ -100,8 +100,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Start the service, add a file and check if the operation succeeded.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
-        to_add.asBytesMode("utf-8").setContent(content)
+        to_add.parent().makedirs(ignoreExistingDirectory=True)
+        to_add.setContent(content)
 
         self.snapshot_service.startService()
 
@@ -117,7 +117,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([to_add.asBytesMode("utf-8")]),
+            Equals([to_add.asBytesMode()]),
         )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
@@ -131,7 +131,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         for filename in filenames:
             to_add = self.magic_path.child(filename)
             content = data.draw(binary())
-            to_add.asBytesMode("utf-8").setContent(content)
+            to_add.setContent(content)
             files.append(to_add)
 
         self.snapshot_service.startService()
@@ -183,7 +183,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         to a directory.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.asBytesMode("utf-8").makedirs()
+        to_add.makedirs()
 
         self.assertThat(
             self.snapshot_service.add_file(to_add),
@@ -194,7 +194,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
                         Equals(ValueError),
                         Equals((
                             "expected a regular file, {!r} is a directory".format(
-                                to_add.asBytesMode("utf-8").path,
+                                to_add.asBytesMode().path,
                             ),
                         )),
                     ]),
@@ -277,7 +277,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         for filename in filenames :
             file = self.magic.child(filename)
             content = data_strategy.draw(binary())
-            file.asBytesMode("utf-8").setContent(content)
+            file.setContent(content)
 
             files.append((file, content))
 
@@ -305,7 +305,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         should refer to the existing snapshot as a parent.
         """
         foo = self.magic.child(filename)
-        foo.asBytesMode("utf-8").setContent(content1)
+        foo.setContent(content1)
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
@@ -317,7 +317,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.
-        foo.asBytesMode("utf-8").setContent(content2)
+        foo.setContent(content2)
 
         # make sure the second call succeeds as well
         self.assertThat(

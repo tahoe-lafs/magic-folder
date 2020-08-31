@@ -267,10 +267,6 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
 
     :returns: a GlobalConfigDatabase instance
     """
-    # note that we put *bytes* in .child() calls after this so we
-    # don't convert again..
-    basedir = basedir.asBytesMode("utf8")
-
     try:
         basedir.makedirs()
     except OSError as e:
@@ -279,18 +275,18 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         )
 
     # explain what is in this directory
-    with basedir.child(b"README").open("wb") as f:
+    with basedir.child(u"README").open("wb") as f:
         f.write(
             u"This is a Magic Folder daemon configuration\n"
             u"\n"
             u"To find out more you can run a command like:\n"
             u"\n"
             u"    magic-folder --config {} --help\n"
-            u"\n".format(basedir.asTextMode("utf8").path).encode("utf8")
+            u"\n".format(basedir.asTextMode().path).encode("utf8")
         )
 
     # set up the configuration database
-    db_fname = basedir.child(b"global.sqlite")
+    db_fname = basedir.child(u"global.sqlite")
     connection = _upgraded(
         _global_config_schema,
         sqlite3.connect(db_fname.path),
@@ -1316,11 +1312,11 @@ class GlobalConfigDatabase(object):
                 raise ValueError(
                     "Already have a magic-folder named '{}'".format(name)
                 )
-        if not magic_path.asBytesMode("utf-8").exists():
+        if not magic_path.exists():
             raise ValueError(
                 "'{}' does not exist".format(magic_path.path)
             )
-        if state_path.asBytesMode("utf-8").exists():
+        if state_path.exists():
             raise ValueError(
                 "'{}' already exists".format(state_path.path)
             )

@@ -90,12 +90,11 @@ def atomic_makedirs(path):
 
     :param FilePath path: the directory/ies to create
     """
-    path_b = path.asBytesMode("utf-8")
-    path_b.makedirs()
+    path.makedirs()
     try:
         yield path
     except Exception:
         # on error, clean up our directory
-        path_b.remove()
+        path.remove()
         # ...and pass on the error
         raise
