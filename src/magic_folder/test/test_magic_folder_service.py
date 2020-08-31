@@ -154,8 +154,8 @@ class MagicFolderServiceTests(SyncTestCase):
 
     def test_start_uploader_service(self):
         """
-        MagicFolder.uploader_service creates a new remote snapshot
-        when a file is added into the folder.
+        When the ``MagicFolder`` service is started the given uploader service is
+        also started.
         """
         magic_path = FilePath(self.mktemp())
         magic_path.asBytesMode("utf-8").makedirs()
@@ -209,11 +209,21 @@ class MagicFolderFromConfigTests(SyncTestCase):
         integers(min_value=1, max_value=10000),
         binary(),
     )
-    def test_uploader_service(self, name, file_path, relative_magic_path, relative_state_path, author, collective_dircap, upload_dircap, poll_interval, content):
+    def test_uploader_service(
+            self,
+            name,
+            file_path,
+            relative_magic_path,
+            relative_state_path,
+            author,
+            collective_dircap,
+            upload_dircap,
+            poll_interval,
+            content,
+    ):
         """
-        ``MagicFolder.from_config`` creates an ``UploaderService``
-        which will sometimes upload snapshots using the given Tahoe
-        client object.
+        ``MagicFolder.from_config`` creates an ``UploaderService`` which will
+        upload snapshots using the given Tahoe client object.
         """
         reactor = task.Clock()
 
