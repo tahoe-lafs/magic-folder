@@ -1363,10 +1363,10 @@ def _validate_listen_endpoint_str(ep_string):
     """
     confirm we have a valid endpoint-string
     """
-    from twisted.internet import reactor  # uhm...
-    # XXX so, having the reactor here sucks. But if we pass in an
-    # IStreamServerEndpoint instead, how can we turn that back
-    # into an endpoint-string?
+    from twisted.internet import reactor
+    # XXX so, having the reactor here sucks...but not a lot of options
+    # since serverFromString is the only way to validate an
+    # endpoint-string
     serverFromString(reactor, ep_string)
 
 
@@ -1374,8 +1374,8 @@ def _validate_connect_endpoint_str(ep_string):
     """
     confirm we have a valid client-type endpoint-string
     """
-    from twisted.internet import reactor  # uhm...
-    # XXX so, having the reactor here sucks. But if we pass in an
-    # IStreamClientEndpoint instead, how can we turn that back
-    # into an endpoint-string?
+    from twisted.internet import reactor
+    # XXX so, having the reactor here sucks...but not a lot of options
+    # since serverFromString is the only way to validate an
+    # endpoint-string
     clientFromString(reactor, ep_string)
