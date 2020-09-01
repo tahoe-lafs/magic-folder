@@ -62,7 +62,9 @@ def _set_filesystemencoding():
     encoding = sys.getfilesystemencoding()
     if encoding != "UTF-8":
         raise RuntimeError(
-            "Failed to change Python's filesystem encoding to UTF-8 from {!r}.".format(
+            "Failed to change Python's filesystem encoding (in {!r}) to UTF-8 "
+            "from {!r}.".format(
+                lib,
                 encoding,
             ),
         )
