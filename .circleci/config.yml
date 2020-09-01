@@ -177,7 +177,6 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       MAGIC_FOLDER_TOX_ENVIRONMENT: "pypy27-coverage"
-      ALLOWED_FAILURE: "yes"
 
 
   c-locale:
