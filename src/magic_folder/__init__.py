@@ -59,8 +59,13 @@ def _set_filesystemencoding():
     # Replace the platform value.
     lib.Py_FileSystemDefaultEncoding = _UTF8
 
-    if sys.getfilesystemencoding() != "UTF-8":
-        raise RuntimeError("Failed to change Python's filesystem encoding to UTF-8.")
+    encoding = sys.getfilesystemencoding()
+    if encoding != "UTF-8":
+        raise RuntimeError(
+            "Failed to change Python's filesystem encoding to UTF-8 from {!r}.".format(
+                encoding,
+            ),
+        )
 
 
 def _dlopen_libpython(ffi):
