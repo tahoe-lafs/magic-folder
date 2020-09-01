@@ -62,10 +62,12 @@ def _set_filesystemencoding():
             ),
         )
 
+    # sys.argv[0] == "" when the interpreter is run "interactively".
+    executable = sys.argv[0] or sys.executable
     os.environ["LANG"] = locale_name
+    print("Re-executing {!r} {!r}".format(executable, sys.argv))
     os.execv(
-        # sys.argv[0] == "" when the interpreter is run "interactively".
-        sys.argv[0] or sys.executable,
+        executable,
         sys.argv,
     )
 
