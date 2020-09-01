@@ -28,7 +28,6 @@ from hypothesis import (
 from hypothesis.strategies import (
     binary,
     just,
-    one_of,
     integers,
     sampled_from,
 )
@@ -67,8 +66,6 @@ from .strategies import (
     relative_paths,
     path_segments,
     local_authors,
-    tahoe_lafs_dir_capabilities,
-    tahoe_lafs_readonly_dir_capabilities,
     folder_names,
 )
 from .test_local_snapshot import (
