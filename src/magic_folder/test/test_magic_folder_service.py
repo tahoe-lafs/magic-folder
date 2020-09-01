@@ -30,6 +30,7 @@ from hypothesis.strategies import (
     just,
     one_of,
     integers,
+    sampled_from,
 )
 from testtools.matchers import (
     Is,
@@ -201,11 +202,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         path_segments(),
         relative_paths(),
         just(LOCAL_AUTHOR),
-        one_of(
-            tahoe_lafs_dir_capabilities(),
-            tahoe_lafs_readonly_dir_capabilities(),
-        ),
-        tahoe_lafs_dir_capabilities(),
+        sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
         binary(),
     )
@@ -216,8 +213,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             relative_magic_path,
             relative_state_path,
             author,
-            collective_dircap,
-            upload_dircap,
+            collective_cap_kind,
             poll_interval,
             content,
     ):
@@ -234,15 +230,21 @@ class MagicFolderFromConfigTests(SyncTestCase):
             http_client,
         )
 
-        root._uri.data[upload_dircap] = json.dumps([
-            u"dirnode",
-            {u"children": {}},
-        ])
+        ignored, upload_dircap = root.add_mutable_data(
+            b"URI:DIR2:",
+            json.dumps([
+                u"dirnode",
+                {u"children": {}},
+            ]),
+        )
 
-        root._uri.data[collective_dircap] = json.dumps([
-            u"dirnode",
-            {u"children": {}},
-        ])
+        ignored, collective_dircap = root.add_mutable_data(
+            collective_cap_kind,
+            json.dumps([
+                u"dirnode",
+                {u"children": {}},
+            ]),
+        )
 
         basedir = FilePath(self.mktemp())
         global_config = create_global_configuration(
