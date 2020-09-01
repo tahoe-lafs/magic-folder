@@ -44,21 +44,14 @@ def _set_filesystemencoding():
     # for the whole process lifetime.
     global _UTF8
 
-    from os.path import join
-    import sysconfig
     import cffi
-
 
     # Define the C ABI we want to interact with.
     ffi = cffi.FFI()
     ffi.cdef("extern char* Py_FileSystemDefaultEncoding;")
 
     # Locate and open the Python shared library.
-    libpython = join(
-        sysconfig.get_config_var("LIBDIR"),
-        sysconfig.get_config_var("LDLIBRARY"),
-    )
-    lib = ffi.dlopen(libpython)
+    lib = _dlopen_libpython(ffi)
 
     # Allocate our UTF-8 string and stash a reference to so it is kept alive.
     _UTF8 = ffi.new("char[]", "UTF-8")
@@ -68,5 +61,21 @@ def _set_filesystemencoding():
 
     if sys.getfilesystemencoding() != "UTF-8":
         raise RuntimeError("Failed to change Python's filesystem encoding to UTF-8.")
+
+
+def _dlopen_libpython(ffi):
+    import sysconfig
+    from os.path import join
+
+    soname = sysconfig.get_config_var("INSTSONAME")
+    libdir = sysconfig.get_config_var("LIBDIR")
+    ldlibrary = sysconfig.get_config_var("LDLIBRARY")
+    for name in [soname, ldlibrary, join(libdir, ldlibrary)]:
+        try:
+            return ffi.dlopen(name)
+        except OSError:
+            pass
+    raise RuntimeError("Failed to find Python shared library.")
+
 
 _set_filesystemencoding()
