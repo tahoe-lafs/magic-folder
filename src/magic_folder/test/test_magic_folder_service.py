@@ -5,11 +5,14 @@
 Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
-
 from __future__ import (
     absolute_import,
     print_function,
     division,
+)
+import json
+from hyperlink import (
+    DecodedURL,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -17,16 +20,22 @@ from twisted.python.filepath import (
 from twisted.application.service import (
     Service,
 )
+from twisted.internet import task
 from hypothesis import (
-    given
+    given,
+    find,
 )
 from hypothesis.strategies import (
     binary,
+    just,
+    integers,
+    sampled_from,
 )
 from testtools.matchers import (
     Is,
     Always,
     Equals,
+    ContainsDict,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -35,12 +44,29 @@ from ..magic_folder import (
     MagicFolder,
     LocalSnapshotService,
 )
+from ..magicpath import (
+    path2magic,
+)
+from ..config import (
+    create_global_configuration,
+)
+from ..cli import (
+    TahoeClient,
+)
+
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 
 from .common import (
     SyncTestCase,
 )
 from .strategies import (
     relative_paths,
+    path_segments,
+    local_authors,
+    folder_names,
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator,
@@ -66,6 +92,7 @@ class MagicFolderServiceTests(SyncTestCase):
             config=config,
             name=name,
             local_snapshot_service=local_snapshot_service,
+            uploader_service=Service(),
             initial_participants=participants,
             clock=reactor,
         )
@@ -84,16 +111,17 @@ class MagicFolderServiceTests(SyncTestCase):
         snapshot for a file in the folder.
         """
         magic_path = FilePath(self.mktemp())
-        magic_path.makedirs()
+        magic_path.asBytesMode("utf-8").makedirs()
+
         target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
-        target_path.parent().makedirs(ignoreExistingDirectory=True)
+        target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
-        snapshot_creator = MemorySnapshotCreator()
-        local_snapshot_service = LocalSnapshotService(magic_path, snapshot_creator)
+        local_snapshot_creator = MemorySnapshotCreator()
+        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
+        clock = object()
 
         tahoe_client = object()
-        reactor = object()
         name = u"local-snapshot-service-test"
         config = object()
         participants = object()
@@ -102,8 +130,9 @@ class MagicFolderServiceTests(SyncTestCase):
             config=config,
             name=name,
             local_snapshot_service=local_snapshot_service,
+            uploader_service=Service(),
             initial_participants=participants,
-            clock=reactor,
+            clock=clock,
         )
         magic_folder.startService()
         self.addCleanup(magic_folder.stopService)
@@ -117,6 +146,183 @@ class MagicFolderServiceTests(SyncTestCase):
         )
 
         self.assertThat(
-            snapshot_creator.processed,
+            local_snapshot_creator.processed,
             Equals([target_path]),
+        )
+
+    def test_start_uploader_service(self):
+        """
+        When the ``MagicFolder`` service is started the given uploader service is
+        also started.
+        """
+        magic_path = FilePath(self.mktemp())
+        magic_path.asBytesMode("utf-8").makedirs()
+
+        local_snapshot_creator = MemorySnapshotCreator()
+        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
+        clock = task.Clock()
+
+        # create RemoteSnapshotCreator and UploaderService
+        uploader_service = Service()
+
+        tahoe_client = object()
+        name = u"local-snapshot-service-test"
+        config = object()
+        participants = object()
+        magic_folder = MagicFolder(
+            client=tahoe_client,
+            config=config,
+            name=name,
+            local_snapshot_service=local_snapshot_service,
+            uploader_service=uploader_service,
+            initial_participants=participants,
+            clock=clock,
+        )
+        magic_folder.startService()
+        self.addCleanup(magic_folder.stopService)
+
+        self.assertThat(
+            uploader_service.running,
+            Equals(True),
+        )
+
+
+LOCAL_AUTHOR = find(local_authors(), lambda x: True)
+
+class MagicFolderFromConfigTests(SyncTestCase):
+    """
+    Tests for ``MagicFolder.from_config``.
+    """
+    @given(
+        folder_names(),
+        relative_paths(),
+        path_segments(),
+        relative_paths(),
+        just(LOCAL_AUTHOR),
+        sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
+        integers(min_value=1, max_value=10000),
+        binary(),
+    )
+    def test_uploader_service(
+            self,
+            name,
+            file_path,
+            relative_magic_path,
+            relative_state_path,
+            author,
+            collective_cap_kind,
+            poll_interval,
+            content,
+    ):
+        """
+        ``MagicFolder.from_config`` creates an ``UploaderService`` which will
+        upload snapshots using the given Tahoe client object.
+        """
+        reactor = task.Clock()
+
+        root = create_fake_tahoe_root()
+        http_client = create_tahoe_treq_client(root)
+        tahoe_client = TahoeClient(
+            DecodedURL.from_text(U"http://example.invalid./"),
+            http_client,
+        )
+
+        ignored, upload_dircap = root.add_mutable_data(
+            b"URI:DIR2:",
+            json.dumps([
+                u"dirnode",
+                {u"children": {}},
+            ]),
+        )
+
+        ignored, collective_dircap = root.add_mutable_data(
+            collective_cap_kind,
+            json.dumps([
+                u"dirnode",
+                {u"children": {}},
+            ]),
+        )
+
+        basedir = FilePath(self.mktemp())
+        global_config = create_global_configuration(
+            basedir,
+            u"tcp:-1",
+            FilePath(u"/non-tahoe-directory"),
+            u"tcp:-1",
+        )
+
+        magic_path = basedir.preauthChild(relative_magic_path)
+        magic_path.asBytesMode("utf-8").makedirs()
+
+        statedir = basedir.child(u"state")
+        state_path = statedir.asTextMode("utf-8").preauthChild(relative_state_path)
+
+        target_path = magic_path.asTextMode("utf-8").preauthChild(file_path)
+        target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
+        target_path.asBytesMode("utf-8").setContent(content)
+
+        global_config.create_magic_folder(
+            name,
+            magic_path,
+            state_path,
+            author,
+            collective_dircap,
+            upload_dircap,
+            poll_interval,
+        )
+
+        magic_folder = MagicFolder.from_config(
+            reactor,
+            tahoe_client,
+            name,
+            global_config,
+        )
+
+        magic_folder.startService()
+        self.addCleanup(magic_folder.stopService)
+
+        self.assertThat(
+            magic_folder.uploader_service.running,
+            Equals(True),
+        )
+
+        self.assertThat(
+            magic_folder.uploader_service._remote_snapshot_creator._local_author,
+            Equals(author),
+        )
+
+        self.assertThat(
+            magic_folder.folder_name,
+            Equals(name),
+        )
+
+        # add a file. This won't actually add a file until we advance
+        # the clock.
+        d = magic_folder.local_snapshot_service.add_file(
+            target_path,
+        )
+
+        self.assertThat(
+            d,
+            succeeded(Always()),
+        )
+
+        def children():
+            return json.loads(root._uri.data[upload_dircap])[1][u"children"]
+
+        reactor.advance(poll_interval - 1)
+
+        self.assertThat(
+            children(),
+            Equals({}),
+        )
+
+        reactor.advance(1)
+
+        self.assertThat(
+            children(),
+            ContainsDict({path2magic(target_path.path): Always()}),
+            "Children dictionary {!r} did not contain expected path".format(
+                children,
+            ),
         )

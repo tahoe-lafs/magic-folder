@@ -47,6 +47,9 @@ from ..snapshot import (
     create_local_author,
     create_snapshot,
 )
+from ..magicpath import (
+    path2magic,
+)
 from twisted.internet import task
 
 from .common import (
@@ -66,10 +69,6 @@ from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
 
-from ..magicpath import (
-    path2magic,
-)
-
 from allmydata.uri import (
     is_uri,
     from_string as uri_from_string,
@@ -84,11 +83,11 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     @given(
-        name=relative_paths(),
+        mangled_name=relative_paths().map(path2magic),
         content=binary(),
         upload_dircap=tahoe_lafs_dir_capabilities(),
     )
-    def test_commit_a_file(self, name, content, upload_dircap):
+    def test_commit_a_file(self, mangled_name, content, upload_dircap):
         """
         Add a file into localsnapshot store, start the service which
         should result in a remotesnapshot corresponding to the
@@ -99,7 +98,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             author=self.author,
             upload_dircap=upload_dircap,
         ))
-        state_db = f.state_db
+        config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
@@ -113,10 +112,10 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=name,
+            name=mangled_name,
             author=self.author,
             data_producer=data,
-            snapshot_stash_dir=state_db.stash_path,
+            snapshot_stash_dir=config.stash_path,
             parents=[],
         )
 
@@ -131,7 +130,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # push LocalSnapshot object into the SnapshotStore.
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
-        state_db.store_local_snapshot(snapshots[0])
+        config.store_local_snapshot(snapshots[0])
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
@@ -139,15 +138,15 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        remote_snapshot_cap = state_db.get_remotesnapshot(name)
+        remote_snapshot_cap = config.get_remotesnapshot(mangled_name)
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
             loads(f.root._uri.data[upload_dircap])[1][u"children"],
             Equals({
-                path2magic(name): [
+                mangled_name: [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap,
+                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
                         u"verify_uri": uri_from_string(
                             remote_snapshot_cap
                         ).get_verify_cap().to_string().decode("utf-8"),
@@ -166,8 +165,8 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                              "%r is not a Tahoe-LAFS URI"),
         )
 
-        with ExpectedException(KeyError, escape(repr(name))):
-            state_db.get_local_snapshot(name)
+        with ExpectedException(KeyError, escape(repr(mangled_name))):
+            config.get_local_snapshot(mangled_name)
 
     @given(
         path_segments(),
@@ -191,7 +190,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             root=broken_root,
             upload_dircap="URI:DIR2:foo:bar",
         ))
-        state_db = f.state_db
+        config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
         snapshots = []
@@ -202,7 +201,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 name=name,
                 author=self.author,
                 data_producer=data,
-                snapshot_stash_dir=state_db.stash_path,
+                snapshot_stash_dir=config.stash_path,
                 parents=parents,
             )
             d.addCallback(snapshots.append)
@@ -213,7 +212,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]
-        state_db.store_local_snapshot(snapshots[-1])
+        config.store_local_snapshot(snapshots[-1])
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
@@ -225,7 +224,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         self.assertEqual(
             local_snapshot,
-            state_db.get_local_snapshot(name),
+            config.get_local_snapshot(name),
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),

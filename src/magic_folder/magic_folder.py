@@ -50,6 +50,9 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+from .config import (
+    MagicFolderConfig,
+)
 
 if six.PY3:
     long = int
@@ -103,18 +106,37 @@ class MagicFolder(service.MultiService):
 
         :param IReactorTime reactor: the reactor to use
 
-        :param TahoeClient tahoe_client: Access the API of the
-            Tahoe-LAFS client we're associated with.
+        :param magic_folder.cli.TahoeClient tahoe_client: Access the API of
+            the Tahoe-LAFS client we're associated with.
 
         :param GlobalConfigurationDatabase config: our configuration
         """
         mf_config = config.get_magic_folder(name)
 
-        from .cli import Node
+        from .cli import (
+            Node,
+            TahoeClient,
+        )
+        from .tahoe_client import (
+            TahoeClient as OtherTahoeClient,
+        )
+
+        if not isinstance(tahoe_client, TahoeClient):
+            raise TypeError(
+                "tahoe_client must be an instance of {}, received instance of {} instead.".format(
+                    TahoeClient, type(tahoe_client),
+                ),
+            )
 
         initial_participants = participants_from_collective(
             Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
             Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
+        )
+
+        # Make the *other* kind of TahoeClient ...
+        other_tahoe_client = OtherTahoeClient(
+            tahoe_client.node_uri,
+            tahoe_client.treq,
         )
 
         return cls(
@@ -129,6 +151,16 @@ class MagicFolder(service.MultiService):
                     mf_config.stash_path,
                 ),
             ),
+            uploader_service=UploaderService.from_config(
+                clock=reactor,
+                config=mf_config,
+                remote_snapshot_creator=RemoteSnapshotCreator(
+                    config=mf_config,
+                    local_author=mf_config.author,
+                    tahoe_client=other_tahoe_client,
+                    upload_dircap=mf_config.upload_dircap,
+                ),
+            ),
             initial_participants=initial_participants,
             clock=reactor,
         )
@@ -138,14 +170,16 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
         self._config = config  # a MagicFolderConfig instance
         self._participants = initial_participants
         self.local_snapshot_service = local_snapshot_service
+        self.uploader_service = uploader_service
         local_snapshot_service.setServiceParent(self)
+        uploader_service.setServiceParent(self)
 
     def ready(self):
         """
@@ -562,10 +596,11 @@ class LocalSnapshotCreator(object):
     def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
+
         :param FilePath path: a single file inside our magic-folder dir
         """
 
-        with path.open('rb') as input_stream:
+        with path.asBytesMode("utf-8").open('rb') as input_stream:
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
@@ -583,14 +618,14 @@ class LocalSnapshotCreator(object):
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
 
-            relpath_u = path.asTextMode(encoding="utf-8").path
+            relpath_u = path.asTextMode("utf-8").path
             action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
             with action:
                 snapshot = yield create_snapshot(
                     name=mangled_name,
                     author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self._stash_dir,
+                    snapshot_stash_dir=self._stash_dir.asBytesMode("utf-8"),
                     parents=parents,
                 )
 
@@ -627,7 +662,7 @@ class LocalSnapshotService(service.Service):
             try:
                 (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.store_local_snapshot(item)
+                    yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
                     d.callback(None)
             except CancelledError:
                 break
@@ -706,7 +741,7 @@ class IRemoteSnapshotCreator(Interface):
 @implementer(IRemoteSnapshotCreator)
 @attr.s
 class RemoteSnapshotCreator(object):
-    _state_db = attr.ib()
+    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
@@ -719,7 +754,7 @@ class RemoteSnapshotCreator(object):
         """
 
         # get the mangled paths for the LocalSnapshot objects in the db
-        localsnapshot_names = self._state_db.get_all_localsnapshot_paths()
+        localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
@@ -744,7 +779,7 @@ class RemoteSnapshotCreator(object):
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._state_db.get_local_snapshot(name)
+        snapshot = self._config.get_local_snapshot(name)
 
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
@@ -755,21 +790,21 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._state_db.store_remotesnapshot(name, remote_snapshot)
+        yield self._config.store_remotesnapshot(name, remote_snapshot)
 
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
-            self._upload_dircap,
-            magicpath.path2magic(name),
+            self._upload_dircap.encode("utf-8"),
+            name,
             remote_snapshot.capability.encode('utf-8'),
             replace=True,
         )
 
         # Remove the local snapshot content from the stash area.
-        snapshot.content_path.remove()
+        snapshot.content_path.asBytesMode("utf-8").remove()
 
         # Remove the LocalSnapshot from the db.
-        yield self._state_db.delete_localsnapshot(name)
+        yield self._config.delete_localsnapshot(name)
 
 
 @implementer(service.IService)
@@ -780,11 +815,11 @@ class UploaderService(service.Service):
     """
 
     @classmethod
-    def from_config(cls, clock, name, config, remote_snapshot_creator):
+    def from_config(cls, clock, config, remote_snapshot_creator):
         """
         Create an UploaderService from the MagicFolder configuration.
         """
-        mf_config = config.get_magic_folder(name)
+        mf_config = config
         poll_interval = mf_config.poll_interval
         return cls(
             clock=clock,

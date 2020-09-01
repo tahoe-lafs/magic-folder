@@ -269,7 +269,7 @@ class LocalSnapshot(object):
             on-disc content. Raises an error if we already have a
             capability. Note that this data will have been stashed previously.
         """
-        return FileBodyProducer(self.content_path.open("rb"))
+        return FileBodyProducer(self.content_path.asBytesMode("utf-8").open("rb"))
 
     def to_json(self):
         """

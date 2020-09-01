@@ -846,7 +846,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.path),
+                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.asTextMode("utf-8").path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -1346,7 +1346,7 @@ class GlobalConfigDatabase(object):
                 "'{}' already exists".format(state_path.path)
             )
 
-        stash_path = state_path.child("stash")
+        stash_path = state_path.child(u"stash").asTextMode("utf-8")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
             mfc = MagicFolderConfig.initialize(
@@ -1365,7 +1365,7 @@ class GlobalConfigDatabase(object):
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
-                    (name, state_path.path)
+                    (name, state_path.asTextMode("utf-8").path)
                 )
 
         return mfc

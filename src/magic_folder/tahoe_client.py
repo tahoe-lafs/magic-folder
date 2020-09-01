@@ -20,6 +20,9 @@ from hyperlink import (
 from treq.client import (
     HTTPClient,
 )
+from treq.testing import (
+    StubTreq,
+)
 
 import attr
 
@@ -125,7 +128,14 @@ class TahoeClient(object):
     """
 
     url = attr.ib(validator=attr.validators.instance_of(DecodedURL))
-    http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+
+    # treq should provide an interface but it doesn't ...  HTTPClient and
+    # StubTreq are both the same kind of thing.  HTTPClient is the one that
+    # does real networking, StubTreq is the one that operates in-memory on a
+    # local resource object.
+    http_client = attr.ib(
+        validator=attr.validators.instance_of((HTTPClient, StubTreq)),
+    )
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
