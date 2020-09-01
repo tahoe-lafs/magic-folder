@@ -5,8 +5,6 @@ from __future__ import (
 from six.moves import (
     StringIO as MixedIO,
 )
-from allmydata.scripts import runner
-
 from twisted.python.usage import (
     UsageError,
 )
@@ -25,13 +23,6 @@ from ...cli import (
     MagicFolderCommand,
     run_magic_folder_options,
 )
-
-def parse_options(basedir, command, args):
-    o = runner.Options()
-    o.parseOptions(["--node-directory", basedir, command] + args)
-    while hasattr(o, "subOptions"):
-        o = o.subOptions
-    return o
 
 
 @attr.s

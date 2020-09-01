@@ -1,10 +1,6 @@
-import os
 import attr
 import six
 import sys
-import os.path
-from errno import EEXIST
-import ConfigParser
 
 from twisted.python.filepath import FilePath
 from twisted.python.monkey import MonkeyPatcher
@@ -32,11 +28,6 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.util import (
-    fileutil,
-    configutil,
-    yamlutil,
-)
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
 )
@@ -47,7 +38,6 @@ from .util.eliotutil import (
     log_call_deferred,
 )
 from allmydata.util import log
-from allmydata.util.encodingutil import to_filepath
 
 from . import (
     magicpath,
@@ -69,12 +59,6 @@ if six.PY3:
 _DEFAULT_DOWNLOAD_UMASK = 0o077
 
 IN_EXCL_UNLINK = long(0x04000000)
-
-
-class ConfigurationError(Exception):
-    """
-    There was something wrong with some magic-folder configuration.
-    """
 
 
 def _get_inotify_module():
@@ -103,180 +87,6 @@ def get_inotify_module():
     monkey = MonkeyPatcher()
     monkey.addPatch(runtime.platform, "isDocker", lambda: False)
     return monkey.runWithPatches(_get_inotify_module)
-
-
-def is_new_file(pathinfo, db_entry):
-    if db_entry is None:
-        return True
-
-    if not pathinfo.exists and db_entry.size is None:
-        return False
-
-    return ((pathinfo.size, pathinfo.ctime_ns, pathinfo.mtime_ns) !=
-            (db_entry.size, db_entry.ctime_ns, db_entry.mtime_ns))
-
-
-def load_magic_folders(node_directory):
-    """
-    Loads existing magic-folder configuration and returns it as a dict
-    mapping name -> dict of config. This will NOT upgrade from
-    old-style to new-style config (but WILL read old-style config and
-    return in the same way as if it was new-style).
-
-    :param node_directory: path where node data is stored
-    :returns: dict mapping magic-folder-name to its config (also a dict)
-    """
-    yaml_fname = os.path.join(node_directory, u"private", u"magic_folders.yaml")
-    folders = dict()
-
-    config_fname = os.path.join(node_directory, u"tahoe.cfg")
-    config = configutil.get_config(config_fname.encode("utf-8"))
-
-    if not os.path.exists(yaml_fname):
-        # there will still be a magic_folder section in a "new"
-        # config, but it won't have local.directory nor poll_interval
-        # in it.
-        if config.has_option("magic_folder", "local.directory"):
-            up_fname = os.path.join(node_directory, u"private", u"magic_folder_dircap")
-            coll_fname = os.path.join(node_directory, u"private", u"collective_dircap")
-            directory = config.get("magic_folder", "local.directory").decode('utf8')
-            try:
-                interval = int(config.get("magic_folder", "poll_interval"))
-            except ConfigParser.NoOptionError:
-                interval = 60
-
-            if config.has_option("magic_folder", "download.umask"):
-                umask = int(config.get("magic_folder", "download.umask"), 8)
-            else:
-                umask = _DEFAULT_DOWNLOAD_UMASK
-
-            folders[u"default"] = {
-                u"directory": directory,
-                u"upload_dircap": fileutil.read(up_fname),
-                u"collective_dircap": fileutil.read(coll_fname),
-                u"poll_interval": interval,
-                u"umask": umask,
-            }
-        else:
-            # without any YAML file AND no local.directory option it's
-            # an error if magic-folder is "enabled" because we don't
-            # actually have enough config for any magic-folders at all
-            if config.has_section("magic_folder") \
-               and config.getboolean("magic_folder", "enabled") \
-               and not folders:
-                raise Exception(
-                    "[magic_folder] is enabled but has no YAML file and no "
-                    "'local.directory' option."
-                )
-
-    elif os.path.exists(yaml_fname):  # yaml config-file exists
-        if config.has_option("magic_folder", "local.directory"):
-            raise Exception(
-                "magic-folder config has both old-style configuration"
-                " and new-style configuration; please remove the "
-                "'local.directory' key from tahoe.cfg or remove "
-                "'magic_folders.yaml' from {}".format(node_directory)
-            )
-        with open(yaml_fname, "r") as f:
-            magic_folders = yamlutil.safe_load(f.read())
-            if not isinstance(magic_folders, dict):
-                raise Exception(
-                    "'{}' should contain a dict".format(yaml_fname)
-                )
-
-            folders = magic_folders['magic-folders']
-            if not isinstance(folders, dict):
-                raise Exception(
-                    "'magic-folders' in '{}' should be a dict".format(yaml_fname)
-                )
-
-    # check configuration
-    folders = dict(
-        (name, fix_magic_folder_config(yaml_fname, name, config))
-        for (name, config)
-        in folders.items()
-    )
-    return folders
-
-
-def fix_magic_folder_config(yaml_fname, name, config):
-    """
-    Check the given folder configuration for validity.
-
-    If it refers to a local directory which does not exist, create that
-    directory with the configured permissions.
-
-    :param unicode yaml_fname: The configuration file from which the
-        configuration was read.
-
-    :param unicode name: The name of the magic-folder this particular
-        configuration blob is associated with.
-
-    :param config: The configuration for a single magic-folder.  This is
-        expected to be a ``dict`` with certain keys and values of certain
-        types but these properties will be checked.
-
-    :raise ConfigurationError: If the given configuration object does not
-        conform to some magic-folder configuration requirement.
-    """
-    if not isinstance(config, dict):
-        raise ConfigurationError(
-            "Each item in '{}' must itself be a dict".format(yaml_fname)
-        )
-
-    for k in ['collective_dircap', 'upload_dircap', 'directory', 'poll_interval']:
-        if k not in config:
-            raise ConfigurationError(
-                "Config for magic folder '{}' is missing '{}'".format(
-                    name, k
-                )
-            )
-
-    if not isinstance(
-        config.setdefault(u"umask", _DEFAULT_DOWNLOAD_UMASK),
-        int,
-    ):
-        raise Exception("magic-folder download umask must be an integer")
-
-    # make sure directory for magic folder exists
-    dir_fp = to_filepath(config['directory'])
-    umask = config.setdefault('umask', 0o077)
-
-    try:
-        os.mkdir(dir_fp.path, 0o777 & (~ umask))
-    except OSError as e:
-        if EEXIST != e.errno:
-            # Report some unknown problem.
-            raise ConfigurationError(
-                "magic-folder {} configured path {} could not be created: "
-                "{}".format(
-                    name,
-                    dir_fp.path,
-                    str(e),
-                ),
-            )
-        elif not dir_fp.isdir():
-            # Tell the user there's a collision.
-            raise ConfigurationError(
-                "magic-folder {} configured path {} exists and is not a "
-                "directory".format(
-                    name, dir_fp.path,
-                ),
-            )
-
-    result_config = config.copy()
-    for k in ['collective_dircap', 'upload_dircap']:
-        if isinstance(config[k], unicode):
-            result_config[k] = config[k].encode('ascii')
-    return result_config
-
-
-
-def save_magic_folders(node_directory, folders):
-    fileutil.write_atomically(
-        os.path.join(node_directory, u"private", u"magic_folders.yaml"),
-        yamlutil.safe_dump({u"magic-folders": folders}),
-    )
 
 
 class MagicFolder(service.MultiService):
