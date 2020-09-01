@@ -71,7 +71,7 @@ from .strategies import (
     folder_names,
 )
 from .test_local_snapshot import (
-    MemorySnapshotCreator as LocalMemorySnapshotCreator,
+    MemorySnapshotCreator,
 )
 
 class MagicFolderServiceTests(SyncTestCase):
@@ -119,7 +119,7 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
-        local_snapshot_creator = LocalMemorySnapshotCreator()
+        local_snapshot_creator = MemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
         clock = object()
 
@@ -160,7 +160,7 @@ class MagicFolderServiceTests(SyncTestCase):
         magic_path = FilePath(self.mktemp())
         magic_path.asBytesMode("utf-8").makedirs()
 
-        local_snapshot_creator = LocalMemorySnapshotCreator()
+        local_snapshot_creator = MemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
         clock = task.Clock()
 
