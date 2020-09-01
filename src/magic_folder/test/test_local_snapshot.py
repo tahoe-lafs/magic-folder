@@ -117,11 +117,13 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([to_add.asBytesMode()]),
+            Equals([to_add]),
         )
 
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
-           data())
+    @given(
+        lists(path_segments(), unique=True),
+        data(),
+    )
     def test_add_multiple_files(self, filenames, data):
         """
         Add a bunch of files one by one and check whether the operation is
