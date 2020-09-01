@@ -49,8 +49,11 @@ def _set_filesystemencoding():
     if sys.getfilesystemencoding() == "UTF-8":
         return
 
+    locale_name = "C.UTF-8"
+
     import os
-    if os.environ["LANG"] == "en_US.UTF-8":
+    if os.environ.get("LANG") == locale_name:
+        # Our trick doesn't work.  Avoid going into an infinite execv loop.
         raise RuntimeError(
             "Found filesystem encoding {!r} but LANG={!r} "
             "so I don't know how to fix it.".format(
@@ -59,7 +62,7 @@ def _set_filesystemencoding():
             ),
         )
 
-    os.environ["LANG"] = "en_US.UTF-8"
+    os.environ["LANG"] = locale_name
     os.execv(
         # sys.argv[0] == "" when the interpreter is run "interactively".
         sys.argv[0] or sys.executable,
