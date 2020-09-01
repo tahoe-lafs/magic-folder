@@ -38,6 +38,12 @@ install_requires = [
 
     "importlib_metadata",
 
+    # We use this to "fix" sys.getfilesystemencoding().  This is also an
+    # indirect requirement through python-cryptography so we're not making our
+    # dependency list any heavier by this approach.  We list this here though
+    # to be clear that we also directly depend on it, though.
+    "cffi",
+
     # zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
     # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
     "zope.interface >= 3.6.0, != 3.6.3, != 3.6.4",

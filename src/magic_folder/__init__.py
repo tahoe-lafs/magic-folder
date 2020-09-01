@@ -8,10 +8,9 @@ from ._version import (
     __version__,
 )
 
-def _monkeypatch_filesystemencoding():
+def _set_filesystemencoding():
     """
-    Monkey-patch ``sys.getfilesystemencoding`` with a version that always
-    returns UTF-8.
+    Change the value of ``Py_FileSystemDefaultEncoding`` to UTF-8.
 
     The stdlib implementation of the function always returns UTF-8 on macOS
     and Windows.  On Linux, it returns a value determined by the active locale
@@ -28,12 +27,46 @@ def _monkeypatch_filesystemencoding():
     when non-representable code points are encountered (in folder names, in
     contained file names, in the working directory, etc).
 
-    Python eventually acknowledged this (around 3.6 or 3.7) changed
-    ``sys.getfilesystemencoding`` to always return UTF-8 as well.  So in some
-    sense we're just backporting this fix.
+    Python eventually acknowledged this (around 3.6 or 3.7) and changed
+    ``Py_FileSystemDefaultEncoding`` to always be UTF-8.  So in some sense
+    we're just backporting this fix.
+
+    We can't just monkey-patch the Python API, ``sys.getfilesystemencoding``,
+    because the large body of stdlib filesystem functionality implemented in C
+    ignores this Python API and uses the C symbol's value directly.
     """
+    # First of all, if we don't have to do this, don't.
     import sys
-    def utf8filesystemencoding():
-        return "UTF-8"
-    sys.getfilesystemencoding = utf8filesystemencoding
-_monkeypatch_filesystemencoding()
+    if sys.getfilesystemencoding() == "UTF-8":
+        return
+
+    # We have to keep our "UTF-8" string alive by keeping a reference to it
+    # for the whole process lifetime.
+    global _UTF8
+
+    from os.path import join
+    import sysconfig
+    import cffi
+
+
+    # Define the C ABI we want to interact with.
+    ffi = cffi.FFI()
+    ffi.cdef("extern char* Py_FileSystemDefaultEncoding;")
+
+    # Locate and open the Python shared library.
+    libpython = join(
+        sysconfig.get_config_var("LIBDIR"),
+        sysconfig.get_config_var("LDLIBRARY"),
+    )
+    lib = ffi.dlopen(libpython)
+
+    # Allocate our UTF-8 string and stash a reference to so it is kept alive.
+    _UTF8 = ffi.new("char[]", "UTF-8")
+
+    # Replace the platform value.
+    lib.Py_FileSystemDefaultEncoding = _UTF8
+
+    if sys.getfilesystemencoding() != "UTF-8":
+        raise RuntimeError("Failed to change Python's filesystem encoding to UTF-8.")
+
+_set_filesystemencoding()
