@@ -10,79 +10,60 @@ from ._version import (
 
 def _set_filesystemencoding():
     """
-    Change the value of ``Py_FileSystemDefaultEncoding`` to UTF-8.
+    Change Python's idea of the "filesystem encoding" to UTF-8.
 
-    The stdlib implementation of the function always returns UTF-8 on macOS
-    and Windows.  On Linux, it returns a value determined by the active locale
-    for the process.  This will usually be UTF-8 because of the wide
-    applicability of UTF-8.  The next most common value is ASCII when there is
-    no active locale or "C" or "POSIX" is active.  This usually comes about
-    because the process is running in a context more likely to be headless and
-    locale settings are typically determined by a user session or other
-    user-specific settings.  In principle it is also possible to have other
-    locales active based on other user-specific settings.
+    The interpreter setup always makes this UTF-8 on macOS and Windows.  On
+    Linux, it picks a value determined by the active locale for the process.
+    This will usually be UTF-8 because of the wide applicability of UTF-8.
+    The next most common value is ASCII when there is no active locale or "C"
+    or "POSIX" is active.  This usually comes about because the process is
+    running in a context more likely to be headless and locale settings are
+    typically determined by a user session or other user-specific settings.
+    In principle it is also possible to have other locales active based on
+    other user-specific settings.
 
     The filesystem encoding *must* be one which can represent all unicode code
     points or Magic-Folder daemon interactions with the filesystem will break
     when non-representable code points are encountered (in folder names, in
     contained file names, in the working directory, etc).
 
-    Python eventually acknowledged this (around 3.6 or 3.7) and changed
-    ``Py_FileSystemDefaultEncoding`` to always be UTF-8.  So in some sense
+    Python eventually acknowledged this (around 3.6 or 3.7) and changed to
+    always use UTF-8 (except when explicitly overridden).  So in some sense
     we're just backporting this fix.
 
     We can't just monkey-patch the Python API, ``sys.getfilesystemencoding``,
     because the large body of stdlib filesystem functionality implemented in C
     ignores this Python API and uses the C symbol's value directly.
+
+    We also can't just reach into the C ABI and replace the value of the C
+    symbol (Py_FileSystemDefaultEncoding) because it's hard to *find* that
+    symbol in a cross-platform, cross-version manner and because PyPy doesn't
+    have such a symbol.
+
+    Thus, if necessary, we just re-start the process with LANG set to
+    something that should result in UTF-8.
     """
+
     # First of all, if we don't have to do this, don't.
     import sys
     if sys.getfilesystemencoding() == "UTF-8":
         return
 
-    # We have to keep our "UTF-8" string alive by keeping a reference to it
-    # for the whole process lifetime.
-    global _UTF8
-
-    import cffi
-
-    # Define the C ABI we want to interact with.
-    ffi = cffi.FFI()
-    ffi.cdef("extern char* Py_FileSystemDefaultEncoding;")
-
-    # Locate and open the Python shared library.
-    lib = _dlopen_libpython(ffi)
-
-    # Allocate our UTF-8 string and stash a reference to so it is kept alive.
-    _UTF8 = ffi.new("char[]", "UTF-8")
-
-    # Replace the platform value.
-    lib.Py_FileSystemDefaultEncoding = _UTF8
-
-    encoding = sys.getfilesystemencoding()
-    if encoding != "UTF-8":
+    import os
+    if os.environ["LANG"] == "en_US.UTF-8":
         raise RuntimeError(
-            "Failed to change Python's filesystem encoding (in {!r}) to UTF-8 "
-            "from {!r}.".format(
-                lib,
-                encoding,
+            "Found filesystem encoding {!r} but LANG={!r} "
+            "so I don't know how to fix it.".format(
+                sys.getfilesystemencoding(),
+                os.environ["LANG"],
             ),
         )
 
-
-def _dlopen_libpython(ffi):
-    import sysconfig
-    from os.path import join
-
-    soname = sysconfig.get_config_var("INSTSONAME")
-    libdir = sysconfig.get_config_var("LIBDIR")
-    ldlibrary = sysconfig.get_config_var("LDLIBRARY")
-    for name in [soname, ldlibrary, join(libdir, ldlibrary)]:
-        try:
-            return ffi.dlopen(name)
-        except OSError:
-            pass
-    raise RuntimeError("Failed to find Python shared library.")
-
+    os.environ["LANG"] = "en_US.UTF-8"
+    os.execv(
+        # sys.argv[0] == "" when the interpreter is run "interactively".
+        sys.argv[0] or sys.executable,
+        sys.argv,
+    )
 
 _set_filesystemencoding()
