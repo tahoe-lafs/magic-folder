@@ -13,6 +13,10 @@ workflows:
       # first job to define a yaml anchor that can be used to supply a
       # CircleCI job context which makes Docker Hub credentials available in
       # the environment.
+      #
+      # Contexts are managed in the CircleCI web interface:
+      #
+      #  https://app.circleci.com/settings/organization/github/LeastAuthority/contexts
       - "debian-9": &DOCKERHUB_CONTEXT
           context:
             - "dockerhub-auth"
