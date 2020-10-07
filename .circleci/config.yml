@@ -5,39 +5,67 @@ workflows:
   version: 2
   ci:
     jobs:
-      # Platforms
-      - "debian-9"
+      # Start with jobs testing various platforms.
+
+      # Every job that pulls a Docker image from Docker Hub needs to provide
+      # credentials for that pull operation to avoid being subjected to
+      # unauthenticated pull limits shared across all of CircleCI.  Use this
+      # first job to define a yaml anchor that can be used to supply a
+      # CircleCI job context which makes Docker Hub credentials available in
+      # the environment.
+      #
+      # Contexts are managed in the CircleCI web interface:
+      #
+      #  https://app.circleci.com/settings/organization/github/LeastAuthority/contexts
+      - "debian-9": &DOCKERHUB_CONTEXT
+          context:
+            - "dockerhub-auth"
+
       - "debian-8":
+          <<: *DOCKERHUB_CONTEXT
           requires:
             - "debian-9"
 
-      - "ubuntu-20.04"
+      - "ubuntu-20.04":
+          <<: *DOCKERHUB_CONTEXT
       - "ubuntu-18.04":
+          <<: *DOCKERHUB_CONTEXT
           requires:
             - "ubuntu-20.04"
 
-      - "fedora-32"
+      - "fedora-32":
+          <<: *DOCKERHUB_CONTEXT
       - "fedora-31":
+          <<: *DOCKERHUB_CONTEXT
           requires:
             - "fedora-32"
 
-      - "centos-8"
+      - "centos-8":
+          <<: *DOCKERHUB_CONTEXT
 
-      - "slackware-14.2"
+      - "slackware-14.2":
+          <<: *DOCKERHUB_CONTEXT
 
-      - "nixos-19.09"
+      - "nixos-19.09":
+          <<: *DOCKERHUB_CONTEXT
 
       # Test against PyPy 2.7/7.3.0
-      - "pypy2.7-7.3"
+      - "pypy2.7-7.3":
+          <<: *DOCKERHUB_CONTEXT
 
       # Other assorted tasks and configurations
-      - "lint"
-      - "deprecations"
-      - "c-locale"
+      - "lint":
+          <<: *DOCKERHUB_CONTEXT
+      - "deprecations":
+          <<: *DOCKERHUB_CONTEXT
+      - "c-locale":
+          <<: *DOCKERHUB_CONTEXT
       # Any locale other than C or UTF-8.
-      - "another-locale"
+      - "another-locale":
+          <<: *DOCKERHUB_CONTEXT
 
       - "integration":
+          <<: *DOCKERHUB_CONTEXT
           requires:
             # If the unit test suite doesn't pass, don't bother running the
             # integration tests.
@@ -56,21 +84,49 @@ workflows:
                 - "master"
 
     jobs:
-      - "build-image-debian-8"
-      - "build-image-debian-9"
-      - "build-image-ubuntu-18.04"
-      - "build-image-ubuntu-20.04"
-      - "build-image-fedora-31"
-      - "build-image-fedora-32"
-      - "build-image-centos-8"
-      - "build-image-slackware-14.2"
-      - "build-image-pypy-2.7-7.3.0-buster"
+      - "build-image-debian-8":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-debian-9":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-ubuntu-18.04":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-ubuntu-20.04":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-fedora-31":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-fedora-32":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-centos-8":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-slackware-14.2":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-pypy-2.7-7.3.0-buster":
+          <<: *DOCKERHUB_CONTEXT
 
 
 jobs:
+  dockerhub-auth-template:
+    # This isn't a real job.  It doesn't get scheduled as part of any
+    # workhlow.  Instead, it's just a place we can hang a yaml anchor to
+    # finish the Docker Hub authentication configuration.  Workflow jobs using
+    # the DOCKERHUB_CONTEXT anchor will have access to the environment
+    # variables used here.  These variables will allow the Docker Hub image
+    # pull to be authenticated and hopefully avoid hitting and rate limits.
+    docker:
+      - image: "null"
+        auth: &DOCKERHUB_AUTH
+          username: $DOCKERHUB_USERNAME
+          password: $DOCKERHUB_PASSWORD
+
+    steps:
+      - run:
+          name: "Schema conformity"
+          command: |
+
   lint:
     docker:
-      - image: "circleci/python:2"
+      - <<: *DOCKERHUB_AUTH
+        image: "circleci/python:2"
 
     steps:
       - "checkout"
@@ -87,7 +143,8 @@ jobs:
 
   debian-9: &DEBIAN
     docker:
-      - image: "magicfolderci/debian:9"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:9"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -164,14 +221,16 @@ jobs:
   debian-8:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/debian:8"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:8"
         user: "nobody"
 
 
   pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/pypy:2.7-7.3.0-buster"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/pypy:2.7-7.3.0-buster"
         user: "nobody"
 
     environment:
@@ -228,20 +287,23 @@ jobs:
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/ubuntu:18.04"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
 
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
-      - image: "magicfolderci/ubuntu:20.04"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
   centos-8: &RHEL_DERIV
     docker:
-      - image: "magicfolderci/centos:8"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/centos:8"
         user: "nobody"
 
     environment: *UTF_8_ENVIRONMENT
@@ -263,20 +325,23 @@ jobs:
   fedora-31:
     <<: *RHEL_DERIV
     docker:
-      - image: "magicfolderci/fedora:31"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:31"
         user: "nobody"
 
 
   fedora-32:
     <<: *RHEL_DERIV
     docker:
-      - image: "magicfolderci/fedora:32"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:32"
         user: "nobody"
 
 
   slackware-14.2:
     docker:
-      - image: "magicfolderci/slackware:14.2"
+      - <<: *DOCKERHUB_AUTH
+        image: "magicfolderci/slackware:14.2"
         user: "nobody"
 
     environment: *UTF_8_ENVIRONMENT
@@ -297,7 +362,8 @@ jobs:
   nixos-19.09:
     docker:
       # Run in a highly Nix-capable environment.
-      - image: "nixorg/nix:circleci"
+      - <<: *DOCKERHUB_AUTH
+        image: "nixorg/nix:circleci"
 
     environment:
       NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09-small.tar.gz"
@@ -381,7 +447,8 @@ jobs:
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
     docker:
-      - image: "docker:17.05.0-ce-git"
+      - <<: *DOCKERHUB_AUTH
+        image: "docker:17.05.0-ce-git"
 
     environment:
       DISTRO: "magicfolderci/<DISTRO>:foo"
@@ -391,46 +458,9 @@ jobs:
       - "checkout"
       - "setup_remote_docker"
       - run:
-          name: "Get openssl"
-          command: |
-            apk add --no-cache openssl
-      - run:
-          name: "Get Dockerhub secrets"
-          command: |
-            # If you create an encryption key like this:
-            #
-            #   openssl enc -aes-256-cbc -k secret -P -md sha256
-
-            # From the output that looks like:
-            #
-            #  salt=...
-            #  key=...
-            #  iv =...
-            #
-            # extract just the value for ``key``.
-
-            # then you can re-generate ``secret-env-cipher`` locally using the
-            # command:
-            #
-            #   openssl aes-256-cbc -e -md sha256 -in secret-env-plain -out .circleci/secret-env-cipher -pass env:KEY
-            #
-            # Make sure the key is set as the KEY environment variable in the
-            # CircleCI web interface.  You can do this by visiting
-            # <https://circleci.com/gh/leastauthority/magic-folder/edit#env-vars>
-            # after logging in to CircleCI with an account in the LeastAuthority
-            # CircleCI team.
-            #
-            # Then you can recover the environment plaintext (for example, to
-            # change and re-encrypt it) like just like CircleCI recovers it
-            # here:
-            #
-            openssl aes-256-cbc -d -md sha256 -in .circleci/secret-env-cipher -pass env:KEY >> ~/.env
-      - run:
           name: "Log in to Dockerhub"
           command: |
-            . ~/.env
-            # MAGICFOLDERCI_PASSWORD comes from the secret env.
-            docker login -u magicfolderci -p ${MAGICFOLDERCI_PASSWORD}
+            docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}
       - run:
           name: "Build image"
           command: |
