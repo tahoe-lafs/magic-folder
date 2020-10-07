@@ -118,7 +118,10 @@ jobs:
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD
 
-    steps: []
+    steps:
+      - run:
+          name: "Schema conformity"
+          command: |
 
   lint:
     docker:
