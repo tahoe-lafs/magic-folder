@@ -110,7 +110,7 @@ jobs:
     # pull to be authenticated and hopefully avoid hitting and rate limits.
     docker:
       - image: null
-        auth:
+        auth: &DOCKERHUB_AUTH
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD
 
