@@ -64,7 +64,7 @@ workflows:
       - "another-locale":
           <<: *DOCKERHUB_CONTEXT
 
-      - "integration"::
+      - "integration":
           <<: *DOCKERHUB_CONTEXT
           requires:
             # If the unit test suite doesn't pass, don't bother running the
