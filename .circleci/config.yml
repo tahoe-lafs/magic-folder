@@ -113,7 +113,7 @@ jobs:
     # variables used here.  These variables will allow the Docker Hub image
     # pull to be authenticated and hopefully avoid hitting and rate limits.
     docker:
-      - image: null
+      - image: "null"
         auth: &DOCKERHUB_AUTH
           username: $DOCKERHUB_USERNAME
           password: $DOCKERHUB_PASSWORD
