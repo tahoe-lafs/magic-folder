@@ -1,4 +1,9 @@
-- repo: "https://github.com/PyCQA/flake8"
-  rev: "3.8.3"
-  hooks:
-  - id: "flake8"
+repos:
+  - repo: "local"
+    hooks:
+    - id: "codechecks"
+      name: "codechecks"
+      stages: ["push"]
+      entry: "tox -e codechecks"
+      language: "system"
+      pass_filenames: false
