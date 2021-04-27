@@ -81,7 +81,7 @@ from allmydata.uri import (
 )
 from allmydata.util.encodingutil import (
     argv_to_unicode,
-    to_str,
+    to_bytes,
 )
 
 from allmydata.client import (
@@ -420,7 +420,7 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-        self.invite_code = to_str(argv_to_unicode(invite_code))
+        self.invite_code = to_bytes(argv_to_unicode(invite_code))
 
     def postOptions(self):
         super(JoinOptions, self).postOptions()

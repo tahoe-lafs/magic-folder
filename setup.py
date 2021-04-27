@@ -50,8 +50,8 @@ install_requires = [
     # know works on Python 2.7.
     "eliot ~= 1.7",
 
-    # A great way to define types of values.
-    "attrs >= 18.2.0",
+    # A great way to define types of values. (Same restrictions as tahoe 1.15.1)
+    "attrs >= 18.2.0, < 20.0",
 
     # WebSocket library for twisted and asyncio
     "autobahn >= 19.5.2",
@@ -67,12 +67,9 @@ install_requires = [
     # good reason to expect things to break from release to release.  Pin a
     # specific version so we can upgrade intentionally when we know it will
     # work.
-    "tahoe-lafs == 1.14.0",
+    "tahoe-lafs == 1.15.1",
 
-    # Tahoe-LAFS 1.14.0 happens to be incompatible with cryptography 3.0.
-    # https://tahoe-lafs.org/trac/tahoe-lafs/ticket/3349
-    "cryptography < 3.0",
-
+    # twisted-based HTTP client
     "treq",
 
     # find the default location for configuration on different OSes
