@@ -7,6 +7,13 @@ XXX Notes:
 - local state needs to note the last Snapshot we had for each name
 - this state is synchronized to our Personal DMD when we're online
 - state needs to note the last
+
+Questions:
+- Do we want an Automat state-machine here?
+
+  Conceptually, each "path" in our magic-folder has a state-machine as it goes from waiting/updating/conflicted/etc (maybe more or less states, but ..)
+
+
 """
 
 
@@ -15,6 +22,9 @@ XXX Notes:
 class RemoteSnapshotCacheService(service.Service):
     """
     When told about Snapshot capabilities we download them.
+
+    Our work queue is ephemeral; it is not synchronized to disk and
+    will vanish if we are re-started. This is okay because XXX.
     """
     _file_modifier = attr.ib()
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
@@ -22,8 +32,10 @@ class RemoteSnapshotCacheService(service.Service):
 
     def add_remote_capability(self, snapshot_cap):
         """
-        Add the given immutable Snapshot capability to our queue. Ensure
-        all parents are also in our cache.
+        Add the given immutable Snapshot capability to our queue. This
+        will recursively ensure all parents are also in our
+        cache. That is, after downloading ``snapshot_cap`` it will be
+        examined and any parents not already cached will be added as well.
 
         :param bytes snapshot_cap: an immutable directory capability-string
 
@@ -105,8 +117,9 @@ class IMagicFolderFilesystem(Interface):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
-        a file named `.conflict-$NAME` where `$NAME` is the author of
-        the conflicting snapshot.
+        a file named `<path>.theirs.<name>` where `<name>` is the
+        petname of the author of the conflicting snapshot and `<path>`
+        is the relative path inside the magic-folder.
 
         XXX can deletes conflict? if so staged_content would be None
 
@@ -147,7 +160,6 @@ class InMemoryMagicFolderFilesystem(object):
         """
 
 
-
 @implementer(service.IService)
 class DownloaderService(service.Service):
     """
@@ -162,7 +174,7 @@ class DownloaderService(service.Service):
     @classmethod
     def from_config(cls, clock, name, config, remote_snapshot_cache, tahoe_client):
         """
-        Create an DownloaderService from the MagicFolder configuration.
+        Create a DownloaderService from the MagicFolder configuration.
         """
 
     # LoopingCall:
