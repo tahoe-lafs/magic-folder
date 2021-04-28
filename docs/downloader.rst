@@ -183,11 +183,16 @@ It must be a filesystem path relative to the selected magic-folder.
 The ``resolution`` query argument is required.
 It must be either the string ``theirs`` or the string ``mine``.
 
-It is an error if the given ``path`` in the given magic-folder is not
-currently in a conflicted state.
+It is an error if the given ``path`` in the given magic-folder is not currently in a conflicted state. In this case the response code is **404 Not Found** (XXX is this appropriate?)
 
 If the resolution is ``theirs`` then the file at ``<path>.theirs.<name>`` is moved to ``<path>`` and a new (local) Snapshot is created (with two parents).
 
 If instead the resolution is ``mine`` then the file at ``<path>.theirs.<name>`` is deleted and a new (local) Snapshot is created (with two parents).
 
 The response is delayed until the local state tracking the new Snapshot has been created.
+
+The response code is **CREATED** and the **Content-Type** is ``application/json``.
+
+The response body follows the form of this example::
+
+  {}
