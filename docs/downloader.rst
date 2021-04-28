@@ -6,6 +6,8 @@
 Downloader Operation
 ====================
 
+Audience: developers working on magic-folder itself
+
 This describes the general operation of the remote to local
 synchronization as outlined in "the Leif Design" (see :ref:`Leif's
 Proposal: Magic-Folder "single-file" snapshot design`).
@@ -24,21 +26,20 @@ a magic-folder. This list will consist of at least:
 "A Snapshot" is a single version of a single file. It is represented
 by an immutable directory and contains:
 
-- ``content``: (optional) a read-only link to the actual content of
-  this Snapshot. If there is no such link, this is a deletion
-  snapshot.
-- ``metadata``: information about the Snapshot, a capability pointing
+- ``content``: (optional) a read-only Capability to the actual content of
+  this Snapshot. Deletion Snapshots contain no such key.
+- ``metadata``: information about the Snapshot, a read-only Capability pointing
   to a JSON-serialized dict containing:
-  - ``snapshot_version``: 1 currently
+  - ``snapshot_version``: int(1) currently
   - ``name``: the name of this snapshot (a mangled relative path)
   - ``author``: a dict containing:
     - ``name``: arbitrary name
     - ``verify_key``: base64-encoded public key of the author
-  - ``parents``: a list of immutable capability-strings of any parent Snapshots
+  - ``parents``: a list of immutable Capability-strings of any parent Snapshots
   - additionally, in the Tahoe metadata for this metadata-capability
     is a ``magic_folder`` dict with the following keys:
     - ``author_signature``: base64-encoded signature which signs the
-      content-capability, metadata-capability and name
+      content-Capability, metadata-Capability and name
 
 If there are zero parents, this is the first version of a
 file. Otherwise, it is a modification. If there are two or more
@@ -54,24 +55,24 @@ General Operation
 -----------------
 
 There is a service responsible for deciding which Snapshots to
-download. The capability strings of snapshots to download are given to
+download. The capability strings of Snapshots to download are given to
 a second service that is responsible for actually downloading
-them. Downloading new Snapshots from other participants causes changes
-to the local filesystem (in the magic-folder).
+them. Downloading new Snapshots from other participants ultimately
+causes changes to the local filesystem (in the magic-folder).
 
 
 What Snapshots to Download
 --------------------------
 
 Each configured magic-folder has a ``collective_dircap`` which is a
-Tahoe capability for the list of participants. If this dircap is
-writable then this device is the administrator (and the only one who
-can modify the participants).
+Tahoe-LAFS Directory Capability ("dircap") for the list of
+participants. If this dircap is writable then this device is the
+administrator (and the only device which can modify the participants).
 
-In either case, the capability can be downloaded. It will be a Tahoe
+In either case, the capability can be downloaded. It will be a Tahoe-LAFS
 directory containing a series of sub-directories; these are the
 participants. The directory name is their name and points at a
-read-capability where all the files in their magic-folder are
+Read Capability where all the files in their magic-folder are
 stored. This is known as the "Personal DMD", where DMD stands for
 "Distributed Mutable Directory".
 
@@ -99,16 +100,17 @@ download the capability and return a ``RemoteSnapshot`` instance.
 This ``RemoteSnapshot`` is serialized to a local cache in the
 magic-folder's state database.
 
-We also arrange to make local filesystem changes. This might require
-waiting to download more ``RemoteSnapshots`` if it has any parents
-that aren't cached.
+We also arrange to make local filesystem changes (how?). This might
+require waiting to download more ``RemoteSnapshots`` if it has any
+parents that aren't cached.
 
 Conflict Resolution is described in :ref:`Multi-party Conflict
-Detection` under the Leif's Design. Briefly: a ``RemoteSnapshot`` is
-traced through its parents until a common ancestor is found. If the
-new Snapshot is a descendant of our latest Snapshot for that name,
-it's an overwrite. If it is not, there is a conflict (unless we don't
-yet have that name at all, then it's a creation).
+Detection` under the Leif's Design section. Briefly: a
+``RemoteSnapshot`` is traced through its parents until a common
+ancestor is found. If the new Snapshot is a descendant of our latest
+Snapshot for that name, it's an overwrite. If it is not, there is a
+conflict (unless we don't yet have that name at all, then it's a
+creation).
 
 
 On Overwrite
@@ -119,7 +121,8 @@ place in our Magic Folder. Our Personal DMD is updated to point at
 this Snapshot.
 
 In case there is no ``content`` this is a delete and we simply remove
-the corresponding local file.
+the corresponding local file. (Do we update our Personal DMD to point
+at nothing?)
 
 Note that a completely new file (a "create") is the same as a normal
 overwrite (except of course there's no possibility of a conflict).
