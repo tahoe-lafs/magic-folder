@@ -8,6 +8,8 @@ Downloader Operation
 
 Audience: developers working on magic-folder itself
 
+**NOTE**: this document is currently "aspirational" -- not all features described below exist.
+
 This describes the general operation of the remote to local
 synchronization as outlined in "the Leif Design" (see :ref:`Leif's
 Proposal: Magic-Folder "single-file" snapshot design`).
