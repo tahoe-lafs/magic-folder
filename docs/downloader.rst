@@ -151,6 +151,43 @@ I believe the above accurately describes what Tahoe 1.14.0
 magic-folder does.
 
 This doesn't mean it's the best "API" for conflict resolution (nor
-does it need to remain the only one). We could, for example, add an
-HTTP API and CLI command that explicitly say "take mine" or "take
-theirs" or "take this new thing I crafted".
+does it need to remain the only one). In fact, it likely is not a good
+API for any but motivated, advanced users and also seems like a bad
+API for other programs.
+
+In keeping with other new development in magic-folder, there is an
+explicit HTTP API to resolve a conflict. For now, we limit this to
+selecting "mine" or "theirs". A future extension might wish to provide
+a way to provide completely new content (e.g. if the user edited a
+diff, for example).
+
+
+``GET /v1/conflicts/<folder-name>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Returns a list (possibly empty) of strings for each path that is currently in a Conflict state in the given magic-folder.
+
+The each string is the path relative to the selected magic-folder.
+
+Our content is in the path itself. The conflicting "other" content is in ``<path>.theirs.<name>`` where ``<name>`` is the petname of the user who is provided the conflicted content.
+
+Justification: we need somewhere for "theirs" versis "my" content .. I think we should still reflect this on the filesystem, even if the *API to manipulate it* is no longer there. This makes it more obvious for CLI users that they should check the conflicts list; the only alternative would seem to be "run some command occasionally to check for conflicts". I will forget to do this.
+
+
+``POST /v1/resolve_conflict/<folder-name>?path=<some-path>&resolution=<theirs|mine>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``path`` query argument is required.
+It must be a filesystem path relative to the selected magic-folder.
+
+The ``resolution`` query argument is required.
+It must be either the string ``theirs`` or the string ``mine``.
+
+It is an error if the given ``path`` in the given magic-folder is not
+currently in a conflicted state.
+
+If the resolution is ``theirs`` then the file at ``<path>.theirs.<name>`` is moved to ``<path>`` and a new (local) Snapshot is created (with two parents).
+
+If instead the resolution is ``mine`` then the file at ``<path>.theirs.<name>`` is deleted and a new (local) Snapshot is created (with two parents).
+
+The response is delayed until the local state tracking the new Snapshot has been created.
