@@ -64,3 +64,19 @@
       ask questions instead of just getting things when magic-folder
       feels like it? might GridSync want to change how much / which
       information it gets?)
+
+- Something in the system needs to monitor the filesystem for changes
+  and instruct magic-folder to create new Snapshots. Options:
+
+     - magic-folder does it (internally)
+     - a magic-folder sub-command does it (e.g. "magic-folder monitory --folder default")
+     - GridSync does it and uses HTTP API to create new snapshots
+         - either gridsync uses inotify; or
+         - humans poke buttons in GridSync ("make snapshot now" or so)
+     - inotifywait does it and uses curl to twiddle HTTP API
+         - what about MacOS?
+         - what about Windows?
+     - we create a separate Python tool to do it
+     - don't do any of the above. instead, recursively scan the entire
+       magic-folder tree and look for any modified files, creating
+       Snapshots for each.
