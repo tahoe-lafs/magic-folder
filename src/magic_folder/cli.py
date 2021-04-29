@@ -251,7 +251,7 @@ def migrate(options):
         options.parent._config_path,
         options['listen-endpoint'].decode("utf8"),
         FilePath(options['node-directory']),
-        options['author'],
+        options['author'].decode("utf8"),
         options['client-endpoint'],
     )
     print(
