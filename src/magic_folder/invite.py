@@ -12,13 +12,15 @@ from __future__ import (
 )
 
 
-def magic_folder_invite(config, folder_name, treq):
+def magic_folder_invite(config, folder_name, suggested_invitee_name, treq):
     """
     Invite a user identified by the nickname to a folder owned by the alias
 
     :param GlobalConfigDatabase config: our configuration
 
     :param unicode folder_name: The name of an existing magic-folder
+
+    :param unicode suggested_invitee_name: petname for the invited device
 
     :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
         the queries.
