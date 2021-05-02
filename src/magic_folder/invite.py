@@ -104,6 +104,9 @@ class InMemoryInviteManager(object):
     A manager of Invites that keeps all state in memory (only).
     """
 
+    # XXX this probably wants to be an ISerice too because it'll need
+    # to "do async stuff" (i.e wormhole things)
+
     folder_service = attr.ib()  # MagicFolderService instnace
     _invites = attr.ib()  # dict: uuid -> Invite
 
