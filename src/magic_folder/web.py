@@ -116,6 +116,7 @@ class APIv1(Resource, object):
         Resource.__init__(self)
         self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
         self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
+        self.putChild(b"invite", InviteAPIv1(self._global_config, self._global_service))
 
 
 @attr.s
@@ -192,6 +193,66 @@ class MagicFolderSnapshotAPIv1(Resource, object):
             lambda ignored: request.finish(),
         )
         return NOT_DONE_YET
+
+
+@attr.s
+class InviteAPIv1(Resource, object):
+    """
+    ``InviteAPIv1`` implements the ``/v1/invite`` portion of the HTTP API
+    resource hierarchy.
+
+    This includes listing invites, beginning new invites and details
+    about in-progress invites. In-progress invites may also be cancelled.
+
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
+    """
+    _global_config = attr.ib()
+    _global_service = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        Respond with all of the in-progress invites
+        """
+        return []
+
+    def render_POST(self, request):
+        """
+        Create a new invite
+
+        XXX "?create=1" or so..?
+        """
+
+    def getChild(self, name, request):
+        name_u = name.decode("utf-8")
+        invite_detail = None
+        return InviteDetailAPIv1(self._global_config, invite_detail)
+
+
+@attr.s
+class InviteDetailAPIv1(Resource, object):
+    """
+    Information about a particular in-progress invite
+    """
+    _invite_detail = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        Respond with details about this invite
+        """
+
+    def render_POST(self, request):
+        """
+        Cancel this invite
+
+        XXX "?cancel=1" probably most-consistent with other APIs?
+        """
 
 
 def _application_json(request):
