@@ -77,9 +77,8 @@ from ..magicpath import (
     path2magic,
 )
 
-from ..cli import (
+from ..tahoe_client import (
     TahoeClient,
-    Node,
 )
 from ..participants import (
     IParticipant,
@@ -98,12 +97,11 @@ class CollectiveParticipantsTests(SyncTestCase):
     """
     @given(
         sampled_from([
-            object(),
-            UnknownNode(b"", b""),
-            Node(None, CHKFileURI(b"", b"", 0, 0, 0)),
+            b"",
+            b"URI:CHK:::0:0:0",
         ]),
     )
-    def test_invalid_upload_dirnode(self, upload_dirnode):
+    def test_invalid_upload_dirnode(self, upload_dircap):
         """
         ``participants_from_collective`` raises ``TypeError`` if given an upload
         dirnode object which:
@@ -111,21 +109,19 @@ class CollectiveParticipantsTests(SyncTestCase):
         * has an unknown URI type
         * is not read-write
         """
-        collective_dirnode = Node(
-            None,
-            DirectoryURI(),
-        )
+        tahoe_client = None
+        collective_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(
-                collective_dirnode,
-                upload_dirnode,
+                collective_dircap,
+                upload_dircap,
+                tahoe_client,
             )
 
     @given(
         sampled_from([
-            object(),
-            UnknownNode(b"", b""),
-            Node(None, WriteableSSKFileURI(b"", b"")),
+            b"",
+            b"URI:SSK::",
         ]),
     )
     def test_invalid_collective_dirnode(self, collective_dirnode):
@@ -136,14 +132,13 @@ class CollectiveParticipantsTests(SyncTestCase):
         * has an unknown URI type
         * is not read-only
         """
-        upload_dirnode = Node(
-            None,
-            DirectoryURI(),
-        )
+        tahoe_client = None
+        upload_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Collective dirnode was.*"):
             participants_from_collective(
                 collective_dirnode,
-                upload_dirnode,
+                upload_dircap,
+                tahoe_client,
             )
 
     @given(
@@ -167,8 +162,8 @@ class CollectiveParticipantsTests(SyncTestCase):
         author = sorted(collective_contents)[0]
         upload_dircap = collective_contents[author]
 
-        rw_collective_diruri = uri_from_string(rw_collective_dircap.encode("ascii"))
-        upload_diruri = uri_from_string(upload_dircap.encode("ascii"))
+        rw_collective_dircap = rw_collective_dircap.encode("ascii")
+        upload_dircap = upload_dircap.encode("ascii")
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -177,11 +172,8 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        collective_dirnode = Node(
-            tahoe_client,
-            rw_collective_diruri.get_readonly(),
-        )
-        root._uri.data[collective_dirnode.get_uri()] = dumps([
+        readonly_collective_dircap = uri_from_string(rw_collective_dircap).get_readonly().to_string()
+        root._uri.data[rw_collective_dircap] = dumps([
             u"dirnode",
             {u"children": {
                 name: format_filenode(cap, {})
@@ -190,18 +182,15 @@ class CollectiveParticipantsTests(SyncTestCase):
             }},
         ])
 
-        upload_dirnode = Node(
-            tahoe_client,
-            upload_diruri,
-        )
-        root._uri.data[upload_dirnode.get_uri()] = dumps([
+        root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {}},
         ])
 
         participants = participants_from_collective(
-            collective_dirnode,
-            upload_dirnode,
+            rw_collective_dircap,
+            upload_dircap,
+            tahoe_client,
         )
 
         self.assertThat(
@@ -263,12 +252,8 @@ class CollectiveParticipantTests(SyncTestCase):
             http_client,
         )
 
-        upload_diruri = uri_from_string(upload_dircap.encode("ascii"))
-        upload_dirnode = Node(
-            tahoe_client,
-            upload_diruri,
-        )
-        root._uri.data[upload_dirnode.get_uri()] = dumps([
+        upload_dircap = upload_dircap.encode("ascii")
+        root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {
                 path2magic(name): format_filenode(cap, {u"version": version})
@@ -279,8 +264,9 @@ class CollectiveParticipantTests(SyncTestCase):
 
         participant = participant_from_dmd(
             author_name,
-            upload_dirnode,
+            upload_dircap,
             is_self,
+            tahoe_client,
         )
 
         self.assertThat(

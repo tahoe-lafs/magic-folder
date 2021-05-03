@@ -128,15 +128,16 @@ class MagicFolder(service.MultiService):
                 ),
             )
 
-        initial_participants = participants_from_collective(
-            Node(tahoe_client, tahoe_uri_from_string(mf_config.collective_dircap)),
-            Node(tahoe_client, tahoe_uri_from_string(mf_config.upload_dircap)),
-        )
-
         # Make the *other* kind of TahoeClient ...
         other_tahoe_client = OtherTahoeClient(
             tahoe_client.node_uri,
             tahoe_client.treq,
+        )
+
+        initial_participants = participants_from_collective(
+            mf_config.collective_dircap,
+            mf_config.upload_dircap,
+            other_tahoe_client
         )
 
         return cls(

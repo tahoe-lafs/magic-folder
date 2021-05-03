@@ -7,10 +7,12 @@ from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
-
 from twisted.web.http import (
     OK,
     CREATED,
+)
+from twisted.web.client import (
+    readBody,
 )
 
 from hyperlink import (
@@ -22,6 +24,13 @@ from treq.client import (
 )
 from treq.testing import (
     StubTreq,
+)
+from eliot import (
+    start_action,
+    log_call,
+)
+from eliot.twisted import (
+    inline_callbacks,
 )
 
 import attr
@@ -209,15 +218,48 @@ class TahoeClient(object):
             raise CannotCreateDirectoryError(e)
         returnValue(capability_string)
 
-    @inlineCallbacks
+    @inline_callbacks
     def list_directory(self, dir_cap):
         """
         List the contents of a read- or read/write- directory
 
         :param bytes dir_cap: the capability-string of the directory.
         """
-        # https://github.com/LeastAuthority/magic-folder/issues/241
-        raise NotImplementedError
+        api_uri = self.url.child(
+            u"uri",
+            dir_cap.decode("ascii"),
+        ).add(
+            u"t",
+            u"json",
+        ).to_uri().to_text().encode("ascii")
+        action = start_action(
+            action_type=u"magic-folder:cli:list-dir",
+            filenode_uri=dir_cap.decode("ascii"),
+            api_uri=api_uri,
+        )
+        with action.context():
+            response = yield self.http_client.get(
+                api_uri,
+            )
+            if response.code != 200:
+                raise Exception("Error response from list endpoint: {}".format(response))
+
+            kind, dirinfo = json.loads((yield readBody(response)))
+            if kind != u"dirnode":
+                raise ValueError("Object is a {}, not a directory".format(kind))
+
+            action.add_success_fields(
+                children=dirinfo[u"children"],
+            )
+
+        returnValue({
+            name: (
+                json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
+                json_metadata[u"metadata"],
+            )
+            for (name, (child_kind, json_metadata))
+            in dirinfo[u"children"].items()
+        })
 
     @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
