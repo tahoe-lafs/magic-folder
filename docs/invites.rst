@@ -123,6 +123,13 @@ The "`preferred-petname`" key is optional. This concludes the invitation process
     % magic-folder --config ~/.magic-folder join --author bobby --name hilarious-pics 5-secret-words ~/Documents/alice-fun-pix
     Contacting magic-wormhole server (do not exit this process)...
 
+If Bob wishes to reject the connection, a reject message is sent back::
+
+    {
+        "magic-folder-invite-version": 1,
+        "reject-reason": "free-form string explaining why"
+    }
+
 
 Finalizing the Invite
 ~~~~~~~~~~~~~~~~~~~~~
