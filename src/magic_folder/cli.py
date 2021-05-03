@@ -568,6 +568,10 @@ class MagicFolderService(MultiService):
                 self.config.tahoe_client_url,
                 HTTPClient(Agent(self.reactor)),
             )
+        # XXX unify clients
+        from .tahoe_client import (
+            TahoeClient as OtherTahoeClient,
+        )
         self._listen_endpoint = serverFromString(
             self.reactor,
             self.config.api_endpoint,
@@ -577,6 +581,10 @@ class MagicFolderService(MultiService):
             self.config,
             self,
             self._get_auth_token,
+            OtherTahoeClient(
+                self.config.tahoe_client_url,
+                HTTPClient(Agent(self.reactor)),
+            ),
         )
         web_service.setServiceParent(self)
 

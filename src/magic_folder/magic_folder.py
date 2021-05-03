@@ -50,6 +50,9 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+from .invite import (
+    InMemoryInviteManager,
+)
 from .config import (
     MagicFolderConfig,
 )
@@ -139,10 +142,12 @@ class MagicFolder(service.MultiService):
             tahoe_client.treq,
         )
 
+        # XXX unify TahoeClients ...
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
+            invite_manager=InMemoryInviteManager(other_tahoe_client),
             local_snapshot_service=LocalSnapshotService(
                 mf_config.magic_path,
                 LocalSnapshotCreator(
@@ -170,7 +175,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, initial_participants, clock):
+    def __init__(self, client, config, name, invite_manager, local_snapshot_service, uploader_service, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -178,8 +183,10 @@ class MagicFolder(service.MultiService):
         self._participants = initial_participants
         self.local_snapshot_service = local_snapshot_service
         self.uploader_service = uploader_service
+        self.invite_manager = invite_manager
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
+        invite_manager.setServiceParent(self)
 
     def ready(self):
         """
