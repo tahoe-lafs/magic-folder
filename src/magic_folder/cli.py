@@ -496,6 +496,7 @@ def leave(options):
             )
             return 1
 
+    # XXX leave needs to remove the appropriate entry from the Collective DMD
     fails = options.parent.config.remove_magic_folder(options["name"])
     if fails:
         print(

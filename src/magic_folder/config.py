@@ -1318,6 +1318,7 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
         """
+        # XXX sanitize / prove both dircaps are syntactically valid
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
