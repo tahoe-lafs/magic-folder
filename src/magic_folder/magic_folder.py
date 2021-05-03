@@ -40,6 +40,11 @@ from .participants import (
 )
 from .scanner import (
     ScannerService,
+from .invite import (
+    InMemoryInviteManager,
+)
+from .config import (
+    MagicFolderConfig,
 )
 
 if six.PY3:
@@ -100,10 +105,12 @@ class MagicFolder(service.MultiService):
             status_service,
         )
 
+        # XXX unify TahoeClients ...
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
+            invite_manager=InMemoryInviteManager(other_tahoe_client),
             local_snapshot_service=local_snapshot_service,
             uploader_service=UploaderService.from_config(
                 clock=reactor,
@@ -147,7 +154,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, status_service, scanner_service, remote_snapshot_cache, downloader, initial_participants, clock):
+    def __init__(self, client, config, name, invite_manager, local_snapshot_service, uploader_service, status_service, scanner_service, remote_snapshot_cache, downloader, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -158,6 +165,7 @@ class MagicFolder(service.MultiService):
         self.downloader_service = downloader
         self.status_service = status_service
         self.scanner_service = scanner_service
+        self.invite_manager = invite_manager
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
@@ -167,6 +175,7 @@ class MagicFolder(service.MultiService):
         uploader_service.setServiceParent(self)
         status_service.setServiceParent(self)
         scanner_service.setServiceParent(self)
+        invite_manager.setServiceParent(self)
 
     def ready(self):
         """
