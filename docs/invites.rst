@@ -41,7 +41,7 @@ She must receive from Bob: a read-capability to a fresh "Personal DMD" for Bob.
 Detailed Process
 ----------------
 
-Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory `~/.magic-folder` on both Alice and Bob's computers.
+Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory ``~/.magic-folder`` on both Alice and Bob's computers.
 
 
 Creating the Folder
@@ -68,11 +68,11 @@ Her magic-folder software will now have:
     - the "Collective DMD" will contain a single entry: "alice" with a
       pointer to the read-capability of Alice's "Personal DMD"
 
-    - we know we have a write-capability because `admin: True`
+    - we know we have a write-capability because ``admin: True``
 
 - the write-capability for Alice's "Personal DMD"
 
-Users don't usually need to see or care about the read- or write- capabilities; these are used with our Tahoe-LAFS client to do operations. However, if you do need them you can pass `--include-secret-information` to the `magic-folder list` command
+Users don't usually need to see or care about the read- or write- capabilities; these are used with our Tahoe-LAFS client to do operations. However, if you do need them you can pass ``--include-secret-information`` to the ``magic-folder list`` command
 
 
 Inviting Bob
@@ -90,7 +90,9 @@ Note that Alice never shares her write-capability to the Collective DMD (nor to 
 
 NB: in tahoe-lafs 1.14.0 and earlier magic-folder the above features were not present; Alice could impersonate anyone. A passive observer of the invite-code could impersonate the invitee indefinitely.
 
-To start the invitation process, Alice runs `magic-folder invite`. This process will tell Alice a code that looks like `5-secret-words` or similar. She must securely communicate this code to the invitee, Bob.
+To start the invitation process, Alice runs ``magic-folder invite``.
+This process will tell Alice a code that looks like ``5-secret-words`` or similar.
+She must securely communicate this code to the invitee, Bob.
 Alice's magic-folder client sends a message via the wormhole server, encrypted to Bob, as JSON::
 
     {
@@ -99,7 +101,8 @@ Alice's magic-folder client sends a message via the wormhole server, encrypted t
         "suggested-petname": "bob"
     }
 
-The "`suggested-petname`" is optional (and may be ignored by Bob). Alice may start this process with the command-line::
+The "``suggested-petname``" is optional (and may be ignored by Bob).
+Alice may start this process with the command-line::
 
     % magic-folder --config ~/.magic-folder invite --name funny-photos bob
     Invite code: 5-secret-words
@@ -109,7 +112,7 @@ The "`suggested-petname`" is optional (and may be ignored by Bob). Alice may sta
 Accepting the Invitation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once Bob has received a magic-wormhole code from Alice (for example, "`5-secret-words`") he will use the `magic-folder join` command to complete the wormhole.
+Once Bob has received a magic-wormhole code from Alice (for example, "``5-secret-words``") he will use the ``magic-folder join`` command to complete the wormhole.
 
 This means that Bob's client contacts the magic-wormhole server and uses the code-phrase to complete the SPAKE2 transaction.
 At this point, Alice and Bob have a shared secret key and a "mailbox" allocated on the server.
@@ -122,7 +125,7 @@ Bob creates a message to send back to Alice encrypted using the shared secret (a
         "preferred-petname": "bobby"
     }
 
-The "`preferred-petname`" key is optional. This concludes the invitation process. Bob will not close the wormhole; that will be done by Alice. Bob may accept the invite with the command-line::
+The "``preferred-petname``" key is optional. This concludes the invitation process. Bob will not close the wormhole; that will be done by Alice. Bob may accept the invite with the command-line::
 
     % magic-folder --config ~/.magic-folder join --author bobby --name hilarious-pics 5-secret-words ~/Documents/alice-fun-pix
     Contacting magic-wormhole server (do not exit this process)...
@@ -139,9 +142,9 @@ Finalizing the Invite
 ~~~~~~~~~~~~~~~~~~~~~
 
 Once Alice receives Bob's reply message the wormhole is closed (by Alice, not Bob).
-Alice adds Bob to the Collective DMD. If Bob sent a "`preferred-petname`" than Alice SHOULD use this name (provided it is unique). Otherwise she SHOULD use the name suggested during the invite.
+Alice adds Bob to the Collective DMD. If Bob sent a "``preferred-petname``" than Alice SHOULD use this name (provided it is unique). Otherwise she SHOULD use the name suggested during the invite.
 
-Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability. In this case, `bobby -> <Bob's Personal DMD>`.
+Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability. In this case, ``bobby -> <Bob's Personal DMD>``.
 
 This concludes the invitation process. All other participants will discover Bob when they next poll the Collective DMD via the read-capabilitiy they were given. Bob can learn that his invite is officially concluded in the same way.
 
@@ -151,12 +154,12 @@ Exchanged Messages
 
 Looking at the whole process from the magic-wormhole perspective, this is what happens:
 
-Alice: allocates a wormhole code, sends the first invite message `{"collective-dmd": "..."}`
+Alice: allocates a wormhole code, sends the first invite message ``{"collective-dmd": "..."}``
 Alice: securely communicates the wormhole code to Bob
 Bob: uses the wormhole code to complete the SPAKE2 handshake.
 Bob: retrieves the first invite message.
 Bob: creates Personal DMD
-Bob: sends the invite reply `{"personal-dmd": "...", "preferred-petname": "bobby"}`
+Bob: sends the invite reply ``{"personal-dmd": "...", "preferred-petname": "bobby"}``
 Alice: retrieves the invite reply.
 Alice: closes the wormhole.
 Alice: writes a new entry in the Collective DMD (pointing at Bob's Personal DMD read-capability)
