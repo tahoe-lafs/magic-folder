@@ -27,7 +27,6 @@ from treq.testing import (
 )
 from eliot import (
     start_action,
-    log_call,
 )
 from eliot.twisted import (
     inline_callbacks,

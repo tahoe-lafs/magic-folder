@@ -42,16 +42,6 @@ from hypothesis.strategies import (
     just,
 )
 
-from allmydata.uri import (
-    CHKFileURI,
-    DirectoryURI,
-    WriteableSSKFileURI,
-    from_string as uri_from_string,
-)
-from allmydata.unknown import (
-    UnknownNode,
-)
-
 from .common import (
     SyncTestCase,
 )
@@ -172,7 +162,6 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        readonly_collective_dircap = uri_from_string(rw_collective_dircap).get_readonly().to_string()
         root._uri.data[rw_collective_dircap] = dumps([
             u"dirnode",
             {u"children": {

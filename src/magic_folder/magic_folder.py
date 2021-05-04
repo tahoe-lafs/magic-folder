@@ -28,9 +28,6 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.uri import (
-    from_string as tahoe_uri_from_string,
-)
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -114,7 +111,6 @@ class MagicFolder(service.MultiService):
         mf_config = config.get_magic_folder(name)
 
         from .cli import (
-            Node,
             TahoeClient,
         )
         from .tahoe_client import (
