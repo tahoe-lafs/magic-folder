@@ -154,12 +154,12 @@ Exchanged Messages
 
 Looking at the whole process from the magic-wormhole perspective, this is what happens:
 
-Alice: allocates a wormhole code, sends the first invite message ``{"collective-dmd": "..."}``
-Alice: securely communicates the wormhole code to Bob
-Bob: uses the wormhole code to complete the SPAKE2 handshake.
-Bob: retrieves the first invite message.
-Bob: creates Personal DMD
-Bob: sends the invite reply ``{"personal-dmd": "...", "preferred-petname": "bobby"}``
-Alice: retrieves the invite reply.
-Alice: closes the wormhole.
-Alice: writes a new entry in the Collective DMD (pointing at Bob's Personal DMD read-capability)
+- Alice: allocates a wormhole code, sends the first invite message ``{"collective-dmd": "..."}``
+- Alice: securely communicates the wormhole code to Bob
+- Bob: uses the wormhole code to complete the SPAKE2 handshake.
+- Bob: retrieves the first invite message.
+- Bob: creates Personal DMD
+- Bob: sends the invite reply ``{"personal-dmd": "...", "preferred-petname": "bobby"}``
+- Alice: retrieves the invite reply.
+- Alice: closes the wormhole.
+- Alice: writes a new entry in the Collective DMD (pointing at Bob's Personal DMD read-capability)
