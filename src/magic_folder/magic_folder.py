@@ -110,19 +110,9 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        from .cli import (
-            TahoeClient,
-        )
         from .tahoe_client import (
             TahoeClient as OtherTahoeClient,
         )
-
-        if not isinstance(tahoe_client, TahoeClient):
-            raise TypeError(
-                "tahoe_client must be an instance of {}, received instance of {} instead.".format(
-                    TahoeClient, type(tahoe_client),
-                ),
-            )
 
         # Make the *other* kind of TahoeClient ...
         other_tahoe_client = OtherTahoeClient(
@@ -137,7 +127,7 @@ class MagicFolder(service.MultiService):
         )
 
         return cls(
-            client=tahoe_client,
+            client=other_tahoe_client,
             config=mf_config,
             name=name,
             local_snapshot_service=LocalSnapshotService(
