@@ -34,7 +34,7 @@ Overview
 Alice has a magic-folder.
 She created this magic-folder, so she also has the **write** capability to the Collective DMD. That is, she is the admin.
 Alice wishes to add Bob as a member of the collective.
-She must send to Bob: a read-capability to the Collective
+She must send to Bob: a read-capability to the Collective DMD.
 She must receive from Bob: a read-capability to a fresh "Personal DMD" for Bob.
 
 
@@ -62,10 +62,14 @@ We can see that it was created::
            admin: True
 
 Her magic-folder software will now have:
+
 - a write-capability to the "Collective DMD" for "funny-photos".
-  - the "Collective DMD" will contain a single entry: "alice" with a
-    pointer to the read-capability of Alice's "Personal DMD"
-  - we know we have a write-capability because `admin: True`
+
+    - the "Collective DMD" will contain a single entry: "alice" with a
+      pointer to the read-capability of Alice's "Personal DMD"
+
+    - we know we have a write-capability because `admin: True`
+
 - the write-capability for Alice's "Personal DMD"
 
 Users don't usually need to see or care about the read- or write- capabilities; these are used with our Tahoe-LAFS client to do operations. However, if you do need them you can pass `--include-secret-information` to the `magic-folder list` command
