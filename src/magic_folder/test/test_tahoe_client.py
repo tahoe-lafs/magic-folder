@@ -15,6 +15,7 @@ from functools import (
 
 from json import (
     loads,
+    dumps,
 )
 
 from io import (
@@ -196,8 +197,7 @@ class TahoeClientTests(SyncTestCase):
         non-directory capability
         """
         self.setup_example()
-        import json
-        data = json.dumps([
+        data = dumps([
             "filenode",
             {
                 "mutable": False,

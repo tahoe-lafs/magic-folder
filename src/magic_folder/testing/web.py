@@ -118,8 +118,6 @@ class _FakeTahoeWelcome(Resource, object):
         }).encode("utf8")
 
 
-
-
 KNOWN_CAPABILITIES = [
     getattr(allmydata.uri, t).BASE_STRING
     for t in dir(allmydata.uri)
