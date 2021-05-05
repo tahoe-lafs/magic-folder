@@ -110,24 +110,14 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        from .tahoe_client import (
-            TahoeClient as OtherTahoeClient,
-        )
-
-        # Make the *other* kind of TahoeClient ...
-        other_tahoe_client = OtherTahoeClient(
-            tahoe_client.node_uri,
-            tahoe_client.treq,
-        )
-
         initial_participants = participants_from_collective(
             mf_config.collective_dircap,
             mf_config.upload_dircap,
-            other_tahoe_client
+            tahoe_client
         )
 
         return cls(
-            client=other_tahoe_client,
+            client=tahoe_client,
             config=mf_config,
             name=name,
             local_snapshot_service=LocalSnapshotService(
@@ -144,7 +134,7 @@ class MagicFolder(service.MultiService):
                 remote_snapshot_creator=RemoteSnapshotCreator(
                     config=mf_config,
                     local_author=mf_config.author,
-                    tahoe_client=other_tahoe_client,
+                    tahoe_client=tahoe_client,
                     upload_dircap=mf_config.upload_dircap,
                 ),
             ),

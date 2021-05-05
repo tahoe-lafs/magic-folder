@@ -50,8 +50,8 @@ from ..magicpath import (
 from ..config import (
     create_global_configuration,
 )
-from ..cli import (
-    TahoeClient,
+from ..tahoe_client import (
+    create_tahoe_client,
 )
 
 from ..testing.web import (
@@ -222,7 +222,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
-        tahoe_client = TahoeClient(
+        tahoe_client = create_tahoe_client(
             DecodedURL.from_text(U"http://example.invalid./"),
             http_client,
         )

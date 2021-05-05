@@ -147,6 +147,16 @@ class TahoeClient(object):
         validator=attr.validators.instance_of((HTTPClient, StubTreq)),
     )
 
+    def get_welcome(self):
+        """
+        Fetch the JSON 'welcome page' from Tahoe
+
+        :returns: bytes
+        """
+        return self.http_client.get(
+            self.url.add(u"t", u"json").to_uri().to_text().encode("ascii"),
+        )
+
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
         """
