@@ -1,6 +1,8 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import unicode_literals
+
 import json
 
 from twisted.internet.defer import (
@@ -244,9 +246,11 @@ class TahoeClient(object):
                 content = yield response.content()
                 raise TahoeAPIError(response.code, content)
 
-            kind, dirinfo = json.loads((yield readBody(response)))
+            raw_data = yield readBody(response)
+            kind, dirinfo = json.loads(raw_data)
+
             if kind != u"dirnode":
-                raise ValueError("Object is a {}, not a directory".format(kind))
+                raise ValueError("Capability is a '{}' not a 'dirnode'".format(kind))
 
             action.add_success_fields(
                 children=dirinfo[u"children"],
