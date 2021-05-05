@@ -33,6 +33,7 @@ from treq.client import (
 )
 from treq.testing import (
     RequestTraversalAgent,
+    StubTreq,
 )
 from zope.interface import (
     implementer,
@@ -111,7 +112,7 @@ class MagicFolderClient(object):
 
     # we only use the path-part not the domain
     base_url = DecodedURL.from_text(u"http://invalid./")
-    http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+    http_client = attr.ib(validator=attr.validators.instance_of((HTTPClient, StubTreq)))
     get_api_token = attr.ib()
 
     def list_folders(self, include_secret_information=None):

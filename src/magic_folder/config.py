@@ -335,7 +335,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     return config
 
 
-def create_testing_configuration(basedir, tahoe_node_directory, global_service):
+def create_testing_configuration(basedir, tahoe_node_directory):
     """
     Create a new global configuration that is in-memory and routes all
     API requests through http_root_resource.
@@ -345,8 +345,6 @@ def create_testing_configuration(basedir, tahoe_node_directory, global_service):
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
-
-    :param global_service: an object providing get_folder_service(name)
 
     :returns: a GlobalConfigDatabase instance
     """

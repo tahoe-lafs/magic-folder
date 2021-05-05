@@ -48,17 +48,11 @@ def add_snapshot(options):
     Add one new Snapshot of a particular file in a particular
     magic-folder.
     """
-    from twisted.internet import reactor
-    client = create_magic_folder_client(
-        reactor,
-        options.parent.config,
-        create_http_client(reactor, options.parent.config.api_client_endpoint),
-    )
-    res = yield client.add_snapshot(
+    res = yield options.parent.get_client().add_snapshot(
         options['folder'].decode("utf8"),
         options['file'].decode("utf8"),
     )
-    print("{}".format(res))
+    print("{}".format(res), file=options.stdout)
 
 
 class MagicFolderApiCommand(usage.Options):
@@ -68,6 +62,7 @@ class MagicFolderApiCommand(usage.Options):
     stdin = sys.stdin
     stdout = sys.stdout
     stderr = sys.stderr
+    _client = None  # initialized (at most once) in get_client()
 
     optFlags = [
         ["version", "V", "Display version numbers."],
@@ -97,9 +92,19 @@ class MagicFolderApiCommand(usage.Options):
                 self._config = load_global_configuration(self._config_path)
             except Exception as e:
                 raise usage.UsageError(
-                    u"Unable to load configuration: {}".format(e)
+                    u"Unable to load '{}': {}".format(self._config_path.path, e)
                 )
         return self._config
+
+    def get_client(self):
+        if self._client is None:
+            from twisted.internet import reactor
+            self._client = create_magic_folder_client(
+                reactor,
+                self.config,
+                create_http_client(reactor, self.config.api_client_endpoint),
+            )
+        return self._client
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
@@ -125,7 +130,7 @@ class MagicFolderApiCommand(usage.Options):
         Display magic-folder version and exit.
         """
         from . import __version__
-        print("magic-folder-api version {}".format(__version__))
+        print("magic-folder-api version {}".format(__version__), file=self.stdout)
         sys.exit(0)
 
     def postOptions(self):
@@ -145,23 +150,41 @@ class MagicFolderApiCommand(usage.Options):
 
 
 @inlineCallbacks
-def dispatch_magic_folder_api_command(args):
+def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None):
     """
     Run a magic-folder-api command with the given args
+
+    :param list[str] args: arguments without the 'magic-folder-api' 0th arg
+
+    :param stdout: file-like writable object to collect stdout (or
+        None for default)
+
+    :param stderr file-like writable object to collect stderr (or None
+        for default)
+
+    :param MagicFolderClient client: the client to use, or None to
+        construct one.
 
     :returns: a Deferred which fires with the result of doing this
         magic-folder-api (sub)command.
     """
+
     options = MagicFolderApiCommand()
+    if stdout is not None:
+        options.stdout = stdout
+    if stderr is not None:
+        options.stderr = stderr
+    if client is not None:
+        options._client = client
     try:
         options.parseOptions(args)
     except usage.UsageError as e:
-        print("Error: {}".format(e))
+        print("Error: {}".format(e), file=options.stdout)
         # if a user just typed "magic-folder-api" don't make them re-run
         # with "--help" just to see the sub-commands they were
         # supposed to use
-        if len(sys.argv) == 1:
-            print(options)
+        if len(args) == 0:
+            print(options, file=options.stdout)
         raise SystemExit(1)
 
     yield run_magic_folder_api_options(options)
@@ -196,7 +219,7 @@ def run_magic_folder_api_options(options):
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
             print(u"Error: {}".format(e), file=options.stderr)
-            print(u"   Attempted access via {}".format(options.config.api_client_endpoint))
+            print(u"   Attempted access via {}".format(options.config.api_client_endpoint), file=options.stderr)
             raise SystemExit(1)
 
         except MagicFolderApiError as e:

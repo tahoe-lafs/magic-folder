@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import json
 
 import attr
@@ -172,7 +174,7 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         try:
             path = self._folder_config.magic_path.preauthChild(path_u)
         except InsecurePath as e:
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            request.setResponseCode(http.NOT_ACCEPTABLE)
             _application_json(request)
             return json.dumps({u"reason": str(e)})
 

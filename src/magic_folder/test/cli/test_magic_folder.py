@@ -102,11 +102,9 @@ class ListMagicFolder(AsyncTestCase):
                 return self.magic_folders[name]
 
         self.service = GlobalService()
-
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             self.node_directory,
-            self.service,
         )
         self.http_client = create_testing_http_client(
             reactor,
