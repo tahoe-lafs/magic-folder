@@ -164,7 +164,7 @@ class _CollectiveDirnodeParticipants(object):
 
 
 @implementer(IParticipant)
-@attr.s(frozen=True, eq=False)
+@attr.s(frozen=True)
 class _CollectiveDirnodeParticipant(object):
     """
     An ``IParticipant`` implementation backed by a Tahoe-LAFS directory node

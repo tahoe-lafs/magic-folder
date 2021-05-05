@@ -126,7 +126,7 @@ def _get_content_check_code(acceptable_codes, res):
     returnValue(body)
 
 
-@attr.s
+@attr.s(frozen=True)
 class TahoeClient(object):
     """
     An object that knows how to call a particular tahoe client's
