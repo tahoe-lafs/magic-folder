@@ -241,7 +241,8 @@ class TahoeClient(object):
                 api_uri,
             )
             if response.code != 200:
-                raise Exception("Error response from list endpoint: {}".format(response))
+                content = yield response.content()
+                raise TahoeAPIError(response.code, content)
 
             kind, dirinfo = json.loads((yield readBody(response)))
             if kind != u"dirnode":

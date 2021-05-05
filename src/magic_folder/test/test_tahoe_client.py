@@ -179,6 +179,16 @@ class TahoeClientTests(SyncTestCase):
             partial(self.tahoe_client.download_capability, cap),
         )
 
+    @given(tahoe_lafs_chk_capabilities())
+    def test_list_directory_non_exist(self, cap):
+        """
+        ``list_directory`` returns a ``Deferred`` that fails when a
+        non-existing capability is requested.
+        """
+        self._api_error_test(
+            partial(self.tahoe_client.list_directory, cap),
+        )
+
     @given(binary())
     def test_stream_immutable(self, data):
         """
