@@ -148,7 +148,6 @@ class _CollectiveDirnodeParticipants(object):
         IParticipants API
         """
         result = yield self._tahoe_client.list_directory(self._collective_cap)
-        print("result", result)
         returnValue(list(
             participant_from_dmd(
                 name,
