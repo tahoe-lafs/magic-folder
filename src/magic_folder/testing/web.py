@@ -18,6 +18,7 @@ to Tahoe-LAFS every few days.
 """
 
 import json
+import time
 
 import hashlib
 
@@ -66,7 +67,7 @@ __all__ = (
 class _FakeTahoeRoot(Resource, object):
     """
     An in-memory 'fake' of a Tahoe WebUI root. Currently it only
-    implements (some of) the `/uri` resource.
+    implements (some of) the `/uri` resource and a static welcome page
     """
 
     def __init__(self, uri=None):
@@ -75,7 +76,9 @@ class _FakeTahoeRoot(Resource, object):
         """
         Resource.__init__(self)  # this is an old-style class :(
         self._uri = uri
+        self._welcome = _FakeTahoeWelcome()
         self.putChild(b"uri", self._uri)
+        self.putChild(b"", self._welcome)
 
     def add_data(self, kind, data):
         return self._uri.add_data(kind, data)
@@ -83,6 +86,38 @@ class _FakeTahoeRoot(Resource, object):
     def add_mutable_data(self, kind, data):
         # Adding mutable data always makes a new object.
         return self._uri.add_mutable_data(kind, data)
+
+
+class _FakeTahoeWelcome(Resource, object):
+    """
+    Welcome page. This only renders the ?t=json case.
+    """
+    isLeaf = True
+
+    def render_GET(self, request):
+        """
+        Normally the "welcome" / front page. We only need to support the
+        ?t=json for tests.
+        """
+        assert "t" in request.args, "must pass ?t= query argument"
+        assert request.args["t"][0] == "json", "must pass ?t=json query argument"
+        return json.dumps({
+            "introducers": {
+                "statuses": ["Fake test status"]
+            },
+            "servers": [
+                {
+                    "connection_status": "Connected to localhost:-1 via tcp",
+                    "nodeid": "v0-ehyafwjjwck2x2rsmwhsojcynfdzzn66xxyso5ev2joyughw47dq",
+                    "last_received_data": time.time(),
+                    "version": "tahoe-lafs/1.15.1",
+                    "available_space": 1234567890,
+                    "nickname": "node0",
+                },
+            ]
+        }).encode("utf8")
+
+
 
 
 KNOWN_CAPABILITIES = [

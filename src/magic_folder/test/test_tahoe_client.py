@@ -37,6 +37,7 @@ from hypothesis.strategies import (
 )
 
 from testtools.matchers import (
+    ContainsDict,
     MatchesPredicate,
     AfterPreprocessing,
     IsInstance,
@@ -333,3 +334,18 @@ class TahoeClientTests(SyncTestCase):
             succeeded(Always()),
         )
         self.assertThat(resp_d.result.code, Equals(GONE))
+
+    def test_get_welcome(self):
+        """
+        We can retrieve the welcome page
+        """
+        self.setup_example()
+        self.assertThat(
+            self.tahoe_client.get_welcome(),
+            succeeded(
+                ContainsDict({
+                    "introducers": Always(),
+                    "servers": Always(),
+                })
+            )
+        )

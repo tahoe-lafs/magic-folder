@@ -646,11 +646,11 @@ class MagicFolderService(MultiService):
 
         @inline_callbacks
         def enough():
-            welcome = yield self.tahoe_client.get_welcome()
-            if welcome.code != 200:
+            try:
+                welcome_body = yield self.tahoe_client.get_welcome()
+            except Exception:
                 returnValue((False, "Failed to get welcome page"))
 
-            welcome_body = json.loads((yield readBody(welcome)))
             servers = welcome_body[u"servers"]
             connected_servers = [
                 server
