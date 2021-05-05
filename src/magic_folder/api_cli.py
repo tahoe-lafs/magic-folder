@@ -22,6 +22,7 @@ from .cli import (
 )
 from .client import (
     CannotAccessAPIError,
+    MagicFolderApiError,
     create_http_client,
     create_magic_folder_client,
 )
@@ -198,9 +199,14 @@ def run_magic_folder_api_options(options):
             print(u"   Attempted access via {}".format(options.config.api_client_endpoint))
             raise SystemExit(1)
 
+        except MagicFolderApiError as e:
+            # these kinds of errors should report via JSON from the endpoints
+            print(u"{}".format(e.body), file=options.stderr)
+            raise SystemExit(2)
+
         except Exception as e:
             print(u"Error: {}".format(e), file=options.stderr)
-            raise SystemExit(1)
+            raise SystemExit(3)
 
 
 def _entry():
