@@ -6,28 +6,12 @@ import getpass
 from six.moves import (
     StringIO as MixedIO,
 )
-import json
 
 from appdirs import (
     user_config_dir,
 )
 
-from zope.interface import (
-    implementer,
-)
-
 import attr
-
-from io import (
-    BytesIO,
-)
-from eliot import (
-    start_action,
-    log_call,
-)
-from eliot.twisted import (
-    DeferredContext,
-)
 
 from twisted.internet.endpoints import (
     serverFromString,
@@ -43,8 +27,6 @@ from twisted.logger import (
 
 from twisted.web.client import (
     Agent,
-    readBody,
-    FileBodyProducer,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -72,13 +54,6 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.interfaces import (
-    IDirectoryNode,
-    IURI,
-)
-from allmydata.uri import (
-    from_string,
-)
 from allmydata.util.encodingutil import (
     argv_to_unicode,
     to_bytes,
