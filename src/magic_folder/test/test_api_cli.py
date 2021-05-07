@@ -14,30 +14,20 @@ from twisted.internet.task import (
     Clock,
 )
 from twisted.internet.defer import (
-    maybeDeferred,
     inlineCallbacks,
-)
-from twisted.python.failure import (
-    Failure,
 )
 from hyperlink import (
     DecodedURL,
 )
 from testtools.matchers import (
     AfterPreprocessing,
-    MatchesAny,
     Equals,
     StartsWith,
-    MatchesDict,
-    MatchesListwise,
     Contains,
-    ContainsDict,
     IsInstance,
 )
 from testtools.twistedsupport import (
-    succeeded,
     failed,
-    has_no_result,
 )
 from treq.testing import (
     RequestSequence,
@@ -45,13 +35,8 @@ from treq.testing import (
     StubTreq,
 )
 
-from ..snapshot import (
-    create_local_author,
-)
 from ..client import (
-    authorized_request,
     create_magic_folder_client,
-    create_testing_http_client,
     MagicFolderClient,
     CannotAccessAPIError,
 )
@@ -59,29 +44,13 @@ from ..api_cli import (
     dispatch_magic_folder_api_command,
     MagicFolderApiCommand,
 )
-from ..magic_folder import (
-    MagicFolder,
-)
 from ..config import (
     create_testing_configuration,
     create_global_configuration,
-    load_global_configuration,
     GlobalConfigDatabase,
-)
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
 )
 from .common import (
     AsyncTestCase,
-    SyncTestCase,
-)
-from .test_web import (
-    treq_for_folders,
-    magic_folder_config,
-)
-from magic_folder.initialize import (
-    magic_folder_initialize,
 )
 
 
