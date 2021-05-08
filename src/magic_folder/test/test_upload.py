@@ -39,7 +39,7 @@ from twisted.python.filepath import (
 from twisted.web.resource import (
     ErrorPage,
 )
-from ..magic_folder import (
+from ..uploader import (
     IRemoteSnapshotCreator,
     UploaderService,
 )
