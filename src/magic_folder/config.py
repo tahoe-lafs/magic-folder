@@ -971,6 +971,16 @@ class MagicFolderConfig(object):
                 action.add_success_fields(insert_or_update=u"update")
 
     @with_cursor
+    def get_all_remotesnapshot_paths(self, cursor):
+        """
+        Retrieve a set of all relpaths of files that have had an entry in magic folder db
+        (i.e. that have been downloaded at least once).
+        """
+        cursor.execute("SELECT [name] FROM [remote_snapshots]")
+        rows = cursor.fetchall()
+        return set(r[0] for r in rows)
+
+    @with_cursor
     def get_remotesnapshot(self, cursor, name):
         """
         return the cap that represents the latest remote snapshot that
