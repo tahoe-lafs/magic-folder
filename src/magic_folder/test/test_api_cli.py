@@ -34,6 +34,9 @@ from treq.testing import (
     StringStubbingResource,
     StubTreq,
 )
+from nacl.encoding import (
+    HexEncoder,
+)
 
 from ..client import (
     create_magic_folder_client,
@@ -42,12 +45,18 @@ from ..client import (
 )
 from ..api_cli import (
     dispatch_magic_folder_api_command,
+    run_magic_folder_api_options,
     MagicFolderApiCommand,
 )
 from ..config import (
     create_testing_configuration,
     create_global_configuration,
     GlobalConfigDatabase,
+)
+from ..snapshot import (
+    create_local_author,
+    LocalSnapshot,
+    RemoteSnapshot,
 )
 from .common import (
     AsyncTestCase,
@@ -72,9 +81,6 @@ class TestApiAddSnapshot(AsyncTestCase):
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
         )
-
-    def tearDown(self):
-        super(TestApiAddSnapshot, self).tearDown()
 
     @inlineCallbacks
     def test_happy(self):
@@ -501,4 +507,89 @@ class TestMagicApi(AsyncTestCase):
         self.assertThat(
             stderr.getvalue().strip(),
             Contains("Error: {}".format(the_bad_stuff))
+        )
+
+
+class TestDumpState(AsyncTestCase):
+    """
+    Tests related to 'magic-folder-api dump-state'
+    """
+
+    def setUp(self):
+        super(TestDumpState, self).setUp()
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
+        )
+
+    @inlineCallbacks
+    def test_happy(self):
+        """
+        Test printing of some well-known state
+        """
+
+        author = create_local_author("zara")
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        config = self.global_config.create_magic_folder(
+            name="test",
+            state_path=self.magic_config.child("test_stash"),
+            magic_path=magic_path,
+            author=author,
+            collective_dircap="URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            upload_dircap="URI:DIR2:hnua3xva2meb46dqm3ndmiqxhe:h7l2qnydoztv7gruwd65xtdhsvd3cm2kk2544knp5fhmzxoyckba",
+            poll_interval=1,
+        )
+        config.store_local_snapshot(
+            LocalSnapshot(
+                "foo",
+                author,
+                {},
+                config.magic_path.child("foo"),
+                parents_local=[],
+                parents_remote=[],
+            )
+        )
+        config.store_remotesnapshot(
+            "bar",
+            RemoteSnapshot(
+                "bar",
+                author,
+                {},
+                capability="URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+                parents_raw=[],
+                content_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
+            )
+        )
+
+
+        options = MagicFolderApiCommand()
+        options.stdout = StringIO()
+        options.stderr = StringIO()
+        options.parseOptions([
+            "--config", self.magic_config.path,
+            "dump-state",
+            "--folder", "test",
+        ])
+        options._config = self.global_config
+        yield run_magic_folder_api_options(options)
+
+        self.assertThat(
+            options.stderr.getvalue(),
+            Equals("")
+        )
+        self.assertThat(
+            [line.strip() for line in options.stdout.getvalue().splitlines()],
+            Equals([
+                config.name,
+                "author: zara {}".format(author.signing_key.verify_key.encode(encoder=HexEncoder)),
+                "stash_path: {}".format(config.stash_path.path),
+                "magic_path: {}".format(config.magic_path.path),
+                "collective: URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+                "local snapshots:",
+                "foo:",
+                "remote snapshots:",
+                "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+            ])
         )
