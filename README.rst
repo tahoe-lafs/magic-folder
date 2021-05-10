@@ -10,7 +10,7 @@ It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 
 |readthedocs|  |circleci|  |codecov|
 
-INSTALLING
+Installing
 ==========
 
 via pip
@@ -36,20 +36,31 @@ Usage
 =====
 
 Magic-Folder is configured via the ``magic-folder`` command-line tool.
-This tool manipulates the ``magic_folders.yaml`` file in a Tahoe-LAFS' node's private area.
-See the configuration documentation for full details.
 
-Once Magic-Folder is configured,
-functionality is provided by running a long-lived magic-folder side-car for the Tahoe-LAFS node.
-Start the side-car process using the ``magic-folder`` command line too::
+Magic-Folder configuration is kept in a directory.
+The default place for this directory is platform-dependant; on Linux it will be in ``~/.config/magic-folder``.
+Inside this directory is a database for global configuration and sub-directories to track state and temporary space for each actual magic-folder including a configuration database.
+All databases are SQLite.
 
-  magic-folder --node-directory /path/to/tahoe-lafs/node run
+A running Magic-Folder needs to have access to a Tahoe-LAFS client that it may use to perform operations in the Tahoe-LAFS Grid.
+This is referenced by the "node directory" of the Tahoe-LAFS client although actual operations are performed via the Tahoe-LAFS WebUI.
 
-As long as this side-car is running,
-whatever magic folders are configured will be functional.
+There are two ways to create a new Magic Folder instance (that is, the configuration required).
+Create a fresh one with ``magic-folder create`` or migrate from a Tahoe-LAFS 1.14.0 or earlier instance with ``magic-folder migrate``.
+
+Once a Magic-Folder is configured, functionality is provided by running a long-lived magic-folder daemon.
+This process is run using the ``magic-folder`` command line tool::
+
+  magic-folder --config <path to Magic Foler directory> run
+
+As long as this process is running, whatever magic folders are configured will be functional.
 The process must be restarted to read configuration changes.
+All other interactions are via the HTTP API which listens on a local endpoint according to the configuration.
+Other ``magic-folder`` subcommands are typically just thin CLI wrappers around a particular HTTP endpoint.
 
-TESTING
+
+
+Testing
 =======
 
 To run the unit test suite:
@@ -72,11 +83,11 @@ generate HTML version of Magic Folder documents, do:
 
 Resulting HTML files will be under ``docs/_build/html/``.
 
-LICENCE
+License
 =======
 
 Copyright 2006-2018 The Tahoe-LAFS Software Foundation
-Copyright 2020-2018 The Magic-Folder Developers
+Copyright 2020-2021 The Magic-Folder Developers
 
 You may use this package under the GNU General Public License, version 2 or,
 at your option, any later version. You may use this package under the
