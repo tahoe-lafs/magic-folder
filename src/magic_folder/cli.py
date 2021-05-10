@@ -6,28 +6,12 @@ import getpass
 from six.moves import (
     StringIO as MixedIO,
 )
-import json
 
 from appdirs import (
     user_config_dir,
 )
 
-from zope.interface import (
-    implementer,
-)
-
 import attr
-
-from io import (
-    BytesIO,
-)
-from eliot import (
-    start_action,
-    log_call,
-)
-from eliot.twisted import (
-    DeferredContext,
-)
 
 from twisted.internet.endpoints import (
     serverFromString,
@@ -43,8 +27,6 @@ from twisted.logger import (
 
 from twisted.web.client import (
     Agent,
-    readBody,
-    FileBodyProducer,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -72,13 +54,6 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.interfaces import (
-    IDirectoryNode,
-    IURI,
-)
-from allmydata.uri import (
-    from_string,
-)
 from allmydata.util.encodingutil import (
     argv_to_unicode,
     to_bytes,
@@ -564,7 +539,7 @@ class MagicFolderService(MultiService):
     def __attrs_post_init__(self):
         MultiService.__init__(self)
         if self.tahoe_client is None:
-            self.tahoe_client = TahoeClient(
+            self.tahoe_client = create_tahoe_client(
                 self.config.tahoe_client_url,
                 HTTPClient(Agent(self.reactor)),
             )
@@ -646,11 +621,11 @@ class MagicFolderService(MultiService):
 
         @inline_callbacks
         def enough():
-            welcome = yield self.tahoe_client.get_welcome()
-            if welcome.code != 200:
+            try:
+                welcome_body = yield self.tahoe_client.get_welcome()
+            except Exception:
                 returnValue((False, "Failed to get welcome page"))
 
-            welcome_body = json.loads((yield readBody(welcome)))
             servers = welcome_body[u"servers"]
             connected_servers = [
                 server
@@ -690,194 +665,6 @@ class MagicFolderService(MultiService):
         self._starting.cancel()
         MultiService.stopService(self)
         return self._starting
-
-
-@implementer(IDirectoryNode)
-@attr.s(frozen=True)
-class Node(object):
-    tahoe_client = attr.ib()
-    uri = attr.ib()
-
-    def __attrs_post_init__(self):
-        if not IURI.providedBy(self.uri):
-            raise TypeError("{} does not provide IURI".format(self.uri))
-
-    def is_unknown(self):
-        return False
-
-    def is_readonly(self):
-        return self.uri.is_readonly()
-
-    @log_call
-    def get_uri(self):
-        return self.uri.to_string()
-
-    @log_call
-    def get_size(self):
-        return self.uri.get_size()
-
-    def get_readonly_uri(self):
-        return self.uri.get_readonly().to_string()
-
-    def list(self):
-        return self.tahoe_client.list_directory(self.uri)
-
-    def download_best_version(self, progress):
-        return self.tahoe_client.download_best_version(
-            self.uri, progress
-        )
-
-    def add_file(self, name, uploadable, metadata=None, overwrite=True, progress=None):
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file",
-            name=name,
-        )
-        with action.context():
-            d = DeferredContext(
-                self.tahoe_client.add_file(
-                    self.uri, name, uploadable, metadata, overwrite, progress,
-                ),
-            )
-            return d.addActionFinish()
-
-@attr.s(frozen=True)
-class TahoeClient(object):
-    node_uri = attr.ib()
-    treq = attr.ib()
-
-    def get_welcome(self):
-        return self.treq.get(
-            self.node_uri.add(u"t", u"json").to_uri().to_text().encode("ascii"),
-        )
-
-    @inline_callbacks
-    def list_directory(self, uri):
-        api_uri = self.node_uri.child(
-                u"uri",
-                uri.to_string().decode("ascii"),
-            ).add(
-                u"t",
-                u"json",
-            ).to_uri().to_text().encode("ascii")
-        action = start_action(
-            action_type=u"magic-folder:cli:list-dir",
-            filenode_uri=uri.to_string().decode("ascii"),
-            api_uri=api_uri,
-        )
-        with action.context():
-            response = yield self.treq.get(
-                api_uri,
-            )
-            if response.code != 200:
-                raise Exception("Error response from list endpoint: {}".format(response))
-
-            kind, dirinfo = json.loads((yield readBody(response)))
-            if kind != u"dirnode":
-                raise ValueError("Object is a {}, not a directory".format(kind))
-
-            action.add_success_fields(
-                children=dirinfo[u"children"],
-            )
-
-        returnValue({
-            name: (
-                Node(
-                    self,
-                    from_string(
-                        json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
-                    ),
-                ),
-                json_metadata[u"metadata"],
-            )
-            for (name, (child_kind, json_metadata))
-            in dirinfo[u"children"].items()
-        })
-
-    @inline_callbacks
-    def download_best_version(self, filenode_uri, progress):
-        uri = self.node_uri.child(
-            u"uri",
-            filenode_uri.to_string().decode("ascii"),
-        ).to_uri().to_text().encode("ascii")
-
-        with start_action(action_type=u"magic-folder:cli:download", uri=uri):
-            response = yield self.treq.get(
-                uri,
-            )
-            if response.code != 200:
-                raise Exception(
-                    "Error response from download endpoint: {code} {phrase}".format(
-                        **vars(response)
-                    ))
-
-        returnValue((yield readBody(response)))
-
-    @inline_callbacks
-    def add_file(self, dirnode_uri, name, uploadable, metadata, overwrite, progress):
-        size = yield uploadable.get_size()
-        contents = b"".join((yield uploadable.read(size)))
-
-        uri = self.node_uri.child(
-            u"uri",
-        ).to_uri().to_text().encode("ascii")
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file:put",
-            uri=uri,
-            size=size,
-        )
-        with action:
-            upload_response = yield self.treq.put(
-                uri,
-                bodyProducer=FileBodyProducer(BytesIO(contents)),
-            )
-
-            if upload_response.code != 200:
-                raise Exception(
-                    "Error response from upload endpoint: {code} {phrase}".format(
-                        **vars(upload_response)
-                    ),
-                )
-
-            filecap = yield readBody(upload_response)
-
-        uri = self.node_uri.child(
-            u"uri",
-            dirnode_uri.to_string().decode("ascii"),
-            u"",
-        ).add(
-            u"t",
-            u"set-children",
-        ).add(
-            u"overwrite",
-            u"true" if overwrite else u"false",
-        ).to_uri().to_text().encode("ascii")
-        action = start_action(
-            action_type=u"magic-folder:cli:add_file:metadata",
-            uri=uri,
-        )
-        with action:
-            response = yield self.treq.post(
-                uri,
-                bodyProducer=FileBodyProducer(
-                    BytesIO(
-                        json.dumps({
-                            name: [
-                                u"filenode", {
-                                    "ro_uri": filecap,
-                                    "size": size,
-                                    "metadata": metadata,
-                                },
-                            ],
-                        }).encode("utf-8"),
-                    ),
-                ),
-            )
-            if response.code != 200:
-                raise Exception("Error response from metadata endpoint: {code} {phrase}".format(
-                    **vars(response)
-                ))
-        returnValue(Node(self, from_string(filecap)))
-
 
 
 class BaseOptions(usage.Options):

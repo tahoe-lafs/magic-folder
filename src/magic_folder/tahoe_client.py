@@ -1,16 +1,20 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import unicode_literals
+
 import json
 
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
-
 from twisted.web.http import (
     OK,
     CREATED,
+)
+from twisted.web.client import (
+    readBody,
 )
 
 from hyperlink import (
@@ -22,6 +26,12 @@ from treq.client import (
 )
 from treq.testing import (
     StubTreq,
+)
+from eliot import (
+    start_action,
+)
+from eliot.twisted import (
+    inline_callbacks,
 )
 
 import attr
@@ -116,7 +126,7 @@ def _get_content_check_code(acceptable_codes, res):
     returnValue(body)
 
 
-@attr.s
+@attr.s(frozen=True)
 class TahoeClient(object):
     """
     An object that knows how to call a particular tahoe client's
@@ -136,6 +146,19 @@ class TahoeClient(object):
     http_client = attr.ib(
         validator=attr.validators.instance_of((HTTPClient, StubTreq)),
     )
+
+    @inlineCallbacks
+    def get_welcome(self):
+        """
+        Fetch the JSON 'welcome page' from Tahoe
+
+        :returns: bytes
+        """
+        resp = yield self.http_client.get(
+            self.url.add(u"t", u"json").to_uri().to_text().encode("ascii"),
+        )
+        js = yield resp.content()
+        returnValue(json.loads(js.decode("utf8")))
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
@@ -209,15 +232,51 @@ class TahoeClient(object):
             raise CannotCreateDirectoryError(e)
         returnValue(capability_string)
 
-    @inlineCallbacks
+    @inline_callbacks
     def list_directory(self, dir_cap):
         """
         List the contents of a read- or read/write- directory
 
         :param bytes dir_cap: the capability-string of the directory.
         """
-        # https://github.com/LeastAuthority/magic-folder/issues/241
-        raise NotImplementedError
+        api_uri = self.url.child(
+            u"uri",
+            dir_cap.decode("ascii"),
+        ).add(
+            u"t",
+            u"json",
+        ).to_uri().to_text().encode("ascii")
+        action = start_action(
+            action_type=u"magic-folder:cli:list-dir",
+            filenode_uri=dir_cap.decode("ascii"),
+            api_uri=api_uri,
+        )
+        with action.context():
+            response = yield self.http_client.get(
+                api_uri,
+            )
+            if response.code != 200:
+                content = yield response.content()
+                raise TahoeAPIError(response.code, content)
+
+            raw_data = yield readBody(response)
+            kind, dirinfo = json.loads(raw_data)
+
+            if kind != u"dirnode":
+                raise ValueError("Capability is a '{}' not a 'dirnode'".format(kind))
+
+            action.add_success_fields(
+                children=dirinfo[u"children"],
+            )
+
+        returnValue({
+            name: (
+                json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
+                json_metadata[u"metadata"],
+            )
+            for (name, (child_kind, json_metadata))
+            in dirinfo[u"children"].items()
+        })
 
     @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):

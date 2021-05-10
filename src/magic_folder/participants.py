@@ -14,13 +14,15 @@ from zope.interface import (
 import attr
 
 from twisted.internet.defer import (
+    inlineCallbacks,
     returnValue,
 )
 
 from allmydata.interfaces import (
-    IDirectoryNode,
-    IDirectoryURI,
-    IReadonlyDirectoryURI,
+    IDirnodeURI,
+)
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
 )
 from allmydata.util.eliotutil import (
     inline_callbacks,
@@ -64,26 +66,28 @@ class IParticipants(Interface):
         """
 
 
-def participant_from_dmd(name, dirnode, is_self):
+def participant_from_dmd(name, dirnode, is_self, tahoe_client):
     """
     Create an ``IParticipant`` provider backed by the DMD at the given
     location.
 
     :param unicode name: The nickname of this participant.
 
-    :param IDirectoryNode dirnode: The Tahoe-LAFS directory node that holds
-        this participant's state.
+    :param bytes dirnode: Capability to the Tahoe-LAFS directory node
+        that holds this participant's state.
 
     :param bool is_self: ``True`` if we know this participant represents
         ourself in the magic folder, ``False`` otherwise.
 
+    :param TahoeClient tahoe_client: Access to Tahoe-LAFS API.
+
     :return IParticipant: A participant object for accessing this
         participant's state.
     """
-    return _CollectiveDirnodeParticipant(name, dirnode, is_self)
+    return _CollectiveDirnodeParticipant(name, dirnode, is_self, tahoe_client)
 
 
-def participants_from_collective(collective_dirnode, upload_dirnode):
+def participants_from_collective(collective_dirnode, upload_dirnode, tahoe_client):
     """
     Get an ``IParticipants`` provider that reads participants from the given
     Tahoe-LAFS dirnodes.
@@ -94,32 +98,28 @@ def participants_from_collective(collective_dirnode, upload_dirnode):
     :param IDirectoryNode upload_dirnode: The DMD for ourself, used to
         identify which participant is ourself.
 
+    :param TahoeClient tahoe_client: Access to Tahoe-LAFS API.
+
     :return: An ``IParticipants`` provider.
     """
-    return _CollectiveDirnodeParticipants(collective_dirnode, upload_dirnode)
+    return _CollectiveDirnodeParticipants(collective_dirnode, upload_dirnode, tahoe_client)
 
 
 @implementer(IParticipants)
 @attr.s(frozen=True)
 class _CollectiveDirnodeParticipants(object):
-    _collective_dirnode = attr.ib()
-    _upload_dirnode = attr.ib()
+    _collective_cap = attr.ib()
+    _upload_cap = attr.ib()
+    _tahoe_client = attr.ib(hash=None)
 
-    @_collective_dirnode.validator
+    @_collective_cap.validator
     def any_dirnode(self, attribute, value):
         """
         The Collective DMD must be a directory capability (but could be a
         read-only one or a read-write one).
         """
-        ok = (
-            IDirectoryNode.providedBy(value) and
-            (
-                IDirectoryURI.providedBy(value.uri) or
-                IReadonlyDirectoryURI.providedBy(value.uri)
-            ) and
-            not value.is_unknown()
-        )
-        if ok:
+        uri = tahoe_uri_from_string(value)
+        if IDirnodeURI.providedBy(uri):
             return
         raise TypeError(
             "Collective dirnode was {!r}, must be a directory node.".format(
@@ -127,44 +127,40 @@ class _CollectiveDirnodeParticipants(object):
             ),
         )
 
-    @_upload_dirnode.validator
+    @_upload_cap.validator
     def mutable_dirnode(self, attribute, value):
         """
         The Upload DMD must be a writable directory capability
         """
-        ok = (
-            IDirectoryNode.providedBy(value) and
-            IDirectoryURI.providedBy(value.uri) and
-            not value.is_unknown() and
-            not value.is_readonly()
-        )
-        if ok:
-            return
+        uri = tahoe_uri_from_string(value)
+        if IDirnodeURI.providedBy(uri):
+            if not uri.is_readonly():
+                return
         raise TypeError(
             "Upload dirnode was {!r}, must be a read-write directory node.".format(
                 value,
             ),
         )
 
-
-    @inline_callbacks
+    @inlineCallbacks
     def list(self):
         """
         IParticipants API
         """
-        result = yield self._collective_dirnode.list()
+        result = yield self._tahoe_client.list_directory(self._collective_cap)
         returnValue(list(
             participant_from_dmd(
                 name,
                 dirobj,
                 self._is_self(dirobj),
+                self._tahoe_client,
             )
             for (name, (dirobj, metadata))
             in result.items()
         ))
 
     def _is_self(self, dirobj):
-        return dirobj.get_readonly_uri() == self._upload_dirnode.get_readonly_uri()
+        return tahoe_uri_from_string(dirobj).get_readonly().to_string() == tahoe_uri_from_string(self._upload_cap).get_readonly().to_string()
 
 
 @implementer(IParticipant)
@@ -177,32 +173,31 @@ class _CollectiveDirnodeParticipant(object):
     :ivar unicode name: A human-readable identifier for this participant.  It
         will be the name of the DMD directory in the collective.
 
-    :ivar allmydata.interfaces.IDirectoryNode dirobj: An object for accessing
-        the Tahoe-LAFS directory node containing this participant's files.
+    :ivar bytes dircap: Directory-capability (read or read-write)
+        containing this participant's files.
 
     :ivar bool is_self: True if this participant is known to represent the
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
     """
     name = attr.ib(validator=attr.validators.instance_of(unicode))
-    dirobj = attr.ib(validator=attr.validators.provides(IDirectoryNode))
+    dircap = attr.ib(validator=attr.validators.instance_of(bytes))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
+    _tahoe_client = attr.ib()
 
+    @inline_callbacks
     def files(self):
         """
         List the children of the directory node, decode their paths, and return a
         Deferred which fires with a dictionary mapping all of the paths to
         more details.
         """
-        d = self.dirobj.list()
-        d.addCallback(
-            lambda listing_map: {
-                magic2path(encoded_relpath_u): FolderFile(child, metadata)
-                for (encoded_relpath_u, (child, metadata))
-                in listing_map.items()
-            },
-        )
-        return d
+        result = yield self._tahoe_client.list_directory(self.dircap)
+        returnValue({
+            magic2path(encoded_relpath_u): FolderFile(child, metadata)
+            for (encoded_relpath_u, (child, metadata))
+            in result.items()
+        })
 
 
 @attr.s

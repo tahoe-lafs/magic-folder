@@ -15,6 +15,7 @@ from functools import (
 
 from json import (
     loads,
+    dumps,
 )
 
 from io import (
@@ -37,6 +38,7 @@ from hypothesis.strategies import (
 )
 
 from testtools.matchers import (
+    ContainsDict,
     MatchesPredicate,
     AfterPreprocessing,
     IsInstance,
@@ -179,6 +181,43 @@ class TahoeClientTests(SyncTestCase):
             partial(self.tahoe_client.download_capability, cap),
         )
 
+    @given(tahoe_lafs_chk_capabilities())
+    def test_list_directory_non_exist(self, cap):
+        """
+        ``list_directory`` returns a ``Deferred`` that fails when a
+        non-existing capability is requested.
+        """
+        self._api_error_test(
+            partial(self.tahoe_client.list_directory, cap),
+        )
+
+    def test_directory_wrong_kind(self):
+        """
+        ``list_directory`` returns a ``Deferred`` that fails when given a
+        non-directory capability
+        """
+        self.setup_example()
+        data = dumps([
+            "filenode",
+            {
+                "mutable": False,
+                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "format": "CHK",
+                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "size": 6798975
+            }
+        ])
+        _, cap = self.root.add_data("URI:CHK:", data)
+        self.assertThat(
+            self.tahoe_client.list_directory(cap),
+            failed(
+                AfterPreprocessing(
+                    lambda fail: str(fail.value),
+                    Equals("Capability is a 'filenode' not a 'dirnode'")
+                )
+            )
+        )
+
     @given(binary())
     def test_stream_immutable(self, data):
         """
@@ -295,3 +334,18 @@ class TahoeClientTests(SyncTestCase):
             succeeded(Always()),
         )
         self.assertThat(resp_d.result.code, Equals(GONE))
+
+    def test_get_welcome(self):
+        """
+        We can retrieve the welcome page
+        """
+        self.setup_example()
+        self.assertThat(
+            self.tahoe_client.get_welcome(),
+            succeeded(
+                ContainsDict({
+                    "introducers": Always(),
+                    "servers": Always(),
+                })
+            )
+        )
