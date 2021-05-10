@@ -2,6 +2,14 @@
 Testtools-style matchers useful to the Tahoe-LAFS test suite.
 """
 
+import base64
+from uuid import (
+    UUID,
+)
+from nacl.exceptions import (
+    BadSignatureError,
+)
+
 import attr
 
 from testtools.matchers import (
@@ -11,6 +19,8 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     MatchesAll,
+    MatchesPredicate,
+    ContainsDict,
     Always,
     Equals,
 )
@@ -66,6 +76,32 @@ class MatchesNodePublicKey(object):
         try:
             ed25519.verify_signature(other_public_key, signature, b"")
         except error.BadSignature:
+            return Mismatch("The signature did not verify.")
+
+
+@attr.s
+class MatchesAuthorSignature(object):
+    """
+    Confirm signatures on a RemoteSnapshot
+    """
+    snapshot = attr.ib()  # LocalSnapshot
+    remote_snapshot = attr.ib()
+
+    def match(self, other):
+        # "other" is the RemoteSnapshot's signature
+        public_key = self.snapshot.author.verify_key
+        alleged_sig = base64.b64decode(self.remote_snapshot.signature)
+        signed_data = (
+            u"{content_capability}\n"
+            u"{name}\n"
+        ).format(
+            content_capability=self.remote_snapshot.content_cap,
+            name=self.remote_snapshot.name,
+        ).encode("utf8")
+
+        try:
+            public_key.verify(signed_data, alleged_sig)
+        except BadSignatureError:
             return Mismatch("The signature did not verify.")
 
 
@@ -128,11 +164,15 @@ class MatchesSameElements(object):
         return Equals(left).match(right)
 
 
-def matches_response(code_matcher=Always(), body_matcher=Always()):
+def matches_response(code_matcher=Always(), headers_matcher=Always(), body_matcher=Always()):
     """
     Match a Treq response object with certain code and body.
 
     :param Matcher code_matcher: A matcher to apply to the response code.
+
+    :param Matcher headers_matcher: A matcher to apply to the response headers
+        (a ``twisted.web.http_headers.Headers`` instance).
+
     :param Matcher body_matcher: A matcher to apply to the response body.
 
     :return: A matcher.
@@ -140,9 +180,79 @@ def matches_response(code_matcher=Always(), body_matcher=Always()):
     return MatchesAll(
         MatchesStructure(
             code=code_matcher,
+            headers=headers_matcher,
         ),
         AfterPreprocessing(
             lambda response: content(response),
             succeeded(body_matcher),
         ),
+    )
+
+def contained_by(container):
+    """
+    Match an element in the given container.
+
+    :param container: Anything that supports being the right-hand operand to
+        ``in``.
+
+    :return: A matcher.
+    """
+    return MatchesPredicate(
+        lambda element: element in container,
+        "%r not found",
+    )
+
+
+def header_contains(header_dict):
+    """
+    Match a ``twisted.web.http_headers.HTTPHeaders`` containing at least the
+    given items.
+
+    :param dict[unicode, Matcher] header_dict: A dictionary mapping header
+        names (canonical case) to matchers for the associated values (a list
+        of unicode strings).
+
+    :return: A matcher.
+    """
+    return AfterPreprocessing(
+        lambda headers: dict(headers.getAllRawHeaders()),
+        ContainsDict(header_dict),
+    )
+
+
+def provides(*interfaces):
+    """
+    Match an object that provides all of the given interfaces.
+
+    :param InterfaceClass *interfaces: The required interfaces.
+
+    :return: A matcher.
+    """
+    return MatchesAll(*list(
+        MatchesPredicate(
+            lambda obj, iface=iface: iface.providedBy(obj),
+            "%s does not provide {!r}".format(iface),
+        )
+        for iface
+        in interfaces
+    ))
+
+
+def is_hex_uuid():
+    """
+    Match unicode strings giving a hex representation of a UUID.
+
+    :return: A matcher.
+    """
+    def _is_hex_uuid(value):
+        if not isinstance(value, unicode):
+            return False
+        try:
+            UUID(hex=value)
+        except ValueError:
+            return False
+        return True
+    return MatchesPredicate(
+        _is_hex_uuid,
+        "%r is not a UUID hex representation.",
     )

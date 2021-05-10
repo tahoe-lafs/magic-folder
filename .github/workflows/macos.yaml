@@ -31,7 +31,7 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
-        PIP_FIND_LINKS=./wheelhouse tox -e py27-coverage
+        tox -e py27-coverage
 
     - uses: codecov/codecov-action@v1
       with:
@@ -61,7 +61,7 @@ jobs:
         pip install wheel tox
     - name: Test with tox
       run: |
-        PIP_FIND_LINKS=./wheelhouse tox -e integration
+        tox -e integration
 
     - uses: codecov/codecov-action@v1
       with:

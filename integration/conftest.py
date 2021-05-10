@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import sys
 import shutil
 from time import sleep
 from os import mkdir, listdir
@@ -13,15 +12,12 @@ from foolscap.furl import (
 )
 
 from eliot import (
-    Message,
     to_file,
     log_call,
-    start_action,
 )
 
 from twisted.python.procutils import which
 from twisted.internet.error import (
-    ProcessExitedAlready,
     ProcessTerminated,
 )
 
@@ -36,7 +32,6 @@ from util import (
     _cleanup_tahoe_process,
     _tahoe_runner,
     TahoeProcess,
-    _command,
     _pair_magic_folder,
     _generate_invite,
     MagicFolderEnabledNode,
@@ -117,9 +112,9 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         out_protocol,
         flog_binary,
         (
-            'flogtool', 'create-gatherer',
-            '--location', 'tcp:localhost:3117',
-            '--port', '3117',
+            u'flogtool', u'create-gatherer',
+            u'--location', u'tcp:localhost:3117',
+            u'--port', u'3117',
             gather_dir,
         )
     )
@@ -255,9 +250,9 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
             temp_dir,
             introducer_furl,
             flog_gatherer,
-            name="alice",
-            tahoe_web_port="tcp:9980:interface=localhost",
-            magic_folder_web_port="tcp:19980:interface=localhost",
+            name=u"alice",
+            tahoe_web_port=u"tcp:9980:interface=localhost",
+            magic_folder_web_port=u"tcp:19980:interface=localhost",
             storage=True,
         )
     )
@@ -279,9 +274,9 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
             temp_dir,
             introducer_furl,
             flog_gatherer,
-            name="bob",
-            tahoe_web_port="tcp:9981:interface=localhost",
-            magic_folder_web_port="tcp:19981:interface=localhost",
+            name=u"bob",
+            tahoe_web_port=u"tcp:9981:interface=localhost",
+            magic_folder_web_port=u"tcp:19981:interface=localhost",
             storage=False,
         )
     )
@@ -296,9 +291,9 @@ def edmond(reactor, temp_dir, introducer_furl, flog_gatherer, request):
             temp_dir,
             introducer_furl,
             flog_gatherer,
-            "edmond",
-            tahoe_web_port="tcp:9985:interface=localhost",
-            magic_folder_web_port="tcp:19985:interface=localhost",
+            u"edmond",
+            tahoe_web_port=u"tcp:9985:interface=localhost",
+            magic_folder_web_port=u"tcp:19985:interface=localhost",
             storage=True,
         )
     )

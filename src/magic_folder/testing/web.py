@@ -10,10 +10,15 @@
 """
 Test-helpers for clients that use the WebUI.
 
-NOTE: this is code copied from Tahoe-LAFS until there is a release
-after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
-this code can be deleted.
+NOTE: This code should be in upstream Tahoe-LAFS.  None of it exists in
+1.14.0.  Some of it has been pushed upstream and will make it into 1.15.0
+without further efforts but other parts have not.  Changes here should always
+be pushed upstream eventually but not so quickly that we have to submit a PR
+to Tahoe-LAFS every few days.
 """
+
+import json
+import time
 
 import hashlib
 
@@ -45,6 +50,9 @@ from treq.testing import (
 from zope.interface import implementer
 
 import allmydata.uri
+from allmydata.interfaces import (
+    IDirnodeURI,
+)
 from allmydata.util import (
     base32,
 )
@@ -59,7 +67,7 @@ __all__ = (
 class _FakeTahoeRoot(Resource, object):
     """
     An in-memory 'fake' of a Tahoe WebUI root. Currently it only
-    implements (some of) the `/uri` resource.
+    implements (some of) the `/uri` resource and a static welcome page
     """
 
     def __init__(self, uri=None):
@@ -68,11 +76,46 @@ class _FakeTahoeRoot(Resource, object):
         """
         Resource.__init__(self)  # this is an old-style class :(
         self._uri = uri
+        self._welcome = _FakeTahoeWelcome()
         self.putChild(b"uri", self._uri)
+        self.putChild(b"", self._welcome)
 
     def add_data(self, kind, data):
-        fresh, cap = self._uri.add_data(kind, data)
-        return cap
+        return self._uri.add_data(kind, data)
+
+    def add_mutable_data(self, kind, data):
+        # Adding mutable data always makes a new object.
+        return self._uri.add_mutable_data(kind, data)
+
+
+class _FakeTahoeWelcome(Resource, object):
+    """
+    Welcome page. This only renders the ?t=json case.
+    """
+    isLeaf = True
+
+    def render_GET(self, request):
+        """
+        Normally the "welcome" / front page. We only need to support the
+        ?t=json for tests.
+        """
+        assert "t" in request.args, "must pass ?t= query argument"
+        assert request.args["t"][0] == "json", "must pass ?t=json query argument"
+        return json.dumps({
+            "introducers": {
+                "statuses": ["Fake test status"]
+            },
+            "servers": [
+                {
+                    "connection_status": "Connected to localhost:-1 via tcp",
+                    "nodeid": "v0-ehyafwjjwck2x2rsmwhsojcynfdzzn66xxyso5ev2joyughw47dq",
+                    "last_received_data": time.time(),
+                    "version": "tahoe-lafs/1.15.1",
+                    "available_space": 1234567890,
+                    "nickname": "node0",
+                },
+            ]
+        }).encode("utf8")
 
 
 KNOWN_CAPABILITIES = [
@@ -129,6 +172,26 @@ def capability_generator(kind):
         yield cap.encode("ascii")
 
 
+def _get_node_format(cap):
+    """
+    Determine a plausible data format for the object references by the given
+    capability.
+
+    Some capabilities have multiple possible data formats behind them.  We
+    don't have enough deep knowledge of Tahoe-LAFS data structures or enough
+    state represented in this fake to actually have *any* data format (we just
+    have strings in memory).  But make something up to satisfy the interface.
+
+    :param IURI cap: The capability to consider.
+
+    :return unicode: A string describing a *possible* data format for the
+        object referenced by the given capability.
+    """
+    if cap.is_mutable():
+        return u"SDMF"
+    return u"CHK"
+
+
 @attr.s
 class _FakeTahoeUriHandler(Resource, object):
     """
@@ -150,13 +213,42 @@ class _FakeTahoeUriHandler(Resource, object):
         if kind not in self.capability_generators:
             self.capability_generators[kind] = capability_generator(kind)
         capability = next(self.capability_generators[kind])
+        if kind.startswith("URI:DIR2") and not kind.startswith("URI:DIR2-CHK"):
+            # directory-capabilities don't have the trailing size etc
+            # information unless they're immutable ...
+            parts = capability.split(":")
+            capability = ":".join(parts[:4])
         return capability
+
+    def _add_new_data(self, kind, data):
+        """
+        Add brand new data to the store.
+
+        :param bytes kind: The kind of capability, represented as the static
+            string prefix on the resulting capability string (eg "URI:DIR2:").
+
+        :param data: The data.  The type varies depending on ``kind``.
+
+        :return bytes: The capability-string for the data.
+        """
+        cap = self._generate_capability(kind)
+        # it should be impossible for this to already be in our data,
+        # but check anyway to be sure
+        if cap in self.data:
+            raise Exception("Internal error; key already exists somehow")
+        self.data[cap] = data
+        return cap
 
     def add_data(self, kind, data):
         """
-        adds some data to our grid
+        Add some immutable data to our grid.
 
-        :returns: a two-tuple: a bool (True if the data is freshly added) and a capability-string
+        If the data exists already, an existing capability is returned.
+        Otherwise, a new capability is returned.
+
+        :return (bool, bytes): The first element is True if the data is
+            freshly added.  The second element is the capability-string for
+            the data.
         """
         if not isinstance(data, bytes):
             raise TypeError("'data' must be bytes")
@@ -165,15 +257,34 @@ class _FakeTahoeUriHandler(Resource, object):
             if self.data[k] == data:
                 return (False, k)
 
-        cap = self._generate_capability(kind)
-        # it should be impossible for this to already be in our data,
-        # but check anyway to be sure
-        if cap in self.data:
-            raise Exception("Internal error; key already exists somehow")
-        self.data[cap] = data
-        return (True, cap)
+        return (True, self._add_new_data(kind, data))
+
+    def add_mutable_data(self, kind, data):
+        """
+        Add some mutable data to our grid.
+
+        :return bytes: The capability-string for the data.
+        """
+        if not isinstance(data, bytes):
+            raise TypeError("'data' must be bytes")
+        return (False, self._add_new_data(kind, data))
 
     def render_PUT(self, request):
+        uri = DecodedURL.from_text(request.uri.decode("utf8"))
+        fmt = "chk"
+        for arg, value in uri.query:
+            if arg == "format":
+                fmt = value.lower()
+        if fmt != "chk":
+            raise NotImplementedError()
+
+        if len(request.postpath):
+            return self._add_entry_to_dir(
+                request=request,
+                dircap=request.postpath[0],
+                segments=request.postpath[1:],
+            )
+
         data = request.content.read()
         fresh, cap = self.add_data("URI:CHK:", data)
         if fresh:
@@ -182,15 +293,95 @@ class _FakeTahoeUriHandler(Resource, object):
             request.setResponseCode(http.OK)  # replaced/modified files
         return cap
 
+    def _add_entry_to_dir(self, request, dircap, segments):
+        """
+        Adds an entry to a mutable directory. Only handles a single-level
+        deep.
+        """
+        if len(segments) != 1:
+            raise Exception(
+                "Need exactly one path segment (got {})".format(len(segments))
+            )
+        dircap = request.postpath[0].decode("ascii")
+        if not dircap.startswith("URI:DIR2"):
+            raise Exception(
+                "Can't add entry to non-mutable directory '{}'".format(dircap)
+            )
+        try:
+            dir_raw_data = self.data[dircap]
+        except KeyError:
+            raise Exception(
+                "No directory for '{}'".format(dircap)
+            )
+
+        content_cap = request.content.read().decode("utf8")
+        content = allmydata.uri.from_string(content_cap.encode("ascii"))
+
+        kind = "dirnode" if IDirnodeURI.providedBy(content) else "filenode"
+
+        # Objects can be mutable or immutable.  Capabilities can be read-only
+        # or write-only.  Don't mix up mutability with writeability.  You
+        # might have a read-only cap for a mutable object.  In this case,
+        # someone *else* might be able to change the object even though you
+        # can't.
+        metadata = {
+            "mutable": content.is_mutable(),
+            "ro_uri": content_cap,
+            "verify_uri": content.get_verify_cap().to_string(),
+            "format": _get_node_format(content),
+        }
+        if content_cap != content.get_readonly().to_string():
+            metadata["rw_uri"] = content_cap
+
+        if kind == "filenode" and content.get_size() is not None:
+            metadata["size"] = content.get_size()
+
+        dir_data = json.loads(dir_raw_data)
+        dir_data[1]["children"][segments[0]] = [kind, metadata]
+        self.data[dircap] = json.dumps(dir_data).encode("utf8")
+        return b""
+
+    def _mkdir_data_to_internal(self, raw_data):
+        """
+        Transforms the data that Tahoe-LAFS's ?t=mkdir-immutable (and
+        ?t=mkdir) API takes into the form that it'll spit out again
+        from the JSON directory-listing API. The incoming JSON data is
+        essentially just the children of the new directory.
+        """
+        # incoming from a client is essentially just the "children"
+        # part. Internally in Tahoe-LAFS these are represented as a
+        # series of net-strings but are returned from the GET API
+        # shaped like the below:
+        data = {} if not raw_data else json.loads(raw_data)
+        return json.dumps([
+            "dirnode",
+            {
+                "children": data,
+            }
+        ])
+
+    def _add_immutable_directory(self, raw_data):
+        return self.add_data(
+            "URI:DIR2-CHK:",
+            self._mkdir_data_to_internal(raw_data),
+        )
+
+    def _add_mutable_directory(self, raw_data):
+        return self.add_mutable_data(
+            "URI:DIR2:",
+            self._mkdir_data_to_internal(raw_data),
+        )
+
     def render_POST(self, request):
         t = request.args[u"t"][0]
         data = request.content.read()
 
-        type_to_kind = {
-            "mkdir-immutable": "URI:DIR2-CHK:"
+        type_to_handler = {
+            "mkdir-immutable": self._add_immutable_directory,
+            "mkdir": self._add_mutable_directory,
         }
-        kind = type_to_kind[t]
-        fresh, cap = self.add_data(kind, data)
+        handler = type_to_handler[t]
+        fresh, cap = handler(data)
         return cap
 
     def render_GET(self, request):
@@ -203,6 +394,15 @@ class _FakeTahoeUriHandler(Resource, object):
         if capability is None and request.postpath and request.postpath[0]:
             capability = request.postpath[0]
 
+        # Tahoe lets you get the children of directory-nodes by
+        # appending names after the capability; we support up to 1
+        # such path
+        if len(request.postpath) > 1:
+            if len(request.postpath) > 2:
+                raise NotImplementedError
+            child_name = request.postpath[1]
+            return self._get_child_of_directory(request, capability, child_name)
+
         # if we don't yet have a capability, that's an error
         if capability is None:
             request.setResponseCode(http.BAD_REQUEST)
@@ -211,10 +411,48 @@ class _FakeTahoeUriHandler(Resource, object):
         # the user gave us a capability; if our Grid doesn't have any
         # data for it, that's an error.
         if capability not in self.data:
-            request.setResponseCode(http.BAD_REQUEST)
-            return u"No data for '{}'".format(capability).decode("ascii")
+            # Tahoe-LAFS actually has several different behaviors for the
+            # ostensible "not found" case.
+            #
+            # * A request for a CHK cap will receive a GONE response with
+            #   "NoSharesError" (and some other text) in a text/plain body.
+            # * A request for a DIR2 cap will receive an OK response with
+            #   a huge text/html body including "UnrecoverableFileError".
+            # * A request for the child of a DIR2 cap will receive a GONE
+            #   response with "UnrecoverableFileError" (and some other text)
+            #   in a text/plain body.
+            #
+            # Also, all of these are *actually* behind a redirect to
+            # /uri/<CAP>.
+            #
+            # GONE makes the most sense here and I don't want to deal with
+            # redirects so here we go.
+            request.setResponseCode(http.GONE)
+            return u"No data for '{}'".format(capability).encode("ascii")
 
         return self.data[capability]
+
+    def _get_child_of_directory(self, request, capability, child_name):
+        """
+        Return the data which is a in a child of a directory.
+
+        :param bytes capability: the directory-capability
+
+        :param unicode child_name: the name of the child
+        """
+        raw_data = self.data[capability]
+        if not raw_data:
+            raise Exception(
+                u"No child '{}' in empty directory".format(child_name)
+            )
+        dir_data = json.loads(raw_data)
+        try:
+            child_cap = dir_data[1]["children"][child_name][1]["ro_uri"]
+            child_data = self.data[child_cap]
+        except KeyError:
+            request.setResponseCode(http.GONE)
+            return b"Child not found"
+        return child_data
 
 
 def create_fake_tahoe_root():

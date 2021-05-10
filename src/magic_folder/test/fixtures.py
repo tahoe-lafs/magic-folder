@@ -31,6 +31,9 @@ import attr
 from fixtures import (
     Fixture,
 )
+from hyperlink import (
+    DecodedURL,
+)
 
 from twisted.python.filepath import (
     FilePath,
@@ -62,6 +65,21 @@ from magic_folder.util.eliotutil import (
 from .tahoe_lafs import (
     create,
     create_introducer,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
+from ..tahoe_client import (
+    create_tahoe_client,
+)
+from ..magic_folder import (
+    RemoteSnapshotCreator,
+)
+
+from ..config import (
+    SQLite3DatabaseLocation,
+    MagicFolderConfig,
 )
 
 class INTRODUCER(object):
@@ -323,3 +341,63 @@ class NodeDirectory(Fixture):
         self.magic_folder_url.setContent(b"http://127.0.0.1:5432/")
         self.private.makedirs()
         self.api_auth_token.setContent(self.token)
+
+
+class RemoteSnapshotCreatorFixture(Fixture):
+    """
+    A fixture which provides a ``RemoteSnapshotCreator`` connected to a
+    ``MagicFolderConfig``.
+    """
+    def __init__(self, temp, author, upload_dircap, root=None):
+        """
+        :param FilePath temp: A path where the fixture may write whatever it
+            likes.
+
+        :param LocalAuthor author: The author which will be used to sign
+            snapshots the ``RemoteSnapshotCreator`` creates.
+
+        :param bytes upload_dircap: The Tahoe-LAFS capability for a writeable
+            directory into which new snapshots will be linked.
+
+        :param IResource root: The root resource for the fake Tahoe-LAFS HTTP
+            API hierarchy.  The default is one created by
+            ``create_fake_tahoe_root``.
+        """
+        if root is None:
+            root = create_fake_tahoe_root()
+        self.temp = temp
+        self.author = author
+        self.upload_dircap = upload_dircap
+        self.root = root
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com"),
+            self.http_client,
+        )
+
+    def _setUp(self):
+        self.magic_path = self.temp.child(b"magic")
+        self.magic_path.makedirs()
+
+        self.stash_path = self.temp.child(b"stash")
+        self.stash_path.makedirs()
+
+        self.poll_interval = 1
+
+        self.config = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash_path,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic_path,
+            self.poll_interval,
+        )
+
+        self.remote_snapshot_creator = RemoteSnapshotCreator(
+            config=self.config,
+            local_author=self.author,
+            tahoe_client=self.tahoe_client,
+            upload_dircap=self.upload_dircap,
+        )

@@ -2,7 +2,7 @@
 # See COPYING for details.
 
 """
-Tests for ``magic_folder.status``.
+Tests for ``magic_folder.web``.
 """
 
 
@@ -11,10 +11,8 @@ from __future__ import (
 )
 
 from json import (
-    dumps,
+    loads,
 )
-
-import attr
 
 from hyperlink import (
     DecodedURL,
@@ -29,564 +27,101 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
+    dictionaries,
+    sampled_from,
 )
 
-from testtools import (
-    ExpectedException,
-)
 from testtools.matchers import (
     AfterPreprocessing,
-    IsInstance,
+    MatchesAny,
     Equals,
-    raises,
+    MatchesDict,
+    MatchesListwise,
+    ContainsDict,
+    IsInstance,
 )
 from testtools.twistedsupport import (
-    failed,
     succeeded,
+    has_no_result,
 )
 
-from twisted.python.failure import (
-    Failure,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.web.http import (
     OK,
+    CREATED,
     UNAUTHORIZED,
+    NOT_IMPLEMENTED,
+    NOT_ALLOWED,
+    NOT_ACCEPTABLE,
+    INTERNAL_SERVER_ERROR,
 )
+from twisted.internet.task import Clock
 from twisted.web.resource import (
     Resource,
 )
 from twisted.web.static import (
     Data,
 )
+from twisted.python.filepath import (
+    FilePath,
+)
+
+from nacl.encoding import (
+    Base32Encoder,
+)
 
 from treq.testing import (
     StubTreq,
 )
-from treq.client import (
-    HTTPClient,
-)
 
-from allmydata.uri import (
-    from_string as cap_from_string,
+from allmydata.util.base32 import (
+    b2a,
 )
 
 from .common import (
     SyncTestCase,
-    AsyncTestCase,
 )
 from .matchers import (
     matches_response,
+    header_contains,
+    is_hex_uuid,
 )
 
 from .strategies import (
     path_segments,
     folder_names,
-    absolute_paths_utf8,
-    tahoe_lafs_dir_capabilities as dircaps,
-    tahoe_lafs_chk_capabilities as chkcaps,
+    relative_paths,
     tokens,
-    filenodes,
-    queued_items,
 )
 
-from .fixtures import (
-    NodeDirectory,
+from ..snapshot import (
+    create_local_author,
 )
-
-from .agentutil import (
-    FailingAgent,
+from ..cli import (
+    MagicFolderService,
 )
-
 from ..web import (
     magic_folder_resource,
-    MagicFolderWebApi,
-    status_for_item,
+)
+from ..config import (
+    create_global_configuration,
+    load_global_configuration,
+)
+from ..client import (
+    create_testing_http_client,
+    authorized_request,
+    url_to_bytes,
+)
+from ..tahoe_client import (
+    create_tahoe_client,
+)
+from .strategies import (
+    local_authors,
 )
 
-from ..status import (
-    Status,
-    status,
-)
-
-from ..common import (
-    BadFolderName,
-    BadResponseCode,
-    BadDirectoryCapability,
-    BadMetadataResponse,
-)
-class StatusTests(AsyncTestCase):
-    """
-    Tests for ``magic_folder.status.status``.
-    """
-    @given(folder_names(), absolute_paths_utf8().map(FilePath))
-    def test_missing_node(self, folder_name, node_directory):
-        """
-        If the given node directory does not exist, ``status`` raises
-        ``EnvironmentError``.
-        """
-        assume(not node_directory.exists())
-        treq = object()
-        with ExpectedException(IOError):
-            status(folder_name, node_directory, treq),
-
-    @given(folder_names())
-    def test_missing_api_auth_token(self, folder_name):
-        """
-        If the given node directory does not contain an API authentication token,
-        ``status`` raises ``EnvironmentError``.
-        """
-        node_directory = FilePath(self.mktemp())
-        node_directory.makedirs()
-        treq = object()
-        self.assertThat(
-            lambda: status(folder_name, node_directory, treq),
-            raises(EnvironmentError),
-        )
-
-    @given(lists(
-        folder_names(),
-        unique=True,
-        min_size=1,
-        # Just keep the test from taking forever to run ...
-        max_size=10,
-    ), dircaps(), dircaps())
-    def test_unknown_magic_folder_name(self, folder_names, collective_dircap, upload_dircap):
-        """
-        If a name which does not correspond to an existing magic folder is given,
-        ``status`` raises ``BadFolderName``.
-        """
-        assume(collective_dircap != upload_dircap)
-
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory))
-
-        treq = object()
-        nonexistent_folder_name = folder_names.pop()
-
-        for folder_name in folder_names:
-            node.create_magic_folder(
-                folder_name,
-                collective_dircap,
-                upload_dircap,
-                tempdir.child(u"folder"),
-                60,
-            )
-
-        self.assertThat(
-            lambda: status(nonexistent_folder_name, node_directory, treq),
-            raises(BadFolderName),
-        )
-
-    @given(folder_names(), dircaps(), dircaps())
-    def test_failed_node_connection(self, folder_name, collective_dircap, upload_dircap):
-        """
-        If an HTTP request to the Tahoe-LAFS node fails, ``status`` returns a
-        ``Deferred`` that fails with that failure.
-        """
-        assume(collective_dircap != upload_dircap)
-
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory))
-
-        node.create_magic_folder(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            tempdir.child(u"folder"),
-            60,
-        )
-
-        exception = Exception("Made up failure")
-        treq = HTTPClient(FailingAgent(Failure(exception)))
-        self.assertThat(
-            status(folder_name, node_directory, treq),
-            failed(
-                AfterPreprocessing(
-                    lambda f: f.value,
-                    Equals(exception),
-                ),
-            ),
-        )
-
-    @given(
-        folder_names(),
-        dircaps(),
-        dircaps(),
-        tokens(),
-    )
-    def test_cap_not_okay(self, folder_name, collective_dircap, upload_dircap, token):
-        """
-        If the response to a request for metadata about a capability for the magic
-        folder does not receive an HTTP OK response, ``status`` fails with
-        ``BadResponseCode``.
-        """
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory, token))
-
-        node.create_magic_folder(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            tempdir.child(u"folder"),
-            60,
-        )
-
-        # A bare resource will result in 404s for all requests made.  That'll
-        # do.
-        treq = StubTreq(Resource())
-
-        self.assertThat(
-            status(folder_name, node_directory, treq),
-            failed(
-                AfterPreprocessing(
-                    lambda f: f.value,
-                    IsInstance(BadResponseCode),
-                ),
-            ),
-        )
-
-    @given(
-        folder_names(),
-        dircaps(),
-        dircaps(),
-        tokens(),
-        tokens(),
-    )
-    def test_magic_folder_not_ok(self, folder_name, collective_dircap, upload_dircap, good_token, bad_token):
-        """
-        If the response to a request for magic folder status does not receive an
-        HTTP OK response, ``status`` fails with ``BadResponseCode``.
-        """
-        assume(collective_dircap != upload_dircap)
-        assume(good_token != bad_token)
-
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory, good_token))
-
-        node.create_magic_folder(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            tempdir.child(u"folder"),
-            60,
-        )
-        folders = {
-            folder_name: StubMagicFolder(),
-        }
-        resource = magic_folder_uri_hierarchy(
-            folders,
-            collective_dircap,
-            upload_dircap,
-            {},
-            {},
-            bad_token,
-        )
-        treq = StubTreq(resource)
-        self.assertThat(
-            status(folder_name, node_directory, treq),
-            failed(
-                AfterPreprocessing(
-                    lambda f: f.value,
-                    IsInstance(BadResponseCode),
-                ),
-            ),
-        )
-
-    @given(
-        folder_names(),
-        dircaps(),
-        # Not a directory cap at all!
-        chkcaps(),
-        tokens(),
-        filenodes(),
-    )
-    def test_filenode_dmd(self, folder_name, collective_dircap, upload_dircap, token, filenode):
-        """
-        ``status`` fails with ``BadDirectoryCapability`` if the upload dircap does
-        not refer to a directory object.
-        """
-        self._test_bad_dmd_metadata(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            token,
-            [u"filenode", filenode],
-            BadDirectoryCapability,
-        )
-
-    @given(
-        folder_names(),
-        dircaps(),
-        dircaps(),
-        tokens(),
-    )
-    def test_unrecognizable_dmd(self, folder_name, collective_dircap, upload_dircap, token):
-        """
-        ``status`` fails with ``BadMetadataResponse`` if the upload dircap json
-        metadata is not recognizable.
-        """
-        self._test_bad_dmd_metadata(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            token,
-            [u"filenode"],
-            BadMetadataResponse,
-        )
-
-    @given(
-        folder_names(),
-        dircaps(),
-        dircaps(),
-        tokens(),
-    )
-    def test_error_dmd(self, folder_name, collective_dircap, upload_dircap, token):
-        """
-        ``status`` fails with ``BadMetadataResponse`` if the request for upload
-        dircap json metadata returns an error dictionary.
-        """
-        self._test_bad_dmd_metadata(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            token,
-            {u"error": u"something went wrong"},
-            BadMetadataResponse,
-        )
-
-    def _test_bad_dmd_metadata(
-            self,
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            token,
-            upload_json,
-            exception_type,
-    ):
-        assume(collective_dircap != upload_dircap)
-
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory, token))
-
-        node.create_magic_folder(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            tempdir.child(u"folder"),
-            60,
-        )
-        folders = {
-            folder_name: StubMagicFolder(),
-        }
-
-        treq = StubTreq(magic_folder_uri_hierarchy_from_magic_folder_json(
-            folders,
-            collective_dircap,
-            dirnode_json(collective_dircap, {}),
-            upload_dircap,
-            upload_json,
-            token,
-        ))
-
-        self.assertThat(
-            status(folder_name, node_directory, treq),
-            failed(
-                AfterPreprocessing(
-                    lambda f: f.value,
-                    IsInstance(exception_type),
-                ),
-            ),
-        )
-
-
-    @given(
-        folder_names(),
-        dircaps(),
-        dircaps(),
-        tokens(),
-        filenodes(),
-        lists(queued_items()),
-        lists(queued_items()),
-    )
-    def test_status(
-            self,
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            token,
-            local_file,
-            upload_items,
-            download_items,
-    ):
-        """
-        ``status`` returns a ``Deferred`` that fires with a ``Status`` instance
-        reflecting the status of the identified magic folder.
-        """
-        assume(collective_dircap != upload_dircap)
-
-        tempdir = FilePath(self.mktemp())
-        node_directory = tempdir.child(u"node")
-        node = self.useFixture(NodeDirectory(node_directory, token))
-        local_folder = tempdir.child(u"folder")
-        local_folder.makedirs()
-        node.create_magic_folder(
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            local_folder,
-            60,
-        )
-
-        local_files = {
-            u"foo": ["filenode", local_file],
-        }
-        remote_files = {
-            u"participant-name": local_files,
-        }
-        folders = {
-            folder_name: StubMagicFolder(
-                uploader=StubQueue(upload_items),
-                downloader=StubQueue(download_items),
-            ),
-        }
-        treq = StubTreq(magic_folder_uri_hierarchy(
-            folders,
-            collective_dircap,
-            upload_dircap,
-            local_files,
-            remote_files,
-            token,
-        ))
-        self.assertThat(
-            status(folder_name, node_directory, treq),
-            succeeded(
-                Equals(Status(
-                    folder_name=folder_name,
-                    local_files=local_files,
-                    remote_files=remote_files,
-                    folder_status=list(
-                        status_for_item(kind, item)
-                        for (kind, items) in [
-                                ("upload", upload_items),
-                                ("download", download_items),
-                        ]
-                        for item in items
-                    ),
-                )),
-            ),
-        )
-
-
-def magic_folder_uri_hierarchy(
-        folders,
-        collective_dircap,
-        upload_dircap,
-        local_files,
-        remote_files,
-        token,
-):
-    upload_json = dirnode_json(
-        upload_dircap,
-        local_files,
-    )
-    collective_json = dirnode_json(
-        collective_dircap, {
-            key: dirnode_json(upload_dircap, {})
-            for key
-            in remote_files
-        },
-    )
-    return magic_folder_uri_hierarchy_from_magic_folder_json(
-        folders,
-        collective_dircap,
-        collective_json,
-        upload_dircap,
-        upload_json,
-        token,
-    )
-
-
-def magic_folder_uri_hierarchy_from_magic_folder_json(
-        folders,
-        collective_dircap,
-        collective_json,
-        upload_dircap,
-        upload_json,
-        token,
-):
-    upload = Data(
-        dumps(upload_json),
-        b"text/plain",
-    )
-    collective = Data(
-        dumps(collective_json),
-        b"text/plain",
-    )
-
-    uri = Resource()
-    uri.putChild(
-        upload_dircap,
-        upload,
-    )
-    uri.putChild(
-        cap_from_string(upload_dircap.encode("ascii")).get_readonly().to_string(),
-        upload,
-    )
-    uri.putChild(
-        collective_dircap,
-        collective,
-    )
-
-    api = MagicFolderWebApi(
-        get_magic_folder=lambda name: folders[name.decode("utf-8")],
-        get_auth_token=lambda: token,
-    )
-
-    root = Resource()
-    # Unfortunately the following two resource hierarchies should live at
-    # different servers.  However, we lack multi-server support in our web
-    # testing library.  So, they live side-by-side.  I hope that if the
-    # implementation mistakenly sends requests to the wrong server it will be
-    # blindingly obvious and this test shortcoming will not hurt us much.
-    root.putChild(b"uri", uri)
-    root.putChild(b"api", api)
-
-    return root
-
-
-def dirnode_json(cap_text, children):
-    cap = cap_from_string(cap_text.encode("ascii"))
-    info = {
-        "verify_uri": cap.get_verify_cap().to_string(),
-        "ro_uri": cap.get_readonly().to_string(),
-        "children": children,
-    }
-    if cap.is_mutable():
-        info["rw_uri"] = cap.to_string()
-    return ["dirnode", info]
-
-
-@attr.s
-class StubQueue(object):
-    items = attr.ib(default=attr.Factory(list))
-
-    def get_status(self):
-        for item in self.items:
-            yield item
-
-
-@attr.s
-class StubMagicFolder(object):
-    uploader = attr.ib(default=attr.Factory(StubQueue))
-    downloader = attr.ib(default=attr.Factory(StubQueue))
+# Pick any single API token value.  Any test suite that is not specifically
+# for authorization can use this because don't need Hypothesis to
+# comprehensively explore the authorization token input space in those tests.
+AUTH_TOKEN = b"0" * 16
 
 
 class AuthorizationTests(SyncTestCase):
@@ -621,13 +156,11 @@ class AuthorizationTests(SyncTestCase):
 
         def get_auth_token():
             return good_token
-        def get_magic_folder(name):
-            raise KeyError(name)
 
-        root = magic_folder_resource(get_magic_folder, get_auth_token)
+        root = magic_folder_resource(get_auth_token, Resource())
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
-        encoded_url = url.to_uri().to_text().encode("ascii")
+        encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
@@ -670,8 +203,6 @@ class AuthorizationTests(SyncTestCase):
         """
         def get_auth_token():
             return auth_token
-        def get_magic_folder(name):
-            raise KeyError(name)
 
         # Since we don't want to exercise any real magic-folder application
         # logic we'll just magic up the child resource being requested.
@@ -686,11 +217,14 @@ class AuthorizationTests(SyncTestCase):
             resource.putChild(name.encode("utf-8"), branch)
             branch = resource
 
-        root = magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=branch)
+        root = magic_folder_resource(
+            get_auth_token,
+            v1_resource=branch,
+        )
 
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
-        encoded_url = url.to_uri().to_text().encode("ascii")
+        encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
@@ -707,6 +241,416 @@ class AuthorizationTests(SyncTestCase):
                 matches_response(
                     code_matcher=Equals(OK),
                     body_matcher=Equals(content),
+                ),
+            ),
+        )
+
+
+def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services):
+    """
+    Construct a ``treq``-module-alike which is hooked up to a Magic Folder
+    service with Magic Folders like the ones given.
+
+    :param reactor: A reactor to give to the ``MagicFolderService`` which will
+        back the HTTP interface.
+
+    :param FilePath basedir: A non-existant directory to create and populate
+        with a new Magic Folder service configuration.
+
+    :param unicode auth_token: The authorization token accepted by the
+        service.
+
+    :param folders: A mapping from Magic Folder names to their configurations.
+        These are the folders which will appear to exist.
+
+    :param bool start_folder_services: If ``True``, start the Magic Folder
+        service objects.  Otherwise, don't.
+
+    :return: An object like the ``treq`` module.
+    """
+    global_config = create_global_configuration(
+        basedir,
+        # Make this endpoint string and the one below parse but make them
+        # invalid, too, because we don't want anything to start listening on
+        # these during this set of tests.
+        #
+        # https://github.com/LeastAuthority/magic-folder/issues/276
+        u"tcp:-1",
+        # It wants to know where the Tahoe-LAFS node directory is but we don't
+        # have one and we don't want to invoke any functionality that requires
+        # one.  Give it something bogus.
+        FilePath(u"/non-tahoe-directory"),
+        u"tcp:127.0.0.1:-1",
+    )
+    for name, config in folders.items():
+        global_config.create_magic_folder(
+            name,
+            config[u"magic-path"],
+            config[u"state-path"],
+            config[u"author"],
+            config[u"collective-dircap"],
+            config[u"upload-dircap"],
+            config[u"poll-interval"],
+        )
+
+    global_service = MagicFolderService(
+        reactor,
+        global_config,
+        # Provide a TahoeClient so MagicFolderService doesn't try to look up a
+        # Tahoe-LAFS node URL in the non-existent directory we supplied above
+        # in its efforts to create one itself.
+        create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+    )
+
+    if start_folder_services:
+        # Reach in and start the individual service for the folder we're going
+        # to interact with.  This is required for certain functionality, eg
+        # snapshot creation.  We avoid starting the whole global_service
+        # because it wants to do error-prone things like bind ports.
+        for name in folders:
+            global_service.get_folder_service(name).startService()
+
+    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token)
+
+
+def magic_folder_config(author, state_path, local_directory):
+    # see also treq_for_folders() where these dicts are turned into
+    # real magic-folder configs
+    return {
+        u"magic-path": local_directory,
+        u"state-path": state_path,
+        u"author": author,
+        u"collective-dircap": u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
+        u"upload-dircap": u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
+        u"poll-interval": 60,
+    }
+
+
+class ListMagicFolderTests(SyncTestCase):
+    """
+    Tests for listing Magic Folders using **GET /v1/magic-folder** and
+    ``V1MagicFolderAPI``.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def setUp(self):
+        super(ListMagicFolderTests, self).setUp()
+        self.author = create_local_author(u"alice")
+
+    @given(
+        sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
+    )
+    def test_method_not_allowed(self, method):
+        """
+        A request to **/v1/magic-folder** with a method other than **GET**
+        receives a NOT ALLOWED or NOT IMPLEMENTED response.
+        """
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        self.assertThat(
+            authorized_request(treq, AUTH_TOKEN, method, self.url),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(NOT_ALLOWED),
+                        Equals(NOT_IMPLEMENTED),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        dictionaries(
+            folder_names(),
+            # We need absolute paths but at least we can make them beneath the
+            # test working directory.
+            relative_paths().map(FilePath),
+        ),
+    )
+    def test_list_folders(self, folders):
+        """
+        A request for **GET /v1/magic-folder** receives a response that is a
+        JSON-encoded list of Magic Folders.
+
+        :param dict[unicode, unicode] folders: A mapping from folder names to
+            local filesystem paths where we shall pretend the local filesystem
+            state for those folders resides.
+        """
+        for path_u in folders.values():
+            # Fix it so non-ASCII works reliably. :/ This is fine here but we
+            # leave the original as text mode because that works better with
+            # the config/database APIs.
+            path_b = path_u.asBytesMode("utf-8")
+            path_b.makedirs(ignoreExistingDirectory=True)
+
+        basedir = FilePath(self.mktemp())
+        treq = treq_for_folders(
+            object(),
+            basedir,
+            AUTH_TOKEN,
+            {
+                name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
+                for (name, path_u)
+                in folders.items()
+            },
+            False,
+        )
+
+        # note that treq_for_folders() will end up creating a configuration here
+        config = load_global_configuration(basedir)
+        expected_folders = {
+            name: config.get_magic_folder(name)
+            for name in config.list_magic_folders()
+        }
+
+        self.assertThat(
+            authorized_request(treq, AUTH_TOKEN, b"GET", self.url),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            name: {
+                                u"name": name,
+                                u"author": {
+                                    u"name": config.author.name,
+                                    u"verify_key": config.author.verify_key.encode(Base32Encoder),
+                                },
+                                u"magic_path": config.magic_path.path,
+                                u"stash_path": config.stash_path.path,
+                                u"poll_interval": config.poll_interval,
+                                u"is_admin": config.is_admin(),
+                            }
+                            for name, config
+                            in expected_folders.items()
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+
+class CreateSnapshotTests(SyncTestCase):
+    """
+    Tests for creating a new snapshot in an existing Magic Folder using a
+    **POST**.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_wait_for_completion(self, author, folder_name, path_in_folder, some_content):
+        """
+        A **POST** request to **/v1/snapshot/:folder-name** does not receive a
+        response before the snapshot has been created in the local database.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # The interesting behavior of this test hinges on this flag.  We
+            # decline to start the folder services here.  Therefore, no local
+            # snapshots will ever be created.  This lets us observe the
+            # request in a state where it is waiting to receive its response.
+            # This demonstrates that the response is not delivered before the
+            # local snapshot is created.  See test_create_snapshot for the
+            # alternative case.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_in_folder),
+            ),
+            has_no_result(),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+    )
+    def test_create_fails(self, author, folder_name, path_in_folder):
+        """
+        If a local snapshot cannot be created, a **POST** to
+        **/v1/snapshot/<folder-name>** receives a response with an HTTP error
+        code.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        # You may not create a snapshot of a directory.
+        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file.makedirs(ignoreExistingDirectory=True)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # This test carefully targets a failure mode that doesn't require
+            # the service to be running.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_in_folder),
+            ),
+            succeeded(
+                matches_response(
+                    # Maybe this could be BAD_REQUEST instead, sometimes, if
+                    # the path argument was bogus somehow.
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            u"reason": IsInstance(unicode),
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_create_snapshot(self, author, folder_name, path_in_folder, some_content):
+        """
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        creates a new local snapshot for the file at the given path in the
+        named folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_in_folder),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                ),
+            ),
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            folder_name: MatchesDict({
+                                path_in_folder: MatchesListwise([
+                                    MatchesDict({
+                                        u"type": Equals(u"local"),
+                                        u"identifier": is_hex_uuid(),
+                                        # XXX It would be nice to see some
+                                        # parents if there are any.
+                                        u"parents": Equals([]),
+                                        u"content-path": AfterPreprocessing(
+                                            lambda path: FilePath(path).getContent(),
+                                            Equals(some_content),
+                                        ),
+                                        u"author": Equals(author.to_remote_author().to_json()),
+                                    }),
+                                ]),
+                            }),
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
+        binary(),
+    )
+    def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
+        """
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        fails if the **path** is outside the magic-folder
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_outside_folder),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                 ),
             ),
         )

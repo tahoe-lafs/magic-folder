@@ -18,6 +18,9 @@ this code can be deleted.
 from twisted.internet.defer import (
     inlineCallbacks,
 )
+from twisted.web.http import (
+    GONE,
+)
 
 from allmydata.uri import (
     from_string,
@@ -26,6 +29,9 @@ from allmydata.uri import (
 from magic_folder.testing.web import (
     create_tahoe_treq_client,
     capability_generator,
+)
+from magic_folder.tahoe_client import (
+    create_tahoe_client,
 )
 
 from hyperlink import (
@@ -136,7 +142,8 @@ class FakeWebTest(TestCase):
 
     def test_download_missing(self):
         """
-        Error if we download a capability that doesn't exist
+        If a capability is requested for which the stored cyphertext cannot be
+        located, **GET /uri?uri=CAP** returns a GONE response code.
         """
 
         http_client = create_tahoe_treq_client()
@@ -149,7 +156,7 @@ class FakeWebTest(TestCase):
             resp,
             succeeded(
                 MatchesStructure(
-                    code=Equals(500)
+                    code=Equals(GONE),
                 )
             )
         )
@@ -171,4 +178,41 @@ class FakeWebTest(TestCase):
                     code=Equals(400)
                 )
             )
+        )
+
+    @inlineCallbacks
+    def test_add_directory_entry(self):
+        """
+        Adding a capability to a mutable directory
+        """
+        content = b"content " * 200
+        http_client = create_tahoe_treq_client()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com/"),
+            http_client,
+        )
+
+        # first create a mutable directory
+        mut_cap = yield tahoe_client.create_mutable_directory()
+
+        # create an immutable and link it into the directory
+        file_cap = yield tahoe_client.create_immutable(content)
+        yield tahoe_client.add_entry_to_mutable_directory(mut_cap, u"foo", file_cap)
+
+        # prove we can access the expected file via a GET
+        uri = DecodedURL.from_text(u"http://example.com/uri/")
+        uri = uri.child(mut_cap.decode("ascii"), u"foo")
+        resp = http_client.get(uri.to_uri().to_text())
+
+        self.assertThat(
+            resp,
+            succeeded(
+                MatchesStructure(
+                    code=Equals(200),
+                )
+            )
+        )
+        self.assertThat(
+            resp.result.content(),
+            succeeded(Equals(content)),
         )

@@ -1,0 +1,1 @@
+The HTTP status API at `/api` has been removed in anticipation of the introduction of a new, better interface.

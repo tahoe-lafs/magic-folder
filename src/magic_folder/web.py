@@ -1,14 +1,26 @@
+from __future__ import unicode_literals
+
 import json
-import cgi
 
 import attr
 
+from nacl.encoding import (
+    Base32Encoder,
+)
+
+from twisted.python.filepath import (
+    FilePath,
+    InsecurePath,
+)
+from twisted.internet.defer import (
+    maybeDeferred,
+)
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
 from twisted.web.server import (
-    Site,
     NOT_DONE_YET,
+    Site,
 )
 from twisted.web import (
     http,
@@ -20,32 +32,27 @@ from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
+from .magicpath import (
+    magic2path,
+)
 
-def magic_folder_resource(get_magic_folder, get_auth_token, _v1_resource=None):
+def magic_folder_resource(get_auth_token, v1_resource):
     """
     Create the root resource for the Magic Folder HTTP API.
 
-    :param get_magic_folder: See ``magic_folder_web_service``.
     :param get_auth_token: See ``magic_folder_web_service``.
 
-    :param IResource _v1_resource: A resource which will take the place of the
-        usual bearer-token-authorized `/v1` resource.  This is intended to
-        make testing easier.
+    :param IResource v1_resource: A resource which will be protected by a
+        bearer-token authorization scheme at the `v1` child of the resulting
+        resource.
 
     :return IResource: The resource that is the root of the HTTP API.
     """
-    if _v1_resource is None:
-        _v1_resource = V1MagicFolderAPI(get_magic_folder)
-
     root = Resource()
-    root.putChild(
-        b"api",
-        MagicFolderWebApi(get_magic_folder, get_auth_token),
-    )
     root.putChild(
         b"v1",
         BearerTokenAuthorization(
-            _v1_resource,
+            v1_resource,
             get_auth_token,
         ),
     )
@@ -98,17 +105,255 @@ class BearerTokenAuthorization(Resource, object):
 
 
 @attr.s
-class V1MagicFolderAPI(Resource, object):
+class APIv1(Resource, object):
     """
-    The root of the ``/v1`` HTTP API hierarchy.
+    Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar (unicode -> MagicFolder) _get_magic_folder: A function that looks up
-        a magic folder by its nickname.
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
     """
-    _get_magic_folder = attr.ib()
+    _global_config = attr.ib()
+    _global_service = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
+        self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
+        self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
+
+
+@attr.s
+class SnapshotAPIv1(Resource, object):
+    """
+    ``SnapshotAPIv1`` implements the ``/v1/snapshot`` portion of the HTTP API
+    resource hierarchy.
+
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
+    """
+    _global_config = attr.ib()
+    _global_service = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        Respond with all of the snapshots for all of the files in all of the
+        folders.
+        """
+        _application_json(request)
+        return json.dumps(dict(_list_all_snapshots(self._global_config)))
+
+    def getChild(self, name, request):
+        name_u = name.decode("utf-8")
+        folder_config = self._global_config.get_magic_folder(name_u)
+        folder_service = self._global_service.get_folder_service(name_u)
+        return MagicFolderSnapshotAPIv1(folder_config, folder_service)
+
+
+@attr.s
+class MagicFolderSnapshotAPIv1(Resource, object):
+    """
+    """
+    _folder_config = attr.ib()
+    _folder_service = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_POST(self, request):
+        path_u = request.args[b"path"][0].decode("utf-8")
+
+        # preauthChild allows path-separators in the "path" (i.e. not
+        # just a single path-segment). That is precisely what we want
+        # here, though. It sill does not allow the path to "jump out"
+        # of the base magic_path -- that is, an InsecurePath error
+        # will result if you pass an absolute path outside the folder
+        # or a relative path that reaches up too far.
+
+        try:
+            path = self._folder_config.magic_path.preauthChild(path_u)
+        except InsecurePath as e:
+            request.setResponseCode(http.NOT_ACCEPTABLE)
+            _application_json(request)
+            return json.dumps({u"reason": str(e)})
+
+        adding = maybeDeferred(
+            self._folder_service.local_snapshot_service.add_file,
+            path,
+        )
+        def added(ignored):
+            request.setResponseCode(http.CREATED)
+            _application_json(request)
+            request.write(b"{}")
+
+        def failed(reason):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            request.write(json.dumps({u"reason": reason.getErrorMessage()}))
+
+        adding.addCallbacks(
+            added,
+            failed,
+        ).addCallback(
+            lambda ignored: request.finish(),
+        )
+        return NOT_DONE_YET
+
+
+def _application_json(request):
+    request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+
+
+def _list_all_snapshots(global_config):
+    """
+    Get all snapshots for all files in all magic folders known to the given
+    configuration.
+
+    :param GlobalConfigDatabase global_config: The Magic Folder daemon
+        configuration to inspect.
+
+    :return: A generator of two-tuples.  The first element of each tuple is a
+        unicode string giving the name of a magic-folder.  The second element
+        is a dictionary mapping relative paths to snapshot lists.
+    """
+    for name in global_config.list_magic_folders():
+        folder_config = global_config.get_magic_folder(name)
+        yield name, dict(_list_all_folder_snapshots(folder_config))
+
+
+def _list_all_folder_snapshots(folder_config):
+    """
+    Get all snapshots for all files contained by the given folder.
+
+    XXX This only returns local snapshots.
+
+    :param MagicFolderConfig folder_config: The magic-folder for which to look
+        up snapshots.
+
+    :return: A generator of two-tuples.  The first element of each tuple is a
+        unicode string giving a path relative to the local filesystem
+        container for ``folder_config``.  The second element is a list
+        representing all snapshots for that file.
+    """
+    for snapshot_path in folder_config.get_all_localsnapshot_paths():
+        absolute_path = magic2path(snapshot_path)
+        if not absolute_path.startswith(folder_config.magic_path.path):
+            raise ValueError(
+                "Found path {!r} in local snapshot database for magic-folder {!r} "
+                "that is outside of local magic folder directory {!r}.".format(
+                    absolute_path,
+                    folder_config.name,
+                    folder_config.magic_path.path,
+                ),
+            )
+        relative_segments = FilePath(absolute_path).segmentsFrom(folder_config.magic_path)
+        relative_path = u"/".join(relative_segments)
+        yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
+
+
+def _list_all_path_snapshots(folder_config, snapshot_path):
+    """
+    Get all snapshots for the given path in the given folder.
+
+    :param MagicFolderConfig folder_config: The magic-folder to consider.
+
+    :param FilePath snapshot_path: The path of a file within the magic-folder.
+
+    :return list: A JSON-compatible representation of all discovered
+        snapshots.
+    """
+    top_snapshot = folder_config.get_local_snapshot(snapshot_path)
+    snapshots = list(
+        _snapshot_to_json(snapshot)
+        for snapshot
+        in _flatten_snapshots(top_snapshot)
+    )
+    return snapshots
+
+
+def _flatten_snapshots(snapshot):
+    """
+    Yield ``snapshot`` and all of its ancestors.
+
+    :param LocalSnapshot snapshot: The starting snapshot.
+
+    :return: A generator that starts with ``snapshot`` and then proceeds to
+        its parents, and the parents of those snapshots, and so on.
+    """
+    yield snapshot
+    for p in snapshot.parents_local:
+        for parent_snapshot in _flatten_snapshots(p):
+            yield parent_snapshot
+
+
+def _snapshot_to_json(snapshot):
+    """
+    Create a JSON-compatible representation of a single snapshot.
+
+    :param LocalSnapshot snapshot: The snapshot to represent.
+
+    :return dict: A dictionary which can be mapped to JSON which completely
+        represents the given snapshot.
+    """
+    result = {
+        u"type": u"local",
+        # XXX Probably want to populate parents with something ...
+        u"parents": [],
+        u"content-path": snapshot.content_path.path,
+        u"identifier": unicode(snapshot.identifier),
+        u"author": snapshot.author.to_remote_author().to_json(),
+    }
+    return result
+
+
+@attr.s
+class MagicFolderAPIv1(Resource, object):
+    """
+    Implement the ``/v1/magic-folder`` HTTP API hierarchy.
+
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
+    """
+    _global_config = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        Render a list of Magic Folders and some of their details, encoded as JSON.
+        """
+        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        _application_json(request)  # set reply headers
+
+        def get_folder_info(name, mf):
+            info = {
+                u"name": name,
+                u"author": {
+                    u"name": mf.author.name,
+                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                },
+                u"stash_path": mf.stash_path.path,
+                u"magic_path": mf.magic_path.path,
+                u"poll_interval": mf.poll_interval,
+                u"is_admin": mf.is_admin(),
+            }
+            if include_secret_information:
+                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+                info[u"collective_dircap"] = mf.collective_dircap
+                info[u"upload_dircap"] = mf.upload_dircap
+            return info
+
+        def all_folder_configs():
+            for name in sorted(self._global_config.list_magic_folders()):
+                yield (name, self._global_config.get_magic_folder(name))
+
+        return json.dumps({
+            name: get_folder_info(name, config)
+            for name, config
+            in all_folder_configs()
+        })
 
 
 class Unauthorized(Resource):
@@ -130,26 +375,23 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, get_magic_folder, get_auth_token):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
-    :param get_magic_folder: a callable that returns a MagicFolder given a name
+    :param GlobalConfigDatabase global_config: A reference to the shared magic
+        folder state defining the service.
 
     :param get_auth_token: a callable that returns the current authentication token
 
     :returns: a StreamServerEndpointService instance
     """
-    root = magic_folder_resource(get_magic_folder, get_auth_token)
+    v1_resource = APIv1(global_config, global_service)
+    root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),
     )
-
-
-def error(request, code, message):
-    request.setResponseCode(code, message)
-    request.finish()
 
 
 def _is_authorized(request, get_auth_token):
@@ -179,90 +421,3 @@ def _is_authorized(request, get_auth_token):
         authorization[0].encode("ascii"),
         expected,
     )
-
-
-def authorize(request, get_auth_token):
-    if "token" in request.args:
-        error(
-            request,
-            http.BAD_REQUEST,
-            "Do not pass 'token' as URL argument",
-        )
-        return False
-
-    t = request.content.tell()
-    request.content.seek(0)
-    fields = cgi.FieldStorage(
-        request.content,
-        {k: vs[0]
-         for (k, vs)
-         in request.requestHeaders.getAllRawHeaders()
-        },
-        environ={'REQUEST_METHOD': 'POST'},
-    )
-    request.content.seek(t)
-
-    # not using get_arg() here because we *don't* want the token
-    # argument to work if you passed it as a GET-style argument
-    token = None
-    if fields and 'token' in fields:
-        token = fields['token'].value.strip()
-    if not token:
-        error(request, http.UNAUTHORIZED, "Missing token")
-        return False
-    if not timing_safe_compare(token, get_auth_token()):
-        error(request, http.UNAUTHORIZED, "Invalid token")
-        return False
-
-    return True
-
-
-class MagicFolderWebApi(Resource):
-    """
-    I provide the web-based API for Magic Folder status etc.
-    """
-
-    def __init__(self, get_magic_folder, get_auth_token):
-        Resource.__init__(self)
-        self.get_magic_folder = get_magic_folder
-        self.get_auth_token = get_auth_token
-
-    def render_POST(self, request):
-        if not authorize(request, self.get_auth_token):
-            return NOT_DONE_YET
-
-        request.setHeader("content-type", "application/json")
-        nick = request.args.get("name", ["default"])[0]
-
-        try:
-            magic_folder = self.get_magic_folder(nick)
-        except KeyError:
-            request.setResponseCode(http.NOT_FOUND)
-            return json.dumps({
-                u"error":
-                u"No such magic-folder: {}".format(
-                    nick.decode("utf-8"),
-                ),
-            })
-
-        data = []
-        for item in magic_folder.uploader.get_status():
-            data.append(status_for_item("upload", item))
-
-        for item in magic_folder.downloader.get_status():
-            data.append(status_for_item("download", item))
-
-        return json.dumps(data)
-
-
-def status_for_item(kind, item):
-    d = dict(
-        path=item.relpath_u,
-        status=item.status_history()[-1][0],
-        kind=kind,
-    )
-    for (status, ts) in item.status_history():
-        d[status + '_at'] = ts
-    d['percent_done'] = item.progress.progress
-    d['size'] = item.size
-    return d

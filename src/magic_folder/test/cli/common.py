@@ -5,9 +5,6 @@ from __future__ import (
 from six.moves import (
     StringIO as MixedIO,
 )
-from allmydata.util.encodingutil import unicode_to_argv
-from allmydata.scripts import runner
-
 from twisted.python.usage import (
     UsageError,
 )
@@ -22,35 +19,10 @@ from eliot import (
     Message,
 )
 
-from ..common_util import (
-    ReallyEqualMixin,
-    run_magic_folder_cli,
-    run_tahoe_cli,
-)
-
 from ...cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
-
-def parse_options(basedir, command, args):
-    o = runner.Options()
-    o.parseOptions(["--node-directory", basedir, command] + args)
-    while hasattr(o, "subOptions"):
-        o = o.subOptions
-    return o
-
-class CLITestMixin(ReallyEqualMixin):
-    def do_cli(self, verb, *args, **kwargs):
-        # client_num is used to execute client CLI commands on a specific
-        # client.
-        client_num = kwargs.get("client_num", 0)
-        client_dir = unicode_to_argv(self.get_clientdir(i=client_num))
-        nodeargs = [ "--node-directory", client_dir ]
-        if verb == "magic-folder":
-            return run_magic_folder_cli(verb, nodeargs=nodeargs, *args, **kwargs)
-        else:
-            return run_tahoe_cli(verb, nodeargs=nodeargs, *args, **kwargs)
 
 
 @attr.s
@@ -63,12 +35,11 @@ class ProcessOutcome(object):
         return self.code == 0
 
 @inlineCallbacks
-def cli(node_directory, argv):
+def cli(config_directory, argv):
     """
     Perform an in-process equivalent to the given magic-folder command.
 
-    :param FilePath node_directory: The path to the Tahoe-LAFS node this
-        command will use.
+    :param FilePath config_directory: The path to our configuration
 
     :param list[bytes] argv: The magic-folder arguments which define the
         command to run.  This does not include "magic-folder" itself, just the
@@ -83,15 +54,16 @@ def cli(node_directory, argv):
     try:
         try:
             options.parseOptions([
-                b"--debug",
-                b"--node-directory",
-                node_directory.asBytesMode().path,
+                b"--config",
+                config_directory.asBytesMode().path,
             ] + argv)
         except UsageError as e:
             print(e, file=options.stderr)
             result = 1
         else:
-            result = yield do_magic_folder(options)
+            result = yield run_magic_folder_options(options)
+            if result is None:
+                result = 0
     except SystemExit as e:
         result = e.code
 

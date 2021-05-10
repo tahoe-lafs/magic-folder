@@ -15,6 +15,9 @@ from twisted.internet.defer import (
     Deferred,
     succeed,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.internet.protocol import (
     ProcessProtocol,
 )
@@ -23,7 +26,7 @@ from twisted.internet.error import (
     ProcessDone,
 )
 
-import requests
+import treq
 
 from eliot import (
     Message,
@@ -45,7 +48,7 @@ import pytest_twisted
 
 from magic_folder.cli import (
     MagicFolderCommand,
-    do_magic_folder,
+    run_magic_folder_options,
 )
 
 
@@ -72,6 +75,10 @@ class MagicFolderEnabledNode(object):
     @property
     def node_directory(self):
         return join(self.temp_dir, self.name)
+
+    @property
+    def magic_config_directory(self):
+        return join(self.temp_dir, "magic-daemon-{}".format(self.name))
 
     @property
     def magic_directory(self):
@@ -127,15 +134,23 @@ class MagicFolderEnabledNode(object):
             happy=1,
             total=1,
         )
-        await_client_ready(tahoe)
+        yield await_client_ready(reactor, tahoe)
 
-        # Make the magic folder process.
-        magic_folder = yield _run_magic_folder(
+        # Create the magic-folder daemon config
+        yield _init_magic_folder(
             reactor,
             request,
             temp_dir,
             name,
             magic_folder_web_port,
+        )
+
+        # Run the magic-folder daemon
+        magic_folder = yield _run_magic_folder(
+            reactor,
+            request,
+            temp_dir,
+            name,
         )
         returnValue(
             cls(
@@ -170,7 +185,6 @@ class MagicFolderEnabledNode(object):
                 self.request,
                 self.temp_dir,
                 self.name,
-                self.magic_folder_web_port,
             )
 
 
@@ -582,39 +596,33 @@ def _check_status(response):
     """
     Check the response code is a 2xx (raise an exception otherwise)
     """
-    if response.status_code < 200 or response.status_code >= 300:
+    if response.code < 200 or response.code >= 300:
         raise ValueError(
-            "Expected a 2xx code, got {}".format(response.status_code)
+            "Expected a 2xx code, got {}".format(response.code)
         )
 
 
+@inlineCallbacks
 def web_get(tahoe, uri_fragment, **kwargs):
     """
     Make a GET request to the webport of `tahoe` (a `TahoeProcess`,
     usually from a fixture (e.g. `alice`). This will look like:
     `http://localhost:<webport>/<uri_fragment>`. All `kwargs` are
-    passed on to `requests.get`
+    passed on to `treq.get`
     """
     url = node_url(tahoe.node_dir, uri_fragment)
-    resp = requests.get(url, **kwargs)
+    resp = yield treq.get(url, **kwargs)
     _check_status(resp)
-    return resp.content
+    body = yield resp.content()
+    returnValue(body)
 
 
-def web_post(tahoe, uri_fragment, **kwargs):
-    """
-    Make a POST request to the webport of `node` (a `TahoeProcess,
-    usually from a fixture e.g. `alice`). This will look like:
-    `http://localhost:<webport>/<uri_fragment>`. All `kwargs` are
-    passed on to `requests.post`
-    """
-    url = node_url(tahoe.node_dir, uri_fragment)
-    resp = requests.post(url, **kwargs)
-    _check_status(resp)
-    return resp.content
+def twisted_sleep(reactor, timeout):
+    return deferLater(reactor, timeout, lambda: None)
 
 
-def await_client_ready(tahoe, timeout=10, liveness=60*2):
+@inlineCallbacks
+def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     """
     Uses the status API to wait for a client-type node (in `tahoe`, a
     `TahoeProcess` instance usually from a fixture e.g. `alice`) to be
@@ -622,47 +630,40 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
 
       - it answers `http://<node_url>/statistics/?t=json/`
       - there is at least one storage-server connected
-      - every storage-server has a "last_received_data" and it is
-        within the last `liveness` seconds
+      - it has a "last_received_data" within the last `liveness` seconds
 
     We will try for up to `timeout` seconds for the above conditions
     to be true. Otherwise, an exception is raised
     """
-    start = time.time()
-    while (time.time() - start) < float(timeout):
+    start = reactor.seconds()
+    while (reactor.seconds() - start) < float(timeout):
         try:
-            data = web_get(tahoe, u"", params={u"t": u"json"})
+            data = yield web_get(tahoe, u"", params={u"t": u"json"})
             js = json.loads(data)
         except Exception as e:
             print("waiting because '{}'".format(e))
-            time.sleep(1)
+            yield twisted_sleep(reactor, 1)
             continue
 
         if len(js['servers']) == 0:
             print("waiting because no servers at all")
-            time.sleep(1)
+            yield twisted_sleep(reactor, 1)
             continue
         server_times = [
             server['last_received_data']
             for server in js['servers']
+            if server['last_received_data'] is not None
         ]
-        # if any times are null/None that server has never been
-        # contacted (so it's down still, probably)
-        if any(t is None for t in server_times):
-            print("waiting because at least one server not contacted")
-            time.sleep(1)
-            continue
 
         # check that all times are 'recent enough'
-        if any([time.time() - t > liveness for t in server_times]):
-            print("waiting because at least one server too old")
-            time.sleep(1)
+        if all([time.time() - t > liveness for t in server_times]):
+            print("waiting because no server new enough")
+            yield twisted_sleep(reactor, 1)
             continue
 
         print("finished waiting for client")
-        # we have a status with at least one server, and all servers
-        # have been contacted recently
-        return True
+        # we have a status with at least one recently-contacted server
+        returnValue(True)
     # we only fall out of the loop when we've timed out
     raise RuntimeError(
         "Waited {} seconds for {} to be 'ready' but it never was".format(
@@ -672,7 +673,64 @@ def await_client_ready(tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _run_magic_folder(reactor, request, temp_dir, name, web_port):
+def _init_magic_folder(reactor, request, temp_dir, name, web_port):
+    """
+    Create a new magic-folder-daemon configuration
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param name: The alias of the Tahoe-LAFS node.
+
+    :return Deferred[IProcessTransport]: The started process.
+    """
+    node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
+    # proto = _ProcessExitedProtocol()
+    proto = _CollectOutputProtocol()
+
+    coverage = request.config.getoption('coverage')
+    def optional(flag, elements):
+        if flag:
+            return elements
+        return []
+
+    args = [
+        sys.executable,
+        "-m",
+    ] + optional(coverage, [
+        "coverage",
+        "run",
+        "-m",
+    ]) + [
+        "magic_folder",
+    ] + optional(coverage, [
+        "--coverage",
+    ]) + [
+        "--config", config_dir,
+        "init",
+        "--node-directory", node_dir,
+        "--listen-endpoint", web_port,
+    ]
+    Message.log(
+        message_type=u"integration:init-magic-folder",
+        coverage=coverage,
+        args=args,
+    )
+    transport = reactor.spawnProcess(
+        proto,
+        sys.executable,
+        args,
+    )
+
+    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
+    with start_action(action_type=u"integration:init-magic-folder").context():
+        ctx = DeferredContext(proto.done)
+        ctx.addCallback(lambda ignored: transport)
+        return ctx.addActionFinish()
+
+
+def _run_magic_folder(reactor, request, temp_dir, name):
     """
     Start a magic-folder process.
 
@@ -683,7 +741,7 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    node_dir = join(temp_dir, name)
+    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
     proto = _MagicTextProtocol(magic_text)
@@ -706,11 +764,9 @@ def _run_magic_folder(reactor, request, temp_dir, name, web_port):
     ] + optional(coverage, [
         "--coverage",
     ]) + [
-        "--node-directory",
-        node_dir,
+        "--config",
+        config_dir,
         "run",
-        "--web-port",
-        web_port,
     ]
     Message.log(
         message_type=u"integration:run-magic-folder",
@@ -795,6 +851,6 @@ def _command(*args):
     o = MagicFolderCommand()
     o.stdout = BytesIO()
     o.parseOptions(args)
-    return_value = yield do_magic_folder(o)
+    return_value = yield run_magic_folder_options(o)
     assert 0 == return_value
     returnValue(o.stdout.getvalue())

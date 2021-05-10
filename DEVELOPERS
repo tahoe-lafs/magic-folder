@@ -1,0 +1,200 @@
+
+
+Context and Background
+======================
+
+In Tahoe-LAFS 1.14.0 and earlier, "magic folders" was a subcommand.
+This project moves it out of tahoe, interacting with Tahoe only via its HTTP API.
+
+There are still some remnants of this history; some `allmydata` imports for example.
+This means a Python dependency on Tahoe (even though Tahoe-LAFS has no official Python API).
+We are working to get rid of this so that all we need is a Tahoe-LAFS WebUI endpoint to connect to.
+
+Where possible, new code should not use `allmydata.*` namespaces.
+This is not always possible.
+One place it's okay is for handling of Capability Strings directly (roughtly, parts of `allmydata.uri.*`)
+
+Magic Folder is currently Python2 only.
+A port of Tahoe-LAFS to Python3 is under way currently.
+It doesn't make sense to support Python3 in Magic Folders until Tahoe-LAFS (at least) supports it.
+
+
+General Development Process
+===========================
+
+Development is co-ordinated on GitHub via Issues and Pull Requests.
+
+Generally any change requires a new Issue describing the feature, bug or enhancement.
+This Issue number will be used for a "news" item in ``./newsfragments.<number>.<kind>``, referenced by the eventual Pull Request(s) and are normally used in the branch name (such as ``<number>.descriptive-words``).
+
+Magic Folder is on-topic for the ``#tahoe-lafs`` channel on the Freenode IRC network.
+Feel free to discuss things there but be prepared to wait hours or more for replies; there aren't many people working on Magic Folder and we are in many time-zones.
+
+
+Setting up a Development Environment
+====================================
+
+There are many ways to set up development environments for Python programs.
+While we describe particular ways below you may wish to try differeent methods.
+If you believe a different setup could serve other developers add those instructions here too (via a Pull Request).
+
+
+Creating a virtualenv
+---------------------
+
+If you like to work using a virtualenv you will need a Python 2 one for magic-folder.
+One way to create it is::
+
+    % python -m virtualenv venv
+    % ./venv/bin/pip install --editable .[test]
+
+Note the ``[test]`` "extra" after the "." (single dot).
+This installs tools required for local development.
+
+
+Hypothesis
+----------
+
+Many of the tests use Hypothesis (see https://hypothesis.readthedocs.io/).
+
+You can select profiles with an evnironment variable:
+
+   export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-fast
+   export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-ci
+
+Tests can make use of Hypothesis to create a variety of inputs.
+The range of inputs tried is kept in a database in ``./hypothesis``.
+The ``magic-folder-fast`` profile above limits the number of "examples" that Hypothesis tries per test-case; this speeds up the tests but it can be useful to run with more examples occasionally.
+
+
+Test Tools
+----------
+
+Newer tests are using the "testttools" framework (see https://testtools.readthedocs.io/en/latest/overview.html).
+These asserts use the method ``self.assertThat(...)`` along with some "matchers".
+When writing new code, this style should be preferred.
+If you have motivation, re-writing older tests in this style is also useful.
+
+
+Tox
+---
+
+There exist several Tox environments (list them with ``tox -a``).
+Before pushing a branch it is a good idea to run at least the "codechecks" environment::
+
+    % tox -e codechecks
+
+This is the "lint" job on the Continuous Integration (CI) system and will fail your Pull Request if it fails.
+
+You may also choose to run the various tests via tox.
+Using tox to run these tests will be closer to the way the CI system will run them.
+
+
+Submitting a Pull Request
+=========================
+
+Let us say that you've gotten the project from our main GitHub repository::
+
+    % git clone https://github.com/LeastAuthority/magic-folder
+
+
+Creating Your Fork
+~~~~~~~~~~~~~~~~~~
+
+To make a Pull Request (PR) you will need to make a "fork" of the project under your own username.
+Click the "fork" button near the upper-right corner.
+
+Once this is complete you can add your fork as an additional repository.
+You may name it however you like; this example calls it "github" (the first place you cloned from will be called "origin" by default).
+Add your fork; from the "Code" dropdown select the "SSH" tab::
+
+    % git remote add -f github git@github.com:meejah/magic-folder.git
+
+The "-f" option causes it to "fetch" immediately.
+
+
+Creating a Development Branch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Make sure you're on "master" and up-to-date:
+
+    % git checkout master
+    % git pull
+
+If there is not already an Issue for your change, create one.
+This Issue should describe the bug or feature or enhancement from a high level.
+Let us say it has number "123".
+Create an appropriate branch::
+
+    % git checkout -b 123.embiggen-the-memory
+
+This creates the branch "123.embiggen-the-memory" and switches to it.
+
+
+Prepare to Push Your Work
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After you make some changes and commits, run the "codechecks" environment:
+
+    % tox -e codechecks
+
+In this case, it will likely complain about a missing "newsfragment".
+These fragments are used by ``towncrier`` to construct a NEWS file for each release.
+Create a newsfragment for your change:
+
+    % echo "Now uses even more memory" > newsfragments/123.feature
+
+...and add it to your branch::
+
+    % git add newsfragments/123.feature
+    % git commit -m "news"
+
+
+Creating the Pull Request
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You may now "push" your branch to your own fork::
+
+    % git push github
+
+The "github" above needs to be the same name as you used when adding the remote.
+GitHub usually offers you a link to create a new PR.
+Follow the link or visit the GitHub UI which will often also offer you a way to create the PR.
+If you expect to do further work, create the PR as a "draft" PR.
+
+
+Getting a Review
+~~~~~~~~~~~~~~~~
+
+All pull-requests must be reviewed by a current core developer.
+Once your Pull Request has been created, Continuous Integration will be run.
+If any CI steps fail you will need to complete more work until they do not fail.
+Once you are happy with the changes and the CI run is "green" / okay the PR is ready to be reviewed.
+
+Add the "needs-review" label.
+
+Ideally a developer will notice and review your work quickly. If not, mentioning it in IRC may help draw attention.
+One of two things will happen: your PR will be approved and merged or the reviewer will ask for changes.
+In the latter case, you make these changes, push them to your branch and get the attention of a reviewer again.
+
+
+Philosophy of New Code Changes
+==============================
+
+As some of this code is fairly old there may be several "styles" of doing things present already.
+Where consensus has been reached by core developers, we note "the new way" of writing code here.
+If in doubt, reach out on IRC or via a "question" Issue on GitHub.
+
+- Use "testtools" style unit-tests (see above too)
+- Use Hypothesis when inputs may be varied
+- The vast majority of user-facing commands should be HTTP APIs
+  - ``magic-folder *`` CLI commands should use the HTTP API
+  - A single user-facing command may need to make several HTTP transactions
+  - There may be exceptions: ``magic-folder run``, ``magic-folder init`` etc. obviously cannot contact a running Magic Folder daemon
+- Configuration goes in a database (there is "global" configuration and "per-magic-folder" configuration which have separate databases)
+- All Tahoe interactions should be via Tahoe-LAFS "WebUI" (HTTP) transactions
+  - most such Tahoe endpoints have a ``?t=json`` option to return JSON instead of HTML
+  - if Tahoe lacks a ``?t=json`` option for a page that should be fixed first (in Tahoe)
+  - no scraping HTML!
+- New code should be covered by unit-tests
+

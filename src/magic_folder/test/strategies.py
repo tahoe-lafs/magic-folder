@@ -9,6 +9,10 @@ from os.path import (
     join,
 )
 
+from uuid import (
+    UUID,
+)
+
 from unicodedata import (
     normalize,
 )
@@ -17,9 +21,15 @@ from base64 import (
     urlsafe_b64encode,
 )
 
+from nacl.signing import (
+    SigningKey,
+    VerifyKey,
+)
+
 from hypothesis.strategies import (
     just,
     one_of,
+    sampled_from,
     booleans,
     characters,
     text,
@@ -29,6 +39,11 @@ from hypothesis.strategies import (
     integers,
     floats,
     fixed_dictionaries,
+    dictionaries,
+)
+
+from twisted.python.filepath import (
+    FilePath,
 )
 
 from allmydata.util import (
@@ -37,11 +52,11 @@ from allmydata.util import (
 from allmydata.util.progress import (
     PercentProgress,
 )
-from allmydata.uri import (
-    from_string as cap_from_string,
-)
-from ..magic_folder import (
-    QueuedItem,
+from ..snapshot import (
+    RemoteAuthor,
+    LocalAuthor,
+    RemoteSnapshot,
+    LocalSnapshot,
 )
 
 # There are problems handling non-ASCII paths on platforms without UTF-8
@@ -81,7 +96,18 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
     return text(
         alphabet=alphabet,
         min_size=1,
-        max_size=255,
+        # Path segments can typically be longer than this but when turned into
+        # an absolute path, the longer the path segment the greater the risk
+        # we run into a total path length limit.  We don't really know what we
+        # can get away with here.  Even this value might lead to problems if
+        # the test suite is operating on multiple path segments joined or
+        # using these path segments relative to a very long path.
+        #
+        # openat(2), at least on POSIX, might someday help with this (deal
+        # with long paths segment by segment).  Ideally something like
+        # FilePath would abstract over that.  Also it's not available from the
+        # stdlib on Python 2.x.
+        max_size=32,
     ).filter(
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
@@ -177,6 +203,25 @@ def tahoe_lafs_dir_capabilities():
     )
 
 
+def tahoe_lafs_immutable_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS immutable directory
+    capability strings.
+    """
+    return tahoe_lafs_chk_capabilities().map(
+        lambda chkcap: chkcap.replace(u":CHK:", u":DIR2-CHK:"),
+    )
+
+def tahoe_lafs_readonly_dir_capabilities():
+    """
+    Build unicode strings which look like Tahoe-LAFS read-only directory
+    capability strings.
+    """
+    return tahoe_lafs_dir_capabilities().map(
+        lambda chkcap: chkcap.replace(u":DIR2:", u":DIR2-RO:"),
+    )
+
+
 def tokens():
     """
     Build byte strings which are usable as Tahoe-LAFS web API authentication
@@ -195,15 +240,8 @@ def filenodes():
     Build JSON-compatible descriptions of Tahoe-LAFS filenode metadata.
     """
     return fixed_dictionaries({
-        "ro_uri": tahoe_lafs_chk_capabilities().map(
-            lambda cap_text: cap_from_string(
-                cap_text.encode("ascii"),
-            ).get_readonly(
-            ).to_string(
-            ).decode(
-                "ascii",
-            ),
-        ),
+        # CHK capabilities are only read-only.
+        "ro_uri": tahoe_lafs_chk_capabilities(),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({
@@ -239,22 +277,136 @@ def progresses():
     )
 
 
-def queued_items():
-    """
-    Build ``QueuedItem`` instances.
-    """
-    def an_item(path, progress, size, when):
-        item = QueuedItem(path, progress, size)
-        item.set_status('queued', when)
-        return item
-
-    return builds(
-        an_item,
-        relative_paths(),
-        progresses(),
-        integers(min_value=0),
-        integers(min_value=0, max_value=2 ** 31 - 1),
-    )
-
 def magic_folder_filenames():
     return text(min_size=1)
+
+
+author_names = text
+
+def signing_keys():
+    """
+    Build ``SigningKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(SigningKey)
+
+
+def verify_keys():
+    """
+    Build ``VerifyKey`` instances.
+    """
+    return binary(min_size=32, max_size=32).map(VerifyKey)
+
+
+def local_authors(names=author_names(), signing_keys=signing_keys()):
+    """
+    Build ``LocalAuthor`` instances.
+    """
+    return builds(
+        LocalAuthor,
+        name=names,
+        signing_key=signing_keys,
+    )
+
+
+def remote_authors(names=author_names(), verify_keys=verify_keys()):
+    """
+    Build ``RemoteAuthor`` instances.
+    """
+    return builds(
+        RemoteAuthor,
+        name=names,
+        verify_key=verify_keys,
+    )
+
+
+def port_numbers():
+    """
+    Build ``int`` port numbers in a valid range for TCP.
+    """
+    return integers(min_value=1, max_value=2 ** 16 - 1)
+
+
+def interfaces():
+    """
+    Build ``unicode`` strings that might represent an interface string in a
+    Twisted string endpoint description.
+    """
+    return sampled_from([
+        u"127.0.0.1",
+        u"10.0.0.1",
+        u"0.0.0.0",
+        # Pick an uncommon address from the documentation range
+        # https://en.wikipedia.org/wiki/Reserved_IP_addresses
+        u"192.0.2.123",
+    ])
+
+
+def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
+    """
+    Build dictionaries with keys drawn from ``keys`` and values drawn from
+    ``values``.  No value will appear more than once.
+
+    :param int min_size: The fewest number of items in the resulting
+        dictionaries.
+
+    :param int max_size: The greatest number of items in the resulting
+        dictionaries.
+    """
+    return lists(
+        keys,
+        unique=True,
+        min_size=min_size,
+        max_size=max_size,
+    ).flatmap(
+        lambda keys: lists(
+            values,
+            unique=True,
+            min_size=len(keys),
+            max_size=len(keys),
+        ).map(
+            lambda values: dict(zip(keys, values)),
+        ),
+    )
+
+
+def remote_snapshots(names=path_segments(), authors=remote_authors()):
+    """
+    Build ``RemoteSnapshot`` instances.
+    """
+    return builds(
+        RemoteSnapshot,
+        name=names,
+        author=authors,
+        metadata=dictionaries(text(), text()),
+        capability=tahoe_lafs_immutable_dir_capabilities(),
+        parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
+        content_cap=tahoe_lafs_chk_capabilities(),
+    )
+
+
+def uuids():
+    """
+    Build ``uuid.UUID`` instances.
+    """
+    return binary(
+        min_size=16,
+        max_size=16,
+    ).map(lambda bs: UUID(bytes=bs))
+
+
+def local_snapshots():
+    """
+    Build ``LocalSnapshot`` instances.
+
+    Currently this builds snapshots with no local parents.
+    """
+    return builds(
+        LocalSnapshot,
+        name=relative_paths(),
+        author=local_authors(),
+        metadata=dictionaries(text(), text()),
+        content_path=absolute_paths().map(FilePath),
+        parents_local=just([]),
+        parents_remote=lists(tahoe_lafs_immutable_dir_capabilities()),
+        identifier=uuids(),
+    )
