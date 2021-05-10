@@ -87,7 +87,7 @@ License
 =======
 
 Copyright 2006-2018 The Tahoe-LAFS Software Foundation
-Copyright 2020-2018 The Magic-Folder Developers
+Copyright 2020-2021 The Magic-Folder Developers
 
 You may use this package under the GNU General Public License, version 2 or,
 at your option, any later version. You may use this package under the
