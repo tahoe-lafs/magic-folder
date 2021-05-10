@@ -17,12 +17,16 @@ So, a magic-folder has remote-snapshots in its database.
 These are name -> (magic_path, capabilitiy-string).
 
 Given a "name", how do we determine if we need to download it?
-  -> want a "last downloaded" or "on-disk state" or something (that
-     corresponds to the remote snapshot cap-string?)
+  -> want a "last downloaded" or "on-disk state" or something
+      - corresponds to the cap-string of the current stuff?
+      - (what if we have a LocalSnapshot or two in the queue?)
   -> currently, the uploader creates a LocalSnapshot and then (eventually)
      it is uploaded, the localsnapshot is deleted (and becomes a remote snapshot)
     -> this process should note "on-disk state = capability-string"
-    -> "on-disk state" should say "null" or something before upload
+    -> does "on-disk state" say "null" or something before upload?
+      - maybe-equivalently: if we have pending LocalSnapshots for a
+        thing, we don't do downloads on it? (no, that can't be right
+        .. how would we learn if someone else updated meantime?)
 
 
 Recovery:
