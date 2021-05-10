@@ -22,11 +22,22 @@ from testtools.matchers import (
     MatchesStructure,
 )
 
+from hyperlink import (
+    DecodedURL,
+)
+
+from treq.testing import (
+    StubTreq,
+)
+
 from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
 from twisted.python.filepath import (
     FilePath,
+)
+from twisted.web.resource import (
+    Resource,
 )
 
 from ... import cli as magic_folder_cli
@@ -49,6 +60,9 @@ from ...snapshot import (
 )
 from ...list import (
     magic_folder_list,
+)
+from ...tahoe_client import (
+    create_tahoe_client,
 )
 
 from ..common_util import (
@@ -111,6 +125,7 @@ class ListMagicFolder(AsyncTestCase):
             self.config,
             self.service,
             lambda: self.config.api_token,
+            create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         )
 
     @defer.inlineCallbacks

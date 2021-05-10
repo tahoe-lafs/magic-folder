@@ -204,7 +204,7 @@ def create_http_client(reactor, api_client_endpoint_str):
 
 # See https://github.com/LeastAuthority/magic-folder/issues/280
 # global_service should expect/demand an Interface
-def create_testing_http_client(reactor, config, global_service, get_api_token):
+def create_testing_http_client(reactor, config, global_service, get_api_token, tahoe_client):
     """
     :param global_service: an object providing the API of the global
         magic-folder service
@@ -216,7 +216,7 @@ def create_testing_http_client(reactor, config, global_service, get_api_token):
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service)
+    v1_resource = APIv1(config, global_service, tahoe_client)
     root = magic_folder_resource(get_api_token, v1_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),
