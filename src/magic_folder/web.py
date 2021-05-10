@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import json
 
 import attr
@@ -8,6 +10,7 @@ from nacl.encoding import (
 
 from twisted.python.filepath import (
     FilePath,
+    InsecurePath,
 )
 from twisted.internet.defer import (
     maybeDeferred,
@@ -161,15 +164,19 @@ class MagicFolderSnapshotAPIv1(Resource, object):
     def render_POST(self, request):
         path_u = request.args[b"path"][0].decode("utf-8")
 
-        # preauthChild on user input bypasses the primary safety feature of
-        # FilePath so it's a bad idea.  However, add_file is going to apply an
-        # equivalent safety check to the one we're bypassing.  So ... it's
-        # okay.
-        #
-        # Maybe we should have a "relative path" type that has safety features
-        # in it and then any safety checks can be performed early, near the
-        # code accepting user input, instead of deeper in the model.
-        path = self._folder_config.magic_path.preauthChild(path_u)
+        # preauthChild allows path-separators in the "path" (i.e. not
+        # just a single path-segment). That is precisely what we want
+        # here, though. It sill does not allow the path to "jump out"
+        # of the base magic_path -- that is, an InsecurePath error
+        # will result if you pass an absolute path outside the folder
+        # or a relative path that reaches up too far.
+
+        try:
+            path = self._folder_config.magic_path.preauthChild(path_u)
+        except InsecurePath as e:
+            request.setResponseCode(http.NOT_ACCEPTABLE)
+            _application_json(request)
+            return json.dumps({u"reason": str(e)})
 
         adding = maybeDeferred(
             self._folder_service.local_snapshot_service.add_file,

@@ -287,7 +287,6 @@ def add(options):
     """
     Add a new Magic Folder
     """
-
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
     client = create_tahoe_client(options.parent.config.tahoe_client_url, treq)
@@ -657,7 +656,7 @@ class MagicFolderService(MultiService):
         for magic_folder in self._iter_magic_folder_services():
             ds.append(magic_folder.ready())
         # The integration tests look for this message.  You cannot get rid of
-        # it.
+        # it (without also changing the tests).
         print("Completed initial Magic Folder setup")
         self._starting = gatherResults(ds)
 

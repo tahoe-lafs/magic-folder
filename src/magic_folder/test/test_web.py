@@ -51,6 +51,7 @@ from twisted.web.http import (
     UNAUTHORIZED,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
+    NOT_ACCEPTABLE,
     INTERNAL_SERVER_ERROR,
 )
 from twisted.internet.task import Clock
@@ -612,6 +613,44 @@ class CreateSnapshotTests(SyncTestCase):
                             }),
                         }),
                     ),
+                ),
+            ),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
+        binary(),
+    )
+    def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
+        """
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        fails if the **path** is outside the magic-folder
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_outside_folder),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                 ),
             ),
         )

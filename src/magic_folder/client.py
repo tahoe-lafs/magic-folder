@@ -33,6 +33,7 @@ from treq.client import (
 )
 from treq.testing import (
     RequestTraversalAgent,
+    StubTreq,
 )
 from zope.interface import (
     implementer,
@@ -111,7 +112,7 @@ class MagicFolderClient(object):
 
     # we only use the path-part not the domain
     base_url = DecodedURL.from_text(u"http://invalid./")
-    http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+    http_client = attr.ib(validator=attr.validators.instance_of((HTTPClient, StubTreq)))
     get_api_token = attr.ib()
 
     def list_folders(self, include_secret_information=None):
@@ -120,6 +121,10 @@ class MagicFolderClient(object):
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
         return self._authorized_request("GET", api_url)
 
+    def add_snapshot(self, magic_folder, path):
+        api_url = self.base_url.child(u'v1').child(u'snapshot').child(magic_folder)
+        api_url = api_url.set(u'path', path)
+        return self._authorized_request("POST", api_url)
 
     @inlineCallbacks
     def _authorized_request(self, method, url):
@@ -141,7 +146,7 @@ class MagicFolderClient(object):
                 "Can't reach the magic folder daemon at all"
             )
 
-        body = yield _get_content_check_code([http.OK], response)
+        body = yield _get_content_check_code([http.OK, http.CREATED], response)
         # all responses should contain JSON
         returnValue(json.loads(body))
 

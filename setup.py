@@ -314,6 +314,7 @@ setup(name="magic_folder",
       entry_points = {
           "console_scripts": [
               "magic-folder = magic_folder.cli:_entry",
+              "magic-folder-api = magic_folder.api_cli:_entry",
           ],
       },
       **setup_args
