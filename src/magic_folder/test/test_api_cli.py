@@ -563,7 +563,9 @@ class TestDumpState(AsyncTestCase):
             )
         )
 
-
+        # we've set up some particular, well-known state in our
+        # configuration; now we exercise the dump-state subcommand and
+        # ensure the output matches
         options = MagicFolderApiCommand()
         options.stdout = StringIO()
         options.stderr = StringIO()
@@ -579,8 +581,12 @@ class TestDumpState(AsyncTestCase):
             options.stderr.getvalue(),
             Equals("")
         )
+        stdout_lines_no_whitespace = [
+            line.strip()
+            for line in options.stdout.getvalue().splitlines()
+        ]
         self.assertThat(
-            [line.strip() for line in options.stdout.getvalue().splitlines()],
+            stdout_lines_no_whitespace,
             Equals([
                 config.name,
                 "author: zara {}".format(author.signing_key.verify_key.encode(encoder=HexEncoder)),
