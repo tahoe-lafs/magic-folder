@@ -10,7 +10,7 @@ It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 
 |readthedocs|  |circleci|  |codecov|
 
-INSTALLING
+Installing
 ==========
 
 via pip
@@ -60,7 +60,7 @@ Other ``magic-folder`` subcommands are typically just thin CLI wrappers around a
 
 
 
-TESTING
+Testing
 =======
 
 To run the unit test suite:
@@ -83,7 +83,7 @@ generate HTML version of Magic Folder documents, do:
 
 Resulting HTML files will be under ``docs/_build/html/``.
 
-LICENCE
+License
 =======
 
 Copyright 2006-2018 The Tahoe-LAFS Software Foundation
