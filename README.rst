@@ -38,6 +38,7 @@ Usage
 Magic-Folder is configured via the ``magic-folder`` command-line tool.
 
 Magic-Folder configuration is kept in a directory.
+The default place for this directory is platform-dependant; on Linux it will be in ``~/.config/magic-folder``.
 Inside this directory is a database for global configuration and sub-directories to track state and temporary space for each actual magic-folder including a configuration database.
 All databases are SQLite.
 
