@@ -363,11 +363,13 @@ class RemoteSnapshot(object):
     capability = attr.ib()
     parents_raw = attr.ib()
     content_cap = attr.ib()
+    _parents_cache = attr.ib(default=attr.Factory(dict))
 
     @inlineCallbacks
     def fetch_parent(self, tahoe_client, parent_index):
         """
-        Download the given parent, creating a RemoteSnapshot.
+        Download the given parent, creating a RemoteSnapshot. These are
+        cached so only the first call will be slow.
 
         :param tahoe_client: the client to use
 
@@ -376,8 +378,12 @@ class RemoteSnapshot(object):
         :returns: a RemoteSnapshot instance.
         """
         capability = self.parents_raw[parent_index]
-        snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
-        returnValue(snapshot)
+        try:
+            returnValue(self._parents_cache[capability])
+        except KeyError:
+            snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
+            self._parents_cache[capability] = snapshot
+            returnValue(snapshot)
 
     @inlineCallbacks
     def fetch_content(self, tahoe_client, writable_file):

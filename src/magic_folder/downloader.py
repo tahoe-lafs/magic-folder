@@ -1,6 +1,27 @@
+from collections import deque
 
+import attr
+from attr.validators import (
+    provides,
+    instance_of,
+)
+
+from zope.interface import (
+    Interface,
+    implementer,
+)
+
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from twisted.application import service
+from twisted.python.filepath import FilePath
+from twisted.internet.defer import (
+    DeferredQueue,
+    inlineCallbacks,
+    returnValue,
+)
 
 """
 XXX Notes:
@@ -89,30 +110,60 @@ class RemoteSnapshotCacheService(service.Service):
     When told about Snapshot capabilities we download them.
 
     Our work queue is ephemeral; it is not synchronized to disk and
-    will vanish if we are re-started.
+    will vanish if we are re-started. When we download a Remote
+    Snapshot we *do not* download the content, just the Snapshot
+    itself and the metadata-cap (after verifying the Snapshot's
+    signature).
 
-    This is okay because XXX.
+    This is okay because we will retry the operation the next time we
+    restart if crashed. That is, we only need the RemoteSnapshot
+    cached until we decide what to do and synchronize local state.
+
+    Note: we *could* keep all this is our database .. but then we have
+    to evict things from it at some point, probably.
+
+    Anyway, we do need to download parent snapshots UNTIL we reach the
+    current remotesnapshot that we've noted for that name (or run
+    out of parents).
     """
-    _file_modifier = attr.ib()
+    tahoe_client = attr.ib()
+    folder_config = attr.ib()
+    _clock = attr.ib()  # IReactor
+    cached_snapshots = attr.ib(default=attr.Factory(dict))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
-    _config = attr.ib()  # MagicFolderConfig so we can store our state
-    _service_d = None
+
+    @classmethod
+    def from_config(cls, clock, config, tahoe_client):
+        """
+        Create an RemoteSnapshotCacheService from the MagicFolder
+        configuration.
+        """
+        return cls(tahoe_client, config, clock)
 
     def add_remote_capability(self, snapshot_cap):
         """
-        Add the given immutable Snapshot capability to our queue. This
-        will recursively ensure all parents are also in our
-        cache. That is, after downloading ``snapshot_cap`` it will be
-        examined and any parents not already cached will be added as well.
+        Add the given immutable Snapshot capability to our queue.
+
+        When this queue item is processed, we download the Snapshot,
+        verify the signature then download the metadata.
+
+        We download parents until we find a common ancestor .. meaning
+        we keep downloading parents until we find one that matches the
+        remotesnapshot in our local database. If we have no entry for
+        this Snapshot we download all parents (which will also be the
+        case if there is no common ancestor).
 
         :param bytes snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
-            the RemoteSnapshot when this item **and all its parents**
-            are downloaded (or errbacks if the download fails).
+            the RemoteSnapshot when this item has been processed (or
+            errbacks if any of the downloads fails).
 
         :raises QueueOverflow: if our queue is full
         """
+        d = defer.Deferred()
+        self._queue.put((snapshot_cap, d))
+        return d
 
     def startService(self):
         """
@@ -128,15 +179,52 @@ class RemoteSnapshotCacheService(service.Service):
         """
         while True:
             try:
-                (item, d) = yield self._queue.get()
+                (snapshot_cap, d) = yield self._queue.get()
                 with PROCESS_REMOTE_SNAP(relpath=item.name):
-                    yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
-                    d.callback(None)
+                    snapshot = yield self._cache_snapshot(snapshot_cap)
+                    d.callback(snapshot)
             except CancelledError:
                 break
             except Exception:
-                # XXX Probably should fire d here, someone might be waiting.
-                write_traceback()
+                d.errback(Failure())
+
+    @inlineCallbacks
+    def _cache_snapshot(self, snapshot_cap):
+        """
+        Internal helper.
+
+        :param bytes snapshot_cap: capability-string of a Snapshot
+
+        Cache a single snapshot, which we shall return. We also cache
+        parent snapshots until we find 'ours' -- that is, whatever our
+        config's remotesnapshot table points at for this name. (If we
+        don't have an entry for it yet, we cache all parents .. which
+        will also be the case when we don't find 'our' snapshot at
+        all).
+        """
+        snapshot = yield create_snapshot_from_capability(
+            snapshot_cap,
+            self.tahoe_client,
+        )
+
+        # the target of our search through all parent Snapshots
+        our_snapshot_cap = folder_config.get_remotesnapshot(snapshot.name)
+
+        # breadth-first traversal of the parents; we can stop early if
+        # we find the above capability (our current notion of the
+        # current Snapshot for this name).
+        q = deque()
+        q.append(snapshot)
+        while q:
+            snap = q.popleft()
+            if our_snapshot_cap in snap.parents_raw:
+                break
+            else:
+                for i in len(snap.parents_raw):
+                    parent = yield snap.fetch_parent(self.tahoe_client, i)
+                    q.append(parent)
+
+        returnValue(snapshot)
 
     def stopService(self):
         """
@@ -155,8 +243,26 @@ class MagicFolderUpdaterService(service.Service):
     """
     Updates the local magic-folder when given locally-cached
     RemoteSnapshots (with all parents available).
+
+    XXX do we really need "all parents available"?
+
+    - no; we only need to go further when 2 or more other participants
+      update before we see either one .. in that case, Leif Design says
+      we need to "walk backwards through the DAG from the new snapshot
+      until they find their own snapshot or a common ancestor."
+
+    - that said, Leif Design does say we want a local cache:
+
+       - keep cache of our current snapshot at all times (that is, our
+         "remote snapshots" table should *be* the cache, probably)
+
+       - (I think we'll want to note its cap-string too)
+
+       - when all clients' views of a file are sync'd, then we can
+         delete all old remotesnapshots (we can learn this when all
+         Personal DMDs point at the same snapshot)
     """
-    _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
+    _magic_fs = attr.ib()#validator=provides(IMagicFolderFilesystem))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
@@ -239,7 +345,7 @@ class IMagicFolderFilesystem(Interface):
 
 
 
-@implements(IMagicFolderFilesystem)
+@implementer(IMagicFolderFilesystem)
 @attr.s
 class LocalMagicFolderFilesystem(object):
     """
@@ -250,7 +356,7 @@ class LocalMagicFolderFilesystem(object):
     staging_path = attr.ib(validator=instance_of(FilePath))
 
 
-@implements(IMagicFolderFilesystem)
+@implementer(IMagicFolderFilesystem)
 class InMemoryMagicFolderFilesystem(object):
     """
     Simply remembers the changes that would be made to a local
@@ -288,8 +394,23 @@ class DownloaderService(service.Service):
     #                  - (snap and all its parents will be cached now)
     #                  - _folder_updater.add_remote_snapshot(snap)
     #
+    # "doesn't match ours": where 'ours' is .. what we have in our
+    #     database for "name -> remotesnapshot"? (maybe: *unless* we also
+    #     have a localsnapshot for that name?)
+    #
     # If any of the above fails, we will resume on re-start: we will
     # discover the 'new' capability again in the same way ("their"
     # capability doesn't match ours) and the only difference will be
     # that the snapshot-cache may not have to download anything .. and
     # then the snapshot wil still be passed to the "updater" queue.
+    #
+    # re-thinking snapshot-cache: maybe it can just be in-memory (for
+    # now? maybe forever?) .. it's "a cache" anyway, and I think only
+    # has to "survive" long enough for us to decide "yes, we need to
+    # download that content" .. then we download that content, pass it
+    # to the "updater" which applies to filesystem, updates our
+    # database and updates the collective DMD
+    #
+    # WARNING: that "update the collective DMD" is a tahoe operation,
+    # so we'll have to remember "we wanted to do this" in case we
+    # can't do tahoe stuff right then ... :/ ... and also keep retrying

@@ -209,6 +209,11 @@ _magicfolder_config_schema = Schema([
             snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
         )
         """,
+        # XXX for downloader, do we want to "cache" all snapshot
+        # information here in the database? possibly as a separate
+        # table? that means: everything except the content, I'd say
+        # .. we download the snapshot_cap itself and also download the
+        # metadata-cap.
     ]),
 ])
 
