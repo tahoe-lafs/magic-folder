@@ -42,7 +42,7 @@ Inside this directory is a database for global configuration and sub-directories
 All databases are SQLite.
 
 A running Magic-Folder needs to have access to a Tahoe-LAFS client that it may use to perform operations in the Tahoe-LAFS Grid.
-This is referenced by the "node directory" of the Tahoe-LAFS client although actual operations are via the Tahoe-LAFS WebUI.
+This is referenced by the "node directory" of the Tahoe-LAFS client although actual operations are performed via the Tahoe-LAFS WebUI.
 
 There are two ways to create a new Magic Folder instance (that is, the configuration required).
 Create a fresh one with ``magic-folder create`` or migrate from a Tahoe-LAFS 1.14.0 or earlier instance with ``magic-folder migrate``.
