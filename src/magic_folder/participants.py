@@ -32,6 +32,13 @@ from allmydata.uri import (
 from .magicpath import (
     magic2path,
 )
+from .snapshot import (
+    RemoteAuthor,
+)
+from .tahoe_client import (
+    CannotAddDirectoryEntryError,
+)
+
 
 class IParticipant(Interface):
     """
@@ -142,6 +149,57 @@ class _CollectiveDirnodeParticipants(object):
                 value,
             ),
         )
+
+    @inlineCallbacks
+    def add(self, author, personal_dmd_cap):
+        """
+        Add a new participant to this collective.
+
+        :param IRemoteAuthor author: personal details of new participant
+
+        :param bytes personal_dmd_cap: the read-capability of the new
+            participant (if it is a write-capability then it's "us"
+            but by definition we already have an "us" participant in
+            any existing Magic Folder and so that's an error here).
+
+        :returns IParticipant: the new participant
+        """
+        uri = tahoe_uri_from_string(personal_dmd_cap)
+        if not IDirnodeURI.providedBy(uri) or not uri.is_readonly():
+            raise ValueError(
+                "New participant Personal DMD must be read-only dircap"
+            )
+        if not isinstance(author, RemoteAuthor):
+            raise ValueError(
+                "Author must be a RemoteAuthor instance"
+            )
+        # semantically, it doesn't make sense to allow a second
+        # participant with the very same Personal DMD as another (even
+        # if the name/author is different). So, we check here .. but
+        # there is a window for race between the check and when we add
+        # the participant. The only real solution here would be a lock
+        # or to serialize all Tahoe operations.
+        participants = yield self.list()
+        if personal_dmd_cap in [p.dircap for p in participants]:
+            raise ValueError(
+                "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
+            )
+
+        # NB: we could check here if there is already a participant
+        # for this name .. however, there's a race between that check
+        # succeeding and adding the participant so we just try to add
+        # and let Tahoe send us an error by using "replace=False"
+        try:
+            yield self._tahoe_client.add_entry_to_mutable_directory(
+                self._collective_cap,
+                author.name,
+                personal_dmd_cap.encode("ascii"),
+                replace=False,
+            )
+        except CannotAddDirectoryEntryError:
+            raise ValueError(
+                "Already have a participant called '{}'".format(author.name)
+            )
 
     @inlineCallbacks
     def list(self):
