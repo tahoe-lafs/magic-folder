@@ -599,3 +599,139 @@ class TestDumpState(AsyncTestCase):
                 "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
             ])
         )
+
+
+class TestApiParticipants(AsyncTestCase):
+    """
+    Tests related to 'magic-folder-api add-participant' and
+    'magic-folder-api list-participants'
+    """
+    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    def setUp(self):
+        super(TestApiParticipants, self).setUp()
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
+        )
+
+    @inlineCallbacks
+    def test_add_participant(self):
+        """
+        A new participant is added to a magic-folder
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                # expected request
+                (b"post",
+                 self.url.child("participants").child("default").to_text().encode("utf8"),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Content-Length': [b'149'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 json.dumps({
+                     "personal_dmd": "URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328",
+                     "author": {
+                         "name": "amaya",
+                     }
+                 }).encode("utf8")
+                ),
+                # expected response
+                (200, {}, b"{}"),
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
+            )
+        )
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_api_command(
+                ["--config", self.magic_config.path, "add-participant",
+                 "--folder", "default",
+                 "--author-name", "amaya",
+                 "--personal-dmd", 'URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328',
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
+        self.assertThat(
+            stdout.getvalue().strip(),
+            Equals("{}")
+        )
+        self.assertThat(
+            stderr.getvalue().strip(),
+            Equals("")
+        )
+
+    @inlineCallbacks
+    def test_list_participants(self):
+        """
+        List all participants in a magic-folder
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                # expected request
+                (b"get",
+                 self.url.child("participants").child("default").to_text().encode("utf8"),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 b"",
+                ),
+                # expected response
+                (200, {}, b"{}"),
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
+            )
+        )
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_api_command(
+                ["--config", self.magic_config.path, "list-participants",
+                 "--folder", "default",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
+        self.assertThat(
+            stdout.getvalue().strip(),
+            Equals("{}")
+        )
+        self.assertThat(
+            stderr.getvalue().strip(),
+            Equals("")
+        )
