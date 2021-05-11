@@ -170,7 +170,7 @@ class ParticipantsAPIv1(Resource, object):
 @attr.s
 class MagicFolderParticipantAPIv1(Resource, object):
     """
-    Implements the v1 API for the ``/participants/<magic-folder-name``
+    Implements the v1 API for the ``/participants/<magic-folder-name>``
     part of the API hierarchy.
     """
     _folder_config = attr.ib()
@@ -199,8 +199,8 @@ class MagicFolderParticipantAPIv1(Resource, object):
             reply = {
                 part.name: {
                     "personal_dmd": part.dircap.decode("ascii"),
-## XXX FIXME not tracked by participants properly
-##                    "public_key": part.verify_key.encode(Base32Encoder),
+                    # not tracked properly yet
+                    # "public_key": part.verify_key.encode(Base32Encoder),
                 }
                 for part in participants
             }
@@ -210,7 +210,7 @@ class MagicFolderParticipantAPIv1(Resource, object):
         d.addCallback(listed)
 
         def failed(reason):
-            # XXX log this?
+            # probably should log this failure
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
             request.write(json.dumps({"reason": "unexpected error processing request"}))
@@ -282,7 +282,7 @@ class MagicFolderParticipantAPIv1(Resource, object):
             if isinstance(reason.value, ValueError):
                 request.write(json.dumps({"reason": str(reason.value)}))
             else:
-                # XXX log this?
+                # probably should log this error
                 request.write(json.dumps({"reason": "unexpected error processing request"}))
             return None
         d.addErrback(failed)
