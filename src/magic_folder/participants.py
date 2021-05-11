@@ -73,6 +73,21 @@ class IParticipants(Interface):
             associated with..
         """
 
+    @inlineCallbacks
+    def add(author, personal_dmd_cap):
+        """
+        Add a new participant to this collective.
+
+        :param IRemoteAuthor author: personal details of new participant
+
+        :param bytes personal_dmd_cap: the read-capability of the new
+            participant (if it is a write-capability then it's "us"
+            but by definition we already have an "us" participant in
+            any existing Magic Folder and so that's an error here).
+
+        :returns IParticipant: the new participant
+        """
+
 
 def participant_from_dmd(name, dirnode, is_self, tahoe_client):
     """
@@ -153,16 +168,7 @@ class _CollectiveDirnodeParticipants(object):
     @inlineCallbacks
     def add(self, author, personal_dmd_cap):
         """
-        Add a new participant to this collective.
-
-        :param IRemoteAuthor author: personal details of new participant
-
-        :param bytes personal_dmd_cap: the read-capability of the new
-            participant (if it is a write-capability then it's "us"
-            but by definition we already have an "us" participant in
-            any existing Magic Folder and so that's an error here).
-
-        :returns IParticipant: the new participant
+        IParticipants API
         """
         uri = tahoe_uri_from_string(personal_dmd_cap)
         if not IDirnodeURI.providedBy(uri) or not uri.is_readonly():
@@ -177,8 +183,9 @@ class _CollectiveDirnodeParticipants(object):
         # participant with the very same Personal DMD as another (even
         # if the name/author is different). So, we check here .. but
         # there is a window for race between the check and when we add
-        # the participant. The only real solution here would be a lock
-        # or to serialize all Tahoe operations.
+        # the participant. The only real solution here would be a
+        # magic-folder-wide write-lock or to serialize all Tahoe
+        # operations (at least across one magic-folder).
         participants = yield self.list()
         if personal_dmd_cap in [p.dircap for p in participants]:
             raise ValueError(
