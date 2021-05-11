@@ -156,7 +156,13 @@ class ParticipantsAPIv1(Resource, object):
 
     def getChild(self, name, request):
         name_u = name.decode("utf-8")
-        folder_config = self._global_config.get_magic_folder(name_u)
+        try:
+            folder_config = self._global_config.get_magic_folder(name_u)
+        except ValueError as e:
+            _application_json(request)
+            request.setResponseCode(http.BAD_REQUEST)
+            request.write(json.dumps({"reason": str(e)}))
+            return None
         return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
 
 
