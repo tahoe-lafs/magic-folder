@@ -617,6 +617,34 @@ class TestApiParticipants(AsyncTestCase):
         )
 
     @inlineCallbacks
+    def test_add_participant_missing_arg(self):
+        """
+        If arguments are missing, an error is reported
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # missing --personal-dmd
+        with self.assertRaises(SystemExit):
+            yield dispatch_magic_folder_api_command(
+                ["--config", self.magic_config.path, "add-participant",
+                 "--folder", "default",
+                 "--author-name", "amaya",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=None,
+            )
+        self.assertThat(
+            stdout.getvalue().strip(),
+            Equals("Error: --personal-dmd / -p is required")
+        )
+        self.assertThat(
+            stderr.getvalue().strip(),
+            Equals("")
+        )
+
+    @inlineCallbacks
     def test_add_participant(self):
         """
         A new participant is added to a magic-folder
@@ -674,6 +702,32 @@ class TestApiParticipants(AsyncTestCase):
         self.assertThat(
             stdout.getvalue().strip(),
             Equals("{}")
+        )
+        self.assertThat(
+            stderr.getvalue().strip(),
+            Equals("")
+        )
+
+    @inlineCallbacks
+    def test_list_participants_missing_arg(self):
+        """
+        An error is reported if argument missing
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # --folder missing
+        with self.assertRaises(SystemExit):
+            yield dispatch_magic_folder_api_command(
+                ["--config", self.magic_config.path, "list-participants",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=None,
+            )
+        self.assertThat(
+            stdout.getvalue().strip(),
+            Equals("Error: --folder / -n is required")
         )
         self.assertThat(
             stderr.getvalue().strip(),
