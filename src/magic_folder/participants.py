@@ -187,7 +187,7 @@ class _CollectiveDirnodeParticipants(object):
         # magic-folder-wide write-lock or to serialize all Tahoe
         # operations (at least across one magic-folder).
         participants = yield self.list()
-        if personal_dmd_cap in [p.dircap for p in participants]:
+        if any(personal_dmd_cap == p.dircap for p in participants):
             raise ValueError(
                 "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
             )

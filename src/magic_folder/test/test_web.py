@@ -12,6 +12,7 @@ from __future__ import (
 
 from json import (
     loads,
+    dumps,
 )
 
 from hyperlink import (
@@ -21,6 +22,7 @@ from hyperlink import (
 from hypothesis import (
     given,
     assume,
+    settings,
 )
 
 from hypothesis.strategies import (
@@ -95,6 +97,7 @@ from .strategies import (
 
 from ..snapshot import (
     create_local_author,
+    format_filenode,
 )
 from ..cli import (
     MagicFolderService,
@@ -111,11 +114,19 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from ..tahoe_client import (
     create_tahoe_client,
 )
 from .strategies import (
     local_authors,
+    tahoe_lafs_readonly_dir_capabilities,
+)
+from ..util.capabilities import (
+    to_readonly_capability,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -246,7 +257,8 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services):
+def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services,
+                     tahoe_client=None):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
@@ -265,6 +277,8 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
 
     :param bool start_folder_services: If ``True``, start the Magic Folder
         service objects.  Otherwise, don't.
+
+    :param TahoeClient tahoe_client: if provided, used as the tahoe-client
 
     :return: An object like the ``treq`` module.
     """
@@ -293,7 +307,8 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
             config[u"poll-interval"],
         )
 
-    tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+    if tahoe_client is None:
+        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource()))
     global_service = MagicFolderService(
         reactor,
         global_config,
@@ -482,6 +497,278 @@ class CreateSnapshotTests(SyncTestCase):
                 self.url.child(folder_name).set(u"path", path_in_folder),
             ),
             has_no_result(),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+    )
+    def test_create_fails(self, author, folder_name, path_in_folder):
+        """
+        If a local snapshot cannot be created, a **POST** to
+        **/v1/snapshot/<folder-name>** receives a response with an HTTP error
+        code.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        # You may not create a snapshot of a directory.
+        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file.makedirs(ignoreExistingDirectory=True)
+
+        treq = treq_for_folders(
+            object(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # This test carefully targets a failure mode that doesn't require
+            # the service to be running.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_in_folder),
+            ),
+            succeeded(
+                matches_response(
+                    # Maybe this could be BAD_REQUEST instead, sometimes, if
+                    # the path argument was bogus somehow.
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            u"reason": IsInstance(unicode),
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_create_snapshot(self, author, folder_name, path_in_folder, some_content):
+        """
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        creates a new local snapshot for the file at the given path in the
+        named folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_in_folder),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                ),
+            ),
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url,
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            folder_name: MatchesDict({
+                                path_in_folder: MatchesListwise([
+                                    MatchesDict({
+                                        u"type": Equals(u"local"),
+                                        u"identifier": is_hex_uuid(),
+                                        # XXX It would be nice to see some
+                                        # parents if there are any.
+                                        u"parents": Equals([]),
+                                        u"content-path": AfterPreprocessing(
+                                            lambda path: FilePath(path).getContent(),
+                                            Equals(some_content),
+                                        ),
+                                        u"author": Equals(author.to_remote_author().to_json()),
+                                    }),
+                                ]),
+                            }),
+                        }),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        local_authors(),
+        folder_names(),
+        sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
+        binary(),
+    )
+    def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
+        """
+        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        fails if the **path** is outside the magic-folder
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name).set(u"path", path_outside_folder),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_ACCEPTABLE),
+                ),
+            ),
+        )
+
+
+class ParticipantsTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/participants/<folder>` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/participants")
+
+    @given(
+        folder_names(),
+        tahoe_lafs_readonly_dir_capabilities(),
+    )
+    def test_add_participant(self, folder_name, personal_dmd):
+        """
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            create_local_author("iris"),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+        # we can't add a new participant if their DMD is the same as
+        # one we already have .. and because Hypothesis is 'sneaky' we
+        # have to make sure it's not our collective, either
+        assume(personal_dmd != folder_config["upload-dircap"])
+        assume(personal_dmd != to_readonly_capability(folder_config["upload-dircap"]))
+        assume(personal_dmd != folder_config["collective-dircap"])
+        assume(personal_dmd != to_readonly_capability(folder_config["collective-dircap"]))
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    "iris": format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({})
+                )
+            )
+        )
+
+        # confirm that the "list participants" API includes the added
+        # participant
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({
+                        u"iris": {
+                            u"personal_dmd": folder_config["upload-dircap"],
+                        },
+                        u'kelly': {
+                            u'personal_dmd': personal_dmd,
+                        }
+                    })
+                )
+            )
         )
 
     @given(

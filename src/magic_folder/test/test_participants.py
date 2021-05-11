@@ -5,8 +5,13 @@
 Tests for ``magic_folder.participants``.
 """
 
+import os
 from json import (
     dumps,
+)
+
+from nacl.signing import (
+    VerifyKey,
 )
 
 from hyperlink import (
@@ -62,11 +67,12 @@ from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
-
+from ..util.capabilities import (
+    to_readonly_capability,
+)
 from ..magicpath import (
     path2magic,
 )
-
 from ..tahoe_client import (
     TahoeClient,
 )
@@ -74,6 +80,9 @@ from ..participants import (
     IParticipant,
     participant_from_dmd,
     participants_from_collective,
+)
+from ..snapshot import (
+    RemoteAuthor,
 )
 
 from ..snapshot import (
@@ -193,6 +202,100 @@ class CollectiveParticipantsTests(SyncTestCase):
                     AfterPreprocessing(
                         lambda ps: sorted(p.name for p in ps),
                         Equals(sorted(collective_contents)),
+                    ),
+                    AfterPreprocessing(
+                        # There should be exactly one participant that signals
+                        # it is us.  We know it will be there because we
+                        # selected our dircap from among all those DMDs in the
+                        # collective at the top.
+                        lambda ps: len({p for p in ps if p.is_self}),
+                        Equals(1),
+                    )
+                ),
+            ),
+        )
+
+    @given(
+        unique_value_dictionaries(
+            author_names(),
+            tahoe_lafs_dir_capabilities(),
+            min_size=1,
+        ),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add(self, collective_contents, rw_collective_dircap):
+        """
+        ``IParticipants.add`` correctly adds a new, previously unknown
+        participant.
+        """
+        # The collective can't be anyone's DMD.
+        assume(rw_collective_dircap not in collective_contents.values())
+        rw_collective_dircap = rw_collective_dircap.encode("ascii")
+
+        # We need at least 2: "us" and at least one participant to add
+        assume(len(collective_contents) > 1)
+
+        # Pick someone in the collective to be us.
+        author = sorted(collective_contents)[0]
+        upload_dircap = collective_contents[author].encode("ascii")
+        upload_dircap_ro = to_readonly_capability(upload_dircap)
+
+        root = create_fake_tahoe_root()
+        http_client = create_tahoe_treq_client(root)
+        tahoe_client = TahoeClient(
+            DecodedURL.from_text(u"http://example.invalid./"),
+            http_client,
+        )
+
+        root._uri.data[rw_collective_dircap] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(upload_dircap_ro, {}),
+                },
+            },
+        ])
+
+        root._uri.data[upload_dircap] = dumps([
+            u"dirnode",
+            {u"children": {}},
+        ])
+
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            upload_dircap,
+            tahoe_client,
+        )
+
+        # add all the "other" participants using .add() API
+        for name, dircap in collective_contents.items():
+            if name == author:
+                continue
+            participants.add(
+                RemoteAuthor(name, VerifyKey(os.urandom(32))),
+                to_readonly_capability(dircap),
+            )
+
+        # confirm we added all the right participants by using the
+        # list() API
+        self.assertThat(
+            participants.list(),
+            succeeded(
+                MatchesAll(
+                    IsInstance(list),
+                    AllMatch(
+                        provides(IParticipant),
+                    ),
+                    AfterPreprocessing(
+                        lambda ps: sorted(p.name for p in ps),
+                        Equals(sorted(collective_contents)),
+                    ),
+                    AfterPreprocessing(
+                        lambda ps: sorted(p.dircap for p in ps),
+                        Equals(sorted(
+                            to_readonly_capability(c)
+                            for c in collective_contents.values()
+                        )),
                     ),
                     AfterPreprocessing(
                         # There should be exactly one participant that signals
