@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import os
 import json
 
 import attr
@@ -231,7 +232,8 @@ class MagicFolderParticipantAPIv1(Resource, object):
             }
             required_author_keys = {
                 "name",
-                "public_key_base32",
+                # not yet
+                # "public_key_base32",
             }
             if set(participant.keys()) != required_keys:
                 raise ValueError("Require input: {}".format(", ".join(required_keys)))
@@ -241,7 +243,11 @@ class MagicFolderParticipantAPIv1(Resource, object):
             try:
                 author = create_author(
                     participant["author"]["name"],
-                    VerifyKey(participant["author"]["public_key_base32"], encoder=Base32Encoder),
+                    # we don't yet properly track keys but need one
+                    # here .. this won't be correct, but we won't use
+                    # it .. following code still only looks at the
+                    # .name attribute
+                    VerifyKey(os.urandom(32)),
                 )
             except TypeError as e:
                 raise ValueError("Failed to process author: {}".format(str(e)))

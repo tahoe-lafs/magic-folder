@@ -101,15 +101,15 @@ class AddParticipantOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to add a participant to"),
         ("author-name", "a", None, "Name of the new participant"),
-        ("author-verify-key", "k", None, "Base32-encoded verify key of the new participant"),
         ("personal-dmd", "p", None, "Read-capability of the participant's Personal DMD"),
+        # not yet
+        # ("author-verify-key", "k", None, "Base32-encoded verify key of the new participant"),
     ]
 
     def postOptions(self):
         required_args = [
             ("folder", "--folder / -n is required"),
             ("author-name", "--author-name / -a is required"),
-            ("author-verify-key", "--author-verify-key / -k is required"),
             ("personal-dmd", "--personal-dmd / -p is required"),
         ]
         for (arg, error) in required_args:
@@ -125,7 +125,6 @@ def add_participant(options):
     res = yield options.parent.get_client().add_participant(
         options['folder'].decode("utf8"),
         options['author-name'].decode("utf8"),
-        options['author-verify-key'].decode("utf8"),
         options['personal-dmd'].decode("utf8"),
     )
     print("{}".format(res), file=options.stdout)

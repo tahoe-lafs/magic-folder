@@ -126,12 +126,13 @@ class MagicFolderClient(object):
         api_url = api_url.set(u'path', path)
         return self._authorized_request("POST", api_url)
 
-    def add_participant(self, magic_folder, author_name, author_verify_key, personal_dmd):
+    def add_participant(self, magic_folder, author_name, personal_dmd):
         api_url = self.base_url.child(u'v1').child(u'participants').child(magic_folder)
         body = json.dumps({
             "author": {
                 "name": author_name,
-                "public_key_base32": author_verify_key,
+                # not yet
+                # "public_key_base32": author_verify_key,
             },
             "personal_dmd": personal_dmd,
         })
