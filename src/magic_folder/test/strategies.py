@@ -281,7 +281,9 @@ def magic_folder_filenames():
     return text(min_size=1)
 
 
-author_names = text
+def author_names():
+    return text(min_size=1)
+
 
 def signing_keys():
     """

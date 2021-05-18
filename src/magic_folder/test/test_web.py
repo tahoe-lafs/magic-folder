@@ -51,6 +51,7 @@ from twisted.web.http import (
     OK,
     CREATED,
     UNAUTHORIZED,
+    BAD_REQUEST,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
     NOT_ACCEPTABLE,
@@ -666,7 +667,7 @@ class CreateSnapshotTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    code_matcher=Equals(NOT_ACCEPTABLE),
+                    code_matcher=Equals(BAD_REQUEST),
                 ),
             ),
         )
@@ -938,7 +939,7 @@ class ParticipantsTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    code_matcher=Equals(NOT_ACCEPTABLE),
+                    code_matcher=Equals(BAD_REQUEST),
                 ),
             ),
         )
