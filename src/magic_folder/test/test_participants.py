@@ -31,6 +31,7 @@ from testtools.matchers import (
 
 from testtools.twistedsupport import (
     succeeded,
+    failed,
 )
 
 from hypothesis import (
@@ -55,6 +56,7 @@ from .strategies import (
     author_names,
     relative_paths,
     tahoe_lafs_dir_capabilities,
+    tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_chk_capabilities,
     unique_value_dictionaries,
 )
@@ -83,6 +85,7 @@ from ..participants import (
 )
 from ..snapshot import (
     RemoteAuthor,
+    create_local_author,
 )
 
 from ..snapshot import (
@@ -309,6 +312,41 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
         )
 
+    @given(
+        author_names(),
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add_writable_dmd(self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd):
+        """
+        Calling ``IParticipants.add`` with a read-write Personal DMD
+        reports an error.
+        """
+        assume(rw_collective_dircap != rw_upload_dircap)
+        assume(rw_collective_dircap != personal_dmd)
+        assume(rw_upload_dircap != personal_dmd)
+        # we are testing error-cases, so don't need a real client
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            rw_upload_dircap,
+            tahoe_client=None,
+        )
+
+        self.assertThat(
+            participants.add(
+                create_local_author(author).to_remote_author(),
+                personal_dmd,
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    Equals(
+                        "New participant Personal DMD must be read-only dircap"
+                    )
+                )
+            )
+        )
 
 class CollectiveParticipantTests(SyncTestCase):
     """
