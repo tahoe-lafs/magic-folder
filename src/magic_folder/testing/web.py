@@ -337,6 +337,10 @@ class _FakeTahoeUriHandler(Resource, object):
             metadata["size"] = content.get_size()
 
         dir_data = json.loads(dir_raw_data)
+        if segments[0] in dir_data[1]["children"]:
+            request.setResponseCode(http.BAD_REQUEST)
+            return b""
+
         dir_data[1]["children"][segments[0]] = [kind, metadata]
         self.data[dircap] = json.dumps(dir_data).encode("utf8")
         return b""
