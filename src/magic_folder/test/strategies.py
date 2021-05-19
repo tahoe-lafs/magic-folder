@@ -13,10 +13,6 @@ from uuid import (
     UUID,
 )
 
-from unicodedata import (
-    normalize,
-)
-
 from base64 import (
     urlsafe_b64encode,
 )
@@ -52,6 +48,14 @@ from allmydata.util import (
 from allmydata.util.progress import (
     PercentProgress,
 )
+from ..util.encoding import (
+    # In the future we should generate text using different normalizations and
+    # denormalized.  The user is likely to be able to enter anything they
+    # want, we should know what our behavior is going to be.
+    #
+    # https://github.com/LeastAuthority/magic-folder/issues/36
+    normalize
+)
 from ..snapshot import (
     RemoteAuthor,
     LocalAuthor,
@@ -79,14 +83,6 @@ SEGMENT_ALPHABET = one_of(
     just(u"."),
 )
 
-def _normalized(text):
-    # In the future we should generate text using different normalizations and
-    # denormalized.  The user is likely to be able to enter anything they
-    # want, we should know what our behavior is going to be.
-    #
-    # https://github.com/LeastAuthority/magic-folder/issues/36
-    return normalize("NFC", text)
-
 
 def path_segments(alphabet=SEGMENT_ALPHABET):
     """
@@ -112,7 +108,7 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
         # Exclude aliases for current directory and parent directory.
         lambda segment: segment not in {u".", u".."},
     ).map(
-        _normalized,
+        normalize,
     )
 
 def path_segments_without_dotfiles(path_segments=path_segments()):
@@ -167,7 +163,7 @@ def folder_names():
     return text(
         min_size=1,
     ).map(
-        _normalized,
+        normalize,
     )
 
 

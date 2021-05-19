@@ -41,6 +41,8 @@ from nacl.encoding import (
     Base64Encoder,
 )
 
+from .util.encoding import normalize
+
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
 
@@ -55,7 +57,7 @@ class RemoteAuthor(object):
     :ivar nacl.signing.VerifyKey verify_key: author's public key
     """
 
-    name = attr.ib()
+    name = attr.ib(converter=normalize)
     verify_key = attr.ib(validator=[attr.validators.instance_of(VerifyKey)])
 
     def to_json(self):

@@ -40,6 +40,8 @@ from twisted.internet.defer import (
     succeed,
 )
 
+from ..util.encoding import normalize
+
 from treq.client import (
     HTTPClient,
     FileBodyProducer,
@@ -302,6 +304,7 @@ class _FakeTahoeUriHandler(Resource, object):
             raise Exception(
                 "Need exactly one path segment (got {})".format(len(segments))
             )
+        path = normalize(segments[0].decode("utf-8"))
         dircap = request.postpath[0].decode("ascii")
         if not dircap.startswith("URI:DIR2"):
             raise Exception(
@@ -337,7 +340,7 @@ class _FakeTahoeUriHandler(Resource, object):
             metadata["size"] = content.get_size()
 
         dir_data = json.loads(dir_raw_data)
-        if segments[0] in dir_data[1]["children"]:
+        if path in dir_data[1]["children"]:
             replace = request.args.get(b"replace", [b""])[0].lower() in (b"true", b"1", b"on")
             if not replace:
                 request.setResponseCode(http.BAD_REQUEST)

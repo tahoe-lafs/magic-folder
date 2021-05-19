@@ -96,6 +96,10 @@ from ..snapshot import (
     format_filenode,
 )
 
+from ..util.encoding import (
+    normalize
+)
+
 class CollectiveParticipantsTests(SyncTestCase):
     """
     Tests for a participants group backed by a Tahoe-LAFS directory (a
@@ -255,7 +259,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             u"dirnode",
             {
                 u"children": {
-                    author: format_filenode(upload_dircap_ro, {}),
+                    normalize(author): format_filenode(upload_dircap_ro, {}),
                 },
             },
         ])
@@ -292,7 +296,7 @@ class CollectiveParticipantsTests(SyncTestCase):
                     ),
                     AfterPreprocessing(
                         lambda ps: sorted(p.name for p in ps),
-                        Equals(sorted(collective_contents)),
+                        Equals(sorted(map(normalize, collective_contents))),
                     ),
                     AfterPreprocessing(
                         lambda ps: sorted(p.dircap for p in ps),
@@ -374,7 +378,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: str(f.value),
+                    lambda f: unicode(f.value),
                     Equals(
                         "Author must be a RemoteAuthor instance"
                     )
@@ -398,7 +402,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         produces an error
         """
         # authors must be different
-        assume(authors[0] != authors[1])
+        assume(normalize(authors[0]) != normalize(authors[1]))
         # none of the capabilities should be the same
         all_caps = [rw_collective_dircap, rw_upload_dircap] + personal_dmds
         for a in range(len(all_caps)):
@@ -443,7 +447,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: str(f.value),
+                    lambda f: unicode(f.value),
                     StartsWith(
                         "Already have a participant with Personal DMD"
                     )
@@ -460,7 +464,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: str(f.value),
+                    lambda f: unicode(f.value),
                     StartsWith(
                         "Already have a participant called"
                     )
