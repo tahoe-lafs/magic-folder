@@ -282,6 +282,9 @@ def magic_folder_filenames():
 
 
 def author_names():
+    """
+    Names of local or remote authors are non-empty strings
+    """
     return text(min_size=1)
 
 
