@@ -332,7 +332,11 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         Resource.__init__(self)
 
     def render_POST(self, request):
+        """
+        Create a new Snapshot
+        """
         path_u = request.args[b"path"][0].decode("utf-8")
+
 
         # preauthChild allows path-separators in the "path" (i.e. not
         # just a single path-segment). That is precisely what we want
