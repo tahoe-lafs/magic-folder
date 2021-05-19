@@ -22,7 +22,9 @@ from testtools import (
     ExpectedException,
 )
 from testtools.matchers import (
+    Always,
     Equals,
+    StartsWith,
     IsInstance,
     AllMatch,
     MatchesAll,
@@ -46,6 +48,7 @@ from hypothesis.strategies import (
     sampled_from,
     one_of,
     just,
+    lists,
 )
 
 from .common import (
@@ -77,6 +80,7 @@ from ..magicpath import (
 )
 from ..tahoe_client import (
     TahoeClient,
+    create_tahoe_client,
 )
 from ..participants import (
     IParticipant,
@@ -347,6 +351,126 @@ class CollectiveParticipantsTests(SyncTestCase):
                 )
             )
         )
+
+    @given(
+        author_names(),
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_readonly_dir_capabilities(),
+    )
+    def test_add_wrong_author_type(self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd):
+        """
+        ``IParticipants.add`` called with non-RemoteAuthor instance fails.
+        """
+        assume(rw_collective_dircap != rw_upload_dircap)
+        # we are testing error-cases, so don't need a real client
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            rw_upload_dircap,
+            tahoe_client=None,
+        )
+
+        self.assertThat(
+            participants.add(
+                create_local_author(author),
+                personal_dmd,
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    Equals(
+                        "Author must be a RemoteAuthor instance"
+                    )
+                )
+            )
+        )
+
+    @given(
+        lists(
+            author_names(),
+            min_size=2,
+            max_size=2,
+        ),
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+        lists(tahoe_lafs_readonly_dir_capabilities(), min_size=2, max_size=2, unique=True),
+    )
+    def test_add_duplicate(self, authors, rw_collective_dircap, rw_upload_dircap, personal_dmds):
+        """
+        Adding two participants with the same Personal DMD or same name
+        produces an error
+        """
+        # authors must be different
+        assume(authors[0] != authors[1])
+        # none of the capabilities should be the same
+        all_caps = [rw_collective_dircap, rw_upload_dircap] + personal_dmds
+        for a in range(len(all_caps)):
+            for b in range(len(all_caps)):
+                if a != b:
+                    assume(all_caps[a] != all_caps[b])
+
+        root = create_fake_tahoe_root()
+        http_client = create_tahoe_treq_client(root)
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.invalid./"),
+            http_client,
+        )
+        root._uri.data[rw_collective_dircap] = dumps([
+            u"dirnode",
+            {
+                u"children": {},
+            }
+        ])
+
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            rw_upload_dircap,
+            tahoe_client=tahoe_client,
+        )
+
+        # add our first participant; should be uncontroversial
+        self.assertThat(
+            participants.add(
+                create_local_author(authors[0]).to_remote_author(),
+                personal_dmds[0],
+            ),
+            succeeded(Always()),
+        )
+
+        # second participant (with same Personal DMD) should be an
+        # error
+        self.assertThat(
+            participants.add(
+                create_local_author(authors[1]).to_remote_author(),
+                personal_dmds[0],
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    StartsWith(
+                        "Already have a participant with Personal DMD"
+                    )
+                )
+            )
+        )
+
+        # second participant with *different* Personal DMD but the
+        # same name should be an error
+        self.assertThat(
+            participants.add(
+                create_local_author(authors[0]).to_remote_author(),
+                personal_dmds[1],
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    StartsWith(
+                        "Already have a participant called"
+                    )
+                )
+            )
+        )
+
 
 class CollectiveParticipantTests(SyncTestCase):
     """
