@@ -160,10 +160,8 @@ class ParticipantsAPIv1(Resource, object):
         try:
             folder_config = self._global_config.get_magic_folder(name_u)
         except ValueError as e:
-            _application_json(request)
-            request.setResponseCode(http.BAD_REQUEST)
-            request.write(json.dumps({"reason": str(e)}))
-            return None
+            from twisted.web.resource import NoResource
+            return NoResource(b"{}")
         return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
 
 

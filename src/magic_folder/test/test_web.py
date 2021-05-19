@@ -36,6 +36,7 @@ from hypothesis.strategies import (
 from testtools.matchers import (
     AfterPreprocessing,
     MatchesAny,
+    MatchesAll,
     Equals,
     MatchesDict,
     MatchesListwise,
@@ -44,6 +45,7 @@ from testtools.matchers import (
 )
 from testtools.twistedsupport import (
     succeeded,
+    failed,
     has_no_result,
 )
 
@@ -55,6 +57,7 @@ from twisted.web.http import (
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
     NOT_ACCEPTABLE,
+    NOT_FOUND,
     BAD_REQUEST,
     INTERNAL_SERVER_ERROR,
 )
@@ -680,12 +683,48 @@ class ParticipantsTests(SyncTestCase):
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/participants")
 
+    def test_participants_no_folder(self):
+        """
+        An error results using /v1/participants API on non-existent
+        folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
     @given(
         folder_names(),
         tahoe_lafs_readonly_dir_capabilities(),
     )
     def test_add_participant(self, folder_name, personal_dmd):
         """
+        Adding a new participant works.
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
