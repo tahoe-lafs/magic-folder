@@ -22,7 +22,6 @@ from hyperlink import (
 from hypothesis import (
     given,
     assume,
-    settings,
 )
 
 from hypothesis.strategies import (
@@ -36,7 +35,6 @@ from hypothesis.strategies import (
 from testtools.matchers import (
     AfterPreprocessing,
     MatchesAny,
-    MatchesAll,
     Equals,
     MatchesDict,
     MatchesListwise,
@@ -45,7 +43,6 @@ from testtools.matchers import (
 )
 from testtools.twistedsupport import (
     succeeded,
-    failed,
     has_no_result,
 )
 
@@ -53,12 +50,10 @@ from twisted.web.http import (
     OK,
     CREATED,
     UNAUTHORIZED,
-    BAD_REQUEST,
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
     NOT_ACCEPTABLE,
     NOT_FOUND,
-    BAD_REQUEST,
     INTERNAL_SERVER_ERROR,
 )
 from twisted.internet.task import Clock
@@ -998,70 +993,6 @@ class ParticipantsTests(SyncTestCase):
                 AfterPreprocessing(
                     lambda response: response.json().result,
                     Equals({"reason": "'author' requires: "})
-                )
-            )
-        )
-
-    @given(
-        author_names(),
-        folder_names(),
-        tahoe_lafs_chk_capabilities(),
-    )
-    def test_add_participant_personal_dmd_non_dir(self, author, folder_name, personal_dmd):
-        """
-        If the added Personal DMD is not a directory-capability an error
-        is received.
-        """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-        folder_config = magic_folder_config(
-            create_local_author(author),
-            FilePath(self.mktemp()),
-            local_path,
-        )
-
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {
-                folder_name: folder_config,
-            },
-            # we need services to have the Web service
-            start_folder_services=True,
-            tahoe_client=tahoe_client,
-        )
-
-        # add a participant using the API
-        self.assertThat(
-            authorized_request(
-                treq,
-                AUTH_TOKEN,
-                b"POST",
-                self.url.child(folder_name),
-                dumps({
-                    "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
-                }).encode("utf8")
-            ),
-            succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "personal_dmd must be a directory-capability"})
                 )
             )
         )

@@ -22,6 +22,9 @@ from twisted.internet.defer import (
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
+from twisted.web.resource import (
+    NoResource,
+)
 from twisted.web.server import (
     NOT_DONE_YET,
     Site,
@@ -159,8 +162,7 @@ class ParticipantsAPIv1(Resource, object):
         name_u = name.decode("utf-8")
         try:
             folder_config = self._global_config.get_magic_folder(name_u)
-        except ValueError as e:
-            from twisted.web.resource import NoResource
+        except ValueError:
             return NoResource(b"{}")
         return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
 
