@@ -338,8 +338,10 @@ class _FakeTahoeUriHandler(Resource, object):
 
         dir_data = json.loads(dir_raw_data)
         if segments[0] in dir_data[1]["children"]:
-            request.setResponseCode(http.BAD_REQUEST)
-            return b""
+            replace = request.args.get(b"replace", [b""])[0].lower() in (b"true", b"1", b"on")
+            if not replace:
+                request.setResponseCode(http.BAD_REQUEST)
+                return b""
 
         dir_data[1]["children"][segments[0]] = [kind, metadata]
         self.data[dircap] = json.dumps(dir_data).encode("utf8")
