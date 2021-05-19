@@ -866,7 +866,7 @@ class ParticipantsTests(SyncTestCase):
             succeeded(
                 AfterPreprocessing(
                     lambda response: response.json().result,
-                    Equals({"reason": "Require input: personal_dmd, author"})
+                    Equals({"reason": "Require input: author, personal_dmd"})
                 )
             )
         )
@@ -992,7 +992,7 @@ class ParticipantsTests(SyncTestCase):
             succeeded(
                 AfterPreprocessing(
                     lambda response: response.json().result,
-                    Equals({"reason": "'author' requires: "})
+                    Equals({"reason": "personal_dmd must be a directory-capability"})
                 )
             )
         )

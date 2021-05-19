@@ -236,9 +236,9 @@ class MagicFolderParticipantAPIv1(Resource, object):
                 # "public_key_base32",
             }
             if set(participant.keys()) != required_keys:
-                raise ValueError("Require input: {}".format(", ".join(required_keys)))
+                raise ValueError("Require input: {}".format(", ".join(sorted(required_keys))))
             if set(participant["author"].keys()) != required_author_keys:
-                raise ValueError("'author' requires: {}".format(", ".join(required_author_keys)))
+                raise ValueError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
 
             author = create_author(
                 participant["author"]["name"],
