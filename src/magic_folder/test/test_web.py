@@ -1196,3 +1196,71 @@ class ParticipantsTests(SyncTestCase):
                 )
             )
         )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_readonly_dir_capabilities(),
+    )
+    def test_add_participant_internal_error(self, author, folder_name, personal_dmd):
+        """
+        An internal error on participant adding is logged
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+
+        # Arrange to have an "unexpected" error happen
+        class ErrorClient(object):
+            def __call__(self, *args, **kw):
+                raise Exception("an unexpected error")
+            def __getattr__(self, *args):
+                return self
+        tahoe_client = ErrorClient()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "unexpected error processing request"})
+                )
+            )
+        )
