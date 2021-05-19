@@ -226,7 +226,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         unique_value_dictionaries(
             author_names(),
             tahoe_lafs_dir_capabilities(),
-            min_size=1,
+            min_size=2,
         ),
         tahoe_lafs_dir_capabilities(),
     )
@@ -238,9 +238,6 @@ class CollectiveParticipantsTests(SyncTestCase):
         # The collective can't be anyone's DMD.
         assume(rw_collective_dircap not in collective_contents.values())
         rw_collective_dircap = rw_collective_dircap.encode("ascii")
-
-        # We need at least 2: "us" and at least one participant to add
-        assume(len(collective_contents) > 1)
 
         # Pick someone in the collective to be us.
         author = sorted(collective_contents)[0]
