@@ -98,6 +98,7 @@ from .strategies import (
     folder_names,
     relative_paths,
     tokens,
+    author_names,
 )
 
 from ..snapshot import (
@@ -129,6 +130,8 @@ from ..tahoe_client import (
 from .strategies import (
     local_authors,
     tahoe_lafs_readonly_dir_capabilities,
+    tahoe_lafs_dir_capabilities,
+    tahoe_lafs_chk_capabilities,
 )
 from ..util.capabilities import (
     to_readonly_capability,
@@ -808,6 +811,388 @@ class ParticipantsTests(SyncTestCase):
                             u'personal_dmd': personal_dmd,
                         }
                     })
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_add_participant_wrong_json(self, author, folder_name):
+        """
+        Missing keys in 'participant' JSON produces error
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "not-the-author": {"name": "kelly"},
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "Require input: personal_dmd, author"})
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_add_participant_wrong_author_json(self, author, folder_name):
+        """
+        Missing keys in 'participant' JSON for 'author' produces error
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"not-the-name": "kelly"},
+                    "personal_dmd": "fake",
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "'author' requires: name"})
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_participant_personal_dmd_non_dir(self, author, folder_name, personal_dmd):
+        """
+        When a new Personal DMD is passed that is not a directory
+        capability an error is produced.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "'author' requires: "})
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_participant_personal_dmd_non_dir(self, author, folder_name, personal_dmd):
+        """
+        If the added Personal DMD is not a directory-capability an error
+        is received.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "personal_dmd must be a directory-capability"})
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add_participant_personal_dmd_writable(self, author, folder_name, personal_dmd):
+        """
+        If the added Personal DMD is read-write an error is signaled
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "personal_dmd must be read-only"})
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_participant_list_internal_error(self, author, folder_name):
+        """
+        Listing participants reports a failure if there is an unexpected
+        internal error.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+
+        # Arrange to have an "unexpected" error happen
+        class ErrorClient(object):
+            def __call__(self, *args, **kw):
+                raise Exception("an unexpected error")
+            def __getattr__(self, *args):
+                return self
+        tahoe_client = ErrorClient()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            # we need services to have the Web service
+            start_folder_services=True,
+            tahoe_client=tahoe_client,
+        )
+
+        # list the participants
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                AfterPreprocessing(
+                    lambda response: response.json().result,
+                    Equals({"reason": "unexpected error processing request"})
                 )
             )
         )
