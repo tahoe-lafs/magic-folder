@@ -698,7 +698,7 @@ class ParticipantsTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -761,8 +761,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -847,8 +846,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -908,8 +906,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -972,8 +969,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -1035,8 +1031,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -1107,8 +1102,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
@@ -1171,8 +1165,7 @@ class ParticipantsTests(SyncTestCase):
             {
                 folder_name: folder_config,
             },
-            # we need services to have the Web service
-            start_folder_services=True,
+            start_folder_services=False,
             tahoe_client=tahoe_client,
         )
 
