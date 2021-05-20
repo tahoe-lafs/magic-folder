@@ -18,14 +18,15 @@ from twisted.internet.defer import (
     returnValue,
 )
 
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from allmydata.interfaces import (
     IDirnodeURI,
 )
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
-)
-from allmydata.util.eliotutil import (
-    inline_callbacks,
 )
 
 from .magicpath import (
