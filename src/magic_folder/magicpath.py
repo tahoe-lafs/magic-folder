@@ -1,7 +1,7 @@
 import re
 import os.path
 
-from allmydata.util.assertutil import precondition, _assert
+from pyutil.assertutil import precondition, _assert
 
 def path2magic(path):
     return re.sub(u'[/@]',  lambda m: {u'/': u'@_', u'@': u'@@'}[m.group(0)], path)

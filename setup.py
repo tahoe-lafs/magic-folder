@@ -74,6 +74,10 @@ install_requires = [
 
     # find the default location for configuration on different OSes
     "appdirs",
+
+    # Python utilities that were originally extracted from tahoe
+    # We use them directly, rather than the re-exports from allmydata
+    "pyutil >= 3.3.0"
 ]
 
 setup_requires = [
