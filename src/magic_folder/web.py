@@ -8,6 +8,10 @@ from nacl.encoding import (
     Base32Encoder,
 )
 
+from autobahn.twisted.resource import (
+    WebSocketResource,
+)
+
 from twisted.python.filepath import (
     FilePath,
     InsecurePath,
@@ -32,6 +36,10 @@ from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
+from .status import (
+    StatusFactory,
+    IStatus,
+)
 from .magicpath import (
     magic2path,
 )
@@ -114,11 +122,15 @@ class APIv1(Resource, object):
     """
     _global_config = attr.ib()
     _global_service = attr.ib()
+    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
         self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
         self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
+        # XXX should be optional; get endpoint-string from global
+        # config .. or could use "if status_service is None", maybe?
+        self.putChild(b"status", WebSocketResource(StatusFactory(self._status_service)))
 
 
 @attr.s
@@ -375,7 +387,7 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, status_service):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -384,9 +396,11 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :param get_auth_token: a callable that returns the current authentication token
 
+    :param IStatus status_service: our status reporting service
+
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service)
+    v1_resource = APIv1(global_config, global_service, status_service)
     root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,

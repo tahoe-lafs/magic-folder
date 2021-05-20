@@ -28,6 +28,10 @@ from .uploader import (
     UploaderService,
     RemoteSnapshotCreator,
 )
+from .status import (
+    IStatus,
+    WebSocketStatusService,
+)
 from .participants import (
     participants_from_collective,
 )
@@ -77,7 +81,7 @@ class MagicFolder(service.MultiService):
     """
 
     @classmethod
-    def from_config(cls, reactor, tahoe_client, name, config):
+    def from_config(cls, reactor, tahoe_client, name, config, status_service):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
@@ -108,6 +112,7 @@ class MagicFolder(service.MultiService):
                     mf_config.author,
                     mf_config.stash_path,
                 ),
+                status=status_service,
             ),
             uploader_service=UploaderService.from_config(
                 clock=reactor,
@@ -117,8 +122,10 @@ class MagicFolder(service.MultiService):
                     local_author=mf_config.author,
                     tahoe_client=tahoe_client,
                     upload_dircap=mf_config.upload_dircap,
+                    status=status_service,
                 ),
             ),
+            status_service=status_service,
             initial_participants=initial_participants,
             clock=reactor,
         )
@@ -128,7 +135,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, status_service, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -136,8 +143,10 @@ class MagicFolder(service.MultiService):
         self._participants = initial_participants
         self.local_snapshot_service = local_snapshot_service
         self.uploader_service = uploader_service
+        self.status_service = status_service
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
+        status_service.setServiceParent(self)
 
     def ready(self):
         """

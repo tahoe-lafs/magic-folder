@@ -73,6 +73,9 @@ from .client import (
     create_http_client,
     CannotAccessAPIError,
 )
+from .status import (
+    WebSocketStatusService,
+)
 
 from .invite import (
     magic_folder_invite
@@ -533,6 +536,7 @@ class MagicFolderService(MultiService):
     """
     reactor = attr.ib()
     config = attr.ib()
+    status_service = attr.ib()
     tahoe_client = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -551,6 +555,7 @@ class MagicFolderService(MultiService):
             self.config,
             self,
             self._get_auth_token,
+            self.status_service,
         )
         web_service.setServiceParent(self)
 
@@ -570,6 +575,7 @@ class MagicFolderService(MultiService):
                 self.tahoe_client,
                 name,
                 self.config,
+                self.status_service,
             )
             mf.setServiceParent(self)
 
@@ -607,9 +613,14 @@ class MagicFolderService(MultiService):
 
         :param GlobalConfigDatabase config: config to use
         """
+        # XXX should be optional -- needs to be given to the Web too
+        # XXX maybe doesn't need to be an IService?
+        status_service = WebSocketStatusService()
+
         return cls(
             reactor,
             config,
+            status_service
         )
 
     def _when_connected_enough(self):
