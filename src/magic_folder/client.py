@@ -45,6 +45,9 @@ from .web import (
     APIv1,
     magic_folder_resource,
 )
+from .status import (
+    NullStatusService,
+)
 from .testing.web import (
     _SynchronousProducer,
 )
@@ -188,7 +191,7 @@ def create_http_client(reactor, api_client_endpoint_str):
 
 # See https://github.com/LeastAuthority/magic-folder/issues/280
 # global_service should expect/demand an Interface
-def create_testing_http_client(reactor, config, global_service, get_api_token):
+def create_testing_http_client(reactor, config, global_service, get_api_token, status_service=None):
     """
     :param global_service: an object providing the API of the global
         magic-folder service
@@ -196,11 +199,16 @@ def create_testing_http_client(reactor, config, global_service, get_api_token):
     :param callable get_api_token: a no-argument callable that returns
         the current API token.
 
+    :param IStatus status_service: a status service to use, or None to
+        create a NullStatusService
+
     :returns: a Treq HTTPClient which will do all requests to
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service)
+    if status_service is None:
+        status_service = NullStatusService()
+    v1_resource = APIv1(config, global_service, status_service)
     root = magic_folder_resource(get_api_token, v1_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),

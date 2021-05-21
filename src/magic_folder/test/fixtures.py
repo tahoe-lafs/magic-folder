@@ -76,6 +76,9 @@ from ..tahoe_client import (
 from ..magic_folder import (
     RemoteSnapshotCreator,
 )
+from ..status import (
+    NullStatusService,
+)
 
 from ..config import (
     SQLite3DatabaseLocation,
@@ -400,4 +403,5 @@ class RemoteSnapshotCreatorFixture(Fixture):
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
+            status=NullStatusService(),
         )

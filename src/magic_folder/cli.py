@@ -75,6 +75,7 @@ from .client import (
 )
 from .status import (
     WebSocketStatusService,
+    IStatus,
 )
 
 from .invite import (
@@ -536,7 +537,7 @@ class MagicFolderService(MultiService):
     """
     reactor = attr.ib()
     config = attr.ib()
-    status_service = attr.ib()
+    status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
 
     def __attrs_post_init__(self):

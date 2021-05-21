@@ -168,3 +168,16 @@ class WebSocketStatusService(service.Service):
                 "kind": "synchronizing",
                 "status": False,
             })
+
+
+@implementer(IStatus)
+class NullStatusService(service.Service):
+    """
+    An IStatus service that doesn't do anything
+    """
+
+    def upload_started(self):
+        pass
+
+    def upload_stopped(self):
+        pass
