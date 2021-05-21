@@ -11,7 +11,7 @@ src/magic_folder.egg-info/
 src/twisted/plugins/dropin.cache
 src/magic_folder/test/plugins/dropin.cache
 
-_trial_temp/
+_trial_temp*/
 .hypothesis/
 .tox/
 
