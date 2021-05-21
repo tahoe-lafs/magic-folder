@@ -92,9 +92,9 @@ workflows:
           <<: *DOCKERHUB_CONTEXT
       - "build-image-ubuntu-20.04":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-31":
+      - "build-image-fedora-33":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-32":
+      - "build-image-fedora-34":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-centos-8":
           <<: *DOCKERHUB_CONTEXT
@@ -516,7 +516,7 @@ jobs:
       TAG: "8"
 
 
-  build-image-fedora-31:
+  build-image-fedora-33:
     <<: *BUILD_IMAGE
 
     environment:
@@ -524,7 +524,7 @@ jobs:
       TAG: "31"
 
 
-  build-image-fedora-32:
+  build-image-fedora-34:
     <<: *BUILD_IMAGE
 
     environment:
