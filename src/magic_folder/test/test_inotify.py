@@ -38,7 +38,6 @@ class INotifyTests(AsyncTestCase):
         self.addCleanup(self.inotify.loseConnection)
         return super(INotifyTests, self).setUp()
 
-
     def _notificationTest(self, mask, operation, expectedPath=None):
         """
         Test notification from some filesystem operation.

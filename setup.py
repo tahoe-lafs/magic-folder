@@ -290,7 +290,7 @@ setup(name="magic_folder",
       install_requires=install_requires,
       extras_require={
           # For magic-folder on "darwin" (macOS) and the BSDs
-          ':sys_platform!="win32" and sys_platform!="linux2"': ["watchdog"],
+          ':sys_platform!="win32" and sys_platform!="linux2"': ["watchdog<0.10.4"],
           "test": [
               # Pin a specific pyflakes so we don't have different folks
               # disagreeing on what is or is not a lint issue.  We can bump
