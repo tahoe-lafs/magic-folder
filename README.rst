@@ -116,6 +116,6 @@ slides.
 .. |circleci| image:: https://circleci.com/gh/LeastAuthority/magic-folder.svg?style=svg
     :target: https://circleci.com/gh/LeastAuthority/magic-folder
 
-.. |codecov| image:: https://codecov.io/github/leastauthority/magic-folder/coverage.svg?branch=master
+.. |codecov| image:: https://codecov.io/github/leastauthority/magic-folder/coverage.svg?branch=main
     :alt: test coverage percentage
-    :target: https://codecov.io/github/leastauthority/magic-folder?branch=master
+    :target: https://codecov.io/github/leastauthority/magic-folder?branch=main

@@ -116,9 +116,9 @@ The "-f" option causes it to "fetch" immediately.
 Creating a Development Branch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Make sure you're on "master" and up-to-date:
+Make sure you're on "main" and up-to-date:
 
-    % git checkout master
+    % git checkout main
     % git pull
 
 If there is not already an Issue for your change, create one.
