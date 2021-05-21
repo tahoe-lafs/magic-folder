@@ -84,9 +84,9 @@ workflows:
                 - "main"
 
     jobs:
-      - "build-image-debian-8":
-          <<: *DOCKERHUB_CONTEXT
       - "build-image-debian-9":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-debian-10":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-ubuntu-18.04":
           <<: *DOCKERHUB_CONTEXT
@@ -100,7 +100,7 @@ workflows:
           <<: *DOCKERHUB_CONTEXT
       - "build-image-slackware-14.2":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-pypy-2.7-7.3.0-buster":
+      - "build-image-pypy-2.7-7.3.4-buster":
           <<: *DOCKERHUB_CONTEXT
 
 
@@ -476,20 +476,20 @@ jobs:
             docker push magicfolderci/${DISTRO}:${TAG}
 
 
-  build-image-debian-8:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "debian"
-      TAG: "8"
-
-
   build-image-debian-9:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "debian"
       TAG: "9"
+
+
+  build-image-debian-10:
+    <<: *BUILD_IMAGE
+
+    environment:
+      DISTRO: "debian"
+      TAG: "10"
 
 
   build-image-ubuntu-18.04:
@@ -540,9 +540,9 @@ jobs:
       TAG: "14.2"
 
 
-  build-image-pypy-2.7-7.3.0-buster:
+  build-image-pypy-2.7-7.3.4-buster:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "pypy"
-      TAG: "2.7-7.3.0-buster"
+      TAG: "2.7-7.3.4-buster"
