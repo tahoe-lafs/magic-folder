@@ -43,3 +43,27 @@ class StatusServiceTests(SyncTestCase):
                 "status": True,
             }])
         )
+
+    def test_offline_client(self):
+        """
+        The first client to connect gets message backlog
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+
+        self.service.upload_started()
+        self.assertThat(messages, Equals([]))
+
+        # once connected, this client should get the message backlog
+        self.service.client_connected(ClientProtocol())
+
+        self.assertThat(
+            messages,
+            Equals([{
+                "kind": "synchronizing",
+                "status": True,
+            }])
+        )
