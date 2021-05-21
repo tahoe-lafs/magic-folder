@@ -27,31 +27,39 @@ class StatusProtocol(WebSocketServerProtocol):
     This is authenticated with the same Bearer token as the rest of
     the /v1 API.
     """
-    def onConnect(self, request):
-        print("Client connecting: {0}".format(request))
 
     def onOpen(self):
-        print("WebSocket connection open.")
+        """
+        WebSocket API: successful handshake
+        """
         self.factory._status.client_connected(self)
 
     def onClose(self, wasClean, code, reason):
-        print("WebSocket connection closed: {0}".format(reason))
+        """
+        WebSocket API: we've lost our connection for some reason
+        """
         self.factory._status.client_disconnected(self)
 
     def onMessage(self, payload, isBinary):
-        print("message isBinary={}: {}".format(isBinary, payload))
+        """
+        WebSocket API: a message has been received from the client. This
+        should never happen in our protocol.
+        """
+        pass
 
 
 class StatusFactory(WebSocketServerFactory):
     """
-    Instantiates server-side StatusProtocol instances as clients connect
+    Instantiates server-side StatusProtocol instances when clients
+    connect.
     """
     protocol = StatusProtocol
 
     def __init__(self, status):
         """
         :param WebSocketStatusService status: actual provider of our
-            status information
+            status information. The protocol will use this to track
+            clients as they connect and disconnect.
         """
         self._status = status
         WebSocketServerFactory.__init__(self, server="magic-folder")
@@ -59,7 +67,9 @@ class StatusFactory(WebSocketServerFactory):
 
 class IStatus(Interface):
     """
-    An internal API for services to report realtime status information
+    An internal API for services to report realtime status
+    information. These don't necessarily correspond 1:1 to outgoing
+    messages from the status API.
     """
 
     def upload_started():
@@ -79,27 +89,48 @@ class IStatus(Interface):
 class WebSocketStatusService(service.Service):
     """
     A global service that can be used to report status information via
-    an authenticated WebSocket connection. The authentication
-    mechanism is the same as for the HTTP API (see web.py where a
-    WebSocketResource is mounted into the resource tree).
+    an authenticated WebSocket connection.
+
+    The authentication mechanism is the same as for the HTTP API (see
+    web.py where a WebSocketResource is mounted into the resource
+    tree).
     """
+
+    # tracks currently-connected clients
     _clients = attr.ib(default=attr.Factory(set))
+
+    # if zero clients are connected we keep all messages until some
+    # client connects
     _pending_messages = attr.ib(default=attr.Factory(list))
+
+    # in order to only do edge-triggered messages we track whether
+    # there is upload (and later downloading) going on right now.
     _uploading = attr.ib(default=False)
 
     def client_connected(self, protocol):
+        """
+        Called via the WebSocket protocol when a client has successfully
+        completed the handshake (and authentication).
+
+        If we have any pending messages, those are all pushed to this client.
+        """
         self._clients.add(protocol)
         while self._pending_messages:
             msg = self._pending_messages.pop(0)
             protocol.sendMessage(msg)
 
     def client_disconnected(self, protocol):
+        """
+        Called via the WebSocket protocol when a client disconnects (for
+        whatever reason). If this is the last client, we'll start
+        buffering any messages.
+        """
         self._clients.remove(protocol)
 
     def _send_message(self, msg):
         """
-        Internal helper. Send a status message, or queue it for later if
-        we have no clients right now.
+        Internal helper. Send a status message (or queue it for later if
+        we have no clients right now).
 
         :param dict msg: a dict containing only JSON-able contents
         """
@@ -108,7 +139,11 @@ class WebSocketStatusService(service.Service):
             self._pending_messages.append(payload)
         else:
             for client in self._clients:
-                client.sendMessage(payload)
+                try:
+                    client.sendMessage(payload)
+                except Exception as e:
+                    # XXX should log this somewhere
+                    pass
 
     # IStatus API
 
@@ -119,7 +154,7 @@ class WebSocketStatusService(service.Service):
         if not self._uploading:
             self._uploading = True
             self._send_message({
-                "kind": "uploading",
+                "kind": "synchronizing",
                 "status": True,
             })
 
@@ -130,6 +165,6 @@ class WebSocketStatusService(service.Service):
         if self._uploading:
             self._uploading = False
             self._send_message({
-                "kind": "uploading",
+                "kind": "synchronizing",
                 "status": False,
             })
