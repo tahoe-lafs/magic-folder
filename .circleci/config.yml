@@ -81,7 +81,7 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "main"
 
     jobs:
       - "build-image-debian-8":

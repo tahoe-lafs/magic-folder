@@ -14,7 +14,7 @@ The high-level view of the Magic-Folder development process looks like this:
    or a developer decides to add a history browsing user experience to the software.
 #. `An issue is filed`_ describing the shortcoming, defect, or new area of functionality.
    The issue describes how the software will be different than it is now and why this is desirable.
-#. Development work proceeds in a branch (typically created from a recent master branch revision).
+#. Development work proceeds in a branch (typically created from a recent main branch revision).
    Prior to this development or in parallel with it,
    communication within the team helps identify and clear roadblocks early.
 #. When development has progressed sufficiently,
@@ -22,7 +22,7 @@ The high-level view of the Magic-Folder development process looks like this:
 #. One or more other developers `review the changes`_.
 #. The previous two steps may repeat a number of times until the changes pass review.
 #. Upon passing review,
-   the changes are `merged into the master branch`_.
+   the changes are `merged into the main branch`_.
 
 
 .. _An issue is filed:
@@ -38,7 +38,7 @@ Proposing Changes
 -----------------
 
 To propose a change,
-create a `GitHub Pull Request <https://github.com/leastauthority/magic-folder/pulls>`_ against master.
+create a `GitHub Pull Request <https://github.com/leastauthority/magic-folder/pulls>`_ against main.
 
 Changes should:
 
@@ -188,12 +188,12 @@ Beyond these areas there are a number of mechanical checks applied by the contin
 Changes should only be accepted if all of these mechanical checks pass
 *or* if there are failures which are certainly unrelated to the changes and for which tickets have been filed.
 
-.. _merged into the master branch:
+.. _merged into the main branch:
 
 Merging Changes
 ---------------
 
-Use the GitHub merge button to merge changes to master.
+Use the GitHub merge button to merge changes to main.
 Merge changes if they pass the mechanical continuous integration checks and the softer reviewer guidelines above.
 
 .. _the style guidelines from the Twisted project: https://twistedmatrix.com/trac/wiki/ReviewProcess#Newsfiles
