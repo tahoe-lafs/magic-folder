@@ -253,6 +253,8 @@ class RemoteSnapshotCreator(object):
         # the new snapshot gets lost. Perhaps this can be solved by storing each
         # LocalSnapshot in its own row than storing everything in a blob?
         # https://github.com/LeastAuthority/magic-folder/issues/197
+
+        # XXX above comment obsolete, right? (197 is fixed / database is normalized)
         for name in localsnapshot_names:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
@@ -290,6 +292,13 @@ class RemoteSnapshotCreator(object):
             remote_snapshot.capability.encode('utf-8'),
             replace=True,
         )
+
+        # XXX since we've already updated our Personal DMD above, any
+        # errors happening below could cause us to be un-synchronized
+        # ... if the local stash isn't removed, we waste disk
+        # space. If the LocalSnapshot isn't deleted from the databse,
+        # we'll try to upload it again (I *think* that's okay, but
+        # ...)
 
         # Remove the local snapshot content from the stash area.
         snapshot.content_path.asBytesMode("utf-8").remove()

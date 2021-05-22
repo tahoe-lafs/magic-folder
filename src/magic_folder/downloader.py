@@ -125,6 +125,11 @@ class RemoteSnapshotCacheService(service.Service):
     Anyway, we do need to download parent snapshots UNTIL we reach the
     current remotesnapshot that we've noted for that name (or run
     out of parents).
+
+    XXX: the "remote-snapshots" database is kind of 'just a cache'
+    too; we should be putting that information into our Personal DMD
+    ... so what happens when it's out of date? (source-of-truth MUST
+    be our Personal DMD ...)
     """
     tahoe_client = attr.ib()
     folder_config = attr.ib()

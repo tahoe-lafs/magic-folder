@@ -209,6 +209,8 @@ _magicfolder_config_schema = Schema([
             snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
         )
         """,
+        # XXX so ^ is essentially a cache of our Personal DMD? Is that .. wise?
+
         # XXX for downloader, do we want to "cache" all snapshot
         # information here in the database? possibly as a separate
         # table? that means: everything except the content, I'd say
