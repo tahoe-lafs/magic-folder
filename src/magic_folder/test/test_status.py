@@ -55,11 +55,45 @@ class StatusServiceTests(SyncTestCase):
                 messages.append(json.loads(payload))
 
         self.service.upload_started()
+        self.service.upload_stopped()
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the message backlog
+        # (in the right order)
         self.service.client_connected(ClientProtocol())
 
+        self.assertThat(
+            messages,
+            Equals([{
+                "kind": "synchronizing",
+                "status": True,
+            },{
+                "kind": "synchronizing",
+                "status": False,
+            }])
+        )
+
+    def test_disconnect(self):
+        """
+        After a connect + disconnect messages are buffered
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+
+
+        client = ClientProtocol()
+        self.service.client_connected(client)
+        self.service.client_disconnected(client)
+
+        # now we should buffer a message
+        self.service.upload_started()
+        self.assertThat(messages, Equals([]))
+
+        # re-connect the client; it should get the message
+        self.service.client_connected(client)
         self.assertThat(
             messages,
             Equals([{
