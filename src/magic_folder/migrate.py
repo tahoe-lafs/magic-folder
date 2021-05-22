@@ -26,7 +26,7 @@ from .endpoints import (
 
 
 def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, author_name,
-                         client_endpoint_str):
+                         client_endpoint_str, websocket_status):
     """
     From an existing Tahoe-LAFS 1.14.0 or earlier configuration we
     initialize a new magic-folder using the relevant configuration
@@ -47,6 +47,8 @@ def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, 
     :param unicode client_endpoint_str: Twisted client-string to our API
         (or None to autoconvert the listen_endpoint)
 
+    :param bool websocket_status: If True, run the WebSocket status API
+
     :return Deferred[GlobalConfigDatabase]: the newly migrated
         configuration or an exception upon error.
     """
@@ -59,6 +61,7 @@ def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, 
         listen_endpoint_str,
         tahoe_node_directory,
         client_endpoint_str,
+        websocket_status,
     )
 
     # now that we have the global configuration we find all the

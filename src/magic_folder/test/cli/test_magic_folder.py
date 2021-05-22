@@ -242,6 +242,7 @@ class CreateMagicFolder(AsyncTestCase):
             u"tcp:4321",
             self.client_fixture.node_directory,
             u"tcp:localhost:4321",
+            False,
         )
 
     @defer.inlineCallbacks
@@ -534,7 +535,7 @@ class ClientEndpoint(SyncTestCase):
         """
         a 'tcp:'-style endpoint can be autoconverted
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None, False)
         self.assertThat(
             config_d,
             succeeded(
@@ -548,7 +549,7 @@ class ClientEndpoint(SyncTestCase):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None, False)
         self.assertThat(
             config_d,
             succeeded(
@@ -563,13 +564,13 @@ class ClientEndpoint(SyncTestCase):
         unknown endpoint conversion fails
         """
         with ExpectedException(CannotConvertEndpointError):
-            magic_folder_initialize(self.basedir, u"onion:555", self.nodedir.path, None)
+            magic_folder_initialize(self.basedir, u"onion:555", self.nodedir.path, None, False)
 
     def test_convert_unix(self):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None, False)
         self.assertThat(
             config_d,
             succeeded(
@@ -588,6 +589,7 @@ class ClientEndpoint(SyncTestCase):
             u"tcp:5555",
             self.nodedir.path,
             u"tcp:localhost:1234",
+            False,
         )
         config.api_client_endpoint = u"tcp:localhost:5555"
         self.assertThat(
@@ -610,6 +612,7 @@ class ClientEndpoint(SyncTestCase):
             u"tcp:5555",
             self.nodedir.path,
             u"tcp:localhost:1234",
+            False,
         )
         with ExpectedException(ValueError, "Unknown endpoint type.*"):
             config.api_client_endpoint = u"invalid:"

@@ -68,6 +68,7 @@ class TestAdd(SyncTestCase):
             u"tcp:5555",
             self.node.path,
             u"tcp:localhost:5555",
+            False,
         )
 
     def test_add_folder(self):

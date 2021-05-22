@@ -108,6 +108,7 @@ class TestInitialize(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"tcp:localhost:1234",
+            False,
         )
 
 
@@ -137,6 +138,7 @@ class TestMigrate(SyncTestCase):
             self.node_dir.path,
             u"alice",
             u"tcp:localhost:1234",
+            False,
         )
         config = load_global_configuration(self.temp.child("new_magic"))
         self.assertThat(
@@ -156,6 +158,7 @@ class TestMigrate(SyncTestCase):
                 self.node_dir.path,
                 u"alice",
                 None,
+                False,
             )
 
     def test_invalid_listen_string(self):
@@ -169,6 +172,7 @@ class TestMigrate(SyncTestCase):
                 self.node_dir.path,
                 u"alice",
                 b"invalid",
+                False,
             )
 
     def test_bad_connect_string(self):
@@ -182,6 +186,7 @@ class TestMigrate(SyncTestCase):
                 self.node_dir.path,
                 u"alice",
                 "localhost:1234",
+                False,
             )
 
 
@@ -210,6 +215,7 @@ class TestShowConfig(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"tcp:localhost:1234",
+            False,
         )
         stdout = StringIO()
         config = load_global_configuration(self.temp.child("good"))

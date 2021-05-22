@@ -142,8 +142,7 @@ class WebSocketStatusService(service.Service):
                 try:
                     client.sendMessage(payload)
                 except Exception as e:
-                    # XXX should log this somewhere
-                    pass
+                    print("Failed to send status: {}".format(e))
 
     # IStatus API
 

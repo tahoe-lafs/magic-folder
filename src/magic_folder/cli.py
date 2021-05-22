@@ -75,6 +75,7 @@ from .client import (
 )
 from .status import (
     WebSocketStatusService,
+    NullStatusService,
     IStatus,
 )
 
@@ -145,6 +146,12 @@ class InitializeOptions(usage.Options):
          "(Optional) the Twisted client-string for our REST API (only required "
          "if auto-converting from the --listen-endpoint fails)"),
     ]
+    optFlags = [
+        ("websocket-status", "s",
+         "Provide the WebSocket status endpoint. If this is enabled all status"
+         " updates are saved when no clients are connected."),
+    ]
+
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
         "any number of magic-folders (use \"magic-folder add\" to "
@@ -173,6 +180,7 @@ def initialize(options):
         options['listen-endpoint'].decode("utf8"),
         FilePath(options['node-directory']),
         options['client-endpoint'],
+        options['websocket-status'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
@@ -193,6 +201,11 @@ class MigrateOptions(usage.Options):
         ("client-endpoint", "c", None,
          "(Optional) the Twisted client-string for our REST API only required "
          "if auto-converting from the listen endpoint files"),
+    ]
+    optFlags = [
+        ("websocket-status", "s",
+         "Provide the WebSocket status endpoint. If this is enabled all status"
+         " updates are saved when no clients are connected."),
     ]
     synopsis = (
         "\n\nCreate a new magic-folder daemon configuration in the --config "
@@ -232,6 +245,7 @@ def migrate(options):
         FilePath(options['node-directory']),
         options['author'],
         options['client-endpoint'],
+        options['websocket-status'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
@@ -614,9 +628,7 @@ class MagicFolderService(MultiService):
 
         :param GlobalConfigDatabase config: config to use
         """
-        # XXX should be optional -- needs to be given to the Web too
-        # XXX maybe doesn't need to be an IService?
-        status_service = WebSocketStatusService()
+        status_service = WebSocketStatusService() if config.websocket_status else NullStatusService()
 
         return cls(
             reactor,
