@@ -4,7 +4,6 @@ import attr
 
 from zope.interface import (
     Interface,
-    Attribute,
     implementer,
 )
 
@@ -13,10 +12,9 @@ from autobahn.twisted.websocket import (
     WebSocketServerProtocol,
 )
 
-from twisted.internet.defer import (
-    inlineCallbacks,
+from twisted.application import (
+    service,
 )
-from twisted.application import service
 
 
 class StatusProtocol(WebSocketServerProtocol):

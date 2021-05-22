@@ -56,9 +56,6 @@ from ..status import (
 from ..tahoe_client import (
     create_tahoe_client,
 )
-from ..status import (
-    NullStatusService,
-)
 
 from ..testing.web import (
     create_fake_tahoe_root,

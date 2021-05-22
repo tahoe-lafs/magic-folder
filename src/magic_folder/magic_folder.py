@@ -28,10 +28,6 @@ from .uploader import (
     UploaderService,
     RemoteSnapshotCreator,
 )
-from .status import (
-    IStatus,
-    WebSocketStatusService,
-)
 from .participants import (
     participants_from_collective,
 )
