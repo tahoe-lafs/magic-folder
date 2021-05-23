@@ -16,12 +16,27 @@ from eliot.twisted import (
 )
 
 from twisted.application import service
-from twisted.python.filepath import FilePath
+from twisted.python.filepath import (
+    FilePath,
+)
+from twisted.internet.task import (
+    LoopingCall,
+)
 from twisted.internet.defer import (
+    Deferred,
     DeferredQueue,
     inlineCallbacks,
     returnValue,
 )
+
+from .magicpath import (
+    path2magic,
+    magic2path,
+)
+from .snapshot import (
+    create_snapshot_from_capability,
+)
+
 
 """
 XXX Notes:
@@ -166,7 +181,8 @@ class RemoteSnapshotCacheService(service.Service):
 
         :raises QueueOverflow: if our queue is full
         """
-        d = defer.Deferred()
+        print("add_remote_capability", snapshot_cap)
+        d = Deferred()
         self._queue.put((snapshot_cap, d))
         return d
 
@@ -176,6 +192,12 @@ class RemoteSnapshotCacheService(service.Service):
         """
         service.Service.startService(self)
         self._service_d = self._process_queue()
+
+        def log(f):
+            print("fatal error")
+            print(f)
+            return None
+        self._service_d.addErrback(log)
 
     @inline_callbacks
     def _process_queue(self):
@@ -373,6 +395,7 @@ class InMemoryMagicFolderFilesystem(object):
         """
 
 
+@attr.s
 @implementer(service.IService)
 class DownloaderService(service.Service):
     """
@@ -380,15 +403,75 @@ class DownloaderService(service.Service):
     RemoteSnapshot capabilities to download.
     """
 
+    _config = attr.ib()
+    _participants = attr.ib()
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdaterService))
+##    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdaterService))
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, clock, name, config, remote_snapshot_cache, tahoe_client):
+    def from_config(cls, clock, name, config, participants, remote_snapshot_cache, tahoe_client):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """
+        return cls(
+            config,
+            participants,
+            remote_snapshot_cache,
+##            None,
+            tahoe_client,
+        )
+
+
+    def startService(self):
+        print("starting downloader")
+
+        @inlineCallbacks
+        def log():
+            try:
+                yield self._scan_collective()
+            except Exception as e:
+                print("bad: {}".format(e))
+
+        self._processing_loop = LoopingCall(
+            log#self._scan_collective,
+        )
+        self._processing = self._processing_loop.start(self._config.poll_interval, now=True)
+
+    def stopService(self):
+        """
+        Stop the uploader service.
+        """
+        service.Service.stopService(self)
+        d = self._processing
+        self._processing_loop.stop()
+        self._processing = None
+        self._processing_loop = None
+        return d
+
+    @inlineCallbacks
+    def _scan_collective(self):
+        print("_scan_collective")
+        people = yield self._participants.list()
+        for person in people:
+            if person.is_self:
+                continue
+            print("{}: {}".format(person.name, person.dircap))
+            files = yield self._tahoe_client.list_directory(person.dircap)
+            print("  {} files:".format(len(files)))
+            for fname, data in files.items():
+                snapshot, metadata = data
+                fpath = self._config.magic_path.preauthChild(magic2path(fname))
+                relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
+                print("    {}: {}".format(relpath, snapshot))
+                # do we have this one?
+                try:
+                    remote = self._config.get_remotesnapshot(relpath)
+                    print(remote)
+                except KeyError:
+                    yield self._remote_snapshot_cache.add_remote_capability(snapshot)
+                    print("NO")
+
 
     # LoopingCall:
     #  - download Collective DMD

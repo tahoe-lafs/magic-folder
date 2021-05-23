@@ -82,6 +82,7 @@ class LocalSnapshotCreator(object):
     _db = attr.ib()  # our database
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -348,7 +349,6 @@ class UploaderService(service.Service):
         )
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
-
 
     def stopService(self):
         """
