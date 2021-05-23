@@ -36,6 +36,11 @@ from eliot.twisted import (
 
 import attr
 
+from util.capabilities import (
+    is_directory_cap,
+)
+
+
 
 def _request(http_client, method, url, **kwargs):
     """
@@ -338,9 +343,16 @@ class TahoeClient(object):
 
         :returns: bytes
         """
-        get_uri = self.url.child(u"uri").replace(
-            query=[(u"uri", cap.decode("ascii"))],
-        )
+        # Visiting /uri with a directory-capability causes Tahoe to
+        # render an HTML page .. instead adding ?t=json tells it to
+        # send JSON instead. However, using ?t=json for non-directory
+        # capabilities means the content is *not* downloaded .. so,
+        # "t=json" is only added for directory-capabilities.
+        query_args = [(u"uri", cap.decode("ascii"))]
+        if is_directory_cap(cap):
+            query_args.append((u"t", u"json"))
+
+        get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
             self.http_client,
             b"GET",
