@@ -9,7 +9,6 @@ from nacl.encoding import (
 )
 
 from twisted.python.filepath import (
-    FilePath,
     InsecurePath,
 )
 from twisted.internet.defer import (
@@ -33,7 +32,6 @@ from allmydata.util.hashutil import (
 )
 
 from .magicpath import (
-    magic2path,
     unmangle_path_segments,
 )
 

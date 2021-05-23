@@ -44,7 +44,6 @@ from ..snapshot import (
     create_local_author,
 )
 from ..magicpath import (
-    path2magic,
     mangle_path_segments,
 )
 from ..config import (

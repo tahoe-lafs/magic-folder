@@ -40,7 +40,6 @@ from .config import (
 )
 from .magicpath import (
     mangle_path_segments,
-    unmangle_path_segments,
 )
 
 

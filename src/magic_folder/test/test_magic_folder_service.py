@@ -45,7 +45,6 @@ from ..magic_folder import (
     LocalSnapshotService,
 )
 from ..magicpath import (
-    path2magic,
     mangle_path_segments,
 )
 from ..config import (
