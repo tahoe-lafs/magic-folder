@@ -48,7 +48,7 @@ from ..snapshot import (
     create_snapshot,
 )
 from ..magicpath import (
-    path2magic,
+    mangle_path_segments,
 )
 from twisted.internet import task
 
@@ -83,16 +83,17 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     @given(
-        mangled_name=relative_paths().map(path2magic),
+        relative_name=relative_paths(),
         content=binary(),
         upload_dircap=tahoe_lafs_dir_capabilities(),
     )
-    def test_commit_a_file(self, mangled_name, content, upload_dircap):
+    def test_commit_a_file(self, relative_name, content, upload_dircap):
         """
         Add a file into localsnapshot store, start the service which
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
+        mangled_name = mangle_path_segments(relative_name.split(u"/"))
         f = self.useFixture(RemoteSnapshotCreatorFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,

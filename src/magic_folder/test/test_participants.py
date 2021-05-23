@@ -76,7 +76,7 @@ from ..util.capabilities import (
     to_readonly_capability,
 )
 from ..magicpath import (
-    path2magic,
+    mangle_path_segments,
 )
 from ..tahoe_client import (
     TahoeClient,
@@ -511,7 +511,7 @@ class CollectiveParticipantTests(SyncTestCase):
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {
-                path2magic(name): format_filenode(cap, {u"version": version})
+                mangle_path_segments(name.split(u"/")): format_filenode(cap, {u"version": version})
                 for (name, (cap, version))
                 in children.items()
             }},

@@ -31,7 +31,7 @@ from allmydata.uri import (
 )
 
 from .magicpath import (
-    magic2path,
+    unmangle_path_segments,
 )
 from .snapshot import (
     RemoteAuthor,
@@ -260,7 +260,7 @@ class _CollectiveDirnodeParticipant(object):
         """
         result = yield self._tahoe_client.list_directory(self.dircap)
         returnValue({
-            magic2path(encoded_relpath_u): FolderFile(child, metadata)
+            u"/".join(unmangle_path_segments(encoded_relpath_u)): FolderFile(child, metadata)
             for (encoded_relpath_u, (child, metadata))
             in result.items()
         })

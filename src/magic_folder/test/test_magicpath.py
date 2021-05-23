@@ -36,9 +36,9 @@ from .strategies import (
 )
 
 from ..magicpath import (
-    path2magic,
-    magic2path,
     should_ignore_file,
+    mangle_path_segments,
+    unmangle_path_segments,
 )
 
 
@@ -47,13 +47,13 @@ class MagicPath(SyncTestCase):
     Tests for handling of paths related to the contents of Magic Folders.
     """
     @given(relative_paths())
-    def test_roundtrip(self, path):
+    def test_roundtrip(self, path_u):
         """
-        magic2path(path2magic(p)) == p
         """
+        segments = path_u.split(u"/")
         self.assertThat(
-            magic2path(path2magic(path)),
-            Equals(path),
+            unmangle_path_segments(mangle_path_segments(segments)),
+            Equals(segments),
         )
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))
