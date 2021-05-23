@@ -45,6 +45,7 @@ from ..snapshot import (
 )
 from ..magicpath import (
     path2magic,
+    mangle_path_segments,
 )
 from ..config import (
     create_global_configuration,
@@ -263,6 +264,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             db=self.db,
             author=self.author,
             stash_dir=self.db.stash_path,
+            magic_dir=self.magic,
         )
 
     @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
@@ -289,7 +291,9 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in files:
-            mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
+            mangled_filename = mangle_path_segments(
+                file.asTextMode("utf8").segmentsFrom(self.magic)
+            )
             stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
@@ -297,7 +301,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
     @given(content1=binary(min_size=1),
            content2=binary(min_size=1),
-           filename=path_segments().map(lambda p: p.encode("utf-8")),
+           filename=path_segments(),
     )
     def test_create_snapshot_twice(self, filename, content1, content2):
         """
@@ -313,7 +317,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        foo_magicname = path2magic(foo.asTextMode('utf-8').path)
+        foo_magicname = mangle_path_segments([filename])
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.

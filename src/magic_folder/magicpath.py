@@ -3,11 +3,44 @@ import os.path
 
 from pyutil.assertutil import precondition, _assert
 
+
 def path2magic(path):
     return re.sub(u'[/@]',  lambda m: {u'/': u'@_', u'@': u'@@'}[m.group(0)], path)
 
 def magic2path(path):
     return re.sub(u'@[_@]', lambda m: {u'@_': u'/', u'@@': u'@'}[m.group(0)], path)
+
+
+def mangle_path_segments(segments):
+    """
+    Perform name-flattening on a list of path segments. Each element
+    represents a (sub)directory and is unicode.
+
+    The mangling consists of replacing path-separators with '@_' and
+    escaping '@' symbols inside a path-segment as '@@'.
+
+    :param list[unicode] segments: 1 or more unicode path segments
+
+    :returns unicode: flattened / mangled name
+    """
+    return u'@_'.join(
+        segment.replace(u'@', u'@@')
+        for segment in segments
+    )
+
+
+def unmangle_path_segments(mangled_path):
+    """
+    Undo the name-mangling achieved by `mangle_path_segments`. That
+    is, split on `@_` and turn `@@` inside a segment back into `@`.
+
+    :returns list[unicode]: the un-mangled path segments as a list of
+        unicode objects, one per segment. This is a relative path.
+    """
+    return [
+        segment.replace(u'@@', u'@')
+        for segment in mangled_path.split(u'@_')
+    ]
 
 
 IGNORE_SUFFIXES = [u'.backup', u'.tmp', u'.conflict']

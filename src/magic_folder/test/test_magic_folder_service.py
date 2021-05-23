@@ -46,6 +46,7 @@ from ..magic_folder import (
 )
 from ..magicpath import (
     path2magic,
+    mangle_path_segments,
 )
 from ..config import (
     create_global_configuration,
@@ -321,7 +322,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         self.assertThat(
             children(),
-            ContainsDict({path2magic(target_path.path): Always()}),
+            ContainsDict({mangle_path_segments(file_path.split(u"/")): Always()}),
             "Children dictionary {!r} did not contain expected path".format(
                 children,
             ),
