@@ -13,7 +13,6 @@ from nacl.encoding import (
 )
 
 from twisted.python.filepath import (
-    FilePath,
     InsecurePath,
 )
 from twisted.internet.defer import (
@@ -46,7 +45,7 @@ from allmydata.util.hashutil import (
 )
 
 from .magicpath import (
-    magic2path,
+    unmangle_path_segments,
 )
 from .snapshot import (
     create_author,
@@ -414,17 +413,7 @@ def _list_all_folder_snapshots(folder_config):
         representing all snapshots for that file.
     """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
-        absolute_path = magic2path(snapshot_path)
-        if not absolute_path.startswith(folder_config.magic_path.path):
-            raise ValueError(
-                "Found path {!r} in local snapshot database for magic-folder {!r} "
-                "that is outside of local magic folder directory {!r}.".format(
-                    absolute_path,
-                    folder_config.name,
-                    folder_config.magic_path.path,
-                ),
-            )
-        relative_segments = FilePath(absolute_path).segmentsFrom(folder_config.magic_path)
+        relative_segments = unmangle_path_segments(snapshot_path)
         relative_path = u"/".join(relative_segments)
         yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
 

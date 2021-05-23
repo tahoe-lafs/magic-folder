@@ -38,8 +38,8 @@ from .snapshot import (
 from .config import (
     MagicFolderConfig,
 )
-from . import (
-    magicpath,
+from .magicpath import (
+    mangle_path_segments,
 )
 
 
@@ -82,6 +82,7 @@ class LocalSnapshotCreator(object):
     _db = attr.ib()  # our database
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -95,7 +96,10 @@ class LocalSnapshotCreator(object):
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
-            mangled_name = magicpath.mangle_path(path)
+
+            mangled_name = mangle_path_segments(
+                path.asTextMode("utf8").segmentsFrom(self._magic_dir.asTextMode("utf8"))
+            )
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
             except KeyError:
@@ -122,6 +126,7 @@ class LocalSnapshotCreator(object):
 
                 # store the local snapshot to the disk
                 self._db.store_local_snapshot(snapshot)
+
 
 @attr.s
 @implementer(service.IService)
@@ -339,7 +344,6 @@ class UploaderService(service.Service):
         )
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
-
 
     def stopService(self):
         """
