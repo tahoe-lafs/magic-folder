@@ -3,6 +3,9 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.failure import (
+    Failure,
+)
 from twisted.application import (
     service,
 )
@@ -163,8 +166,7 @@ class LocalSnapshotService(service.Service):
             except CancelledError:
                 break
             except Exception:
-                # XXX Probably should fire d here, someone might be waiting.
-                write_traceback()
+                d.errback(Failure())
 
     def stopService(self):
         """
