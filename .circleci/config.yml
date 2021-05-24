@@ -125,7 +125,7 @@ jobs:
 
   lint:
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "circleci/python:2"
 
     steps:
@@ -143,7 +143,7 @@ jobs:
 
   debian-9: &DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/debian:9"
         user: "nobody"
 
@@ -221,7 +221,7 @@ jobs:
   debian-8:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/debian:8"
         user: "nobody"
 
@@ -229,7 +229,7 @@ jobs:
   pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/pypy:2.7-7.3.0-buster"
         user: "nobody"
 
@@ -287,7 +287,7 @@ jobs:
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
@@ -295,14 +295,14 @@ jobs:
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
   centos-8: &RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/centos:8"
         user: "nobody"
 
@@ -325,7 +325,7 @@ jobs:
   fedora-31:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/fedora:31"
         user: "nobody"
 
@@ -333,14 +333,14 @@ jobs:
   fedora-32:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/fedora:32"
         user: "nobody"
 
 
   slackware-14.2:
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/slackware:14.2"
         user: "nobody"
 
@@ -362,7 +362,7 @@ jobs:
   nixos-19.09:
     docker:
       # Run in a highly Nix-capable environment.
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "nixorg/nix:circleci"
 
     environment:
@@ -447,7 +447,7 @@ jobs:
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "docker:17.05.0-ce-git"
 
     environment:
