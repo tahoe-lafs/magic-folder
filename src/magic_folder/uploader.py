@@ -123,7 +123,7 @@ class LocalSnapshotCreator(object):
                     name=mangled_name,
                     author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self._stash_dir.asTextMode("utf-8"),
+                    snapshot_stash_dir=self._stash_dir.asBytesMode("utf-8"),
                     parents=parents,
                 )
 
