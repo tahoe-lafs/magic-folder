@@ -281,7 +281,10 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     :param bool start_folder_services: If ``True``, start the Magic Folder
         service objects.  Otherwise, don't.
 
-    :param TahoeClient tahoe_client: if provided, used as the tahoe-client
+    :param TahoeClient tahoe_client: if provided, used as the
+        tahoe-client. If it is not provided, an 'empty' Tahoe client is
+        provided (which is likely to cause errors if any Tahoe endpoitns
+        are called via this test).
 
     :return: An object like the ``treq`` module.
     """
@@ -311,6 +314,9 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         )
 
     if tahoe_client is None:
+        # the caller must provide a properly-set-up Tahoe client if
+        # they care about Tahoe responses. Since they didn't, an
+        # "empty" one is sufficient.
         tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource()))
     global_service = MagicFolderService(
         reactor,
