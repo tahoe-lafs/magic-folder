@@ -246,6 +246,7 @@ class MagicFolderParticipantAPIv1(Resource, object):
                 # here .. this won't be correct, but we won't use
                 # it .. following code still only looks at the
                 # .name attribute
+                # see https://github.com/LeastAuthority/magic-folder/issues/331
                 VerifyKey(os.urandom(32)),
             )
 
