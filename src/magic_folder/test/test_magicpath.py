@@ -38,7 +38,7 @@ from .strategies import (
 from ..magicpath import (
     should_ignore_file,
     mangle_path_segments,
-    unmangle_path_segments,
+    unmangle_relative_path,
 )
 
 
@@ -52,8 +52,8 @@ class MagicPath(SyncTestCase):
         """
         segments = path_u.split(u"/")
         self.assertThat(
-            unmangle_path_segments(mangle_path_segments(segments)),
-            Equals(segments),
+            unmangle_relative_path(mangle_path_segments(segments)),
+            Equals(path_u),
         )
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))

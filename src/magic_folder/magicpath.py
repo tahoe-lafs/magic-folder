@@ -23,20 +23,19 @@ def mangle_path_segments(segments):
     )
 
 
-def unmangle_path_segments(mangled_path):
+def unmangle_relative_path(mangled_path):
     """
     Undo the name-mangling achieved by `mangle_path_segments`. That
     is, split on `@_` and turn `@@` inside a segment back into `@`.
 
-    :returns list[unicode]: the un-mangled path segments as a list of
-        unicode objects, one per segment. This is a relative path.
+    :returns unicode: the un-mangled relative path separated by "/".
     """
     def replace(match):
         return {
             u'@_': u'/',
             u'@@': u'@',
         }[match.group(0)]
-    return re.sub(u'@[_@]', replace, mangled_path).split("/")
+    return re.sub(u'@[_@]', replace, mangled_path)
 
 
 IGNORE_SUFFIXES = [u'.backup', u'.tmp', u'.conflict']
