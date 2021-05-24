@@ -23,7 +23,8 @@ from eliot.twisted import (
 )
 
 from allmydata.interfaces import (
-    IDirnodeURI,
+    IReadonlyDirectoryURI,
+    IDirectoryURI,
 )
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
@@ -142,7 +143,7 @@ class _CollectiveDirnodeParticipants(object):
         read-only one or a read-write one).
         """
         uri = tahoe_uri_from_string(value)
-        if IDirnodeURI.providedBy(uri):
+        if IReadonlyDirectoryURI.providedBy(uri) or IDirectoryURI.providedBy(uri):
             return
         raise TypeError(
             "Collective dirnode was {!r}, must be a directory node.".format(
@@ -156,7 +157,7 @@ class _CollectiveDirnodeParticipants(object):
         The Upload DMD must be a writable directory capability
         """
         uri = tahoe_uri_from_string(value)
-        if IDirnodeURI.providedBy(uri):
+        if IDirectoryURI.providedBy(uri):
             if not uri.is_readonly():
                 return
         raise TypeError(
@@ -171,7 +172,7 @@ class _CollectiveDirnodeParticipants(object):
         IParticipants API
         """
         uri = tahoe_uri_from_string(personal_dmd_cap)
-        if not IDirnodeURI.providedBy(uri) or not uri.is_readonly():
+        if not IReadonlyDirectoryURI.providedBy(uri):
             raise ValueError(
                 "New participant Personal DMD must be read-only dircap"
             )
