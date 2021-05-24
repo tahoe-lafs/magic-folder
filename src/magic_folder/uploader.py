@@ -196,7 +196,7 @@ class LocalSnapshotService(service.Service):
         textpath = path.asTextMode("utf-8")
 
         try:
-            bytespath.segmentsFrom(self._magic_path)
+            bytespath.segmentsFrom(self._magic_path.asBytesMode("utf-8"))
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=textpath.path)
             raise ValueError(
