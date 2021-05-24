@@ -30,6 +30,7 @@ def unmangle_relative_path(mangled_path):
 
     :returns unicode: the un-mangled relative path separated by "/".
     """
+
     def replace(match):
         return {
             u'@_': u'/',
