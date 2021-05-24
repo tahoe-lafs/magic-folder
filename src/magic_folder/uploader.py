@@ -10,6 +10,7 @@ from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
     CancelledError,
+    inlineCallbacks,
 )
 from twisted.internet.task import (
     LoopingCall,
@@ -84,7 +85,8 @@ class LocalSnapshotCreator(object):
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
-    @inline_callbacks
+    @inlineCallbacks
+##    @inline_callbacks
     def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
@@ -149,7 +151,8 @@ class LocalSnapshotService(service.Service):
         service.Service.startService(self)
         self._service_d = self._process_queue()
 
-    @inline_callbacks
+##    @inline_callbacks
+    @inlineCallbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -157,7 +160,7 @@ class LocalSnapshotService(service.Service):
         while True:
             try:
                 (item, d) = yield self._queue.get()
-                with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
+                if True:##with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
                     yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
                     d.callback(None)
             except CancelledError:
@@ -242,7 +245,8 @@ class RemoteSnapshotCreator(object):
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
 
-    @inline_callbacks
+    @inlineCallbacks
+    ##@inline_callbacks
     def upload_local_snapshots(self):
         """
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
@@ -261,7 +265,7 @@ class RemoteSnapshotCreator(object):
         for name in localsnapshot_names:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
-                with action:
+                if True:#with action:
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # Unable to reach Tahoe storage nodes because of network
@@ -269,7 +273,8 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 pass
 
-    @inline_callbacks
+    @inlineCallbacks
+    ##@inline_callbacks
     def _upload_some_snapshots(self, name):
         """
         Upload all of the snapshots for a particular path.
