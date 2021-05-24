@@ -125,6 +125,8 @@ class ListMagicFolder(AsyncTestCase):
             self.config,
             self.service,
             lambda: self.config.api_token,
+            # for these tests, we never contact Tahoe so we can get
+            # away with an "empty" Tahoe WebUI
             create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         )
 
