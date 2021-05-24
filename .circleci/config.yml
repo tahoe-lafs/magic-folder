@@ -521,7 +521,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "31"
+      TAG: "33"
 
 
   build-image-fedora-34:
@@ -529,7 +529,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "32"
+      TAG: "34"
 
 
   build-image-slackware-14.2:
