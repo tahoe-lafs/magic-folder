@@ -1097,21 +1097,6 @@ class ParticipantsTests(SyncTestCase):
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-
         # Arrange to have an "unexpected" error happen
         class ErrorClient(object):
             def __call__(self, *args, **kw):
@@ -1157,7 +1142,8 @@ class ParticipantsTests(SyncTestCase):
     )
     def test_add_participant_internal_error(self, author, folder_name, personal_dmd):
         """
-        An internal error on participant adding is logged
+        An internal error on participant adding is returned when something
+        truly unexpected happens.
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
@@ -1166,17 +1152,6 @@ class ParticipantsTests(SyncTestCase):
             FilePath(self.mktemp()),
             local_path,
         )
-
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
 
         # Arrange to have an "unexpected" error happen
         class ErrorClient(object):
