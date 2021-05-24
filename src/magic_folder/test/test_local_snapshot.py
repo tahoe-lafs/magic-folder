@@ -291,7 +291,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in files:
             mangled_filename = mangle_path_segments(
-                file.asTextMode("utf8").segmentsFrom(self.magic)
+                file.asTextMode("utf8").segmentsFrom(self.magic.asTextMode("utf8"))
             )
             stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
