@@ -54,6 +54,7 @@ from twisted.web.http import (
     NOT_ALLOWED,
     NOT_ACCEPTABLE,
     NOT_FOUND,
+    BAD_REQUEST,
     INTERNAL_SERVER_ERROR,
 )
 from twisted.internet.task import Clock
@@ -784,9 +785,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({})
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({})
+                    )
                 )
             )
         )
@@ -801,16 +805,19 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name),
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({
-                        u"iris": {
-                            u"personal_dmd": folder_config["upload-dircap"],
-                        },
-                        u'kelly': {
-                            u'personal_dmd': personal_dmd,
-                        }
-                    })
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            u"iris": {
+                                u"personal_dmd": folder_config["upload-dircap"],
+                            },
+                            u'kelly': {
+                                u'personal_dmd': personal_dmd,
+                            }
+                        })
+                    )
                 )
             )
         )
@@ -868,9 +875,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "Require input: author, personal_dmd"})
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "Require input: author, personal_dmd"})
+                    )
                 )
             )
         )
@@ -929,9 +939,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "'author' requires: name"})
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "'author' requires: name"})
+                    )
                 )
             )
         )
@@ -992,9 +1005,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "personal_dmd must be a directory-capability"})
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "personal_dmd must be a directory-capability"})
+                    )
                 )
             )
         )
@@ -1054,9 +1070,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "personal_dmd must be read-only"})
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "personal_dmd must be read-only"})
+                    )
                 )
             )
         )
@@ -1121,9 +1140,12 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name),
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "unexpected error processing request"})
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "unexpected error processing request"})
+                    )
                 )
             )
         )
@@ -1188,9 +1210,12 @@ class ParticipantsTests(SyncTestCase):
                 }).encode("utf8")
             ),
             succeeded(
-                AfterPreprocessing(
-                    lambda response: response.json().result,
-                    Equals({"reason": "unexpected error processing request"})
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "unexpected error processing request"})
+                    )
                 )
             )
         )
