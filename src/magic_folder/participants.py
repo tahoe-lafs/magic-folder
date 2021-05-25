@@ -158,8 +158,7 @@ class _CollectiveDirnodeParticipants(object):
         """
         uri = tahoe_uri_from_string(value)
         if IDirectoryURI.providedBy(uri):
-            if not uri.is_readonly():
-                return
+            return
         raise TypeError(
             "Upload dirnode was {!r}, must be a read-write directory node.".format(
                 value,
