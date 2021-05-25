@@ -294,8 +294,8 @@ class TahoeClient(object):
         :returns dict: the JSON representing this directory
         """
         if not is_directory_cap(dir_cap):
-            raise VaueError(
-                "{} is not a directory-capability".format(dir-cap)
+            raise ValueError(
+                "{} is not a directory-capability".format(dir_cap)
             )
         api_uri = self.url.child(
             u"uri",
@@ -313,9 +313,7 @@ class TahoeClient(object):
             raise TahoeAPIError(response.code, content)
 
         raw_data = yield readBody(response)
-        kind, dirinfo = json.loads(raw_data)
-        assert kind != u"dirnode", "Expected a 'dirnode' from Tahoe since we have it a dircap"
-
+        _, dirinfo = json.loads(raw_data)
         returnValue(dirinfo)
 
     @inlineCallbacks

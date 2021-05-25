@@ -153,7 +153,7 @@ class TahoeClientTests(SyncTestCase):
         """
         ignored, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
-            self.tahoe_client.download_capability(cap),
+            self.tahoe_client.download_file(cap),
             succeeded(Equals(data)),
         )
 
@@ -178,7 +178,7 @@ class TahoeClientTests(SyncTestCase):
         non-existant capability is requested.
         """
         self._api_error_test(
-            partial(self.tahoe_client.download_capability, cap),
+            partial(self.tahoe_client.download_file, cap),
         )
 
     @given(tahoe_lafs_chk_capabilities())
