@@ -284,6 +284,41 @@ class TahoeClient(object):
         })
 
     @inlineCallbacks
+    def directory_data(self, dir_cap):
+        """
+        Get the 'raw' directory data for a directory-capability. If you
+        just want to list the entries, `list_directory` is better.
+
+        :param bytes dir_cap: the capability-string of the directory.
+
+        :returns dict: the JSON representing this directory
+        """
+        if not is_directory_cap(dir_cap):
+            raise VaueError(
+                "{} is not a directory-capability".format(dir-cap)
+            )
+        api_uri = self.url.child(
+            u"uri",
+            dir_cap.decode("ascii"),
+        ).add(
+            u"t",
+            u"json",
+        ).to_uri().to_text().encode("ascii")
+
+        response = yield self.http_client.get(
+            api_uri,
+        )
+        if response.code != 200:
+            content = yield response.content()
+            raise TahoeAPIError(response.code, content)
+
+        raw_data = yield readBody(response)
+        kind, dirinfo = json.loads(raw_data)
+        assert kind != u"dirnode", "Expected a 'dirnode' from Tahoe since we have it a dircap"
+
+        returnValue(dirinfo)
+
+    @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
         """
         Adds an entry to a mutable directory
@@ -350,9 +385,8 @@ class TahoeClient(object):
         # send the JSON instead. We can't just use ?t=json all the
         # time though, because for non-directories it returns the
         # metadata, not the data. So, the caller needs to know if they
-        # have a dir-cap or not and call list_directory() .. if
-        # anything really does need the "raw" directory JSON we need
-        # another method on TahoeClient for that.
+        # have a dir-cap or not and call list_directory() or
+        # directory_data() to get "raw" representation
         if is_directory_cap(cap):
             raise ValueError(
                 "{} is a directory-capability not a regular file".format(cap)
