@@ -41,7 +41,6 @@ from util.capabilities import (
 )
 
 
-
 def _request(http_client, method, url, **kwargs):
     """
     Issue a request with the given parameters.

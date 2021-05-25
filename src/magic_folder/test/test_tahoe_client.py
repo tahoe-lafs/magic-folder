@@ -75,6 +75,7 @@ from .common import (
 from .strategies import (
     filenodes,
     tahoe_lafs_chk_capabilities,
+    tahoe_lafs_dir_capabilities,
 )
 
 from .matchers import (
@@ -191,9 +192,46 @@ class TahoeClientTests(SyncTestCase):
             partial(self.tahoe_client.list_directory, cap),
         )
 
-    def test_directory_wrong_kind(self):
+    @given(tahoe_lafs_dir_capabilities())
+    def test_directory_data_non_exist(self, cap):
+        """
+        ``directory_data`` returns a ``Deferred`` that fails when a
+        non-existing capability is requested.
+        """
+        self._api_error_test(
+            partial(self.tahoe_client.directory_data, cap),
+        )
+
+    def test_list_directory_wrong_kind(self):
         """
         ``list_directory`` returns a ``Deferred`` that fails when given a
+        non-directory capability
+        """
+        self.setup_example()
+        data = dumps([
+            "filenode",
+            {
+                "mutable": False,
+                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "format": "CHK",
+                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "size": 6798975
+            }
+        ])
+        _, cap = self.root.add_data("URI:CHK:", data)
+        self.assertThat(
+            self.tahoe_client.list_directory(cap),
+            failed(
+                AfterPreprocessing(
+                    lambda fail: str(fail.value),
+                    Equals("Capability is a 'filenode' not a 'dirnode'")
+                )
+            )
+        )
+
+    def test_directory_data_wrong_kind(self):
+        """
+        ``directory_data`` returns a ``Deferred`` that fails when given a
         non-directory capability
         """
         self.setup_example()
