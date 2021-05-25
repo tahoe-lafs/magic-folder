@@ -335,9 +335,11 @@ class TahoeClient(object):
         returnValue(capability_string)
 
     @inlineCallbacks
-    def download_capability(self, cap):
+    def download_file(self, cap):
         """
-        Retrieve the raw data for a capability from Tahoe
+        Retrieve the raw data for a capability from Tahoe. It is an error
+        if the capability-string is a directory-capability, since the
+        Tahoe `/uri` endpoint treats those specially.
 
         :param cap: a capability-string
 
@@ -345,12 +347,18 @@ class TahoeClient(object):
         """
         # Visiting /uri with a directory-capability causes Tahoe to
         # render an HTML page .. instead adding ?t=json tells it to
-        # send JSON instead. However, using ?t=json for non-directory
-        # capabilities means the content is *not* downloaded .. so,
-        # "t=json" is only added for directory-capabilities.
-        query_args = [(u"uri", cap.decode("ascii"))]
+        # send the JSON instead. We can't just use ?t=json all the
+        # time though, because for non-directories it returns the
+        # metadata, not the data. So, the caller needs to know if they
+        # have a dir-cap or not and call list_directory() .. if
+        # anything really does need the "raw" directory JSON we need
+        # another method on TahoeClient for that.
         if is_directory_cap(cap):
-            query_args.append((u"t", u"json"))
+            raise ValueError(
+                "{} is a directory-capability not a regular file".format(cap)
+            )
+
+        query_args = [(u"uri", cap.decode("ascii"))]
 
         get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
