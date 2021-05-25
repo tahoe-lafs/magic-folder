@@ -215,7 +215,7 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._status.upload_started()  # this handles edge-triggering
+        self._status.upload_started()
         self._queue.put((bytespath, d))
         return d
 
@@ -253,10 +253,7 @@ class RemoteSnapshotCreator(object):
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
-        # XXX need to make sure this is edge-triggered, probably
-        # .. that is, we don't want a bunch of "upload stopped" every
-        # 60s unless we said "upload started" since the last time
-        # .. but also maybe the IStatus thing can handle that?
+        # update our status if we have nothing to do
         if not len(localsnapshot_names):
             self._status.upload_stopped()
 
