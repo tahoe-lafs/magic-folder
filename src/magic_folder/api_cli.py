@@ -177,7 +177,7 @@ class StatusProtocol(WebSocketClientProtocol):
     """
 
     def onMessage(self, payload, is_binary):
-        print(payload)
+        print(payload, file=self.factory._output)
 
 
 def monitor(options):
@@ -188,18 +188,18 @@ def monitor(options):
     endpoint_str = options.parent.config.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
-    def main(reactor):
-        endpoint = clientFromString(reactor, endpoint_str)
-        factory = WebSocketClientFactory(
-            websocket_uri,
-            headers={
-                "Authorization": "Bearer {}".format(options.parent.config.api_token),
-            }
-        )
-        factory.protocol = StatusProtocol
-        endpoint.connect(factory)
-        return Deferred()
-    react(main)
+    from twisted.internet import reactor
+    endpoint = clientFromString(reactor, endpoint_str)
+    factory = WebSocketClientFactory(
+        websocket_uri,
+        headers={
+            "Authorization": "Bearer {}".format(options.parent.config.api_token),
+        }
+    )
+    factory._output = options.parent.stdout
+    factory.protocol = StatusProtocol
+    endpoint.connect(factory)
+    return Deferred()
 
 
 class MagicFolderApiCommand(usage.Options):
