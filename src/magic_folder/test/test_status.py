@@ -1,4 +1,7 @@
-from __future__ import print_function
+from __future__ import (
+    unicode_literals,
+    print_function,
+)
 
 import json
 
@@ -39,14 +42,19 @@ class StatusServiceTests(SyncTestCase):
         self.assertThat(
             messages,
             Equals([{
-                "kind": "synchronizing",
-                "status": True,
+                "state": {
+                    "synchronizing": False,
+                }
+            }, {
+                "state": {
+                    "synchronizing": True,
+                }
             }])
         )
 
     def test_offline_client(self):
         """
-        The first client to connect gets message backlog
+        The first client to connect gets the correct state
         """
         messages = []
 
@@ -55,21 +63,17 @@ class StatusServiceTests(SyncTestCase):
                 messages.append(json.loads(payload))
 
         self.service.upload_started()
-        self.service.upload_stopped()
         self.assertThat(messages, Equals([]))
 
-        # once connected, this client should get the message backlog
-        # (in the right order)
+        # once connected, this client should get the proper state
         self.service.client_connected(ClientProtocol())
 
         self.assertThat(
             messages,
             Equals([{
-                "kind": "synchronizing",
-                "status": True,
-            },{
-                "kind": "synchronizing",
-                "status": False,
+                "state": {
+                    "synchronizing": True,
+                }
             }])
         )
 
@@ -87,17 +91,30 @@ class StatusServiceTests(SyncTestCase):
         client = ClientProtocol()
         self.service.client_connected(client)
         self.service.client_disconnected(client)
+        self.assertThat(
+            messages,
+            Equals([{
+                "state": {
+                    "synchronizing": False,
+                }
+            }])
+        )
 
-        # now we should buffer a message
+        # change our state
         self.service.upload_started()
-        self.assertThat(messages, Equals([]))
 
-        # re-connect the client; it should get the message
+        # re-connect the client; it should get the (latest) state as
+        # well as the initial state it got on the first connect
         self.service.client_connected(client)
         self.assertThat(
             messages,
             Equals([{
-                "kind": "synchronizing",
-                "status": True,
+                "state": {
+                    "synchronizing": False,
+                }
+            }, {
+                "state": {
+                    "synchronizing": True,
+                }
             }])
         )
