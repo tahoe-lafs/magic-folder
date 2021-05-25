@@ -42,7 +42,7 @@ class StatusServiceTests(SyncTestCase):
 
     def test_single_client(self):
         """
-        With a single connected client, that client receives an update
+        With a single connected client, that client receives updates
         """
         messages = []
 
@@ -52,6 +52,7 @@ class StatusServiceTests(SyncTestCase):
 
         self.service.client_connected(ClientProtocol())
         self.service.upload_started()
+        self.service.upload_stopped()
 
         self.assertThat(
             messages,
@@ -63,12 +64,16 @@ class StatusServiceTests(SyncTestCase):
                 "state": {
                     "synchronizing": True,
                 }
+            }, {
+                "state": {
+                    "synchronizing": False,
+                }
             }])
         )
 
     def test_offline_client(self):
         """
-        The first client to connect gets the correct state
+        A client gets the correct state when connecting
         """
         messages = []
 
@@ -93,14 +98,13 @@ class StatusServiceTests(SyncTestCase):
 
     def test_disconnect(self):
         """
-        After a connect + disconnect messages are buffered
+        A client disconnecting and re-connecting gets correct state
         """
         messages = []
 
         class ClientProtocol(object):
             def sendMessage(self, payload):
                 messages.append(json.loads(payload))
-
 
         client = ClientProtocol()
         self.service.client_connected(client)
@@ -159,6 +163,7 @@ class WebSocketTests(AsyncTestCase):
 
     def test_open(self):
         """
+        When the WebSocket connects it receives a state update
         """
 
         messages = []
