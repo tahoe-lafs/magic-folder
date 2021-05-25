@@ -182,6 +182,22 @@ class TahoeClientTests(SyncTestCase):
             partial(self.tahoe_client.download_file, cap),
         )
 
+    @given(tahoe_lafs_dir_capabilities())
+    def test_download_immutable_wrong_kind(self, cap):
+        """
+        ``download_capability`` returns a ``Deferred`` that fails when a
+        directory-capability is downloaded
+        """
+        self.assertThat(
+            self.tahoe_client.download_file(cap),
+            failed(
+                AfterPreprocessing(
+                    lambda failure: str(failure.value),
+                    Equals("{} is a directory-capability not a regular file".format(cap))
+                )
+            )
+        )
+
     @given(tahoe_lafs_chk_capabilities())
     def test_list_directory_non_exist(self, cap):
         """
@@ -252,6 +268,33 @@ class TahoeClientTests(SyncTestCase):
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
                     Equals("Capability is a 'filenode' not a 'dirnode'")
+                )
+            )
+        )
+
+    def test_directory_data_wrong_cap_type(self):
+        """
+        ``directory_data`` returns a ``Deferred`` that fails when given a
+        non-directory capability
+        """
+        self.setup_example()
+        data = dumps([
+            "filenode",
+            {
+                "mutable": False,
+                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "format": "CHK",
+                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                "size": 6798975
+            }
+        ])
+        _, cap = self.root.add_data("URI:CHK:", data)
+        self.assertThat(
+            self.tahoe_client.directory_data(cap),
+            failed(
+                AfterPreprocessing(
+                    lambda fail: str(fail.value),
+                    Equals("{} is not a directory-capability".format(cap))
                 )
             )
         )
