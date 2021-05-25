@@ -1,9 +1,13 @@
 from __future__ import unicode_literals
 
+import os
 import json
 
 import attr
 
+from nacl.signing import (
+    VerifyKey,
+)
 from nacl.encoding import (
     Base32Encoder,
 )
@@ -18,6 +22,9 @@ from twisted.internet.defer import (
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
+from twisted.web.resource import (
+    NoResource,
+)
 from twisted.web.server import (
     NOT_DONE_YET,
     Site,
@@ -28,6 +35,12 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
+from allmydata.interfaces import (
+    IDirnodeURI,
+)
 from allmydata.util.hashutil import (
     timing_safe_compare,
 )
@@ -35,6 +48,13 @@ from allmydata.util.hashutil import (
 from .magicpath import (
     magic2path,
 )
+from .snapshot import (
+    create_author,
+)
+from .participants import (
+    participants_from_collective,
+)
+
 
 def magic_folder_resource(get_auth_token, v1_resource):
     """
@@ -114,11 +134,163 @@ class APIv1(Resource, object):
     """
     _global_config = attr.ib()
     _global_service = attr.ib()
+    _tahoe_client = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
         self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
         self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
+        self.putChild(b"participants", ParticipantsAPIv1(self._global_config, self._tahoe_client))
+
+
+@attr.s
+class ParticipantsAPIv1(Resource, object):
+    """
+    Implements the ``/v1/participants`` portion of the HTTP API
+    resource hierarchy.
+
+    :ivar GlobalConfigDatabase _global_config: The global configuration for
+        this Magic Folder service.
+    """
+    _global_config = attr.ib()
+    _tahoe_client = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def getChild(self, name, request):
+        name_u = name.decode("utf-8")
+        try:
+            folder_config = self._global_config.get_magic_folder(name_u)
+        except ValueError:
+            return NoResource(b"{}")
+        return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
+
+
+class _InputError(ValueError):
+    """
+    Local errors with our input validation to report back to HTTP
+    clients.
+    """
+
+
+@attr.s
+class MagicFolderParticipantAPIv1(Resource, object):
+    """
+    Implements the v1 API for the ``/participants/<magic-folder-name>``
+    part of the API hierarchy.
+    """
+    _folder_config = attr.ib()
+    _tahoe_client = attr.ib()
+
+    # XXX maybe we could/should pass around a TahoeClient with the
+    # global-config? It could maybe simplify stuff, *so long as* we
+    # can still override a "testing" client into e.g. a "testing"
+    # config...
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+
+    def render_GET(self, request):
+        """
+        List all participants of this folder
+        """
+        collective = participants_from_collective(
+            self._folder_config.collective_dircap,
+            self._folder_config.upload_dircap,
+            self._tahoe_client,
+        )
+        d = collective.list()
+
+        def listed(participants):
+            reply = {
+                part.name: {
+                    "personal_dmd": part.dircap.decode("ascii"),
+                    # not tracked properly yet
+                    # "public_key": part.verify_key.encode(Base32Encoder),
+                }
+                for part in participants
+            }
+            request.setResponseCode(http.OK)
+            _application_json(request)
+            request.write(json.dumps(reply).encode("utf8"))
+        d.addCallback(listed)
+
+        def failed(reason):
+            # probably should log this failure
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            request.write(json.dumps({"reason": "unexpected error processing request"}))
+            return None
+        d.addErrback(failed)
+        d.addBoth(lambda ignored: request.finish())
+        return NOT_DONE_YET
+
+    def render_POST(self, request):
+        """
+        Add a new participant to this folder with details from the JSON-encoded body.
+        """
+        body = request.content.read()
+        try:
+            participant = json.loads(body)
+            required_keys = {
+                "author",
+                "personal_dmd",
+            }
+            required_author_keys = {
+                "name",
+                # not yet
+                # "public_key_base32",
+            }
+            if set(participant.keys()) != required_keys:
+                raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
+            if set(participant["author"].keys()) != required_author_keys:
+                raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
+
+            author = create_author(
+                participant["author"]["name"],
+                # we don't yet properly track keys but need one
+                # here .. this won't be correct, but we won't use
+                # it .. following code still only looks at the
+                # .name attribute
+                # see https://github.com/LeastAuthority/magic-folder/issues/331
+                VerifyKey(os.urandom(32)),
+            )
+
+            dmd = tahoe_uri_from_string(participant["personal_dmd"])
+            if not IDirnodeURI.providedBy(dmd):
+                raise _InputError("personal_dmd must be a directory-capability")
+            if not dmd.is_readonly():
+                raise _InputError("personal_dmd must be read-only")
+            personal_dmd_cap = participant["personal_dmd"]
+        except _InputError as e:
+            request.setResponseCode(http.BAD_REQUEST)
+            return json.dumps({"reason": str(e)})
+
+        collective = participants_from_collective(
+            self._folder_config.collective_dircap,
+            self._folder_config.upload_dircap,
+            self._tahoe_client,
+        )
+        d = collective.add(author, personal_dmd_cap)
+
+        def added(ignored):
+            request.setResponseCode(http.CREATED)
+            _application_json(request)
+            request.write(b"{}")
+            return None
+        d.addCallback(added)
+
+        def failed(reason):
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            # probably should log this error, at least for developers (so eliot?)
+            request.write(json.dumps({"reason": "unexpected error processing request"}))
+            return None
+        d.addErrback(failed)
+        d.addBoth(lambda ignored: request.finish())
+
+        return NOT_DONE_YET
 
 
 @attr.s
@@ -162,7 +334,11 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         Resource.__init__(self)
 
     def render_POST(self, request):
+        """
+        Create a new Snapshot
+        """
         path_u = request.args[b"path"][0].decode("utf-8")
+
 
         # preauthChild allows path-separators in the "path" (i.e. not
         # just a single path-segment). That is precisely what we want
@@ -188,6 +364,7 @@ class MagicFolderSnapshotAPIv1(Resource, object):
             request.write(b"{}")
 
         def failed(reason):
+            # XXX log this?
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
             request.write(json.dumps({u"reason": reason.getErrorMessage()}))
@@ -375,7 +552,7 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, tahoe_client):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -384,9 +561,11 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :param get_auth_token: a callable that returns the current authentication token
 
+    :param TahoeClient tahoe_client: a way to access Tahoe-LAFS
+
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service)
+    v1_resource = APIv1(global_config, global_service, tahoe_client)
     root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,
