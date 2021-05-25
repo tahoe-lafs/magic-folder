@@ -167,6 +167,13 @@ class ParticipantsAPIv1(Resource, object):
         return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
 
 
+class _InputError(ValueError):
+    """
+    Local errors with our input validation to report back to HTTP
+    clients.
+    """
+
+
 @attr.s
 class MagicFolderParticipantAPIv1(Resource, object):
     """
@@ -236,9 +243,9 @@ class MagicFolderParticipantAPIv1(Resource, object):
                 # "public_key_base32",
             }
             if set(participant.keys()) != required_keys:
-                raise ValueError("Require input: {}".format(", ".join(sorted(required_keys))))
+                raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
             if set(participant["author"].keys()) != required_author_keys:
-                raise ValueError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
+                raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
 
             author = create_author(
                 participant["author"]["name"],
@@ -252,11 +259,11 @@ class MagicFolderParticipantAPIv1(Resource, object):
 
             dmd = tahoe_uri_from_string(participant["personal_dmd"])
             if not IDirnodeURI.providedBy(dmd):
-                raise ValueError("personal_dmd must be a directory-capability")
+                raise _InputError("personal_dmd must be a directory-capability")
             if not dmd.is_readonly():
-                raise ValueError("personal_dmd must be read-only")
+                raise _InputError("personal_dmd must be read-only")
             personal_dmd_cap = participant["personal_dmd"]
-        except ValueError as e:
+        except _InputError as e:
             request.setResponseCode(http.BAD_REQUEST)
             return json.dumps({"reason": str(e)})
 
