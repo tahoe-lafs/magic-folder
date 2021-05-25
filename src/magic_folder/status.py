@@ -72,7 +72,6 @@ class StatusProtocol(WebSocketServerProtocol):
         should never happen in our protocol.
         """
         self.sendClose(
-            False,
             code=3000,
             reason="Unexpected incoming message",
         )
