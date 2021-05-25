@@ -255,7 +255,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             u"tcp:-1",
             FilePath(u"/non-tahoe-directory"),
             u"tcp:127.0.0.1:-1",
-            False,
         )
 
         magic_path = basedir.preauthChild(relative_magic_path)

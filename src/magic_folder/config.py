@@ -116,8 +116,7 @@ _global_config_schema = Schema([
         (
             api_endpoint TEXT,                -- Twisted server-string for our HTTP API
             tahoe_node_directory TEXT,        -- path to our Tahoe-LAFS client state
-            api_client_endpoint TEXT,         -- Twisted client-string for our HTTP API
-            websocket_status BOOL             -- Provide WebSocket status endpoint or not
+            api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
         );
         """,
     ])
@@ -254,7 +253,7 @@ class LocalSnapshotCollision(Exception):
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
-                                api_client_endpoint_str, websocket_status):
+                                api_client_endpoint_str):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
@@ -268,11 +267,6 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
 
     :param unicode api_client_endpoint_str: the Twisted client endpoint
         string where our API can be contacted.
-
-    :param bool websocket_status: if True, enable the WebSocket status
-        API endpoint. Note that this remembers all events while there
-        are no clients connected (so will consume unbounded memory if
-        no client ever connects)
 
     :returns: a GlobalConfigDatabase instance
     """
@@ -293,11 +287,6 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # check that the endpoints are valid (will raise exception if not)
     _validate_listen_endpoint_str(api_endpoint_str)
     _validate_connect_endpoint_str(api_client_endpoint_str)
-
-    if websocket_status not in [True, False]:
-        raise ValueError(
-            "'websocket_status' must be a boolean"
-        )
 
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
@@ -330,8 +319,8 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint, websocket_status) VALUES (?, ?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str, websocket_status)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
         )
 
     config = GlobalConfigDatabase(
@@ -1191,25 +1180,6 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
-
-    @property
-    @with_cursor
-    def websocket_status(self, cursor):
-        """
-        Whether or not to provide the WebSocket status API
-        """
-        cursor.execute("SELECT websocket_status FROM config")
-        return cursor.fetchone()[0]
-
-    @websocket_status.setter
-    def websocket_status(self, value):
-        if value not in [True, False]:
-            raise ValueError(
-                "websocket_status must be a bool"
-            )
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("UPDATE config SET websocket_status=?", (value, ))
 
     @property
     def tahoe_client_url(self):

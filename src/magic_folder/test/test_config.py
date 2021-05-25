@@ -91,7 +91,7 @@ class TestGlobalConfig(SyncTestCase):
         to write the configuration.
         """
         confdir = self.temp.child(dirname)
-        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
             MatchesStructure(
@@ -106,14 +106,14 @@ class TestGlobalConfig(SyncTestCase):
         """
         self.temp.makedirs()
         with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
-            create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+            create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
 
     def test_load_db(self):
         """
         ``load_global_configuration`` can read the global configuration written by
         ``create_global_configuration``.
         """
-        create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config = load_global_configuration(self.temp)
         self.assertThat(
             config,
@@ -137,7 +137,7 @@ class TestGlobalConfig(SyncTestCase):
         ``GlobalConfigDatabase.rotate_api_token`` replaces the current API token
         with a new one.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         pre = config.api_token
         config.rotate_api_token()
         self.assertThat(
@@ -152,7 +152,7 @@ class TestGlobalConfig(SyncTestCase):
         available when the database is loaded again with
         ``load_global_configuration``.
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         config.api_endpoint = "tcp:42"
         config2 = load_global_configuration(self.temp)
         self.assertThat(
@@ -217,7 +217,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     def test_create_folder(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -236,7 +236,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         )
 
     def test_create_folder_duplicate(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         magic.makedirs()
@@ -261,7 +261,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             )
 
     def test_folder_nonexistant_magic_path(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
@@ -276,7 +276,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             )
 
     def test_folder_state_already_exists(self):
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -297,7 +297,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         """
         we can retrieve the stash-path from a magic-folder-confgi
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         state = self.temp.child("state")
@@ -322,57 +322,9 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         """
         an error to retrieve a non-existent folder
         """
-        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234", False)
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
-
-    def test_websocket_status(self):
-        """
-        Set and get the websocket_status flag
-        """
-        config = create_global_configuration(
-            self.temp,
-            u"tcp:1234",
-            self.node_dir,
-            u"tcp:localhost:1234",
-            False,
-        )
-        self.assertThat(
-            config.websocket_status,
-            Equals(False)
-        )
-        config.websocket_status = True
-        self.assertThat(
-            config.websocket_status,
-            Equals(True)
-        )
-
-    def test_websocket_status_non_bool(self):
-        """
-        an error is produced with a non-boolean value for websocket_status
-        """
-        with ExpectedException(ValueError):
-            create_global_configuration(
-                self.temp,
-                u"tcp:1234",
-                self.node_dir,
-                u"tcp:localhost:1234",
-                "not a bool",
-            )
-
-    def test_websocket_status_non_bool_setter(self):
-        """
-        an error is produced trying to set a non-boolean value for websocket_status
-        """
-        config = create_global_configuration(
-            self.temp,
-            u"tcp:1234",
-            self.node_dir,
-            u"tcp:localhost:1234",
-            False,
-        )
-        with ExpectedException(ValueError):
-            config.websocket_status = "not a bool"
 
 
 class StoreLocalSnapshotTests(SyncTestCase):

@@ -204,7 +204,7 @@ class TestMagicApi(AsyncTestCase):
         Correctly loads existing configuration
         """
         basedir = FilePath(self.mktemp())
-        create_global_configuration(basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1", False)
+        create_global_configuration(basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1")
         options = MagicFolderApiCommand()
         options.parseOptions([
             "--config", basedir.path,
@@ -360,7 +360,6 @@ class TestMagicApi(AsyncTestCase):
             "tcp:-1",
             FilePath(u"/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
-            False,
         )
         http_client = StubTreq(None)
         client = create_magic_folder_client(
@@ -413,7 +412,6 @@ class TestMagicApi(AsyncTestCase):
             "tcp:-1",
             FilePath(u"/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
-            False,
         )
 
         # 2-tuples of "expected request" and the corresponding reply
@@ -478,7 +476,6 @@ class TestMagicApi(AsyncTestCase):
             "tcp:-1",
             FilePath(u"/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
-            False,
         )
         http_client = StubTreq(None)
         client = create_magic_folder_client(

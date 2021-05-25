@@ -17,7 +17,7 @@ from .endpoints import (
 )
 
 
-def magic_folder_initialize(config_dir, listen_endpoint_str, tahoe_node_directory, client_endpoint_str, websocket_status):
+def magic_folder_initialize(config_dir, listen_endpoint_str, tahoe_node_directory, client_endpoint_str):
     """
     Initialize a magic-folder daemon configuration with the specified required options in ``config_dir``.
 
@@ -32,8 +32,6 @@ def magic_folder_initialize(config_dir, listen_endpoint_str, tahoe_node_director
     :param unicode client_endpoint_str: Twisted client-string to our API
         (or None to autoconvert the listen_endpoint)
 
-    :param bool websocket_status: if True, provide the WebSocket status endpoint
-
     :return Deferred[integer]: A status code of 0 for a successful execution. Otherwise
         an appropriate exception is raised.
     """
@@ -46,7 +44,6 @@ def magic_folder_initialize(config_dir, listen_endpoint_str, tahoe_node_director
         listen_endpoint_str,
         tahoe_node_directory,
         client_endpoint_str,
-        websocket_status,
     )
 
     return succeed(cfg)
