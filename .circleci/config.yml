@@ -43,9 +43,6 @@ workflows:
       - "centos-8":
           <<: *DOCKERHUB_CONTEXT
 
-      - "slackware-14.2":
-          <<: *DOCKERHUB_CONTEXT
-
       - "nixos-19.09":
           <<: *DOCKERHUB_CONTEXT
 
@@ -98,8 +95,6 @@ workflows:
           <<: *DOCKERHUB_CONTEXT
       - "build-image-centos-8":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-slackware-14.2":
-          <<: *DOCKERHUB_CONTEXT
       - "build-image-pypy-2.7-7.3.4-buster":
           <<: *DOCKERHUB_CONTEXT
 
@@ -125,7 +120,7 @@ jobs:
 
   lint:
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "circleci/python:2"
 
     steps:
@@ -143,7 +138,7 @@ jobs:
 
   debian-9: &DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/debian:9"
         user: "nobody"
 
@@ -221,7 +216,7 @@ jobs:
   debian-8:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/debian:8"
         user: "nobody"
 
@@ -229,7 +224,7 @@ jobs:
   pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/pypy:2.7-7.3.0-buster"
         user: "nobody"
 
@@ -287,7 +282,7 @@ jobs:
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
@@ -295,14 +290,14 @@ jobs:
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
   centos-8: &RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/centos:8"
         user: "nobody"
 
@@ -325,7 +320,7 @@ jobs:
   fedora-31:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/fedora:31"
         user: "nobody"
 
@@ -333,36 +328,15 @@ jobs:
   fedora-32:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/fedora:32"
         user: "nobody"
 
 
-  slackware-14.2:
-    docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/slackware:14.2"
-        user: "nobody"
-
-    environment: *UTF_8_ENVIRONMENT
-
-    # pip cannot install packages if the working directory is not readable.
-    # We want to run a lot of steps as nobody instead of as root.
-    working_directory: "/tmp/project"
-
-    steps:
-      - "checkout"
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
-      - store_test_results: *STORE_TEST_RESULTS
-      - store_artifacts: *STORE_TEST_LOG
-      - store_artifacts: *STORE_OTHER_ARTIFACTS
-      - run: *SUBMIT_COVERAGE
-
   nixos-19.09:
     docker:
       # Run in a highly Nix-capable environment.
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "nixorg/nix:circleci"
 
     environment:
@@ -447,7 +421,7 @@ jobs:
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "docker:17.05.0-ce-git"
 
     environment:
@@ -521,7 +495,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "31"
+      TAG: "33"
 
 
   build-image-fedora-34:
@@ -529,15 +503,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "32"
-
-
-  build-image-slackware-14.2:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "slackware"
-      TAG: "14.2"
+      TAG: "34"
 
 
   build-image-pypy-2.7-7.3.4-buster:
