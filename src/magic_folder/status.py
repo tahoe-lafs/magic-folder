@@ -39,7 +39,6 @@ class IStatus(Interface):
         """
 
 
-@attr.s(eq=False)
 class StatusProtocol(WebSocketServerProtocol):
     """
     Speaks the server side of the WebSocket status protocol, usually
@@ -49,9 +48,8 @@ class StatusProtocol(WebSocketServerProtocol):
     the /v1 API.
     """
 
-    status = attr.ib(validator=attr.validators.provides(IStatus))
-
-    def __attrs_post_init__(self):
+    def __init__(self, status):
+        self.status = status
         WebSocketServerProtocol.__init__(self)
 
     def onOpen(self):
