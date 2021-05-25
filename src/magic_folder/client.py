@@ -126,8 +126,24 @@ class MagicFolderClient(object):
         api_url = api_url.set(u'path', path)
         return self._authorized_request("POST", api_url)
 
+    def add_participant(self, magic_folder, author_name, personal_dmd):
+        api_url = self.base_url.child(u'v1').child(u'participants').child(magic_folder)
+        body = json.dumps({
+            "author": {
+                "name": author_name,
+                # not yet
+                # "public_key_base32": author_verify_key,
+            },
+            "personal_dmd": personal_dmd,
+        })
+        return self._authorized_request("POST", api_url, body=body.encode("utf8"))
+
+    def list_participants(self, magic_folder):
+        api_url = self.base_url.child(u'v1').child(u'participants').child(magic_folder)
+        return self._authorized_request("GET", api_url)
+
     @inlineCallbacks
-    def _authorized_request(self, method, url):
+    def _authorized_request(self, method, url, body=b""):
         """
         :param str method: GET, POST etc http verb
 
@@ -139,6 +155,7 @@ class MagicFolderClient(object):
                 self.get_api_token(),
                 method,
                 url,
+                body=body,
             )
 
         except ConnectError:
@@ -188,7 +205,7 @@ def create_http_client(reactor, api_client_endpoint_str):
 
 # See https://github.com/LeastAuthority/magic-folder/issues/280
 # global_service should expect/demand an Interface
-def create_testing_http_client(reactor, config, global_service, get_api_token):
+def create_testing_http_client(reactor, config, global_service, get_api_token, tahoe_client):
     """
     :param global_service: an object providing the API of the global
         magic-folder service
@@ -200,7 +217,7 @@ def create_testing_http_client(reactor, config, global_service, get_api_token):
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service)
+    v1_resource = APIv1(config, global_service, tahoe_client)
     root = magic_folder_resource(get_api_token, v1_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),
@@ -243,7 +260,7 @@ def url_to_bytes(url):
     return url.to_uri().to_text().encode("ascii")
 
 
-def authorized_request(http_client, auth_token, method, url):
+def authorized_request(http_client, auth_token, method, url, body=b""):
     """
     Perform a request of the given url with the given client, request method,
     and authorization.
@@ -255,7 +272,9 @@ def authorized_request(http_client, auth_token, method, url):
 
     :param bytes method: The HTTP request method to use.
 
-    :param bytes url: The request URL.
+    :param DecodedURL url: The request URL.
+
+    :param bytes body: The request body to include.
 
     :return: Whatever ``treq.request`` returns.
     """
@@ -266,4 +285,5 @@ def authorized_request(http_client, auth_token, method, url):
         method,
         url_to_bytes(url),
         headers=headers,
+        data=body,
     )

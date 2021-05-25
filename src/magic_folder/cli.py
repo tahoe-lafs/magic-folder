@@ -551,6 +551,7 @@ class MagicFolderService(MultiService):
             self.config,
             self,
             self._get_auth_token,
+            self.tahoe_client,
         )
         web_service.setServiceParent(self)
 
