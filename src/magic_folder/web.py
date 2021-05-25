@@ -284,11 +284,8 @@ class MagicFolderParticipantAPIv1(Resource, object):
         def failed(reason):
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
-            if isinstance(reason.value, ValueError):
-                request.write(json.dumps({"reason": str(reason.value)}))
-            else:
-                # probably should log this error
-                request.write(json.dumps({"reason": "unexpected error processing request"}))
+            # probably should log this error
+            request.write(json.dumps({"reason": "unexpected error processing request"}))
             return None
         d.addErrback(failed)
         d.addBoth(lambda ignored: request.finish())
