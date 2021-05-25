@@ -75,7 +75,6 @@ from .client import (
 )
 from .status import (
     WebSocketStatusService,
-    NullStatusService,
     IStatus,
 )
 

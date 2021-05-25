@@ -17,9 +17,6 @@ from autobahn.twisted.testing import (
 from autobahn.twisted.websocket import (
     WebSocketClientProtocol,
 )
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
 
 from .common import (
     SyncTestCase,
