@@ -4,31 +4,40 @@ import os.path
 from pyutil.assertutil import precondition, _assert
 
 
-def mangle_path_segments(segments):
+_DEMANGLER = re.compile(u'@[_@]')
+
+
+def path_to_label(base, path):
     """
-    Perform name-flattening on a list of path segments. Each element
-    represents one segment of a path (e.g. (sub)directory or the
-    actual filename) and is unicode.
+    :param FilePath base: the base directory (for example, the "magic
+        folder dir")
 
-    The mangling consists of replacing path-separators with '@_' and
-    escaping '@' symbols inside a path-segment as '@@'.
+    :param FilePath path: the actual file (for example, a local file
+        we're turning into a Snapshot). Must be child if `base`.
 
-    :param list[unicode] segments: 1 or more unicode path segments
-
-    :returns unicode: flattened / mangled name
+    :returns unicode: the relative path from `base` to `path`
+        "mangled" into a Snapshot name. It is an error if `path` is
+        not a child of `base`. The mangled label can be turned back
+        into a FilePath using `label_to_path.
     """
+    segments = path.segmentsFrom(base)
     return u'@_'.join(
         segment.replace(u'@', u'@@')
         for segment in segments
     )
 
 
-def unmangle_relative_path(mangled_path):
+def label_to_path(base, mangled_name):
     """
-    Undo the name-mangling achieved by `mangle_path_segments`. That
-    is, split on `@_` and turn `@@` inside a segment back into `@`.
+    :param FilePath base: the base directory below which the
+        un-mangled name will exist.
 
-    :returns unicode: the un-mangled relative path separated by "/".
+    :param unicode mangled_name: the output of a previous call to
+        `path_to_label`, this encodes a relative path.
+
+    :returns FilePath: an absolute FilePath below `base` matching this
+       manged name. Will raise InsecurePath if the path would end up
+       above `base`.
     """
 
     def replace(match):
@@ -36,7 +45,8 @@ def unmangle_relative_path(mangled_path):
             u'@_': u'/',
             u'@@': u'@',
         }[match.group(0)]
-    return re.sub(u'@[_@]', replace, mangled_path)
+    relpath = _DEMANGLER.sub(replace, mangled_name)
+    return base.preauthChild(relpath)
 
 
 IGNORE_SUFFIXES = [u'.backup', u'.tmp', u'.conflict']
