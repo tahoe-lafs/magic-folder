@@ -122,12 +122,12 @@ class MagicFolderClient(object):
         return self._authorized_request("GET", api_url)
 
     def add_snapshot(self, magic_folder, path):
-        api_url = self.base_url.child(u'v1').child(u'snapshot').child(magic_folder)
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'snapshot')
         api_url = api_url.set(u'path', path)
         return self._authorized_request("POST", api_url)
 
     def add_participant(self, magic_folder, author_name, personal_dmd):
-        api_url = self.base_url.child(u'v1').child(u'participants').child(magic_folder)
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
         body = json.dumps({
             "author": {
                 "name": author_name,
@@ -139,7 +139,7 @@ class MagicFolderClient(object):
         return self._authorized_request("POST", api_url, body=body.encode("utf8"))
 
     def list_participants(self, magic_folder):
-        api_url = self.base_url.child(u'v1').child(u'participants').child(magic_folder)
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
         return self._authorized_request("GET", api_url)
 
     @inlineCallbacks
