@@ -129,6 +129,11 @@ class APIv1(Resource, object):
     """
     Implement the ``/v1`` HTTP API hierarchy.
 
+    Anything that *requires* a single magic-folder config / name
+    should go below ``/v1/magic-folder/<name>/``. Endpoints that
+    operate globally or on multiple magic-folders should go here below
+    ``/v1``.
+
     :ivar GlobalConfigDatabase _global_config: The global configuration for
         this Magic Folder service.
     """
@@ -138,33 +143,8 @@ class APIv1(Resource, object):
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
-        self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
-        self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
-        self.putChild(b"participants", ParticipantsAPIv1(self._global_config, self._tahoe_client))
-
-
-@attr.s
-class ParticipantsAPIv1(Resource, object):
-    """
-    Implements the ``/v1/participants`` portion of the HTTP API
-    resource hierarchy.
-
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
-    """
-    _global_config = attr.ib()
-    _tahoe_client = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def getChild(self, name, request):
-        name_u = name.decode("utf-8")
-        try:
-            folder_config = self._global_config.get_magic_folder(name_u)
-        except ValueError:
-            return NoResource(b"{}")
-        return MagicFolderParticipantAPIv1(folder_config, self._tahoe_client)
+        self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config, self._global_service, self._tahoe_client))
+        self.putChild(b"snapshots", SnapshotsAPIv1(self._global_config, self._global_service))
 
 
 class _InputError(ValueError):
@@ -294,9 +274,9 @@ class MagicFolderParticipantAPIv1(Resource, object):
 
 
 @attr.s
-class SnapshotAPIv1(Resource, object):
+class SnapshotsAPIv1(Resource, object):
     """
-    ``SnapshotAPIv1`` implements the ``/v1/snapshot`` portion of the HTTP API
+    ``SnapshotsAPIv1`` implements the ``/v1/snapshots`` portion of the HTTP API
     resource hierarchy.
 
     :ivar GlobalConfigDatabase _global_config: The global configuration for
@@ -315,12 +295,6 @@ class SnapshotAPIv1(Resource, object):
         """
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
-
-    def getChild(self, name, request):
-        name_u = name.decode("utf-8")
-        folder_config = self._global_config.get_magic_folder(name_u)
-        folder_service = self._global_service.get_folder_service(name_u)
-        return MagicFolderSnapshotAPIv1(folder_config, folder_service)
 
 
 @attr.s
@@ -493,9 +467,20 @@ class MagicFolderAPIv1(Resource, object):
         this Magic Folder service.
     """
     _global_config = attr.ib()
+    _global_service = attr.ib()
+    _tahoe_client = attr.ib()
 
     def __attrs_post_init__(self):
         Resource.__init__(self)
+
+    def getChild(self, name, request):
+        name_u = name.decode("utf-8")
+        try:
+            folder_config = self._global_config.get_magic_folder(name_u)
+        except ValueError:
+            return NoResource(b"{}")
+        folder_service = self._global_service.get_folder_service(name_u)
+        return SingleMagicFolderAPIv1(folder_config, folder_service, self._tahoe_client)
 
     def render_GET(self, request):
         """
@@ -531,6 +516,22 @@ class MagicFolderAPIv1(Resource, object):
             for name, config
             in all_folder_configs()
         })
+
+
+@attr.s
+class SingleMagicFolderAPIv1(Resource, object):
+    """
+    Implement the ``/v1/magic-folder/<name>/`` HTTP API
+    hierarchy. That is, endpoints for a particular magic-folder.
+    """
+    _folder_config = attr.ib()
+    _folder_service = attr.ib()
+    _tahoe_client = attr.ib()
+
+    def __attrs_post_init__(self):
+        Resource.__init__(self)
+        self.putChild(b"snapshot", MagicFolderSnapshotAPIv1(self._folder_config, self._folder_service))
+        self.putChild(b"participants", MagicFolderParticipantAPIv1(self._folder_config, self._tahoe_client))
 
 
 class Unauthorized(Resource):
