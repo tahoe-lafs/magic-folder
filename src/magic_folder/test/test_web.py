@@ -481,8 +481,8 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
-        some_file.parent().makedirs(ignoreExistingDirectory=True)
-        some_file.setContent(some_content)
+        some_file.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
+        some_file.asBytesMode("utf-8").setContent(some_content)
 
         treq = treq_for_folders(
             object(),
@@ -525,7 +525,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         # You may not create a snapshot of a directory.
         not_a_file = local_path.preauthChild(path_in_folder)
-        not_a_file.makedirs(ignoreExistingDirectory=True)
+        not_a_file.asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
             object(),
@@ -578,8 +578,8 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
-        some_file.parent().makedirs(ignoreExistingDirectory=True)
-        some_file.setContent(some_content)
+        some_file.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
+        some_file.asBytesMode("utf-8").setContent(some_content)
 
         treq = treq_for_folders(
             Clock(),

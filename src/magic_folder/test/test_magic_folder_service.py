@@ -115,7 +115,7 @@ class MagicFolderServiceTests(SyncTestCase):
 
         target_path = magic_path.preauthChild(relative_target_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
-        target_path.setContent(content)
+        target_path.asBytesMode("utf-8").setContent(content)
 
         local_snapshot_creator = MemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator)
