@@ -149,7 +149,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("snapshot").child("default").to_text().encode("utf8"),
+                 self.url.child("magic-folder").child("default").child("snapshot").to_text().encode("utf8"),
                  {b"path": [b"../../../foo"]},
                  {
                      b'Host': [b'invalid.'],
