@@ -95,7 +95,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("snapshot").child("default").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
                  {b"path": [b"foo"]},
                  {
                      b'Host': [b'invalid.'],
@@ -149,7 +149,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("magic-folder").child("default").child("snapshot").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
                  {b"path": [b"../../../foo"]},
                  {
                      b'Host': [b'invalid.'],
@@ -419,7 +419,7 @@ class TestMagicApi(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("snapshot").child("default").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
                  {b"path": [b"foo"]},
                  {
                      b'Host': [b'invalid.'],
@@ -658,7 +658,7 @@ class TestApiParticipants(AsyncTestCase):
             (
                 # expected request
                 (b"post",
-                 self.url.child("participants").child("default").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
                  {},
                  {
                      b'Host': [b'invalid.'],
@@ -748,7 +748,7 @@ class TestApiParticipants(AsyncTestCase):
             (
                 # expected request
                 (b"get",
-                 self.url.child("participants").child("default").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
                  {},
                  {
                      b'Host': [b'invalid.'],
