@@ -85,7 +85,6 @@ from ..util.capabilities import (
     to_readonly_capability,
 )
 from ..magicpath import (
-    label_to_path,
     path_to_label,
 )
 from ..tahoe_client import (
