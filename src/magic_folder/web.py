@@ -45,7 +45,7 @@ from allmydata.util.hashutil import (
 )
 
 from .magicpath import (
-    unmangle_relative_path,
+    label_to_path,
 )
 from .snapshot import (
     create_author,
@@ -413,8 +413,11 @@ def _list_all_folder_snapshots(folder_config):
         representing all snapshots for that file.
     """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
-        relative_path = unmangle_relative_path(snapshot_path)
-        yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
+        abs_path = label_to_path(folder_config.magic_path, snapshot_path)
+        yield tuple((
+            abs_path.asTextMode("utf8").path,
+            _list_all_path_snapshots(folder_config, snapshot_path)
+        ))
 
 
 def _list_all_path_snapshots(folder_config, snapshot_path):

@@ -39,7 +39,7 @@ from .config import (
     MagicFolderConfig,
 )
 from .magicpath import (
-    mangle_path_segments,
+    path_to_label,
 )
 
 
@@ -97,9 +97,8 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
 
-            mangled_name = mangle_path_segments(
-                path.asTextMode("utf8").segmentsFrom(self._magic_dir.asTextMode("utf8"))
-            )
+            mangled_name = path_to_label(self._magic_dir, path)
+
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
             except KeyError:
@@ -120,7 +119,7 @@ class LocalSnapshotCreator(object):
                     name=mangled_name,
                     author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self._stash_dir.asBytesMode("utf-8"),
+                    snapshot_stash_dir=self._stash_dir.asTextMode("utf-8"),
                     parents=parents,
                 )
 
@@ -158,7 +157,7 @@ class LocalSnapshotService(service.Service):
             try:
                 (item, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
+                    yield self._snapshot_creator.store_local_snapshot(item)
                     d.callback(None)
             except CancelledError:
                 break
@@ -216,7 +215,7 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._queue.put((bytespath, d))
+        self._queue.put((textpath, d))
         return d
 
 

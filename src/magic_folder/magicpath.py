@@ -13,7 +13,7 @@ def path_to_label(base, path):
         folder dir")
 
     :param FilePath path: the actual file (for example, a local file
-        we're turning into a Snapshot). Must be child if `base`.
+        we're turning into a Snapshot). Must be a child of `base`.
 
     :returns unicode: the relative path from `base` to `path`
         "mangled" into a Snapshot name. It is an error if `path` is

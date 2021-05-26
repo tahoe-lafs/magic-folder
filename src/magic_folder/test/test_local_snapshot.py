@@ -44,7 +44,7 @@ from ..snapshot import (
     create_local_author,
 )
 from ..magicpath import (
-    mangle_path_segments,
+    path_to_label,
 )
 from ..config import (
     create_global_configuration,
@@ -117,10 +117,10 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([to_add.asBytesMode("utf-8")]),
+            Equals([to_add]),
         )
 
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+    @given(lists(path_segments(), unique=True),
            data())
     def test_add_multiple_files(self, filenames, data):
         """
@@ -266,7 +266,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             magic_dir=self.magic,
         )
 
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+    @given(lists(path_segments(), unique=True),
            data())
     def test_create_snapshots(self, filenames, data_strategy):
         """
@@ -290,9 +290,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, content) in files:
-            mangled_filename = mangle_path_segments(
-                file.asTextMode("utf8").segmentsFrom(self.magic.asTextMode("utf8"))
-            )
+            mangled_filename = path_to_label(self.magic, file)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
@@ -316,7 +314,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        foo_magicname = mangle_path_segments([filename])
+        foo_magicname = path_to_label(self.magic, foo)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.

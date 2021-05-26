@@ -480,7 +480,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -524,7 +524,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         # You may not create a snapshot of a directory.
-        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file = local_path.preauthChild(path_in_folder)
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
@@ -577,7 +577,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -622,7 +622,7 @@ class CreateSnapshotTests(SyncTestCase):
                         loads,
                         MatchesDict({
                             folder_name: MatchesDict({
-                                path_in_folder: MatchesListwise([
+                                some_file.path: MatchesListwise([
                                     MatchesDict({
                                         u"type": Equals(u"local"),
                                         u"identifier": is_hex_uuid(),

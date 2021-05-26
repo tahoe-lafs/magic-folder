@@ -24,6 +24,10 @@ from testtools.matchers import (
     Equals,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
+
 from .common import (
     SyncTestCase,
 )
@@ -37,8 +41,8 @@ from .strategies import (
 
 from ..magicpath import (
     should_ignore_file,
-    mangle_path_segments,
-    unmangle_relative_path,
+    path_to_label,
+    label_to_path,
 )
 
 
@@ -46,14 +50,19 @@ class MagicPath(SyncTestCase):
     """
     Tests for handling of paths related to the contents of Magic Folders.
     """
-    @given(relative_paths())
-    def test_roundtrip(self, path_u):
+    @given(
+        absolute_paths(),
+        relative_paths(),
+    )
+    def test_roundtrip(self, base, path_u):
         """
+        A mangled and de-manged path is identical
         """
-        segments = path_u.split(u"/")
+        base = FilePath(base)
+        child = base.preauthChild(path_u)
         self.assertThat(
-            unmangle_relative_path(mangle_path_segments(segments)),
-            Equals(path_u),
+            label_to_path(base, path_to_label(base, child)),
+            Equals(child),
         )
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))

@@ -45,7 +45,7 @@ from ..magic_folder import (
     LocalSnapshotService,
 )
 from ..magicpath import (
-    mangle_path_segments,
+    path_to_label,
 )
 from ..config import (
     create_global_configuration,
@@ -113,7 +113,7 @@ class MagicFolderServiceTests(SyncTestCase):
         magic_path = FilePath(self.mktemp())
         magic_path.asBytesMode("utf-8").makedirs()
 
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path = magic_path.preauthChild(relative_target_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.setContent(content)
 
@@ -321,7 +321,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         self.assertThat(
             children(),
-            ContainsDict({mangle_path_segments(file_path.split(u"/")): Always()}),
+            ContainsDict({path_to_label(magic_path, target_path): Always()}),
             "Children dictionary {!r} did not contain expected path".format(
                 children,
             ),

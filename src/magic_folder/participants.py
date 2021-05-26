@@ -31,7 +31,7 @@ from allmydata.uri import (
 )
 
 from .magicpath import (
-    unmangle_relative_path,
+    label_to_path,
 )
 from .snapshot import (
     RemoteAuthor,
@@ -252,15 +252,18 @@ class _CollectiveDirnodeParticipant(object):
     _tahoe_client = attr.ib()
 
     @inline_callbacks
-    def files(self):
+    def files(self, base):
         """
         List the children of the directory node, decode their paths, and return a
         Deferred which fires with a dictionary mapping all of the paths to
         more details.
+
+        :param FilePath base: the base directory; all child paths will
+            be below it.
         """
         result = yield self._tahoe_client.list_directory(self.dircap)
         returnValue({
-            unmangle_relative_path(encoded_relpath_u): FolderFile(child, metadata)
+            label_to_path(base, encoded_relpath_u): FolderFile(child, metadata)
             for (encoded_relpath_u, (child, metadata))
             in result.items()
         })

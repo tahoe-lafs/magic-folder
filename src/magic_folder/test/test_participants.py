@@ -1,6 +1,11 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import (
+    unicode_literals,
+    print_function,
+)
+
 """
 Tests for ``magic_folder.participants``.
 """
@@ -34,6 +39,10 @@ from testtools.matchers import (
 from testtools.twistedsupport import (
     succeeded,
     failed,
+)
+
+from twisted.python.filepath import (
+    FilePath,
 )
 
 from hypothesis import (
@@ -76,7 +85,8 @@ from ..util.capabilities import (
     to_readonly_capability,
 )
 from ..magicpath import (
-    mangle_path_segments,
+    label_to_path,
+    path_to_label,
 )
 from ..tahoe_client import (
     TahoeClient,
@@ -490,6 +500,7 @@ class CollectiveParticipantTests(SyncTestCase):
                 # with @@ or @_ in it.  So make those cases a bit more likely.
                 just(u"@@"),
                 just(u"@_"),
+                just(u"@@_"),
                 relative_paths(),
             ),
             tuples(tahoe_lafs_chk_capabilities(), integers()),
@@ -507,11 +518,13 @@ class CollectiveParticipantTests(SyncTestCase):
             http_client,
         )
 
+        base = FilePath(".")
+
         upload_dircap = upload_dircap.encode("ascii")
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {
-                mangle_path_segments(name.split(u"/")): format_filenode(cap, {u"version": version})
+                path_to_label(base, base.preauthChild(name)): format_filenode(cap, {u"version": version})
                 for (name, (cap, version))
                 in children.items()
             }},
@@ -525,17 +538,17 @@ class CollectiveParticipantTests(SyncTestCase):
         )
 
         self.assertThat(
-            participant.files(),
+            participant.files(base),
             succeeded(
                 AfterPreprocessing(
                     lambda result: {
-                        name: f.version
-                        for (name, f)
+                        path: f.version
+                        for (path, f)
                         in result.items()
                     },
                     Equals({
-                        name: version
-                        for (name, (cap, version))
+                        base.preauthChild(relpath): version
+                        for (relpath, (cap, version))
                         in children.items()
                     }),
                 ),

@@ -48,7 +48,7 @@ from ..snapshot import (
     create_snapshot,
 )
 from ..magicpath import (
-    mangle_path_segments,
+    path_to_label,
 )
 from twisted.internet import task
 
@@ -93,7 +93,9 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-        mangled_name = mangle_path_segments(relative_name.split(u"/"))
+        base = FilePath(u".")
+        child = base.preauthChild(relative_name)
+        mangled_name = path_to_label(base, child)
         f = self.useFixture(RemoteSnapshotCreatorFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,
