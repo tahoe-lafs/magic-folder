@@ -28,14 +28,18 @@ class IStatus(Interface):
     messages from the status API.
     """
 
-    def upload_started():
+    def upload_started(name):
         """
         One or more items are now in our upload queue.
+
+        :param unicode name: the name of the folder that started upload
         """
 
-    def upload_stopped():
+    def upload_stopped(name):
         """
         No items are in the upload queue.
+
+        :param unicode name: the name of the folder that stopped uploading
         """
 
 
@@ -121,7 +125,7 @@ class WebSocketStatusService(service.Service):
     _last_state = attr.ib(default=None)
 
     # current live state
-    _uploading = attr.ib(default=False)
+    _uploading = attr.ib(default=attr.Factory(dict))
 
     def client_connected(self, protocol):
         """
@@ -149,9 +153,13 @@ class WebSocketStatusService(service.Service):
         utf8-encoded byte-string of the JSON representing our current
         state.
         """
+        upload_activity = any(
+            value is True
+            for value in self._uploading.values()
+        )
         return json.dumps({
             "state": {
-                "synchronizing": self._uploading,
+                "synchronizing": upload_activity,
             }
         }).encode("utf8")
 
@@ -174,16 +182,16 @@ class WebSocketStatusService(service.Service):
 
     # IStatus API
 
-    def upload_started(self):
+    def upload_started(self, name):
         """
         IStatus API
         """
-        self._uploading = True
+        self._uploading[name] = True
         self._maybe_update_clients()
 
-    def upload_stopped(self):
+    def upload_stopped(self, name):
         """
         IStatus API
         """
-        self._uploading = False
+        self._uploading[name] = False
         self._maybe_update_clients()

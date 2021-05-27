@@ -215,7 +215,6 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._status.upload_started()
         self._queue.put((bytespath, d))
         return d
 
@@ -255,9 +254,9 @@ class RemoteSnapshotCreator(object):
 
         # update our status if we have nothing to do
         if len(localsnapshot_names):
-            self._status.upload_started()
+            self._status.upload_started(self._config.name)
         else:
-            self._status.upload_stopped()
+            self._status.upload_stopped(self._config.name)
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
