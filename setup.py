@@ -77,7 +77,10 @@ install_requires = [
 
     # Python utilities that were originally extracted from tahoe
     # We use them directly, rather than the re-exports from allmydata
-    "pyutil >= 3.3.0"
+    "pyutil >= 3.3.0",
+
+    # last py2 release of klein
+    "klein==20.6.0",
 ]
 
 setup_requires = [
