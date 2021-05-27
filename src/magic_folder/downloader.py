@@ -208,7 +208,7 @@ class RemoteSnapshotCacheService(service.Service):
             return None
         self._service_d.addErrback(log)
 
-    @inlineCallbacks
+    @inline_callbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -216,12 +216,12 @@ class RemoteSnapshotCacheService(service.Service):
         while True:
             try:
                 (snapshot_cap, d) = yield self._queue.get()
-                if True:#with start_task(action_type="downloader:cache_snapshot"):
+                with start_action(action_type="downloader:locate_snapshot") as t:
                     try:
                         snapshot = self.cached_snapshots[snapshot_cap]
-                        print("found")
+                        t.add_success_fields(cached=True)
                     except KeyError:
-                        print("caching", snapshot_cap)
+                        t.add_success_fields(cached=False)
                         snapshot = yield self._cache_snapshot(snapshot_cap)
                     d.callback(snapshot)
             except CancelledError:
