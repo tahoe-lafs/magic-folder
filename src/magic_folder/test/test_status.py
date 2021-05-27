@@ -48,8 +48,8 @@ class StatusServiceTests(SyncTestCase):
                 messages.append(json.loads(payload))
 
         self.service.client_connected(ClientProtocol())
-        self.service.upload_started()
-        self.service.upload_stopped()
+        self.service.upload_started("foo")
+        self.service.upload_stopped("foo")
 
         self.assertThat(
             messages,
@@ -78,7 +78,7 @@ class StatusServiceTests(SyncTestCase):
             def sendMessage(self, payload):
                 messages.append(json.loads(payload))
 
-        self.service.upload_started()
+        self.service.upload_started("foo")
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the proper state
@@ -116,7 +116,7 @@ class StatusServiceTests(SyncTestCase):
         )
 
         # change our state
-        self.service.upload_started()
+        self.service.upload_started("foo")
 
         # re-connect the client; it should get the (latest) state as
         # well as the initial state it got on the first connect
@@ -184,7 +184,7 @@ class WebSocketTests(AsyncTestCase):
         )
 
         # if we change the state, we should receive an update
-        self.service.upload_started()
+        self.service.upload_started("foo")
         self.pumper._flush()
         self.assertThat(
             messages,
