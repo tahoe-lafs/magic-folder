@@ -428,7 +428,13 @@ class MagicFolderUpdaterService(service.Service):
                     if found_ancestor:
                         self._magic_fs.mark_overwrite(snapshot, staged)
                         self._config.store_remotesnapshot(snapshot.name, snapshot)
-                        # XXX update remotesnapshot db (then Personal DMD)
+                        # XXX update remotesnapshot db (then Personal
+                        # DMD) (careful here, we still need something
+                        # that makes sure mismatches between
+                        # remotesnapshots in our db and the Personal
+                        # DMD are reconciled .. that is, if we crash
+                        # here and/or can't update our Personal DMD we
+                        # need to retry later.
                     else:
                         self._magic_fs.mark_conflict(snapshot, staged)
 
