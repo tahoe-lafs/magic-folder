@@ -70,7 +70,7 @@ class StatusProtocol(WebSocketServerProtocol):
         should never happen in our protocol.
         """
         self.sendClose(
-            code=3000,
+            code=4000,
             reason="Unexpected incoming message",
         )
 
