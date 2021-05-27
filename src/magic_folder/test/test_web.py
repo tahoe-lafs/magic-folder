@@ -124,7 +124,7 @@ from ..tahoe_client import (
     create_tahoe_client,
 )
 from ..status import (
-    NullStatusService,
+    WebSocketStatusService,
 )
 from .strategies import (
     local_authors,
@@ -325,7 +325,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     global_service = MagicFolderService(
         reactor,
         global_config,
-        NullStatusService(),
+        WebSocketStatusService(),
         # Provide a TahoeClient so MagicFolderService doesn't try to look up a
         # Tahoe-LAFS node URL in the non-existent directory we supplied above
         # in its efforts to create one itself.

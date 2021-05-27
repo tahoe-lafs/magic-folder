@@ -187,16 +187,3 @@ class WebSocketStatusService(service.Service):
         """
         self._uploading = False
         self._maybe_update_clients()
-
-
-@implementer(IStatus)
-class NullStatusService(service.Service):
-    """
-    An IStatus service that doesn't do anything
-    """
-
-    def upload_started(self):
-        pass
-
-    def upload_stopped(self):
-        pass
