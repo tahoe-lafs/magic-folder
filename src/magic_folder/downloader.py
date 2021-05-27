@@ -385,6 +385,7 @@ class MagicFolderUpdaterService(service.Service):
         # None for "delete" snapshots?
         if not local_path.exists():
             self._magic_fs.mark_overwrite(snapshot, staged)
+            self._config.store_remotesnapshot(snapshot.name, snapshot)
             # XXX update remotesnapshot db (then Personal DMD)
 
         else:
@@ -426,6 +427,7 @@ class MagicFolderUpdaterService(service.Service):
 
                     if found_ancestor:
                         self._magic_fs.mark_overwrite(snapshot, staged)
+                        self._config.store_remotesnapshot(snapshot.name, snapshot)
                         # XXX update remotesnapshot db (then Personal DMD)
                     else:
                         self._magic_fs.mark_conflict(snapshot, staged)
