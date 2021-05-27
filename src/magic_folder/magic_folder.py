@@ -31,6 +31,8 @@ from .uploader import (
 from .downloader import (
     RemoteSnapshotCacheService,
     DownloaderService,
+    MagicFolderUpdaterService,
+    LocalMagicFolderFilesystem,
 )
 from .participants import (
     participants_from_collective,
@@ -135,6 +137,14 @@ class MagicFolder(service.MultiService):
                 config=mf_config,
                 participants=initial_participants,
                 remote_snapshot_cache=remote_snapshot_cache_service,
+                folder_updater=MagicFolderUpdaterService(
+                    LocalMagicFolderFilesystem(
+                        mf_config.magic_path,
+                        mf_config.stash_path,
+                    ),
+                    mf_config,
+                    tahoe_client,
+                ),
                 tahoe_client=tahoe_client,
             ),
             initial_participants=initial_participants,
@@ -159,6 +169,7 @@ class MagicFolder(service.MultiService):
         uploader_service.setServiceParent(self)
         remote_snapshot_cache.setServiceParent(self)
         downloader.setServiceParent(self)
+        downloader._folder_updater.setServiceParent(self)
 
     def ready(self):
         """

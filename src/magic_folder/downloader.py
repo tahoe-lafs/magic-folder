@@ -136,15 +136,14 @@ class RemoteSnapshotCacheService(service.Service):
     Our work queue is ephemeral; it is not synchronized to disk and
     will vanish if we are re-started. When we download a Remote
     Snapshot we *do not* download the content, just the Snapshot
-    itself and the metadata-cap (after verifying the Snapshot's
-    signature).
+    itself.
 
     This is okay because we will retry the operation the next time we
-    restart if crashed. That is, we only need the RemoteSnapshot
-    cached until we decide what to do and synchronize local state.
+    restart. That is, we only need the RemoteSnapshot cached until we
+    decide what to do and synchronize local state.
 
-    Note: we *could* keep all this is our database .. but then we have
-    to evict things from it at some point, probably.
+    Note: we *could* keep all this in our database .. but then we have
+    to evict things from it at some point.
 
     Anyway, we do need to download parent snapshots UNTIL we reach the
     current remotesnapshot that we've noted for that name (or run
@@ -154,6 +153,12 @@ class RemoteSnapshotCacheService(service.Service):
     too; we should be putting that information into our Personal DMD
     ... so what happens when it's out of date? (source-of-truth MUST
     be our Personal DMD ...)
+
+     -> actually, maybe the local db should be the "source of truth":
+    we only put entries into it if we're about to push it to Tahoe
+    .. so if things don't match up, it's because we crashed before
+    that happened (and so on startup, we should check and possibly
+    push more things up to Tahoe)
     """
     tahoe_client = attr.ib()
     folder_config = attr.ib()
@@ -309,6 +314,8 @@ class MagicFolderUpdaterService(service.Service):
          Personal DMDs point at the same snapshot)
     """
     _magic_fs = attr.ib()#validator=provides(IMagicFolderFilesystem))
+    _config = attr.ib()
+    tahoe_client = attr.ib()
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
@@ -316,6 +323,113 @@ class MagicFolderUpdaterService(service.Service):
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
         """
+        d = Deferred()
+        self._queue.put((snapshot, d))
+        return d
+
+    def startService(self):
+        """
+        Start a periodic loop that looks for work and does it.
+        """
+        service.Service.startService(self)
+        self._service_d = self._process_queue()
+
+        def log(f):
+            print("fatal error")
+            print(f)
+            return None
+        self._service_d.addErrback(log)
+
+    def stopService(self):
+        """
+        Don't process queued items anymore.
+        """
+        d = self._service_d
+        self._service_d.cancel()
+        service.Service.stopService(self)
+        self._service_d = None
+        return d
+
+    @inline_callbacks
+    def _process_queue(self):
+        """
+        Wait for a single item from the queue and process it, forever.
+        """
+        while True:
+            try:
+                (snapshot, d) = yield self._queue.get()
+                with start_action(action_type="downloader:modify_filesystem"):
+                    yield self._process(snapshot)
+                    d.callback(None)
+            except CancelledError:
+                break
+            except Exception:
+                d.errback(Failure())
+
+    @inlineCallbacks
+    def _process(self, snapshot):
+        """
+        Internal helper.
+
+        Determine the disposition of 'snapshot' and propose
+        appropriate filesystem modifications. Once these are done,
+        note the new snapshot-cap in our database and then push it to
+        Tahoe (i.e. to our Personal DMD)
+        """
+
+        print("UPDATE", snapshot.name)
+        local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
+        staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+
+        # XXX not dealing with deletes yet; is snapshot.content_cap
+        # None for "delete" snapshots?
+        if not local_path.exists():
+            self._magic_fs.mark_overwrite(snapshot, staged)
+            # XXX update remotesnapshot db (then Personal DMD)
+
+        else:
+            # we have something in our magic-folder for this name
+            # already. if there are any local-snapshots for this name,
+            # we've got a conflict. (because there's definitely a
+            # local change that nobody else has seen *and* a remote
+            # change)
+            try:
+                local = self._config.get_local_snapshot(snapshot.name)
+                print("WE GOT A LOCAL ONE", local)
+                self._magic_fs.mark_conflict(snapshot, staged)
+            except KeyError:
+                # we have no local-snapshots. if this snapshot is
+                # descended from our notion of the last
+                # remote-snapshot, then it is an overwrite. otherwise,
+                # it is a conflict.
+
+                try:
+                    our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+                except KeyError:
+                    # we've never seen this one before .. but the path
+                    # exists locally, *and* there's no localsnapshots
+                    # .. (maybe there's a race-window here: a file can
+                    # appear, but we haven't created a local snapshot
+                    # yet). I think we have to treat this as a
+                    # conflict too ..
+                    print("NO REMOTE, but we got a file")
+                    self._magic_fs.mark_conflict(snapshot, staged)
+                else:
+                    found_ancestor = False
+                    q = deque()
+                    q.append(snapshot)
+                    while q:
+                        snap = q.popleft()
+                        if our_snapshot_cap in snap.parents_raw:
+                            found_ancestor = True
+                            break
+
+                    if found_ancestor:
+                        self._magic_fs.mark_overwrite(snapshot, staged)
+                        # XXX update remotesnapshot db (then Personal DMD)
+                    else:
+                        self._magic_fs.mark_conflict(snapshot, staged)
+
 
     # LoopingCall:
     #  - snap = await _queue.get()
@@ -350,7 +464,7 @@ class IMagicFolderFilesystem(Interface):
     there are no 'partial' files in the magic-folder.
     """
 
-    def download_content_to_staging(remote_snapshot):
+    def download_content_to_staging(remote_snapshot, tahoe_client):
         """
         Prepare the content by downloading it.
 
@@ -390,7 +504,6 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
-
 @implementer(IMagicFolderFilesystem)
 @attr.s
 class LocalMagicFolderFilesystem(object):
@@ -400,6 +513,59 @@ class LocalMagicFolderFilesystem(object):
 
     magic_path = attr.ib(validator=instance_of(FilePath))
     staging_path = attr.ib(validator=instance_of(FilePath))
+
+    @inlineCallbacks
+    def download_content_to_staging(self, remote_snapshot, tahoe_client):
+        """
+        IMagicFolderFilesystem API
+        """
+        import hashlib
+        h = hashlib.sha256()
+        h.update(remote_snapshot.capability)
+        staged_path = self.staging_path.child(h.hexdigest())
+        with staged_path.open('wb') as f:
+            yield tahoe_client.stream_capability(remote_snapshot.content_cap, f)
+        returnValue(staged_path)
+
+    def mark_overwrite(self, remote_snapshot, staged_content):
+        """
+        This snapshot is an overwrite. Move it from the staging area over
+        top of the existing file (if any) in the magic-folder.
+
+        :param FilePath staged_content: a local path to the downloaded
+            content.
+        """
+        print("OVERWRITE", remote_snapshot.name)
+        local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
+        staged_content.moveTo(local_path)
+
+    def mark_conflict(self, remote_snapshot, staged_content):
+        """
+        This snapshot causes a conflict. The existing magic-folder file is
+        untouched. The downloaded / prepared content shall be moved to
+        a file named `<path>.theirs.<name>` where `<name>` is the
+        petname of the author of the conflicting snapshot and `<path>`
+        is the relative path inside the magic-folder.
+
+        XXX can deletes conflict? if so staged_content would be None
+
+        :param conflicting_snapshot: the RemoteSnapshot that conflicts
+
+        :param FilePath staged_content: a local path to the downloaded
+            content.
+        """
+        print("CONFLICT", remote_snapshot, staged_content)
+        local_path = self.magic_path.preauthChild(
+            magic2path(remote_snapshot.name) + ".conflict-{}".format(remote_snapshot.author.name)
+        )
+        staged_content.moveTo(local_path)
+
+    def mark_delete(remote_snapshot):
+        """
+        Mark this snapshot as a delete. The existing magic-folder file
+        shall be deleted.
+        """
+        raise NotImplemented()
 
 
 @implementer(IMagicFolderFilesystem)
@@ -425,11 +591,11 @@ class DownloaderService(service.Service):
     _config = attr.ib()
     _participants = attr.ib()
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-##    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdaterService))
+    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdaterService))
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, remote_snapshot_cache, tahoe_client):
+    def from_config(cls, clock, name, config, participants, remote_snapshot_cache, folder_updater, tahoe_client):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """
@@ -437,7 +603,7 @@ class DownloaderService(service.Service):
             config,
             participants,
             remote_snapshot_cache,
-##            None,
+            folder_updater,
             tahoe_client,
         )
 
@@ -475,22 +641,27 @@ class DownloaderService(service.Service):
         people = yield self._participants.list()
         for person in people:
             if person.is_self:
+                # if we keep the local remotesnapshot cache (in our
+                # config db) then this probably ought to check that
+                # it's correct .. maybe not ever poll, but ..
                 continue
             print("{}: {}".format(person.name, person.dircap))
             files = yield self._tahoe_client.list_directory(person.dircap)
             print("  {} files:".format(len(files)))
             for fname, data in files.items():
-                snapshot, metadata = data
+                snapshot_cap, metadata = data
                 fpath = self._config.magic_path.preauthChild(magic2path(fname))
                 relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
-                print("    {}: {}".format(relpath, snapshot))
+                print("    {}: {}".format(relpath, snapshot_cap))
                 # do we have this one?
                 try:
                     remote = self._config.get_remotesnapshot(relpath)
                     print(remote)
                 except KeyError:
-                    yield self._remote_snapshot_cache.add_remote_capability(snapshot)
                     print("NO")
+                    snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
+                    print("SNAP", snapshot)
+                    yield self._folder_updater.add_remote_snapshot(snapshot)
 
 
     # LoopingCall:
