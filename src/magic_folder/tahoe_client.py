@@ -272,7 +272,7 @@ class TahoeClient(object):
         returnValue({
             name: (
                 json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
-                json_metadata[u"metadata"],
+                json_metadata.get(u"metadata", {}),
             )
             for (name, (child_kind, json_metadata))
             in dirinfo[u"children"].items()

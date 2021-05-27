@@ -17,14 +17,14 @@ workflows:
       # Contexts are managed in the CircleCI web interface:
       #
       #  https://app.circleci.com/settings/organization/github/LeastAuthority/contexts
-      - "debian-9": &DOCKERHUB_CONTEXT
+      - "debian-10": &DOCKERHUB_CONTEXT
           context:
             - "dockerhub-auth"
 
-      - "debian-8":
+      - "debian-9":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "debian-9"
+            - "debian-10"
 
       - "ubuntu-20.04":
           <<: *DOCKERHUB_CONTEXT
@@ -33,17 +33,14 @@ workflows:
           requires:
             - "ubuntu-20.04"
 
-      - "fedora-32":
+      - "fedora-34":
           <<: *DOCKERHUB_CONTEXT
-      - "fedora-31":
+      - "fedora-33":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "fedora-32"
+            - "fedora-34"
 
       - "centos-8":
-          <<: *DOCKERHUB_CONTEXT
-
-      - "slackware-14.2":
           <<: *DOCKERHUB_CONTEXT
 
       - "nixos-19.09":
@@ -69,7 +66,7 @@ workflows:
           requires:
             # If the unit test suite doesn't pass, don't bother running the
             # integration tests.
-            - "debian-9"
+            - "debian-10"
 
   images:
     # Build the Docker images used by the ci jobs.  This makes the ci jobs
@@ -98,8 +95,6 @@ workflows:
           <<: *DOCKERHUB_CONTEXT
       - "build-image-centos-8":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-slackware-14.2":
-          <<: *DOCKERHUB_CONTEXT
       - "build-image-pypy-2.7-7.3.4-buster":
           <<: *DOCKERHUB_CONTEXT
 
@@ -125,7 +120,7 @@ jobs:
 
   lint:
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "circleci/python:2"
 
     steps:
@@ -141,10 +136,10 @@ jobs:
           command: |
             ~/.local/bin/tox -e codechecks
 
-  debian-9: &DEBIAN
+  debian-10: &DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:9"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:10"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -218,19 +213,19 @@ jobs:
             /tmp/venv/bin/codecov
 
 
-  debian-8:
+  debian-9:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:8"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:9"
         user: "nobody"
 
 
   pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/pypy:2.7-7.3.0-buster"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/pypy:2.7-7.3.4-buster"
         user: "nobody"
 
     environment:
@@ -279,7 +274,7 @@ jobs:
 
     steps:
       - "checkout"
-      # DRY, YAML-style.  See the debian-9 steps.
+      # DRY, YAML-style.  See the debian-10 steps.
       - run: *SETUP_VIRTUALENV
       - run: *RUN_TESTS
 
@@ -287,7 +282,7 @@ jobs:
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
@@ -295,14 +290,14 @@ jobs:
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
   centos-8: &RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/centos:8"
         user: "nobody"
 
@@ -322,47 +317,26 @@ jobs:
       - run: *SUBMIT_COVERAGE
 
 
-  fedora-31:
+  fedora-33:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:31"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:33"
         user: "nobody"
 
 
-  fedora-32:
+  fedora-34:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:32"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:34"
         user: "nobody"
 
-
-  slackware-14.2:
-    docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/slackware:14.2"
-        user: "nobody"
-
-    environment: *UTF_8_ENVIRONMENT
-
-    # pip cannot install packages if the working directory is not readable.
-    # We want to run a lot of steps as nobody instead of as root.
-    working_directory: "/tmp/project"
-
-    steps:
-      - "checkout"
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
-      - store_test_results: *STORE_TEST_RESULTS
-      - store_artifacts: *STORE_TEST_LOG
-      - store_artifacts: *STORE_OTHER_ARTIFACTS
-      - run: *SUBMIT_COVERAGE
 
   nixos-19.09:
     docker:
       # Run in a highly Nix-capable environment.
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "nixorg/nix:circleci"
 
     environment:
@@ -447,7 +421,7 @@ jobs:
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "docker:17.05.0-ce-git"
 
     environment:
@@ -521,7 +495,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "31"
+      TAG: "33"
 
 
   build-image-fedora-34:
@@ -529,15 +503,7 @@ jobs:
 
     environment:
       DISTRO: "fedora"
-      TAG: "32"
-
-
-  build-image-slackware-14.2:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "slackware"
-      TAG: "14.2"
+      TAG: "34"
 
 
   build-image-pypy-2.7-7.3.4-buster:
