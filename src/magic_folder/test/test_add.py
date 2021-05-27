@@ -1,7 +1,5 @@
-import json
 
 from testtools.matchers import (
-    Equals,
     ContainsDict,
     Contains,
     Not,
@@ -86,12 +84,10 @@ class TestAdd(SyncTestCase):
 
         # check the contents of the collective (should have alice's
         # read-only capability)
-        collective_d = self.tahoe_client.download_capability(mf.collective_dircap)
-        collective_d.addCallback(json.loads)
+        collective_d = self.tahoe_client.directory_data(mf.collective_dircap)
         self.assertThat(collective_d, succeeded(Always()))
 
-        kind, metadata = collective_d.result
-        self.assertThat(kind, Equals("dirnode"))
+        metadata = collective_d.result
         # the collective should be a mutable directory and have "alice"
         # as a child pointing to a *read-only* directory.
 
