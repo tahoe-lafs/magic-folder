@@ -14,6 +14,11 @@ from zope.interface import (
 from eliot.twisted import (
     inline_callbacks,
 )
+from eliot import (
+    log_call,
+    start_action,
+    start_task,
+)
 
 from twisted.application import service
 from twisted.python.filepath import (
@@ -22,11 +27,15 @@ from twisted.python.filepath import (
 from twisted.internet.task import (
     LoopingCall,
 )
+from twisted.python.failure import (
+    Failure,
+)
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
     inlineCallbacks,
     returnValue,
+    CancelledError,
 )
 
 from .magicpath import (
@@ -199,7 +208,7 @@ class RemoteSnapshotCacheService(service.Service):
             return None
         self._service_d.addErrback(log)
 
-    @inline_callbacks
+    @inlineCallbacks
     def _process_queue(self):
         """
         Wait for a single item from the queue and process it, forever.
@@ -207,8 +216,13 @@ class RemoteSnapshotCacheService(service.Service):
         while True:
             try:
                 (snapshot_cap, d) = yield self._queue.get()
-                with PROCESS_REMOTE_SNAP(relpath=item.name):
-                    snapshot = yield self._cache_snapshot(snapshot_cap)
+                if True:#with start_task(action_type="downloader:cache_snapshot"):
+                    try:
+                        snapshot = self.cached_snapshots[snapshot_cap]
+                        print("found")
+                    except KeyError:
+                        print("caching", snapshot_cap)
+                        snapshot = yield self._cache_snapshot(snapshot_cap)
                     d.callback(snapshot)
             except CancelledError:
                 break
@@ -233,9 +247,14 @@ class RemoteSnapshotCacheService(service.Service):
             snapshot_cap,
             self.tahoe_client,
         )
+        self.cached_snapshots[snapshot_cap] = snapshot
 
         # the target of our search through all parent Snapshots
-        our_snapshot_cap = folder_config.get_remotesnapshot(snapshot.name)
+        try:
+            our_snapshot_cap = self.folder_config.get_remotesnapshot(snapshot.name)
+        except KeyError:
+            # we've never seen this one before
+            our_snapshot_cap = None
 
         # breadth-first traversal of the parents; we can stop early if
         # we find the above capability (our current notion of the
@@ -247,7 +266,7 @@ class RemoteSnapshotCacheService(service.Service):
             if our_snapshot_cap in snap.parents_raw:
                 break
             else:
-                for i in len(snap.parents_raw):
+                for i in range(len(snap.parents_raw)):
                     parent = yield snap.fetch_parent(self.tahoe_client, i)
                     q.append(parent)
 
@@ -432,6 +451,7 @@ class DownloaderService(service.Service):
                 yield self._scan_collective()
             except Exception as e:
                 print("bad: {}".format(e))
+                print(Failure())
 
         self._processing_loop = LoopingCall(
             log#self._scan_collective,
