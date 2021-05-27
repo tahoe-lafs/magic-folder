@@ -387,6 +387,12 @@ class MagicFolderUpdaterService(service.Service):
             self._magic_fs.mark_overwrite(snapshot, staged)
             self._config.store_remotesnapshot(snapshot.name, snapshot)
             # XXX update remotesnapshot db (then Personal DMD)
+            yield self.tahoe_client.add_entry_to_mutable_directory(
+                self._config.upload_dircap,
+                snapshot.name,
+                snapshot.capability,
+                replace=True,
+            )
 
         else:
             # we have something in our magic-folder for this name
@@ -435,6 +441,12 @@ class MagicFolderUpdaterService(service.Service):
                         # DMD are reconciled .. that is, if we crash
                         # here and/or can't update our Personal DMD we
                         # need to retry later.
+                        yield self.tahoe_client.add_entry_to_mutable_directory(
+                            self._config.upload_dircap,
+                            snapshot.name,
+                            snapshot.capability,
+                            replace=True,
+                        )
                     else:
                         self._magic_fs.mark_conflict(snapshot, staged)
 
