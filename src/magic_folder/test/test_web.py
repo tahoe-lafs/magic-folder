@@ -340,7 +340,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         for name in folders:
             global_service.get_folder_service(name).startService()
 
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client)
+    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
 
 
 def magic_folder_config(author, state_path, local_directory):
