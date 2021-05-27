@@ -68,10 +68,11 @@ class MemorySnapshotCreator(object):
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def store_local_snapshot(self, path):
+    def store_local_snapshot(self, path, relpath):
         Message.log(
             message_type=u"memory-snapshot-creator:store-local-snapshot",
-            path=path.asTextMode("utf-8").path,
+            path=path.path,
+            relpath=relpath,
         )
         self.processed.append(path)
 
@@ -85,8 +86,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self.magic_path = FilePath(self.mktemp())
-        self.magic_path.makedirs()
+        self.magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
+        self.magic_path.asBytesMode("utf-8").makedirs()
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
@@ -117,10 +118,10 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.assertThat(
             self.snapshot_creator.processed,
-            Equals([to_add.asBytesMode("utf-8")]),
+            Equals([to_add]),
         )
 
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+    @given(lists(path_segments(), unique=True),
            data())
     def test_add_multiple_files(self, filenames, data):
         """
@@ -194,7 +195,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
                         Equals(ValueError),
                         Equals((
                             "expected a regular file, {!r} is a directory".format(
-                                to_add.asBytesMode("utf-8").path,
+                                to_add.path,
                             ),
                         )),
                     ]),
@@ -241,19 +242,19 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode("utf-8")
         self.global_db = create_global_configuration(
             self.temp.child(b"global-db"),
             u"tcp:12345",
             self.temp.child(b"tahoe-node"),
             u"tcp:localhost:1234",
         )
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child(u"magic")
         self.magic.makedirs()
         self.db = self.global_db.create_magic_folder(
             u"some-folder",
             self.magic,
-            self.temp.child(b"state"),
+            self.temp.child(u"state"),
             self.author,
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
@@ -265,7 +266,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             stash_dir=self.db.stash_path,
         )
 
-    @given(lists(path_segments().map(lambda p: p.encode("utf-8")), unique=True),
+    @given(lists(path_segments(), unique=True),
            data())
     def test_create_snapshots(self, filenames, data_strategy):
         """
@@ -274,22 +275,22 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         the database.
         """
         files = []
-        for filename in filenames :
+        for filename in filenames:
             file = self.magic.child(filename)
             content = data_strategy.draw(binary())
             file.asBytesMode("utf-8").setContent(content)
 
-            files.append((file, content))
+            files.append((file, filename, content))
 
-        for (file, _unused) in files:
+        for (file, filename, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.store_local_snapshot(file),
+                self.snapshot_creator.store_local_snapshot(file, filename),
                 succeeded(Always())
             )
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
-        for (file, content) in files:
-            mangled_filename = path2magic(file.asTextMode(encoding="utf-8").path)
+        for (file, filename, content) in files:
+            mangled_filename = path2magic(filename)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
             self.assertThat(stored_content, Equals(content))
@@ -297,7 +298,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
     @given(content1=binary(min_size=1),
            content2=binary(min_size=1),
-           filename=path_segments().map(lambda p: p.encode("utf-8")),
+           filename=path_segments(),
     )
     def test_create_snapshot_twice(self, filename, content1, content2):
         """
@@ -309,11 +310,11 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.store_local_snapshot(foo, filename),
             succeeded(Always()),
         )
 
-        foo_magicname = path2magic(foo.asTextMode('utf-8').path)
+        foo_magicname = path2magic(filename)
         stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
 
         # now modify the file with some new content.
@@ -321,7 +322,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the second call succeeds as well
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.store_local_snapshot(foo, filename),
             succeeded(Always()),
         )
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)
