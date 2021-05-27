@@ -38,6 +38,7 @@ import attr
 
 from util.capabilities import (
     is_directory_cap,
+    is_file_cap,
 )
 
 
@@ -384,9 +385,12 @@ class TahoeClient(object):
         # metadata, not the data. So, the caller needs to know if they
         # have a dir-cap or not and call list_directory() or
         # directory_data() to get "raw" representation
-        if is_directory_cap(cap):
+
+        # we further insist that this is "a file capability" because
+        # the API says "_file" in it
+        if not is_file_cap(cap):
             raise ValueError(
-                "{} is a directory-capability not a regular file".format(cap)
+                "{} is not a file capability".format(cap)
             )
 
         query_args = [(u"uri", cap.decode("ascii"))]

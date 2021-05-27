@@ -193,7 +193,7 @@ class TahoeClientTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda failure: str(failure.value),
-                    Equals("{} is a directory-capability not a regular file".format(cap))
+                    Equals("{} is not a file capability".format(cap))
                 )
             )
         )
