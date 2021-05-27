@@ -254,7 +254,9 @@ class RemoteSnapshotCreator(object):
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
         # update our status if we have nothing to do
-        if not len(localsnapshot_names):
+        if len(localsnapshot_names):
+            self._status.upload_started()
+        else:
             self._status.upload_stopped()
 
         # XXX: processing this table should be atomic. i.e. While the upload is
