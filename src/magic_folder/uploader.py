@@ -96,7 +96,8 @@ class LocalSnapshotCreator(object):
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
-            mangled_name = magicpath.mangle_path(path)
+            relpath = u"/".join(path.segmentsFrom(self._magic_dir))
+            mangled_name = magicpath.path2magic(relpath)
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
             except KeyError:
@@ -110,19 +111,19 @@ class LocalSnapshotCreator(object):
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
 
-            relpath_u = path.asTextMode("utf-8").path
-            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath_u)
+            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)
             with action:
                 snapshot = yield create_snapshot(
                     name=mangled_name,
                     author=self._author,
                     data_producer=input_stream,
-                    snapshot_stash_dir=self._stash_dir.asBytesMode("utf-8"),
+                    snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                 )
 
                 # store the local snapshot to the disk
                 self._db.store_local_snapshot(snapshot)
+
 
 @attr.s
 @implementer(service.IService)
@@ -132,7 +133,7 @@ class LocalSnapshotService(service.Service):
     deliver it to the snapshot creator.
     """
     _magic_path = attr.ib(
-        converter=lambda fp: fp.asBytesMode("utf-8"),
+        converter=lambda fp: fp.asTextMode("utf-8"),
         validator=attr.validators.instance_of(FilePath),
     )
     _snapshot_creator = attr.ib()
@@ -152,9 +153,9 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                (item, d) = yield self._queue.get()
-                with PROCESS_FILE_QUEUE(relpath=item.asTextMode('utf-8').path):
-                    yield self._snapshot_creator.store_local_snapshot(item.asBytesMode("utf-8"))
+                (path, d) = yield self._queue.get()
+                with PROCESS_FILE_QUEUE(relpath=path.path):
+                    yield self._snapshot_creator.store_local_snapshot(path)
                     d.callback(None)
             except CancelledError:
                 break
@@ -188,16 +189,15 @@ class LocalSnapshotService(service.Service):
             raise TypeError(
                 "argument must be a FilePath"
             )
-        bytespath = path.asBytesMode("utf-8")
-        textpath = path.asTextMode("utf-8")
 
         try:
-            bytespath.segmentsFrom(self._magic_path)
+            # check that "path" is a descendant of magic_path
+            path.segmentsFrom(self._magic_path)
         except ValueError:
-            ADD_FILE_FAILURE.log(relpath=textpath.path)
+            ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
                 "The path being added '{!r}' is not within '{!r}'".format(
-                    bytespath.path,
+                    path.path,
                     self._magic_path.path,
                 )
             )
@@ -205,14 +205,14 @@ class LocalSnapshotService(service.Service):
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if bytespath.isdir():
+        if path.asBytesMode('utf-8').isdir():
             raise ValueError(
-                "expected a regular file, {!r} is a directory".format(bytespath.path),
+                "expected a regular file, {!r} is a directory".format(path.path),
             )
 
         # add file into the queue
         d = Deferred()
-        self._queue.put((bytespath, d))
+        self._queue.put((path, d))
         return d
 
 
