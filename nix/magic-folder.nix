@@ -1,4 +1,4 @@
-{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures, git }:
+{ lib, python, buildPythonPackage, tahoe-lafs, importlib-metadata, hypothesis, testtools, fixtures, klein, git }:
 buildPythonPackage rec {
   pname = "magic-folder";
   version = "2020-02-05";
@@ -7,6 +7,7 @@ buildPythonPackage rec {
   propagatedBuildInputs = [
     importlib-metadata
     tahoe-lafs
+    klein
   ];
 
   checkInputs = [

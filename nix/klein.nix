@@ -1,8 +1,16 @@
-{ lib, buildPythonPackage, fetchPypi }:
+{ lib, buildPythonPackage, fetchPypi, incremental, zope_interface, six, attrs, werkzeug }:
 
 buildPythonPackage rec {
   pname = "klein";
   version = "20.6.0";
+
+  propagatedBuildInputs = [
+    incremental
+    zope_interface
+    six
+    attrs
+    werkzeug
+  ];
 
   src = fetchPypi {
     inherit pname version;
