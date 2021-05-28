@@ -73,6 +73,10 @@ from .client import (
     create_http_client,
     CannotAccessAPIError,
 )
+from .status import (
+    WebSocketStatusService,
+    IStatus,
+)
 
 from .invite import (
     magic_folder_invite
@@ -141,6 +145,7 @@ class InitializeOptions(usage.Options):
          "(Optional) the Twisted client-string for our REST API (only required "
          "if auto-converting from the --listen-endpoint fails)"),
     ]
+
     description = (
         "Initialize a new magic-folder daemon. A single daemon may run "
         "any number of magic-folders (use \"magic-folder add\" to "
@@ -533,6 +538,7 @@ class MagicFolderService(MultiService):
     """
     reactor = attr.ib()
     config = attr.ib()
+    status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
 
     def __attrs_post_init__(self):
@@ -552,6 +558,7 @@ class MagicFolderService(MultiService):
             self,
             self._get_auth_token,
             self.tahoe_client,
+            self.status_service,
         )
         web_service.setServiceParent(self)
 
@@ -571,6 +578,7 @@ class MagicFolderService(MultiService):
                 self.tahoe_client,
                 name,
                 self.config,
+                self.status_service,
             )
             mf.setServiceParent(self)
 
@@ -611,6 +619,7 @@ class MagicFolderService(MultiService):
         return cls(
             reactor,
             config,
+            WebSocketStatusService(),
         )
 
     def _when_connected_enough(self):

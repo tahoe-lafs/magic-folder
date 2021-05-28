@@ -49,6 +49,9 @@ from ..magicpath import (
 from ..config import (
     create_global_configuration,
 )
+from ..status import (
+    WebSocketStatusService,
+)
 from .common import (
     SyncTestCase,
 )
@@ -91,6 +94,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
             snapshot_creator=self.snapshot_creator,
+            status=WebSocketStatusService(),
         )
 
 
