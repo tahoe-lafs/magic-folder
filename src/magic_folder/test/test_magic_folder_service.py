@@ -114,12 +114,12 @@ class MagicFolderServiceTests(SyncTestCase):
         ``MagicFolder.local_snapshot_service`` can be used to create a new local
         snapshot for a file in the folder.
         """
-        magic_path = FilePath(self.mktemp())
+        magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         magic_path.asBytesMode("utf-8").makedirs()
 
-        target_path = magic_path.preauthChild(relative_target_path).asBytesMode("utf-8")
+        target_path = magic_path.preauthChild(relative_target_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
-        target_path.setContent(content)
+        target_path.asBytesMode("utf-8").setContent(content)
 
         local_snapshot_creator = MemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService())
@@ -249,7 +249,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             ]),
         )
 
-        basedir = FilePath(self.mktemp())
+        basedir = FilePath(self.mktemp()).asTextMode("utf-8")
         global_config = create_global_configuration(
             basedir,
             u"tcp:-1",
@@ -261,9 +261,9 @@ class MagicFolderFromConfigTests(SyncTestCase):
         magic_path.asBytesMode("utf-8").makedirs()
 
         statedir = basedir.child(u"state")
-        state_path = statedir.asTextMode("utf-8").preauthChild(relative_state_path)
+        state_path = statedir.preauthChild(relative_state_path)
 
-        target_path = magic_path.asTextMode("utf-8").preauthChild(file_path)
+        target_path = magic_path.preauthChild(file_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.asBytesMode("utf-8").setContent(content)
 
@@ -328,7 +328,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         self.assertThat(
             children(),
-            ContainsDict({path2magic(target_path.path): Always()}),
+            ContainsDict({path2magic(file_path): Always()}),
             "Children dictionary {!r} did not contain expected path".format(
                 children,
             ),
