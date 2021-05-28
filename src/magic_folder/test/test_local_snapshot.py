@@ -68,11 +68,10 @@ class MemorySnapshotCreator(object):
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def store_local_snapshot(self, path, relpath):
+    def store_local_snapshot(self, path):
         Message.log(
             message_type=u"memory-snapshot-creator:store-local-snapshot",
             path=path.path,
-            relpath=relpath,
         )
         self.processed.append(path)
 
@@ -264,6 +263,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             db=self.db,
             author=self.author,
             stash_dir=self.db.stash_path,
+            magic_dir=self.db.magic_path,
         )
 
     @given(lists(path_segments(), unique=True),
@@ -284,7 +284,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         for (file, filename, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.store_local_snapshot(file, filename),
+                self.snapshot_creator.store_local_snapshot(file),
                 succeeded(Always())
             )
 
@@ -310,7 +310,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo, filename),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
 
@@ -322,7 +322,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the second call succeeds as well
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo, filename),
+            self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
         stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)

@@ -82,9 +82,10 @@ class LocalSnapshotCreator(object):
     _db = attr.ib()  # our database
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @inline_callbacks
-    def store_local_snapshot(self, path, relpath):
+    def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk.
 
@@ -95,6 +96,7 @@ class LocalSnapshotCreator(object):
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
+            relpath = u"/".join(path.segmentsFrom(self._magic_dir))
             mangled_name = magicpath.path2magic(relpath)
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
@@ -121,6 +123,7 @@ class LocalSnapshotCreator(object):
 
                 # store the local snapshot to the disk
                 self._db.store_local_snapshot(snapshot)
+
 
 @attr.s
 @implementer(service.IService)
@@ -150,9 +153,9 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                (path, relpath, d) = yield self._queue.get()
-                with PROCESS_FILE_QUEUE(relpath=relpath):
-                    yield self._snapshot_creator.store_local_snapshot(path, relpath)
+                (path, d) = yield self._queue.get()
+                with PROCESS_FILE_QUEUE(relpath=path.path):
+                    yield self._snapshot_creator.store_local_snapshot(path)
                     d.callback(None)
             except CancelledError:
                 break
@@ -188,7 +191,8 @@ class LocalSnapshotService(service.Service):
             )
 
         try:
-            relpath = u"/".join(path.segmentsFrom(self._magic_path))
+            # check that "path" is a descendant of magic_path
+            path.segmentsFrom(self._magic_path)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
@@ -208,7 +212,7 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._queue.put((path, relpath, d))
+        self._queue.put((path, d))
         return d
 
 
