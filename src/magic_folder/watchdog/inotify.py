@@ -38,8 +38,9 @@ from eliot import (
     start_action,
 )
 
+from pyutil.assertutil import _assert, precondition
+
 from allmydata.util.pollmixin import PollMixin
-from allmydata.util.assertutil import _assert, precondition
 from allmydata.util import encodingutil
 
 from ..util.eliotutil import (

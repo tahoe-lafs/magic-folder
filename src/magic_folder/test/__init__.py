@@ -62,6 +62,11 @@ def _configure_hypothesis():
     settings.register_profile(
         "magic-folder-fast",
         max_examples=1,
+        # see magic-folder-ci profile below for justification
+        suppress_health_check=[
+            HealthCheck.too_slow,
+        ],
+        deadline=None,
     )
 
     settings.register_profile(

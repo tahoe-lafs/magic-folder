@@ -12,6 +12,7 @@ from __future__ import (
 
 from json import (
     loads,
+    dumps,
 )
 
 from hyperlink import (
@@ -52,6 +53,8 @@ from twisted.web.http import (
     NOT_IMPLEMENTED,
     NOT_ALLOWED,
     NOT_ACCEPTABLE,
+    NOT_FOUND,
+    BAD_REQUEST,
     INTERNAL_SERVER_ERROR,
 )
 from twisted.internet.task import Clock
@@ -91,10 +94,12 @@ from .strategies import (
     folder_names,
     relative_paths,
     tokens,
+    author_names,
 )
 
 from ..snapshot import (
     create_local_author,
+    format_filenode,
 )
 from ..cli import (
     MagicFolderService,
@@ -111,11 +116,24 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from ..tahoe_client import (
     create_tahoe_client,
 )
+from ..status import (
+    WebSocketStatusService,
+)
 from .strategies import (
     local_authors,
+    tahoe_lafs_readonly_dir_capabilities,
+    tahoe_lafs_dir_capabilities,
+    tahoe_lafs_chk_capabilities,
+)
+from ..util.capabilities import (
+    to_readonly_capability,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -246,7 +264,8 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services):
+def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services,
+                     tahoe_client=None):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
@@ -265,6 +284,11 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
 
     :param bool start_folder_services: If ``True``, start the Magic Folder
         service objects.  Otherwise, don't.
+
+    :param TahoeClient tahoe_client: if provided, used as the
+        tahoe-client. If it is not provided, an 'empty' Tahoe client is
+        provided (which is likely to cause errors if any Tahoe endpoitns
+        are called via this test).
 
     :return: An object like the ``treq`` module.
     """
@@ -293,13 +317,19 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
             config[u"poll-interval"],
         )
 
+    if tahoe_client is None:
+        # the caller must provide a properly-set-up Tahoe client if
+        # they care about Tahoe responses. Since they didn't, an
+        # "empty" one is sufficient.
+        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource()))
     global_service = MagicFolderService(
         reactor,
         global_config,
+        WebSocketStatusService(),
         # Provide a TahoeClient so MagicFolderService doesn't try to look up a
         # Tahoe-LAFS node URL in the non-existent directory we supplied above
         # in its efforts to create one itself.
-        create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+        tahoe_client,
     )
 
     if start_folder_services:
@@ -310,7 +340,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         for name in folders:
             global_service.get_folder_service(name).startService()
 
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token)
+    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
 
 
 def magic_folder_config(author, state_path, local_directory):
@@ -653,4 +683,567 @@ class CreateSnapshotTests(SyncTestCase):
                     code_matcher=Equals(NOT_ACCEPTABLE),
                 ),
             ),
+        )
+
+    def test_add_snapshot_no_folder(self):
+        """
+        An error results using /v1/snapshot API on non-existent
+        folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
+
+class ParticipantsTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/participants/<folder>` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/participants")
+
+    def test_participants_no_folder(self):
+        """
+        An error results using /v1/participants API on non-existent
+        folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
+    @given(
+        folder_names(),
+        tahoe_lafs_readonly_dir_capabilities(),
+    )
+    def test_add_participant(self, folder_name, personal_dmd):
+        """
+        Adding a new participant works.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            create_local_author("iris"),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+        # we can't add a new participant if their DMD is the same as
+        # one we already have .. and because Hypothesis is 'sneaky' we
+        # have to make sure it's not our collective, either
+        assume(personal_dmd != folder_config["upload-dircap"])
+        assume(personal_dmd != to_readonly_capability(folder_config["upload-dircap"]))
+        assume(personal_dmd != folder_config["collective-dircap"])
+        assume(personal_dmd != to_readonly_capability(folder_config["collective-dircap"]))
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    "iris": format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(CREATED),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({})
+                    )
+                )
+            )
+        )
+
+        # confirm that the "list participants" API includes the added
+        # participant
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            u"iris": {
+                                u"personal_dmd": folder_config["upload-dircap"],
+                            },
+                            u'kelly': {
+                                u'personal_dmd': personal_dmd,
+                            }
+                        })
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_add_participant_wrong_json(self, author, folder_name):
+        """
+        Missing keys in 'participant' JSON produces error
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "not-the-author": {"name": "kelly"},
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "Require input: author, personal_dmd"})
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_add_participant_wrong_author_json(self, author, folder_name):
+        """
+        Missing keys in 'participant' JSON for 'author' produces error
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"not-the-name": "kelly"},
+                    "personal_dmd": "fake",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "'author' requires: name"})
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_participant_personal_dmd_non_dir(self, author, folder_name, personal_dmd):
+        """
+        When a new Personal DMD is passed that is not a directory
+        capability an error is produced.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "personal_dmd must be a directory-capability"})
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add_participant_personal_dmd_writable(self, author, folder_name, personal_dmd):
+        """
+        If the added Personal DMD is read-write an error is signaled
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "personal_dmd must be read-only"})
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_participant_list_internal_error(self, author, folder_name):
+        """
+        Listing participants reports a failure if there is an unexpected
+        internal error.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        # Arrange to have an "unexpected" error happen
+        class ErrorClient(object):
+            def __call__(self, *args, **kw):
+                raise Exception("an unexpected error")
+            def __getattr__(self, *args):
+                return self
+        tahoe_client = ErrorClient()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # list the participants
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "unexpected error processing request"})
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        tahoe_lafs_readonly_dir_capabilities(),
+    )
+    def test_add_participant_internal_error(self, author, folder_name, personal_dmd):
+        """
+        An internal error on participant adding is returned when something
+        truly unexpected happens.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            FilePath(self.mktemp()),
+            local_path,
+        )
+
+        # Arrange to have an "unexpected" error happen
+        class ErrorClient(object):
+            def __call__(self, *args, **kw):
+                raise Exception("an unexpected error")
+            def __getattr__(self, *args):
+                return self
+        tahoe_client = ErrorClient()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name),
+                dumps({
+                    "author": {"name": "kelly"},
+                    "personal_dmd": personal_dmd,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({"reason": "unexpected error processing request"})
+                    )
+                )
+            )
         )

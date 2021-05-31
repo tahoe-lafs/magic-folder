@@ -18,19 +18,28 @@ from twisted.internet.defer import (
     returnValue,
 )
 
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from allmydata.interfaces import (
-    IDirnodeURI,
+    IReadonlyDirectoryURI,
+    IDirectoryURI,
 )
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
-)
-from allmydata.util.eliotutil import (
-    inline_callbacks,
 )
 
 from .magicpath import (
     magic2path,
 )
+from .snapshot import (
+    RemoteAuthor,
+)
+from .tahoe_client import (
+    CannotAddDirectoryEntryError,
+)
+
 
 class IParticipant(Interface):
     """
@@ -63,6 +72,21 @@ class IParticipants(Interface):
             ``list`` of ``IParticipant`` providers representing all of the
             participants in the particular magic folder this object is
             associated with..
+        """
+
+    @inlineCallbacks
+    def add(author, personal_dmd_cap):
+        """
+        Add a new participant to this collective.
+
+        :param IRemoteAuthor author: personal details of new participant
+
+        :param bytes personal_dmd_cap: the read-capability of the new
+            participant (if it is a write-capability then it's "us"
+            but by definition we already have an "us" participant in
+            any existing Magic Folder and so that's an error here).
+
+        :returns IParticipant: the new participant
         """
 
 
@@ -119,7 +143,7 @@ class _CollectiveDirnodeParticipants(object):
         read-only one or a read-write one).
         """
         uri = tahoe_uri_from_string(value)
-        if IDirnodeURI.providedBy(uri):
+        if IReadonlyDirectoryURI.providedBy(uri) or IDirectoryURI.providedBy(uri):
             return
         raise TypeError(
             "Collective dirnode was {!r}, must be a directory node.".format(
@@ -133,14 +157,56 @@ class _CollectiveDirnodeParticipants(object):
         The Upload DMD must be a writable directory capability
         """
         uri = tahoe_uri_from_string(value)
-        if IDirnodeURI.providedBy(uri):
-            if not uri.is_readonly():
-                return
+        if IDirectoryURI.providedBy(uri):
+            return
         raise TypeError(
             "Upload dirnode was {!r}, must be a read-write directory node.".format(
                 value,
             ),
         )
+
+    @inlineCallbacks
+    def add(self, author, personal_dmd_cap):
+        """
+        IParticipants API
+        """
+        uri = tahoe_uri_from_string(personal_dmd_cap)
+        if not IReadonlyDirectoryURI.providedBy(uri):
+            raise ValueError(
+                "New participant Personal DMD must be read-only dircap"
+            )
+        if not isinstance(author, RemoteAuthor):
+            raise ValueError(
+                "Author must be a RemoteAuthor instance"
+            )
+        # semantically, it doesn't make sense to allow a second
+        # participant with the very same Personal DMD as another (even
+        # if the name/author is different). So, we check here .. but
+        # there is a window for race between the check and when we add
+        # the participant. The only real solution here would be a
+        # magic-folder-wide write-lock or to serialize all Tahoe
+        # operations (at least across one magic-folder).
+        participants = yield self.list()
+        if any(personal_dmd_cap == p.dircap for p in participants):
+            raise ValueError(
+                "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
+            )
+
+        # NB: we could check here if there is already a participant
+        # for this name .. however, there's a race between that check
+        # succeeding and adding the participant so we just try to add
+        # and let Tahoe send us an error by using "replace=False"
+        try:
+            yield self._tahoe_client.add_entry_to_mutable_directory(
+                self._collective_cap,
+                author.name,
+                personal_dmd_cap.encode("ascii"),
+                replace=False,
+            )
+        except CannotAddDirectoryEntryError:
+            raise ValueError(
+                u"Already have a participant called '{}'".format(author.name)
+            )
 
     @inlineCallbacks
     def list(self):

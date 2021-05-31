@@ -55,6 +55,8 @@ from twisted.internet.interfaces import (
 )
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
 
+from pyutil.assertutil import precondition
+
 from allmydata import uri
 from allmydata.interfaces import IImmutableFileNode,\
                                  NotEnoughSharesError
@@ -63,7 +65,6 @@ from allmydata.check_results import CheckResults, CheckAndRepairResults
 
 from allmydata.storage_client import StubServer
 from allmydata.util import log, iputil
-from allmydata.util.assertutil import precondition
 from allmydata.util.consumer import download_to_data
 
 from eliot import (

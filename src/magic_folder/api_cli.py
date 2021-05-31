@@ -2,6 +2,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import sys
+import json
 
 from twisted.internet.task import (
     react,
@@ -53,6 +54,105 @@ def add_snapshot(options):
         options['file'].decode("utf8"),
     )
     print("{}".format(res), file=options.stdout)
+
+
+class DumpStateOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder whose state to dump"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+def dump_state(options):
+    """
+    Dump the database / state for a particular folder
+    """
+    from nacl.encoding import (
+        HexEncoder,
+    )
+
+    global_config = options.parent.config
+    config = global_config.get_magic_folder(options['folder'])
+
+    author_info = "  author: {name} {public_key}".format(
+        name=config.author.name,
+        public_key=config.author.verify_key.encode(encoder=HexEncoder),
+    )
+
+    print(config.name, file=options.stdout)
+    print(author_info, file=options.stdout)
+    print("  stash_path: {}".format(config.stash_path.path), file=options.stdout)
+    print("  magic_path: {}".format(config.magic_path.path), file=options.stdout)
+    print("  collective: {}".format(config.collective_dircap), file=options.stdout)
+    print("  local snapshots:", file=options.stdout)
+    for snap_name in config.get_all_localsnapshot_paths():
+        print("    {}: ".format(snap_name), file=options.stdout)
+    print("  remote snapshots:", file=options.stdout)
+    for snap_name in config.get_all_remotesnapshot_paths():
+        snap = config.get_remotesnapshot(snap_name)
+        print("    {}: {}".format(snap_name, snap), file=options.stdout)
+
+
+class AddParticipantOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to add a participant to"),
+        ("author-name", "a", None, "Name of the new participant"),
+        ("personal-dmd", "p", None, "Read-capability of the participant's Personal DMD"),
+        # not yet
+        # ("author-verify-key", "k", None, "Base32-encoded verify key of the new participant"),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+            ("author-name", "--author-name / -a is required"),
+            ("personal-dmd", "--personal-dmd / -p is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+
+@inlineCallbacks
+def add_participant(options):
+    """
+    Add one new participant to an existing magic-folder
+    """
+    res = yield options.parent.get_client().add_participant(
+        options['folder'].decode("utf8"),
+        options['author-name'].decode("utf8"),
+        options['personal-dmd'].decode("utf8"),
+    )
+    print("{}".format(res), file=options.stdout)
+
+
+class ListParticipantsOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder participants to list"),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+
+@inlineCallbacks
+def list_participants(options):
+    """
+    List all participants in a magic-folder
+    """
+    res = yield options.parent.get_client().list_participants(
+        options['folder'].decode("utf8"),
+    )
+    print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
 class MagicFolderApiCommand(usage.Options):
@@ -108,6 +208,9 @@ class MagicFolderApiCommand(usage.Options):
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
+        ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
+        ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
+        ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -205,6 +308,9 @@ def run_magic_folder_api_options(options):
     so.stderr = options.stderr
     main_func = {
         "add-snapshot": add_snapshot,
+        "dump-state": dump_state,
+        "add-participant": add_participant,
+        "list-participants": list_participants,
     }[options.subCommand]
 
     # we want to let exceptions out to the top level if --debug is on

@@ -1,25 +1,35 @@
 from __future__ import unicode_literals
 
+import os
 import json
 
 import attr
 
+from nacl.signing import (
+    VerifyKey,
+)
 from nacl.encoding import (
     Base32Encoder,
 )
 
+from autobahn.twisted.resource import (
+    WebSocketResource,
+)
+
 from twisted.python.filepath import (
-    FilePath,
     InsecurePath,
 )
 from twisted.internet.defer import (
-    maybeDeferred,
+    inlineCallbacks,
+    returnValue,
 )
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
+from twisted.web.resource import (
+    NoResource,
+)
 from twisted.web.server import (
-    NOT_DONE_YET,
     Site,
 )
 from twisted.web import (
@@ -28,13 +38,33 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
+
+from klein import Klein
+
+from allmydata.uri import (
+    from_string as tahoe_uri_from_string,
+)
+from allmydata.interfaces import (
+    IDirnodeURI,
+)
 from allmydata.util.hashutil import (
     timing_safe_compare,
 )
 
+from .status import (
+    StatusFactory,
+    IStatus,
+)
 from .magicpath import (
     magic2path,
 )
+from .snapshot import (
+    create_author,
+)
+from .participants import (
+    participants_from_collective,
+)
+
 
 def magic_folder_resource(get_auth_token, v1_resource):
     """
@@ -97,15 +127,19 @@ class BearerTokenAuthorization(Resource, object):
         If it does not, return an ``Unauthorized`` resource.
         """
         if _is_authorized(request, self._get_auth_token):
+            # This resource should be transparent, so put the
+            # segement this resource is was expected to consume.
+            # See twisted.web.resource.getChildForRequest.
+            request.postpath.insert(0, request.prepath.pop())
             # Authorization checks out, let the protected resource do what it
             # will.
-            return self._resource.getChildWithDefault(path, request)
+            return self._resource
         # Don't let anything through that isn't authorized.
         return Unauthorized()
 
 
 @attr.s
-class APIv1(Resource, object):
+class APIv1(object):
     """
     Implement the ``/v1`` HTTP API hierarchy.
 
@@ -114,29 +148,119 @@ class APIv1(Resource, object):
     """
     _global_config = attr.ib()
     _global_service = attr.ib()
+    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
+    _tahoe_client = attr.ib()
 
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-        self.putChild(b"magic-folder", MagicFolderAPIv1(self._global_config))
-        self.putChild(b"snapshot", SnapshotAPIv1(self._global_config, self._global_service))
+    app = Klein()
 
+    @app.route("/status")
+    @inlineCallbacks
+    def status(self, request):
+        return WebSocketResource(StatusFactory(self._status_service))
 
-@attr.s
-class SnapshotAPIv1(Resource, object):
-    """
-    ``SnapshotAPIv1`` implements the ``/v1/snapshot`` portion of the HTTP API
-    resource hierarchy.
+    @app.route("/participants/<string:folder_name>", methods=['GET'])
+    @inlineCallbacks
+    def list_participants(self, request, folder_name):
+        """
+        List all participants of this folder
+        """
+        try:
+            folder_config = self._global_config.get_magic_folder(folder_name)
+        except ValueError:
+            returnValue(NoResource(b"{}"))
 
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
-    """
-    _global_config = attr.ib()
-    _global_service = attr.ib()
+        collective = participants_from_collective(
+            folder_config.collective_dircap,
+            folder_config.upload_dircap,
+            self._tahoe_client,
+        )
+        try:
+            participants = yield collective.list()
+        except Exception:
+            # probably should log this failure
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            returnValue(json.dumps({"reason": "unexpected error processing request"}).encode("utf-8"))
 
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
+        reply = {
+            part.name: {
+                "personal_dmd": part.dircap.decode("ascii"),
+                # not tracked properly yet
+                # "public_key": part.verify_key.encode(Base32Encoder),
+            }
+            for part in participants
+        }
+        request.setResponseCode(http.OK)
+        _application_json(request)
+        returnValue(json.dumps(reply).encode("utf8"))
 
-    def render_GET(self, request):
+    @app.route("/participants/<string:folder_name>", methods=['POST'])
+    @inlineCallbacks
+    def add_participant(self, request, folder_name):
+        """
+        Add a new participant to this folder with details from the JSON-encoded body.
+        """
+        try:
+            folder_config = self._global_config.get_magic_folder(folder_name)
+        except ValueError:
+            returnValue(NoResource(b"{}"))
+
+        body = request.content.read()
+        try:
+            participant = json.loads(body)
+            required_keys = {
+                "author",
+                "personal_dmd",
+            }
+            required_author_keys = {
+                "name",
+                # not yet
+                # "public_key_base32",
+            }
+            if set(participant.keys()) != required_keys:
+                raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
+            if set(participant["author"].keys()) != required_author_keys:
+                raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
+
+            author = create_author(
+                participant["author"]["name"],
+                # we don't yet properly track keys but need one
+                # here .. this won't be correct, but we won't use
+                # it .. following code still only looks at the
+                # .name attribute
+                # see https://github.com/LeastAuthority/magic-folder/issues/331
+                VerifyKey(os.urandom(32)),
+            )
+
+            dmd = tahoe_uri_from_string(participant["personal_dmd"])
+            if not IDirnodeURI.providedBy(dmd):
+                raise _InputError("personal_dmd must be a directory-capability")
+            if not dmd.is_readonly():
+                raise _InputError("personal_dmd must be read-only")
+            personal_dmd_cap = participant["personal_dmd"]
+        except _InputError as e:
+            request.setResponseCode(http.BAD_REQUEST)
+            returnValue(json.dumps({"reason": str(e)}))
+
+        collective = participants_from_collective(
+            folder_config.collective_dircap,
+            folder_config.upload_dircap,
+            self._tahoe_client,
+        )
+        try:
+            yield collective.add(author, personal_dmd_cap)
+        except Exception:
+            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+            _application_json(request)
+            # probably should log this error, at least for developers (so eliot?)
+            returnValue(json.dumps({"reason": "unexpected error processing request"}))
+
+        request.setResponseCode(http.CREATED)
+        _application_json(request)
+        returnValue(b"{}")
+
+    @app.route("/snapshot", methods=['GET'])
+    def list_all_sanpshots(self, request):
         """
         Respond with all of the snapshots for all of the files in all of the
         folders.
@@ -144,24 +268,18 @@ class SnapshotAPIv1(Resource, object):
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
-    def getChild(self, name, request):
-        name_u = name.decode("utf-8")
-        folder_config = self._global_config.get_magic_folder(name_u)
-        folder_service = self._global_service.get_folder_service(name_u)
-        return MagicFolderSnapshotAPIv1(folder_config, folder_service)
+    @app.route("/snapshot/<string:folder_name>", methods=['POST'])
+    @inlineCallbacks
+    def add_snapshot(self, request, folder_name):
+        """
+        Create a new Snapshot
+        """
+        try:
+            folder_config = self._global_config.get_magic_folder(folder_name)
+            folder_service = self._global_service.get_folder_service(folder_name)
+        except ValueError:
+            returnValue(NoResource(b"{}"))
 
-
-@attr.s
-class MagicFolderSnapshotAPIv1(Resource, object):
-    """
-    """
-    _folder_config = attr.ib()
-    _folder_service = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def render_POST(self, request):
         path_u = request.args[b"path"][0].decode("utf-8")
 
         # preauthChild allows path-separators in the "path" (i.e. not
@@ -172,33 +290,68 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         # or a relative path that reaches up too far.
 
         try:
-            path = self._folder_config.magic_path.preauthChild(path_u)
+            path = folder_config.magic_path.preauthChild(path_u)
         except InsecurePath as e:
             request.setResponseCode(http.NOT_ACCEPTABLE)
             _application_json(request)
-            return json.dumps({u"reason": str(e)})
+            returnValue(json.dumps({u"reason": str(e)}))
 
-        adding = maybeDeferred(
-            self._folder_service.local_snapshot_service.add_file,
-            path,
-        )
-        def added(ignored):
-            request.setResponseCode(http.CREATED)
-            _application_json(request)
-            request.write(b"{}")
-
-        def failed(reason):
+        try:
+            yield folder_service.local_snapshot_service.add_file(path)
+        except Exception as e:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
-            request.write(json.dumps({u"reason": reason.getErrorMessage()}))
+            returnValue(json.dumps({u"reason": str(e)}))
 
-        adding.addCallbacks(
-            added,
-            failed,
-        ).addCallback(
-            lambda ignored: request.finish(),
-        )
-        return NOT_DONE_YET
+        request.setResponseCode(http.CREATED)
+        _application_json(request)
+        returnValue(b"{}")
+
+    @app.route("/magic-folder", methods=["GET"])
+    def list_folders(self, request):
+        """
+        Render a list of Magic Folders and some of their details, encoded as JSON.
+        """
+        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        _application_json(request)  # set reply headers
+
+        def get_folder_info(name, mf):
+            info = {
+                u"name": name,
+                u"author": {
+                    u"name": mf.author.name,
+                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                },
+                u"stash_path": mf.stash_path.path,
+                u"magic_path": mf.magic_path.path,
+                u"poll_interval": mf.poll_interval,
+                u"is_admin": mf.is_admin(),
+            }
+            if include_secret_information:
+                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+                info[u"collective_dircap"] = mf.collective_dircap
+                info[u"upload_dircap"] = mf.upload_dircap
+            return info
+
+        def all_folder_configs():
+            for name in sorted(self._global_config.list_magic_folders()):
+                yield (name, self._global_config.get_magic_folder(name))
+
+        return json.dumps({
+            name: get_folder_info(name, config)
+            for name, config
+            in all_folder_configs()
+        })
+
+
+
+
+class _InputError(ValueError):
+    """
+    Local errors with our input validation to report back to HTTP
+    clients.
+    """
+
 
 
 def _application_json(request):
@@ -237,18 +390,7 @@ def _list_all_folder_snapshots(folder_config):
         representing all snapshots for that file.
     """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
-        absolute_path = magic2path(snapshot_path)
-        if not absolute_path.startswith(folder_config.magic_path.path):
-            raise ValueError(
-                "Found path {!r} in local snapshot database for magic-folder {!r} "
-                "that is outside of local magic folder directory {!r}.".format(
-                    absolute_path,
-                    folder_config.name,
-                    folder_config.magic_path.path,
-                ),
-            )
-        relative_segments = FilePath(absolute_path).segmentsFrom(folder_config.magic_path)
-        relative_path = u"/".join(relative_segments)
+        relative_path = magic2path(snapshot_path)
         yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
 
 
@@ -307,55 +449,6 @@ def _snapshot_to_json(snapshot):
     return result
 
 
-@attr.s
-class MagicFolderAPIv1(Resource, object):
-    """
-    Implement the ``/v1/magic-folder`` HTTP API hierarchy.
-
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
-    """
-    _global_config = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def render_GET(self, request):
-        """
-        Render a list of Magic Folders and some of their details, encoded as JSON.
-        """
-        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
-        _application_json(request)  # set reply headers
-
-        def get_folder_info(name, mf):
-            info = {
-                u"name": name,
-                u"author": {
-                    u"name": mf.author.name,
-                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
-                },
-                u"stash_path": mf.stash_path.path,
-                u"magic_path": mf.magic_path.path,
-                u"poll_interval": mf.poll_interval,
-                u"is_admin": mf.is_admin(),
-            }
-            if include_secret_information:
-                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
-                info[u"collective_dircap"] = mf.collective_dircap
-                info[u"upload_dircap"] = mf.upload_dircap
-            return info
-
-        def all_folder_configs():
-            for name in sorted(self._global_config.list_magic_folders()):
-                yield (name, self._global_config.get_magic_folder(name))
-
-        return json.dumps({
-            name: get_folder_info(name, config)
-            for name, config
-            in all_folder_configs()
-        })
-
-
 class Unauthorized(Resource):
     """
     An ``Unauthorized`` resource renders an HTTP *UNAUTHORIZED* response for
@@ -375,7 +468,7 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, tahoe_client, status_service):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -384,9 +477,13 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :param get_auth_token: a callable that returns the current authentication token
 
+    :param TahoeClient tahoe_client: a way to access Tahoe-LAFS
+
+    :param IStatus status_service: our status reporting service
+
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service)
+    v1_resource = APIv1(global_config, global_service, status_service, tahoe_client).app.resource()
     root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,

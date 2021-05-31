@@ -17,14 +17,14 @@ workflows:
       # Contexts are managed in the CircleCI web interface:
       #
       #  https://app.circleci.com/settings/organization/github/LeastAuthority/contexts
-      - "debian-9": &DOCKERHUB_CONTEXT
+      - "debian-10": &DOCKERHUB_CONTEXT
           context:
             - "dockerhub-auth"
 
-      - "debian-8":
+      - "debian-9":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "debian-9"
+            - "debian-10"
 
       - "ubuntu-20.04":
           <<: *DOCKERHUB_CONTEXT
@@ -33,20 +33,14 @@ workflows:
           requires:
             - "ubuntu-20.04"
 
-      - "fedora-32":
+      - "fedora-34":
           <<: *DOCKERHUB_CONTEXT
-      - "fedora-31":
+      - "fedora-33":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "fedora-32"
+            - "fedora-34"
 
       - "centos-8":
-          <<: *DOCKERHUB_CONTEXT
-
-      - "slackware-14.2":
-          <<: *DOCKERHUB_CONTEXT
-
-      - "nixos-19.09":
           <<: *DOCKERHUB_CONTEXT
 
       # Test against PyPy 2.7/7.3.0
@@ -69,7 +63,7 @@ workflows:
           requires:
             # If the unit test suite doesn't pass, don't bother running the
             # integration tests.
-            - "debian-9"
+            - "debian-10"
 
   images:
     # Build the Docker images used by the ci jobs.  This makes the ci jobs
@@ -81,26 +75,24 @@ workflows:
           filters:
             branches:
               only:
-                - "master"
+                - "main"
 
     jobs:
-      - "build-image-debian-8":
-          <<: *DOCKERHUB_CONTEXT
       - "build-image-debian-9":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-debian-10":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-ubuntu-18.04":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-ubuntu-20.04":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-31":
+      - "build-image-fedora-33":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-32":
+      - "build-image-fedora-34":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-centos-8":
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-slackware-14.2":
-          <<: *DOCKERHUB_CONTEXT
-      - "build-image-pypy-2.7-7.3.0-buster":
+      - "build-image-pypy-2.7-7.3.4-buster":
           <<: *DOCKERHUB_CONTEXT
 
 
@@ -125,7 +117,7 @@ jobs:
 
   lint:
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "circleci/python:2"
 
     steps:
@@ -141,10 +133,10 @@ jobs:
           command: |
             ~/.local/bin/tox -e codechecks
 
-  debian-9: &DEBIAN
+  debian-10: &DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:9"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:10"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -206,6 +198,9 @@ jobs:
           # in the project source checkout.
           path: "/tmp/project/_trial_temp/test.log"
 
+      - store_artifacts: &STORE_ELIOT_LOG
+          path: "/tmp/project/eliot.log"
+
       - store_artifacts: &STORE_OTHER_ARTIFACTS
           # Store any other artifacts, too.  This is handy to allow other jobs
           # sharing most of the definition of this one to be able to
@@ -218,19 +213,19 @@ jobs:
             /tmp/venv/bin/codecov
 
 
-  debian-8:
+  debian-9:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:8"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/debian:9"
         user: "nobody"
 
 
   pypy2.7-7.3:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/pypy:2.7-7.3.0-buster"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/pypy:2.7-7.3.4-buster"
         user: "nobody"
 
     environment:
@@ -279,7 +274,7 @@ jobs:
 
     steps:
       - "checkout"
-      # DRY, YAML-style.  See the debian-9 steps.
+      # DRY, YAML-style.  See the debian-10 steps.
       - run: *SETUP_VIRTUALENV
       - run: *RUN_TESTS
 
@@ -287,7 +282,7 @@ jobs:
   ubuntu-18.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:18.04"
         user: "nobody"
 
@@ -295,14 +290,14 @@ jobs:
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
 
   centos-8: &RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/centos:8"
         user: "nobody"
 
@@ -318,126 +313,26 @@ jobs:
       - run: *RUN_TESTS
       - store_test_results: *STORE_TEST_RESULTS
       - store_artifacts: *STORE_TEST_LOG
+      - store_artifacts: *STORE_ELIOT_LOG
       - store_artifacts: *STORE_OTHER_ARTIFACTS
       - run: *SUBMIT_COVERAGE
 
 
-  fedora-31:
+  fedora-33:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:31"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:33"
         user: "nobody"
 
 
-  fedora-32:
+  fedora-34:
     <<: *RHEL_DERIV
     docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:32"
+      - auth: *DOCKERHUB_AUTH
+        image: "magicfolderci/fedora:34"
         user: "nobody"
 
-
-  slackware-14.2:
-    docker:
-      - <<: *DOCKERHUB_AUTH
-        image: "magicfolderci/slackware:14.2"
-        user: "nobody"
-
-    environment: *UTF_8_ENVIRONMENT
-
-    # pip cannot install packages if the working directory is not readable.
-    # We want to run a lot of steps as nobody instead of as root.
-    working_directory: "/tmp/project"
-
-    steps:
-      - "checkout"
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
-      - store_test_results: *STORE_TEST_RESULTS
-      - store_artifacts: *STORE_TEST_LOG
-      - store_artifacts: *STORE_OTHER_ARTIFACTS
-      - run: *SUBMIT_COVERAGE
-
-  nixos-19.09:
-    docker:
-      # Run in a highly Nix-capable environment.
-      - <<: *DOCKERHUB_AUTH
-        image: "nixorg/nix:circleci"
-
-    environment:
-      NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09-small.tar.gz"
-
-    steps:
-      - "checkout"
-
-      - restore_cache:
-          # Get all of Nix's state relating to the particular revision of
-          # nixpkgs we're using.  It will always be the same.  CircleCI
-          # artifacts and nixpkgs store objects are probably mostly hosted in
-          # the same place (S3) so there's not a lot of difference for
-          # anything that's pre-built.  For anything we end up building
-          # ourselves, though, this saves us all of the build time (less the
-          # download time).
-          #
-          # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
-          name: "Restore Nix Store Paths"
-          keys:
-            # Construct cache keys that allow sharing as long as nixpkgs
-            # revision is unchanged.
-            #
-            # If nixpkgs changes then potentially a lot of cached packages for
-            # the base system will be invalidated so we may as well drop them
-            # and make a new cache with the new packages.
-            - magic_folder-nix-store-v1-19.09-small
-            - magic_folder-nix-store-v1-
-
-      - "run":
-          name: "Build and Test"
-          command: |
-            # CircleCI build environment looks like it has a zillion and a
-            # half cores.  Don't let Nix autodetect this high core count
-            # because it blows up memory usage and fails the test run.  Pick a
-            # number of cores that suites the build environment we're paying
-            # for (the free one!).
-            #
-            # Also, let it run more than one job at a time because we have to
-            # build a couple simple little dependencies that don't take
-            # advantage of multiple cores and we get a little speedup by doing
-            # them in parallel.
-            #
-            # Keep failed build intermediates so we can upload logs for failed
-            # runs as artifacts, too.
-            nix-build --keep-failed --cores 3 --max-jobs 2 nix/
-
-      - "run":
-          name: "Prepare logs for upload"
-          # They need to be moved to the right place always, whether tests
-          # passed or failed.
-          when: "always"
-          command: |
-            mkdir -p /tmp/artifacts/logs
-
-            # Let a glob expand to nothing if there are no matches.
-            shopt -s nullglob
-
-            # Copy any logs from a failed build we can find.  Note that in
-            # this CircleCI build context, the source directory is named
-            # "project" instead of magic-folder.
-            for p in /tmp/nix-build-*-magic-folder-*.drv-0/project/_trial_temp/*; do
-              out="/tmp/artifacts/logs/$(basename "$p")"
-              mkdir "$out"
-              cp "$p"/*.log "$out"
-            done
-
-      - store_artifacts:
-          path: "/tmp/artifacts/logs"
-
-      - save_cache:
-          name: "Cache Nix Store Paths"
-          key: magic_folder-nix-store-v1-19.09-small
-          paths:
-            - "/nix"
 
   build-image: &BUILD_IMAGE
     # This is a template for a job to build a Docker image that has as much of
@@ -447,7 +342,7 @@ jobs:
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
     docker:
-      - <<: *DOCKERHUB_AUTH
+      - auth: *DOCKERHUB_AUTH
         image: "docker:17.05.0-ce-git"
 
     environment:
@@ -476,20 +371,20 @@ jobs:
             docker push magicfolderci/${DISTRO}:${TAG}
 
 
-  build-image-debian-8:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "debian"
-      TAG: "8"
-
-
   build-image-debian-9:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "debian"
       TAG: "9"
+
+
+  build-image-debian-10:
+    <<: *BUILD_IMAGE
+
+    environment:
+      DISTRO: "debian"
+      TAG: "10"
 
 
   build-image-ubuntu-18.04:
@@ -516,33 +411,25 @@ jobs:
       TAG: "8"
 
 
-  build-image-fedora-31:
+  build-image-fedora-33:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "fedora"
-      TAG: "31"
+      TAG: "33"
 
 
-  build-image-fedora-32:
+  build-image-fedora-34:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "fedora"
-      TAG: "32"
+      TAG: "34"
 
 
-  build-image-slackware-14.2:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "slackware"
-      TAG: "14.2"
-
-
-  build-image-pypy-2.7-7.3.0-buster:
+  build-image-pypy-2.7-7.3.4-buster:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "pypy"
-      TAG: "2.7-7.3.0-buster"
+      TAG: "2.7-7.3.4-buster"

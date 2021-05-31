@@ -39,7 +39,8 @@ from ..util.eliotutil import (
 from twisted.internet import reactor
 from twisted.internet.threads import deferToThread
 
-from allmydata.util.assertutil import _assert, precondition
+from pyutil.assertutil import _assert, precondition
+
 from allmydata.util.encodingutil import quote_output
 from allmydata.util import log, fileutil
 from allmydata.util.pollmixin import PollMixin

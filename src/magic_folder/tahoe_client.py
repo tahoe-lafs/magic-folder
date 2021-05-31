@@ -36,6 +36,11 @@ from eliot.twisted import (
 
 import attr
 
+from util.capabilities import (
+    is_directory_cap,
+    is_file_cap,
+)
+
 
 def _request(http_client, method, url, **kwargs):
     """
@@ -272,11 +277,44 @@ class TahoeClient(object):
         returnValue({
             name: (
                 json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
-                json_metadata[u"metadata"],
+                json_metadata.get(u"metadata", {}),
             )
             for (name, (child_kind, json_metadata))
             in dirinfo[u"children"].items()
         })
+
+    @inlineCallbacks
+    def directory_data(self, dir_cap):
+        """
+        Get the 'raw' directory data for a directory-capability. If you
+        just want to list the entries, `list_directory` is better.
+
+        :param bytes dir_cap: the capability-string of the directory.
+
+        :returns dict: the JSON representing this directory
+        """
+        if not is_directory_cap(dir_cap):
+            raise ValueError(
+                "{} is not a directory-capability".format(dir_cap)
+            )
+        api_uri = self.url.child(
+            u"uri",
+            dir_cap.decode("ascii"),
+        ).add(
+            u"t",
+            u"json",
+        ).to_uri().to_text().encode("ascii")
+
+        response = yield self.http_client.get(
+            api_uri,
+        )
+        if response.code != 200:
+            content = yield response.content()
+            raise TahoeAPIError(response.code, content)
+
+        raw_data = yield readBody(response)
+        _, dirinfo = json.loads(raw_data)
+        returnValue(dirinfo)
 
     @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
@@ -330,17 +368,34 @@ class TahoeClient(object):
         returnValue(capability_string)
 
     @inlineCallbacks
-    def download_capability(self, cap):
+    def download_file(self, cap):
         """
-        Retrieve the raw data for a capability from Tahoe
+        Retrieve the raw data for a capability from Tahoe. It is an error
+        if the capability-string is a directory-capability, since the
+        Tahoe `/uri` endpoint treats those specially.
 
         :param cap: a capability-string
 
         :returns: bytes
         """
-        get_uri = self.url.child(u"uri").replace(
-            query=[(u"uri", cap.decode("ascii"))],
-        )
+        # Visiting /uri with a directory-capability causes Tahoe to
+        # render an HTML page .. instead adding ?t=json tells it to
+        # send the JSON instead. We can't just use ?t=json all the
+        # time though, because for non-directories it returns the
+        # metadata, not the data. So, the caller needs to know if they
+        # have a dir-cap or not and call list_directory() or
+        # directory_data() to get "raw" representation
+
+        # we further insist that this is "a file capability" because
+        # the API says "_file" in it
+        if not is_file_cap(cap):
+            raise ValueError(
+                "{} is not a file capability".format(cap)
+            )
+
+        query_args = [(u"uri", cap.decode("ascii"))]
+
+        get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
             self.http_client,
             b"GET",

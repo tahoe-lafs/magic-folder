@@ -7,7 +7,8 @@ from twisted.internet import reactor, defer
 from twisted.python import failure
 from twisted.trial import unittest
 
-from allmydata.util.assertutil import precondition
+from pyutil.assertutil import precondition
+
 from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encoding,
                                          get_io_encoding)
 
