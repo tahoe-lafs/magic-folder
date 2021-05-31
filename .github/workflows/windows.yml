@@ -25,10 +25,15 @@ jobs:
 
     # Get MS VC++ 9 aka Visual Studio 2008, required to build Python 2.7
     # extensions (zfec via Tahoe-LAFS).
+    - name: Build local chocloatey package for MSVC 9.0 for Python 2.7
+      uses: "crazy-max/ghaction-chocolatey@v1"
+      with:
+        args: "pack .github/vcpython27/vcpython27.nuspec"
+
     - name: Install MSVC 9.0 for Python 2.7
       uses: "crazy-max/ghaction-chocolatey@v1"
       with:
-        args: "install vcpython27"
+        args: "install --source=.;https://chocolatey.org/api/v2/ vcpython27"
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
@@ -88,10 +93,15 @@ jobs:
 
     # Get MS VC++ 9 aka Visual Studio 2008, required to build Python 2.7
     # extensions (zfec via Tahoe-LAFS).
+    - name: Build local chocloatey package for MSVC 9.0 for Python 2.7
+      uses: "crazy-max/ghaction-chocolatey@v1"
+      with:
+        args: "pack .github/vcpython27/vcpython27.nuspec"
+
     - name: Install MSVC 9.0 for Python 2.7
       uses: "crazy-max/ghaction-chocolatey@v1"
       with:
-        args: "install vcpython27"
+        args: "install --source=.;https://chocolatey.org/api/v2/ vcpython27"
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
