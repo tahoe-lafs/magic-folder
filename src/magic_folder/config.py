@@ -397,7 +397,7 @@ def load_global_configuration(basedir):
     # but this is unsupported until Python 3.4.
     if not db_fname.exists():
         raise ValueError(
-            "{!r} doesn't exist.".format(db_fname.path),
+            "'{}' doesn't exist.".format(db_fname.path),
         )
 
     connection = _upgraded(
