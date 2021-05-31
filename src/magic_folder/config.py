@@ -1354,9 +1354,11 @@ class GlobalConfigDatabase(object):
                 "'{}' does not exist".format(magic_path.path)
             )
         state_path = self._get_default_state_path(name).asTextMode("utf-8")
+        from eliot import Message
+        Message.new(folder_name=name, state_path=state_path.path).write()
         if state_path.asBytesMode("utf-8").exists():
             raise ValueError(
-                "'{}' already exists".format(state_path.path)
+                "magic-folder state directory {}' already exists".format(state_path.path)
             )
 
         stash_path = state_path.child(u"stash")
