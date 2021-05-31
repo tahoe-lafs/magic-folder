@@ -219,7 +219,7 @@ def create_testing_http_client(reactor, config, global_service, get_api_token, t
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service, status_service, tahoe_client)
+    v1_resource = APIv1(config, global_service, status_service, tahoe_client).app.resource()
     root = magic_folder_resource(get_api_token, v1_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),

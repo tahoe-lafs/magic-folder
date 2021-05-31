@@ -83,6 +83,13 @@ SEGMENT_ALPHABET = one_of(
     just(u"."),
 )
 
+FOLDER_ALPHABET = characters(
+    blacklist_categories=(
+        # Exclude surrogates.  They're complicated.
+        "Cs",
+    ),
+    blacklist_characters=(u"\x00", u"/"),
+)
 
 def path_segments(alphabet=SEGMENT_ALPHABET):
     """
@@ -161,6 +168,7 @@ def folder_names():
     Build unicode strings which are usable as magic folder names.
     """
     return text(
+        alphabet=FOLDER_ALPHABET,
         min_size=1,
     ).map(
         normalize,

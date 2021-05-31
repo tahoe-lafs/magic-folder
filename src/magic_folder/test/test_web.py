@@ -685,6 +685,41 @@ class CreateSnapshotTests(SyncTestCase):
             ),
         )
 
+    def test_add_snapshot_no_folder(self):
+        """
+        An error results using /v1/snapshot API on non-existent
+        folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
 
 class ParticipantsTests(SyncTestCase):
     """
@@ -718,6 +753,20 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
                 self.url.child("a-folder-that-doesnt-exist"),
             ),
             succeeded(
