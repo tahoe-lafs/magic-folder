@@ -247,6 +247,17 @@ STORE_OR_UPDATE_SNAPSHOTS = ActionType(
 )
 
 
+# Translation table for magic folder names to fs safe names.
+# This maps characters that windows doesn't allow to %-encoded versions.
+# We specifically don't translate `/` and `\` since those characters are not
+# allowed. While `.` and ` ` are allowed, they are striped at the end of a path
+# so we encode them as well.
+MAGIC_FOLDER_FS_TRANSLATION = {
+    ord(char): u"%{:2X}".format(ord(char))
+    for char in ("%", ".", " ", "*", ":", "<", ">", "?", "\"", "|")
+}
+
+
 class LocalSnapshotCollision(Exception):
     """
     An attempt was made to insert a local snapshot into the database but the
@@ -1260,7 +1271,9 @@ class GlobalConfigDatabase(object):
             magic-folder. This directory will not exist and will be
             a sub-directory of the config location.
         """
-        return self.basedir.child(name)
+        return self.basedir.child(
+            name.translate(MAGIC_FOLDER_FS_TRANSLATION)
+        )
 
     def remove_magic_folder(self, name):
         """
