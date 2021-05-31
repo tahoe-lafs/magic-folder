@@ -259,8 +259,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         magic_path = basedir.preauthChild(relative_magic_path)
         magic_path.asBytesMode("utf-8").makedirs()
 
-        state_path = basedir.child(u"state")
-
         target_path = magic_path.preauthChild(file_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.asBytesMode("utf-8").setContent(content)
@@ -268,7 +266,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         global_config.create_magic_folder(
             name,
             magic_path,
-            state_path,
             author,
             collective_dircap,
             upload_dircap,

@@ -315,7 +315,6 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         global_config.create_magic_folder(
             name,
             config[u"magic-path"],
-            config[u"state-path"],
             config[u"author"],
             config[u"collective-dircap"],
             config[u"upload-dircap"],
@@ -348,12 +347,11 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
 
 
-def magic_folder_config(author, state_path, local_directory):
+def magic_folder_config(author, local_directory):
     # see also treq_for_folders() where these dicts are turned into
     # real magic-folder configs
     return {
         u"magic-path": local_directory,
-        u"state-path": state_path,
         u"author": author,
         u"collective-dircap": u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
         u"upload-dircap": u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
@@ -423,7 +421,7 @@ class ListMagicFolderTests(SyncTestCase):
             basedir,
             AUTH_TOKEN,
             {
-                name: magic_folder_config(self.author, FilePath(self.mktemp()), path_u)
+                name: magic_folder_config(self.author, path_u)
                 for (name, path_u)
                 in folders.items()
             },
@@ -497,7 +495,7 @@ class CreateSnapshotTests(SyncTestCase):
             object(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            {folder_name: magic_folder_config(author, local_path)},
             # The interesting behavior of this test hinges on this flag.  We
             # decline to start the folder services here.  Therefore, no local
             # snapshots will ever be created.  This lets us observe the
@@ -540,7 +538,7 @@ class CreateSnapshotTests(SyncTestCase):
             object(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            {folder_name: magic_folder_config(author, local_path)},
             # This test carefully targets a failure mode that doesn't require
             # the service to be running.
             start_folder_services=False,
@@ -594,7 +592,7 @@ class CreateSnapshotTests(SyncTestCase):
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            {folder_name: magic_folder_config(author, local_path)},
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.
@@ -670,7 +668,7 @@ class CreateSnapshotTests(SyncTestCase):
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, FilePath(self.mktemp()), local_path)},
+            {folder_name: magic_folder_config(author, local_path)},
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.
@@ -794,7 +792,6 @@ class ParticipantsTests(SyncTestCase):
 
         folder_config = magic_folder_config(
             create_local_author("iris"),
-            FilePath(self.mktemp()),
             local_path,
         )
         # we can't add a new participant if their DMD is the same as
@@ -892,7 +889,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 
@@ -955,7 +951,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 
@@ -1021,7 +1016,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 
@@ -1086,7 +1080,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 
@@ -1151,7 +1144,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 
@@ -1207,7 +1199,6 @@ class ParticipantsTests(SyncTestCase):
         local_path.makedirs()
         folder_config = magic_folder_config(
             create_local_author(author),
-            FilePath(self.mktemp()),
             local_path,
         )
 

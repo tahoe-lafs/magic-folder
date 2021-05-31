@@ -102,7 +102,7 @@ FOLDER_ALPHABET = characters(
         # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
         "Cc",
     ),
-    blacklist_characters=(u"\x00", u"/"),
+    blacklist_characters=(u"\x00", u"/", u"\\"),
 )
 
 def _valid_path_segment(segment):
