@@ -103,6 +103,13 @@ FOLDER_ALPHABET = characters(
     blacklist_characters=(u"\x00", u"/"),
 )
 
+def _valid_path_segment(segment):
+    if platformType == "win32":
+        # https://docs.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/file-folder-name-whitespace-characters
+        return not segment.endswith((u".", u" "))
+    else:
+        return True
+
 def path_segments(alphabet=SEGMENT_ALPHABET):
     """
     Build unicode strings which are usable as individual segments in a
@@ -128,6 +135,8 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
         lambda segment: segment not in {u".", u".."},
     ).map(
         normalize,
+    ).filter(
+        _valid_path_segment
     )
 
 def path_segments_without_dotfiles(path_segments=path_segments()):
