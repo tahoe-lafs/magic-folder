@@ -110,7 +110,7 @@ class TestGlobalConfig(SyncTestCase):
         path passed to it already exists.
         """
         self.temp.makedirs()
-        with ExpectedException(ValueError, ".*{}.*".format(self.temp.path)):
+        with ExpectedException(ValueError, ".*{}.*".format(escape(self.temp.path))):
             create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
 
     def test_load_db(self):
@@ -134,7 +134,7 @@ class TestGlobalConfig(SyncTestCase):
         does not exist.
         """
         non_dir = self.temp.child("non-existent")
-        with ExpectedException(ValueError, ".*{}.*".format(non_dir.path)):
+        with ExpectedException(ValueError, ".*{}.*".format(escape(non_dir.path))):
             load_global_configuration(non_dir)
 
     def test_rotate_api_key(self):
@@ -269,7 +269,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
-        with ExpectedException(ValueError, ".*{}.*".format(magic.path)):
+        with ExpectedException(ValueError, ".*{}.*".format(escape(magic.path))):
             config.create_magic_folder(
                 u"foo",
                 magic,
@@ -287,7 +287,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         state = self.temp.child("state")
         magic.makedirs()
         state.makedirs()  # shouldn't pre-exist, though
-        with ExpectedException(ValueError, ".*{}.*".format(state.path)):
+        with ExpectedException(ValueError, ".*{}.*".format(escape(state.path))):
             config.create_magic_folder(
                 u"foo",
                 magic,
