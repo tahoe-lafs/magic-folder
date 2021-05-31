@@ -1272,7 +1272,7 @@ class GlobalConfigDatabase(object):
             a sub-directory of the config location.
         """
         return self.basedir.child(
-            name.translate(MAGIC_FOLDER_FS_TRANSLATION)
+            "folder-" + name.translate(MAGIC_FOLDER_FS_TRANSLATION)
         )
 
     def remove_magic_folder(self, name):
