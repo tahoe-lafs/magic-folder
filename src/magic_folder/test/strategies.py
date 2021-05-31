@@ -67,6 +67,12 @@ from ..snapshot import (
     LocalSnapshot,
 )
 
+if platformType == "win32":
+    INVALID_FILENAME_CHARACTERS = (u"\x00", u"/", u"\\", ":", "\"", "?", "<", ">", "|", "*")
+else:
+    INVALID_FILENAME_CHARACTERS = (u"\x00", u"/")
+
+
 # There are problems handling non-ASCII paths on platforms without UTF-8
 # filesystem encoding.  Punt on them for now. :(
 #
@@ -82,7 +88,7 @@ DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
         # Exclude control characters
         "Cc",
     ),
-    blacklist_characters=(u"\x00", u".", u"/"),
+    blacklist_characters=(u".",) + INVALID_FILENAME_CHARACTERS,
 )
 SEGMENT_ALPHABET = one_of(
     DOTLESS_SLASHLESS_SEGMENT_ALPHABET,
