@@ -54,7 +54,6 @@ jobs:
         pip install wheel tox
 
     - name: Test with tox
-      continue-on-error: true
       run: tox -e py27-coverage
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
@@ -62,7 +61,7 @@ jobs:
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v1"
-      if: "failure()"
+      if: "always()"
       with:
         name: "eliot.log"
         path: "eliot.log"
