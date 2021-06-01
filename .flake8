@@ -1,10 +1,8 @@
 [flake8]
-ignore =
-    # defaults
-    E121,E123,E126,E226,E24,E703,E704,
+extend-ignore =
     # existing errors
     E30,E501,
-    E201,E202,E203,E122,E124,E128,E221,E222,E225,E226,E227,E26,E401,E402,E502,E712,E722,W503,W504,E731,
+    E124,E26,E401,E402,E731
     # flake8-future-import '__future__ import "..." present'
     FI5
     # flake8-future-import '__future__ import "unicode_literals" missing'
@@ -14,3 +12,9 @@ extend-exclude = src/magic_folder/_version.py
 min-version = 2.7
 require-code = true
 
+
+per-file-ignores =
+    # The inotify code has a number of errors that don't exist elsewhere
+    # so turn the off individually.
+    src/magic_folder/*/inotify.py: E201,E203,E221,E222,E225,E128,E502,E712,E722,W503,W504
+    src/magic_folder/*/fake_inotify.py: W504

@@ -341,9 +341,9 @@ class TahoeClient(object):
         :return Deferred[None]: or exception on error
         """
 
-        if replace == True:
+        if replace is True:
             replace_arg = u"true"
-        elif replace == False:
+        elif replace is False:
             replace_arg = u"false"
         else:
             raise TypeError("replace value should be a boolean")

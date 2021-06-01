@@ -99,7 +99,7 @@ from setuptools import Command
 from setuptools.command import install
 
 
-trove_classifiers=[
+trove_classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Environment :: Web Environment",

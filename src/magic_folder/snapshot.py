@@ -287,11 +287,11 @@ class LocalSnapshot(object):
 
         def _serialized_dict(local_snapshot):
             serialized = {
-                'name' : local_snapshot.name,
-                'metadata' : local_snapshot.metadata,
+                'name': local_snapshot.name,
+                'metadata': local_snapshot.metadata,
                 'identifier': unicode(local_snapshot.identifier),
-                'content_path' : local_snapshot.content_path.path,
-                'parents_local' : [
+                'content_path': local_snapshot.content_path.path,
+                'parents_local': [
                     _serialized_dict(parent)
                     for parent
                     in local_snapshot.parents_local
@@ -690,4 +690,4 @@ class TahoeWriteException(Exception):
 
 
 # log exception caused while doing a tahoe put API
-register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body })
+register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body})
