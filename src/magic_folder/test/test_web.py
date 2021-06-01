@@ -478,7 +478,7 @@ class CreateSnapshotTests(SyncTestCase):
     )
     def test_wait_for_completion(self, author, folder_name, path_in_folder, some_content):
         """
-        A **POST** request to **/v1/snapshot/:folder-name** does not receive a
+        A **POST** request to **/v1/magic-folder/:folder-name/snapshot** does not receive a
         response before the snapshot has been created in the local database.
         """
         local_path = FilePath(self.mktemp())
@@ -521,7 +521,7 @@ class CreateSnapshotTests(SyncTestCase):
     def test_create_fails(self, author, folder_name, path_in_folder):
         """
         If a local snapshot cannot be created, a **POST** to
-        **/v1/snapshot/<folder-name>** receives a response with an HTTP error
+        **/v1/magic-folder/<folder-name>/snapshot** receives a response with an HTTP error
         code.
         """
         local_path = FilePath(self.mktemp())
@@ -655,7 +655,7 @@ class CreateSnapshotTests(SyncTestCase):
     )
     def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
         """
-        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        A **POST** to **/v1/magic-folder/:folder-name/snapshot** with a **path** query argument
         fails if the **path** is outside the magic-folder
         """
         local_path = FilePath(self.mktemp())
@@ -711,7 +711,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child("a-folder-that-doesnt-exist"),
+                self.url.child("a-folder-that-doesnt-exist").child('snapshot'),
             ),
             succeeded(
                 matches_response(
@@ -729,7 +729,7 @@ class ParticipantsTests(SyncTestCase):
 
     def test_participants_no_folder(self):
         """
-        An error results using /v1/participants API on non-existent
+        An error results using /v1/magic-folder/:folder-name/participants API on non-existent
         folder.
         """
         local_path = FilePath(self.mktemp())
@@ -767,7 +767,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child("a-folder-that-doesnt-exist"),
+                self.url.child("a-folder-that-doesnt-exist", "participants"),
             ),
             succeeded(
                 matches_response(
