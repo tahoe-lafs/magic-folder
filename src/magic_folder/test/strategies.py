@@ -11,10 +11,6 @@ from __future__ import (
     print_function,
 )
 
-from os.path import (
-    join,
-)
-
 from uuid import (
     UUID,
 )
@@ -146,7 +142,9 @@ def relative_paths(segments=path_segments()):
         min_size=1,
         max_size=8,
     ).map(
-        lambda xs: join(*xs),
+        # We explicitly use `/` here rather than os.path.join since these are
+        # used both internally and on the filesystem.
+        lambda xs: u"/".join(xs),
     )
 
 
