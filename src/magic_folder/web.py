@@ -158,7 +158,7 @@ class APIv1(object):
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
 
-    @app.route("/participants/<string:folder_name>", methods=['GET'])
+    @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inlineCallbacks
     def list_participants(self, request, folder_name):
         """
@@ -194,7 +194,7 @@ class APIv1(object):
         _application_json(request)
         returnValue(json.dumps(reply).encode("utf8"))
 
-    @app.route("/participants/<string:folder_name>", methods=['POST'])
+    @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
     @inlineCallbacks
     def add_participant(self, request, folder_name):
         """
@@ -268,7 +268,7 @@ class APIv1(object):
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
-    @app.route("/snapshot/<string:folder_name>", methods=['POST'])
+    @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
     @inlineCallbacks
     def add_snapshot(self, request, folder_name):
         """
@@ -344,15 +344,11 @@ class APIv1(object):
         })
 
 
-
-
 class _InputError(ValueError):
     """
     Local errors with our input validation to report back to HTTP
     clients.
     """
-
-
 
 def _application_json(request):
     request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
