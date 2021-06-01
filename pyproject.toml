@@ -53,3 +53,12 @@
         directory = "minor"
         name = "Misc/Other"
         showcontent = false
+
+[tool.black]
+    target-version = ["py27"]
+    extend-exclude = '''
+    # A regex preceded with ^/ will apply only to files and directories
+    # in the root of the project.
+    /inotify.py
+    |^/docs/conf.py
+    '''
