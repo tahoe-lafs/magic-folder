@@ -17,14 +17,14 @@ workflows:
       # Contexts are managed in the CircleCI web interface:
       #
       #  https://app.circleci.com/settings/organization/github/LeastAuthority/contexts
-      - "debian-9": &DOCKERHUB_CONTEXT
+      - "debian-10": &DOCKERHUB_CONTEXT
           context:
             - "dockerhub-auth"
 
-      - "debian-8":
+      - "debian-9":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "debian-9"
+            - "debian-10"
 
       - "ubuntu-20.04":
           <<: *DOCKERHUB_CONTEXT
@@ -33,12 +33,12 @@ workflows:
           requires:
             - "ubuntu-20.04"
 
-      - "fedora-32":
+      - "fedora-34":
           <<: *DOCKERHUB_CONTEXT
-      - "fedora-31":
+      - "fedora-33":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "fedora-32"
+            - "fedora-34"
 
       - "centos-8":
           <<: *DOCKERHUB_CONTEXT
@@ -66,7 +66,7 @@ workflows:
           requires:
             # If the unit test suite doesn't pass, don't bother running the
             # integration tests.
-            - "debian-9"
+            - "debian-10"
 
   images:
     # Build the Docker images used by the ci jobs.  This makes the ci jobs
@@ -136,10 +136,10 @@ jobs:
           command: |
             ~/.local/bin/tox -e codechecks
 
-  debian-9: &DEBIAN
+  debian-10: &DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:9"
+        image: "magicfolderci/debian:10"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -201,6 +201,9 @@ jobs:
           # in the project source checkout.
           path: "/tmp/project/_trial_temp/test.log"
 
+      - store_artifacts: &STORE_ELIOT_LOG
+          path: "/tmp/project/eliot.log"
+
       - store_artifacts: &STORE_OTHER_ARTIFACTS
           # Store any other artifacts, too.  This is handy to allow other jobs
           # sharing most of the definition of this one to be able to
@@ -213,11 +216,11 @@ jobs:
             /tmp/venv/bin/codecov
 
 
-  debian-8:
+  debian-9:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:8"
+        image: "magicfolderci/debian:9"
         user: "nobody"
 
 
@@ -225,7 +228,7 @@ jobs:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/pypy:2.7-7.3.0-buster"
+        image: "magicfolderci/pypy:2.7-7.3.4-buster"
         user: "nobody"
 
     environment:
@@ -274,7 +277,7 @@ jobs:
 
     steps:
       - "checkout"
-      # DRY, YAML-style.  See the debian-9 steps.
+      # DRY, YAML-style.  See the debian-10 steps.
       - run: *SETUP_VIRTUALENV
       - run: *RUN_TESTS
 
@@ -313,23 +316,24 @@ jobs:
       - run: *RUN_TESTS
       - store_test_results: *STORE_TEST_RESULTS
       - store_artifacts: *STORE_TEST_LOG
+      - store_artifacts: *STORE_ELIOT_LOG
       - store_artifacts: *STORE_OTHER_ARTIFACTS
       - run: *SUBMIT_COVERAGE
 
 
-  fedora-31:
+  fedora-33:
     <<: *RHEL_DERIV
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:31"
+        image: "magicfolderci/fedora:33"
         user: "nobody"
 
 
-  fedora-32:
+  fedora-34:
     <<: *RHEL_DERIV
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:32"
+        image: "magicfolderci/fedora:34"
         user: "nobody"
 
 

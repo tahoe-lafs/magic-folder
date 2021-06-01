@@ -77,7 +77,7 @@ from ..magic_folder import (
     RemoteSnapshotCreator,
 )
 from ..status import (
-    NullStatusService,
+    WebSocketStatusService,
 )
 
 from ..config import (
@@ -403,5 +403,5 @@ class RemoteSnapshotCreatorFixture(Fixture):
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
-            status=NullStatusService(),
+            status=WebSocketStatusService(),
         )

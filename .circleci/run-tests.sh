@@ -81,6 +81,9 @@ ${TIMEOUT} "${BOOTSTRAP_VENV}"/bin/tox \
     ${MAGIC_FOLDER_TOX_ARGS} || "${alternative}"
 
 if [ -n "${ARTIFACTS}" ]; then
+    "${BOOTSTRAP_VENV}"/bin/eliot-prettyprint < "${PROJECT_ROOT}"/eliot.log > "${ARTIFACTS}"/eliot.txt
+    "${BOOTSTRAP_VENV}"/bin/eliot-tree --field-limit=0 "${PROJECT_ROOT}"/eliot.log > "${ARTIFACTS}"/eliot-tree.txt
+
     # Create a junitxml results area.
     mkdir -p "$(dirname "${JUNITXML}")"
     "${BOOTSTRAP_VENV}"/bin/subunit2junitxml < "${SUBUNIT2}" > "${JUNITXML}" || "${alternative}"

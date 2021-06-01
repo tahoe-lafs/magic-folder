@@ -407,8 +407,8 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot_from_capability",
     )
     with action:
-        snapshot_json = yield tahoe_client.download_capability(snapshot_cap)
-        snapshot = json.loads(snapshot_json)[1]["children"]
+        snapshot_data = yield tahoe_client.directory_data(snapshot_cap)
+        snapshot = snapshot_data["children"]
 
         # NB: once we communicate authors + public-keys some other
         # way, we could iterate all our known authors and attempt to
@@ -419,7 +419,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         metadata_cap = snapshot["metadata"][1]["ro_uri"]
         author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
 
-        metadata_json = yield tahoe_client.download_capability(metadata_cap)
+        metadata_json = yield tahoe_client.download_file(metadata_cap)
         metadata = json.loads(metadata_json)
 
         if "snapshot_version" not in metadata:
@@ -514,7 +514,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     # 1. create a temp-file in our stash area
     temp_file_fd, temp_file_name = mkstemp(
         prefix="snap",
-        dir=snapshot_stash_dir.path,
+        dir=snapshot_stash_dir.asBytesMode("utf-8").path,
     )
     try:
         # 2. stream data_producer into our temp-file

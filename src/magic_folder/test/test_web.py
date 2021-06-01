@@ -124,7 +124,7 @@ from ..tahoe_client import (
     create_tahoe_client,
 )
 from ..status import (
-    NullStatusService,
+    WebSocketStatusService,
 )
 from .strategies import (
     local_authors,
@@ -325,7 +325,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     global_service = MagicFolderService(
         reactor,
         global_config,
-        NullStatusService(),
+        WebSocketStatusService(),
         # Provide a TahoeClient so MagicFolderService doesn't try to look up a
         # Tahoe-LAFS node URL in the non-existent directory we supplied above
         # in its efforts to create one itself.
@@ -340,7 +340,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         for name in folders:
             global_service.get_folder_service(name).startService()
 
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client)
+    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
 
 
 def magic_folder_config(author, state_path, local_directory):
@@ -685,6 +685,41 @@ class CreateSnapshotTests(SyncTestCase):
             ),
         )
 
+    def test_add_snapshot_no_folder(self):
+        """
+        An error results using /v1/snapshot API on non-existent
+        folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
 
 class ParticipantsTests(SyncTestCase):
     """
@@ -718,6 +753,20 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
+                self.url.child("a-folder-that-doesnt-exist"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                ),
+            )
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
                 self.url.child("a-folder-that-doesnt-exist"),
             ),
             succeeded(
