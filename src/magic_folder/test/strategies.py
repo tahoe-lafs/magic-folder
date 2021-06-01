@@ -44,6 +44,8 @@ from twisted.python.filepath import (
     FilePath,
 )
 
+from twisted.python.runtime import platformType
+
 from allmydata.util import (
     base32,
 )
@@ -131,6 +133,25 @@ def path_segments_without_dotfiles(path_segments=path_segments()):
         path_segments,
     )
 
+def _short_enough_path(path):
+    """
+    Check that the relative path is short enough to be used as a filesystem path.
+
+    This assumes that the path will be used as a subdirectory of one created by
+    ``TestCase.mktemp()``, with some slack in various places.
+
+    :return bool:
+    """
+    if platformType == "win32":
+        cwd = len(FilePath(".").path)
+        # The following numbers were all chosen with a little slack
+        # 230 - max path length on windows is ~256
+        # 120 - max length of test name is currently 101
+        # 20 - TestCase.mktemp() generates filenames this long (`/` + 16 random characters + 'tmp')
+        return len(path.encode('utf-8')) + cwd + 120 + 20 < 230
+    else:
+        return True
+
 def relative_paths(segments=path_segments()):
     """
     Build unicode strings which are usable as relative filesystem paths.
@@ -145,8 +166,7 @@ def relative_paths(segments=path_segments()):
         # We explicitly use `/` here rather than os.path.join since these are
         # used both internally and on the filesystem.
         lambda xs: u"/".join(xs),
-    )
-
+    ).filter(_short_enough_path)
 
 def absolute_paths(relative_paths=relative_paths()):
     """
