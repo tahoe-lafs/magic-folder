@@ -14,7 +14,7 @@ from eliot import (
     start_action,
 )
 
-import util
+from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 

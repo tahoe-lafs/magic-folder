@@ -7,7 +7,7 @@ import base64
 
 import pytest_twisted
 
-import util
+from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 

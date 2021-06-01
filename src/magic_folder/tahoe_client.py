@@ -36,7 +36,7 @@ from eliot.twisted import (
 
 import attr
 
-from util.capabilities import (
+from .util.capabilities import (
     is_directory_cap,
     is_file_cap,
 )
