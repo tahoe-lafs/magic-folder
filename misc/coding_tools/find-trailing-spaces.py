@@ -17,7 +17,7 @@ found = [False]
 
 def check(fn):
     f = open(fn, "r")
-    for i,line in enumerate(f.readlines()):
+    for i, line in enumerate(f.readlines()):
         if line == "\n":
             continue
         if line[-1] == "\n":
