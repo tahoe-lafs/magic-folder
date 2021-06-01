@@ -6,6 +6,8 @@ Implements the magic-folder init command.
 """
 
 from __future__ import (
+    absolute_import,
+    division,
     print_function,
 )
 

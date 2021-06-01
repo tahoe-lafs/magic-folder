@@ -1,6 +1,12 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 """
 Common fixtures to let the test suite focus on application logic.
 """

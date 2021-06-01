@@ -2,6 +2,12 @@
 Testtools-style matchers useful to the Tahoe-LAFS test suite.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import base64
 from uuid import (
     UUID,

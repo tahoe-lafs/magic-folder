@@ -5,6 +5,12 @@
 Tests for ``magic_folder.test.common``.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import os
 import os.path
 from sys import (

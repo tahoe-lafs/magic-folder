@@ -5,6 +5,12 @@
 Hypothesis strategies useful for testing Magic Folder.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from os.path import (
     join,
 )

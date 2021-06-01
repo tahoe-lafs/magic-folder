@@ -1,5 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import sys
 
 # Tahoe-LAFS -- secure, distributed storage grid
@@ -302,6 +309,7 @@ setup(name="magic_folder",
               # this version from time to time, but we will do it
               # intentionally.
               "flake8 == 3.9.2",
+              "flake8-future-import",
               # coverage 5.0 breaks the integration tests in some opaque way.
               # This probably needs to be addressed in a more permanent way
               # eventually...

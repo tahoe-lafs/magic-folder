@@ -5,6 +5,12 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from eliot import (
     Field,
     ValidationError,

@@ -5,6 +5,12 @@
 Functionality to interact with the participants in a magic folder.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from zope.interface import (
     Attribute,
     Interface,

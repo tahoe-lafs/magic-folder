@@ -5,6 +5,12 @@
 Tests for ``magic_folder.participants``.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import os
 from json import (
     dumps,

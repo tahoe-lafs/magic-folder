@@ -5,3 +5,12 @@ ignore =
     # existing errors
     E30,E501,
     E201,E202,E203,E122,E124,E128,E221,E222,E225,E226,E227,E26,E401,E402,E502,E712,E722,W503,W504,E731,
+    # flake8-future-import '__future__ import "..." present'
+    FI5
+    # flake8-future-import '__future__ import "unicode_literals" missing'
+    FI14
+extend-exclude = src/magic_folder/_version.py
+# flake8-future-import options
+min-version = 2.7
+require-code = true
+
