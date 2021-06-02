@@ -1,3 +1,9 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import attr
 
 from twisted.python.filepath import (
@@ -36,6 +42,9 @@ from .snapshot import (
     write_snapshot_to_tahoe,
     create_snapshot,
     create_snapshot_from_capability,
+)
+from .status import (
+    IStatus,
 )
 from .config import (
     MagicFolderConfig,
@@ -152,6 +161,7 @@ class LocalSnapshotService(service.Service):
         validator=attr.validators.instance_of(FilePath),
     )
     _snapshot_creator = attr.ib()
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -252,6 +262,7 @@ class RemoteSnapshotCreator(object):
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -262,6 +273,12 @@ class RemoteSnapshotCreator(object):
 
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
+
+        # update our status if we have nothing to do
+        if len(localsnapshot_names):
+            self._status.upload_started(self._config.name)
+        else:
+            self._status.upload_stopped(self._config.name)
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded

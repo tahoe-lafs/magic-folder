@@ -6,6 +6,12 @@ Tests for the Magic Folder platform integration for filesystem change
 notification.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 # Note: See https://twistedmatrix.com/trac/ticket/8915 for a proposal
 # to avoid all of this duplicated code from Twisted.
 

@@ -2,6 +2,12 @@
 Tools aimed at the interaction between tests and Eliot.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 __all__ = [
     "RUN_TEST",
     "EliotLoggedRunTest",
@@ -68,12 +74,12 @@ def eliot_logged_test(f):
             # can now emit messages that go to whatever global destinations
             # are installed.
 
-            # storage.logger.serialize() seems like it would make more sense
-            # than storage.logger.messages here.  However, serialize()
-            # explodes, seemingly as a result of double-serializing the logged
-            # messages.  I don't understand this.
-            for msg in storage.logger.messages:
-                default_logger.write(msg)
+            # The memory logger captures both the raw messages and the
+            # serializer. We pass them both to the global logger, so that the
+            # expected serialization is preserved.
+            logger = storage.logger
+            for msg, serializer in zip(logger.messages, logger.serializers):
+                default_logger.write(msg, serializer)
 
             # And now that we've re-published all of the test's messages, we
             # can finish the test's action.

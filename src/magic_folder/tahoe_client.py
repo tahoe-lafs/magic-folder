@@ -1,7 +1,12 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import unicode_literals
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
 
 import json
 
@@ -36,8 +41,9 @@ from eliot.twisted import (
 
 import attr
 
-from util.capabilities import (
+from .util.capabilities import (
     is_directory_cap,
+    is_file_cap,
 )
 
 
@@ -335,9 +341,9 @@ class TahoeClient(object):
         :return Deferred[None]: or exception on error
         """
 
-        if replace == True:
+        if replace is True:
             replace_arg = u"true"
-        elif replace == False:
+        elif replace is False:
             replace_arg = u"false"
         else:
             raise TypeError("replace value should be a boolean")
@@ -384,9 +390,12 @@ class TahoeClient(object):
         # metadata, not the data. So, the caller needs to know if they
         # have a dir-cap or not and call list_directory() or
         # directory_data() to get "raw" representation
-        if is_directory_cap(cap):
+
+        # we further insist that this is "a file capability" because
+        # the API says "_file" in it
+        if not is_file_cap(cap):
             raise ValueError(
-                "{} is a directory-capability not a regular file".format(cap)
+                "{} is not a file capability".format(cap)
             )
 
         query_args = [(u"uri", cap.decode("ascii"))]

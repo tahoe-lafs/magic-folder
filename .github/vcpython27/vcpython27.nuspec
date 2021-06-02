@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>vcpython27</id>
+    <version>9.0.0.30729</version>
+    <title>Microsoft Visual C++ Compiler for Python 2.7</title>
+    <authors>Microsoft</authors>
+    <owners>fredrikaverpil</owners>
+    <licenseUrl>https://www.microsoft.com/en-us/download/details.aspx?id=44266</licenseUrl>
+    <projectUrl>https://www.microsoft.com/en-us/download/details.aspx?id=44266</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>This package contains the compiler and set of system headers necessary for producing binary wheels for Python 2.7 packages.</description>
+    <summary>This package contains the compiler and set of system headers necessary for producing binary wheels for Python 2.7 packages.</summary>
+    <releaseNotes>https://github.com/fredrikaverpil/vcpython27/releases</releaseNotes>
+    <copyright>Microsoft</copyright>
+    <tags>vcpython27 admin python compiler</tags>
+    <packageSourceUrl>https://www.microsoft.com/en-us/download/details.aspx?id=44266</packageSourceUrl>
+    <docsUrl>https://www.microsoft.com/en-us/download/details.aspx?id=44266</docsUrl>
+    <dependencies>
+      <dependency id="vcredist2008" version="9.0.30729.6161" />
+      <dependency id="dotnet3.5" version="3.5.20140403" />
+    </dependencies>
+  </metadata>
+</package>

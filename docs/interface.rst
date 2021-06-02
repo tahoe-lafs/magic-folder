@@ -129,3 +129,33 @@ The response code **CREATED** and the **Content-Type** is ``application/json``.
 The response body follows the form of this example::
 
   {}
+
+
+Status API
+----------
+
+There is a WebSocket-based status API located at ``/v1/status``.
+This is authenticated the same way as the HTTP API with an ``Authorization:`` header (see above).
+
+All messages are JSON.
+Upon connecting, a new client will immediately receive a "state" message::
+
+    {
+        "state": {
+            "synchronizing": false
+        }
+    }
+
+After that the client may receive further state updates with a ``"state"`` message like the above.
+Currently the only valid kind of message is ``"state"``.
+
+The state consists of the following information:
+
+- ``"synchronizing"``: ``true`` or ``false``. When ``true`` the
+  magic-folder daemon is uploading data to or downloading data from
+  Tahoe-LAFS.
+
+Clients should be tolerant of keys in the state they don't understand.
+Unknown state keys should be ignored.
+
+The client doesn't send any messages to the server; it is an error to do so.

@@ -1,10 +1,16 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import re
 import os.path
 
 from pyutil.assertutil import precondition, _assert
 
 def path2magic(path):
-    return re.sub(u'[/@]',  lambda m: {u'/': u'@_', u'@': u'@@'}[m.group(0)], path)
+    return re.sub(u'[/@]', lambda m: {u'/': u'@_', u'@': u'@@'}[m.group(0)], path)
 
 def magic2path(path):
     return re.sub(u'@[_@]', lambda m: {u'@_': u'/', u'@@': u'@'}[m.group(0)], path)

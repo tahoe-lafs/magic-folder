@@ -1,6 +1,12 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 """
 Common fixtures to let the test suite focus on application logic.
 """
@@ -75,6 +81,9 @@ from ..tahoe_client import (
 )
 from ..magic_folder import (
     RemoteSnapshotCreator,
+)
+from ..status import (
+    WebSocketStatusService,
 )
 
 from ..config import (
@@ -400,4 +409,5 @@ class RemoteSnapshotCreatorFixture(Fixture):
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
+            status=WebSocketStatusService(),
         )

@@ -5,6 +5,9 @@ See also docs/config.rst
 """
 
 from __future__ import (
+    absolute_import,
+    division,
+    print_function,
     unicode_literals,
 )
 
@@ -791,7 +794,7 @@ class MagicFolderConfig(object):
     @property
     @with_cursor
     def author(self, cursor):
-        cursor.execute("SELECT author_name, author_private_key FROM config");
+        cursor.execute("SELECT author_name, author_private_key FROM config")
         name, keydata = cursor.fetchone()
         return LocalAuthor(
             name=name,
@@ -801,7 +804,7 @@ class MagicFolderConfig(object):
     @property
     @with_cursor
     def stash_path(self, cursor):
-        cursor.execute("SELECT stash_path FROM config");
+        cursor.execute("SELECT stash_path FROM config")
         path_raw = cursor.fetchone()[0]
         return FilePath(path_raw)
 
@@ -1014,26 +1017,26 @@ class MagicFolderConfig(object):
     @property
     @with_cursor
     def magic_path(self, cursor):
-        cursor.execute("SELECT magic_directory FROM config");
+        cursor.execute("SELECT magic_directory FROM config")
         path_raw = cursor.fetchone()[0]
         return FilePath(path_raw)
 
     @property
     @with_cursor
     def collective_dircap(self, cursor):
-        cursor.execute("SELECT collective_dircap FROM config");
+        cursor.execute("SELECT collective_dircap FROM config")
         return cursor.fetchone()[0].encode("utf8")
 
     @property
     @with_cursor
     def upload_dircap(self, cursor):
-        cursor.execute("SELECT upload_dircap FROM config");
+        cursor.execute("SELECT upload_dircap FROM config")
         return cursor.fetchone()[0].encode("utf8")
 
     @property
     @with_cursor
     def poll_interval(self, cursor):
-        cursor.execute("SELECT poll_interval FROM config");
+        cursor.execute("SELECT poll_interval FROM config")
         return int(cursor.fetchone()[0])
 
     def is_admin(self):

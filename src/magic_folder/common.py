@@ -4,6 +4,13 @@
 """
 Common functions and types used by other modules.
 """
+
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from contextlib import contextmanager
 
 class BadResponseCode(Exception):

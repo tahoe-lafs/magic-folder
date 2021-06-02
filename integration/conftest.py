@@ -1,4 +1,8 @@
-from __future__ import print_function
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
 
 import shutil
 from time import sleep
@@ -24,7 +28,7 @@ from twisted.internet.error import (
 import pytest
 import pytest_twisted
 
-from util import (
+from .util import (
     _CollectOutputProtocol,
     _MagicTextProtocol,
     _DumpOutputProtocol,

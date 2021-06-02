@@ -1,3 +1,9 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import json
 import os.path
 from io import (
@@ -51,6 +57,9 @@ from ...config import (
 )
 from ...client import (
     create_testing_http_client,
+)
+from ...status import (
+    WebSocketStatusService,
 )
 from ...endpoints import (
     CannotConvertEndpointError,
@@ -128,6 +137,7 @@ class ListMagicFolder(AsyncTestCase):
             # for these tests, we never contact Tahoe so we can get
             # away with an "empty" Tahoe WebUI
             create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+            WebSocketStatusService(),
         )
 
     @defer.inlineCallbacks

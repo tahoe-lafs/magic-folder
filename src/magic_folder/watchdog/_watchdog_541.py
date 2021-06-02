@@ -2,6 +2,12 @@
 Hotfix for https://github.com/gorakhargosh/watchdog/issues/541
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from watchdog.observers.fsevents import FSEventsEmitter
 
 # The class object has already been bundled up in the default arguments to

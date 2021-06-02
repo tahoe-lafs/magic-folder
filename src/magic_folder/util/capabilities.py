@@ -1,4 +1,10 @@
 from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
+from __future__ import (
     print_function,
     unicode_literals,
 )
@@ -11,6 +17,8 @@ Utilities for interacting with Tahoe capability-strings
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
     IDirnodeURI,
+    IFileURI,
+    IImmutableFileURI,
 )
 
 
@@ -20,6 +28,16 @@ def is_directory_cap(capability):
     """
     uri = tahoe_uri_from_string(capability)
     return IDirnodeURI.providedBy(uri)
+
+
+def is_file_cap(capability):
+    """
+    :returns bool: True if `capability` is a mutable or immutable file
+        capability (note this excludes all kinds of "verify"
+        capabilities).
+    """
+    uri = tahoe_uri_from_string(capability)
+    return IFileURI.providedBy(uri) or IImmutableFileURI.providedBy(uri)
 
 
 def to_readonly_capability(capability):

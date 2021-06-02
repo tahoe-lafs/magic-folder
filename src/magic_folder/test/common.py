@@ -1,4 +1,9 @@
-from __future__ import print_function
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 
 __all__ = [
     "SyncTestCase",
@@ -359,7 +364,7 @@ def make_mutable_file_cap():
 
 def make_mdmf_mutable_file_cap():
     return uri.WriteableMDMFFileURI(writekey=os.urandom(16),
-                                   fingerprint=os.urandom(32))
+                                    fingerprint=os.urandom(32))
 
 def make_mutable_file_uri(mdmf=False):
     if mdmf:
