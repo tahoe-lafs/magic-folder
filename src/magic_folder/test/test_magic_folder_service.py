@@ -204,7 +204,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         folder_names(),
         relative_paths(),
         path_segments(),
-        relative_paths(),
         just(LOCAL_AUTHOR),
         sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
@@ -215,7 +214,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             name,
             file_path,
             relative_magic_path,
-            relative_state_path,
             author,
             collective_cap_kind,
             poll_interval,
@@ -261,8 +259,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         magic_path = basedir.preauthChild(relative_magic_path)
         magic_path.asBytesMode("utf-8").makedirs()
 
-        statedir = basedir.child(u"state")
-        state_path = statedir.preauthChild(relative_state_path)
+        state_path = basedir.child(u"state")
 
         target_path = magic_path.preauthChild(file_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
