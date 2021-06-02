@@ -315,10 +315,26 @@ class RemoteSnapshotCreator(object):
             self._tahoe_client,
         )
 
+        # if we crash here, we'll retry and re-upload (hopefully
+        # de-duplication works for the content at laest) the
+        # Snapshot but no consequences
+
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
         yield self._config.store_remotesnapshot(name, remote_snapshot)
+
+        # if we crash here, there's an inconsistency between our
+        # remote and local state: we believe the version is X but
+        # other participants see X<-ancestor-Y (that is, version Y
+        # that has X as an ancestor) .. we will re-try the whole
+        # operation and get back here. The Downloader may be confused
+        # but it should find "X" the common ancestor even if another
+        # version X<--Y<--Z is published (and hence properly see it as
+        # an overwrite). If we create a new LocalSnapshot while
+        # inconsistent we will note the parent as X when it was really
+        # the _content_ from parent Y .. we'll still I think correctly
+        # detect the conflict but any diff migh be weird.
 
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
@@ -328,15 +344,17 @@ class RemoteSnapshotCreator(object):
             replace=True,
         )
 
-        # XXX since we've already updated our Personal DMD above, any
-        # errors happening below could cause us to be un-synchronized
-        # ... if the local stash isn't removed, we waste disk
-        # space. If the LocalSnapshot isn't deleted from the databse,
-        # we'll try to upload it again (I *think* that's okay, but
-        # ...)
-
-        # Remove the local snapshot content from the stash area.
-        snapshot.content_path.asBytesMode("utf-8").remove()
+        # if removing the stashed content fails here, we MUST move on
+        # to delete the LocalSnapshot because we may not be able to
+        # re-create the Snapshot (maybe the content is "partially
+        # deleted"?
+        try:
+            # Remove the local snapshot content from the stash area.
+            snapshot.content_path.asBytesMode("utf-8").remove()
+        except Exception as e:
+            print("Failed to remove cache: '{}'".format(
+                snapshot.content_path.asTextMode("utf-8").path)
+            )
 
         # Remove the LocalSnapshot from the db.
         yield self._config.delete_localsnapshot(name)

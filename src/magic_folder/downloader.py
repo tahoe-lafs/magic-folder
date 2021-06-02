@@ -39,6 +39,12 @@ from twisted.internet.defer import (
     CancelledError,
 )
 
+from .tahoe_client import (
+    TahoeClient,
+)
+from .config import (
+    MagicFolderConfig,
+)
 from .magicpath import (
     path2magic,
     magic2path,
@@ -139,16 +145,16 @@ class RemoteSnapshotCacheService(service.Service):
     Snapshot we *do not* download the content, just the Snapshot
     itself.
 
-    This is okay because we will retry the operation the next time we
-    restart. That is, we only need the RemoteSnapshot cached until we
-    decide what to do and synchronize local state.
-
-    Note: we *could* keep all this in our database .. but then we have
-    to evict things from it at some point.
+    Being ephemeral is okay because we will retry the operation the
+    next time we restart. That is, we only need the RemoteSnapshot
+    cached until we decide what to do and synchronize local state.
 
     Anyway, we do need to download parent snapshots UNTIL we reach the
     current remotesnapshot that we've noted for that name (or run
     out of parents).
+
+    Note: we *could* keep all this in our database .. but then we have
+    to evict things from it at some point.
 
     XXX: the "remote-snapshots" database is kind of 'just a cache'
     too; we should be putting that information into our Personal DMD
@@ -290,34 +296,67 @@ class RemoteSnapshotCacheService(service.Service):
         return d
 
 
+class IMagicFolderFilesystem(Interface):
+    """
+    An object that can make changes to the local filesystem
+    magic-directory. It has a staging area to put files into so that
+    there are no 'partial' files in the magic-folder.
+    """
+
+    def download_content_to_staging(remote_snapshot, tahoe_client):
+        """
+        Prepare the content by downloading it.
+
+        :returns Deferred[FilePath]: the location of the downloaded
+            content (or errback if the download fails).
+        """
+
+    def mark_overwrite(remote_snapshot, staged_content):
+        """
+        This snapshot is an overwrite. Move it from the staging area over
+        top of the existing file (if any) in the magic-folder.
+
+        :param FilePath staged_content: a local path to the downloaded
+            content.
+        """
+
+    def mark_conflict(remote_snapshot, staged_content):
+        """
+        This snapshot causes a conflict. The existing magic-folder file is
+        untouched. The downloaded / prepared content shall be moved to
+        a file named `<path>.theirs.<name>` where `<name>` is the
+        petname of the author of the conflicting snapshot and `<path>`
+        is the relative path inside the magic-folder.
+
+        XXX can deletes conflict? if so staged_content would be None
+
+        :param conflicting_snapshot: the RemoteSnapshot that conflicts
+
+        :param FilePath staged_content: a local path to the downloaded
+            content.
+        """
+
+    def mark_delete(remote_snapshot):
+        """
+        Mark this snapshot as a delete. The existing magic-folder file
+        shall be deleted.
+        """
+
+
 @attr.s
 @implementer(service.IService)
 class MagicFolderUpdaterService(service.Service):
     """
     Updates the local magic-folder when given locally-cached
-    RemoteSnapshots (with all parents available).
+    RemoteSnapshots. These RemoteSnapshot instance must have all
+    relevant parents available (via the cache service).
 
-    XXX do we really need "all parents available"?
-
-    - no; we only need to go further when 2 or more other participants
-      update before we see either one .. in that case, Leif Design says
-      we need to "walk backwards through the DAG from the new snapshot
-      until they find their own snapshot or a common ancestor."
-
-    - that said, Leif Design does say we want a local cache:
-
-       - keep cache of our current snapshot at all times (that is, our
-         "remote snapshots" table should *be* the cache, probably)
-
-       - (I think we'll want to note its cap-string too)
-
-       - when all clients' views of a file are sync'd, then we can
-         delete all old remotesnapshots (we can learn this when all
-         Personal DMDs point at the same snapshot)
+    "Relevent" here means all parents unless we find a common
+    ancestor.
     """
-    _magic_fs = attr.ib()#validator=provides(IMagicFolderFilesystem))
-    _config = attr.ib()
-    tahoe_client = attr.ib()
+    _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
+    _config = attr.ib(validator=instance_of(MagicFolderConfig))
+    tahoe_client = attr.ib(validator=instance_of(TahoeClient))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
@@ -481,53 +520,6 @@ class MagicFolderUpdaterService(service.Service):
     #
     # [*] or do we not want that column at all -- we could deduce it
     # by examining our own Personal DMD.
-
-
-class IMagicFolderFilesystem(Interface):
-    """
-    An object that can make changes to the local filesystem
-    magic-directory. It has a staging area to put files into so that
-    there are no 'partial' files in the magic-folder.
-    """
-
-    def download_content_to_staging(remote_snapshot, tahoe_client):
-        """
-        Prepare the content by downloading it.
-
-        :returns Deferred[FilePath]: the location of the downloaded
-            content (or errback if the download fails).
-        """
-
-    def mark_overwrite(remote_snapshot, staged_content):
-        """
-        This snapshot is an overwrite. Move it from the staging area over
-        top of the existing file (if any) in the magic-folder.
-
-        :param FilePath staged_content: a local path to the downloaded
-            content.
-        """
-
-    def mark_conflict(remote_snapshot, staged_content):
-        """
-        This snapshot causes a conflict. The existing magic-folder file is
-        untouched. The downloaded / prepared content shall be moved to
-        a file named `<path>.theirs.<name>` where `<name>` is the
-        petname of the author of the conflicting snapshot and `<path>`
-        is the relative path inside the magic-folder.
-
-        XXX can deletes conflict? if so staged_content would be None
-
-        :param conflicting_snapshot: the RemoteSnapshot that conflicts
-
-        :param FilePath staged_content: a local path to the downloaded
-            content.
-        """
-
-    def mark_delete(remote_snapshot):
-        """
-        Mark this snapshot as a delete. The existing magic-folder file
-        shall be deleted.
-        """
 
 
 @implementer(IMagicFolderFilesystem)
