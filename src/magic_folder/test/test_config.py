@@ -95,7 +95,7 @@ class TestGlobalConfig(SyncTestCase):
         ``create_global_configuration`` accepts a path that doesn't exist to which
         to write the configuration.
         """
-        confdir = self.temp.child(dirname)
+        confdir = self.temp.child(b"base")
         config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
