@@ -277,6 +277,9 @@ class RemoteSnapshotCreator(object):
                 with action:
                     yield self._upload_some_snapshots(name)
             except Exception:
+                # XXX this existing comment is wrong; there are many
+                # reasons we could receive an Exception here not just
+                # "Tahoe is gone" ...
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
