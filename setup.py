@@ -1,5 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import sys
 
 # Tahoe-LAFS -- secure, distributed storage grid
@@ -92,7 +99,7 @@ from setuptools import Command
 from setuptools.command import install
 
 
-trove_classifiers=[
+trove_classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Environment :: Web Environment",
@@ -286,7 +293,7 @@ setup(name="magic_folder",
       cmdclass={"update_version": UpdateVersion,
                 "test": PleaseUseTox,
                 },
-      package_dir={'':'src'},
+      package_dir={'': 'src'},
       packages=find_packages('src') + ["twisted.plugins", "magic_folder.test.plugins"],
       classifiers=trove_classifiers,
       python_requires="~=2.7",
@@ -297,11 +304,12 @@ setup(name="magic_folder",
           # See https://github.com/LeastAuthority/magic-folder/issues/345
           ':sys_platform!="win32" and sys_platform!="linux2"': ["watchdog<0.10.4"],
           "test": [
-              # Pin a specific pyflakes so we don't have different folks
+              # Pin a specific flake8 so we don't have different folks
               # disagreeing on what is or is not a lint issue.  We can bump
               # this version from time to time, but we will do it
               # intentionally.
-              "pyflakes == 2.1.0",
+              "flake8 == 3.9.2",
+              "flake8-future-import",
               # coverage 5.0 breaks the integration tests in some opaque way.
               # This probably needs to be addressed in a more permanent way
               # eventually...
@@ -320,7 +328,7 @@ setup(name="magic_folder",
                     },
       include_package_data=True,
       setup_requires=setup_requires,
-      entry_points = {
+      entry_points={
           "console_scripts": [
               "magic-folder = magic_folder.cli:_entry",
               "magic-folder-api = magic_folder.api_cli:_entry",

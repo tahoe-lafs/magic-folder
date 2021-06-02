@@ -5,6 +5,12 @@
 Implements the magic-folder invite command.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 
 def magic_folder_invite(config, folder_name, treq):
     """

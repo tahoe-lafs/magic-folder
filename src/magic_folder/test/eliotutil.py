@@ -2,6 +2,12 @@
 Tools aimed at the interaction between tests and Eliot.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 __all__ = [
     "RUN_TEST",
     "EliotLoggedRunTest",

@@ -1,3 +1,9 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from os import mkdir
 from os.path import join
 from json import (
@@ -7,7 +13,7 @@ import base64
 
 import pytest_twisted
 
-import util
+from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 

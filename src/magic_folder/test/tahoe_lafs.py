@@ -7,6 +7,8 @@ Functionality for operating on a Tahoe-LAFS node.
 
 from __future__ import (
     absolute_import,
+    division,
+    print_function,
 )
 
 from sys import (

@@ -1,7 +1,12 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import unicode_literals
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
 
 import json
 
@@ -36,7 +41,7 @@ from eliot.twisted import (
 
 import attr
 
-from util.capabilities import (
+from .util.capabilities import (
     is_directory_cap,
     is_file_cap,
 )
@@ -336,9 +341,9 @@ class TahoeClient(object):
         :return Deferred[None]: or exception on error
         """
 
-        if replace == True:
+        if replace is True:
             replace_arg = u"true"
-        elif replace == False:
+        elif replace is False:
             replace_arg = u"false"
         else:
             raise TypeError("replace value should be a boolean")

@@ -9,8 +9,11 @@ code will never be loaded under real usage.
 """
 
 from __future__ import (
+    absolute_import,
+    division,
     print_function,
 )
+
 from sys import (
     stderr,
 )

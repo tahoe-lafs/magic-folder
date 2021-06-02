@@ -1,3 +1,8 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
 
 import json
 
@@ -14,7 +19,7 @@ from eliot import (
     start_action,
 )
 
-import util
+from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
@@ -84,7 +89,7 @@ def test_list(request, reactor, temp_dir, introducer_furl, flog_gatherer):
     assert data["workstuff"]["name"] == "workstuff"
     assert int(data["workstuff"]["poll_interval"]) == 60
     assert data["workstuff"]["magic_path"] == magic_dir.path
-    assert data["workstuff"]["is_admin"] == True
+    assert data["workstuff"]["is_admin"] is True
 
     # make sure we didn't reveal secrets
     assert "signing_key" not in data["workstuff"]["author"]

@@ -15,6 +15,12 @@ after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
 this code can be deleted.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from twisted.internet.defer import (
     inlineCallbacks,
 )

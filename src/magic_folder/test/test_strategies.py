@@ -5,6 +5,12 @@
 Tests for Hypothesis strategies for the test suite.
 """
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 from hypothesis import (
     given,
     assume,

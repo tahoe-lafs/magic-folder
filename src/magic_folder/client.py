@@ -1,6 +1,12 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+)
+
 import json
 
 from twisted.internet.defer import (
