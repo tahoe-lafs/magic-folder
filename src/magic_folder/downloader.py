@@ -100,7 +100,7 @@ class RemoteSnapshotCacheService(service.Service):
     @classmethod
     def from_config(cls, clock, config, tahoe_client):
         """
-        Create an RemoteSnapshotCacheService from the MagicFolder
+        Create a RemoteSnapshotCacheService from the MagicFolder
         configuration.
         """
         return cls(tahoe_client, config, clock)
@@ -110,23 +110,30 @@ class RemoteSnapshotCacheService(service.Service):
         Add the given immutable Snapshot capability to our queue.
 
         When this queue item is processed, we download the Snapshot,
-        verify the signature then download the metadata.
+        then download the metadata.
 
-        We download parents until we find a common ancestor .. meaning
-        we keep downloading parents until we find one that matches the
-        remotesnapshot in our local database. If we have no entry for
-        this Snapshot we download all parents (which will also be the
-        case if there is no common ancestor).
+        (When we have signatures this should verify the signature
+        before downloading anything else)
+
+        We also download parents of this Snapshot until we find a
+        common ancestor .. meaning we keep downloading parents until
+        we find one that matches the remotesnapshot entry in our local
+        database. If we have no entry for this Snapshot we download
+        all parents (which will also be the case if there is no common
+        ancestor).
 
         :param bytes snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
             the RemoteSnapshot when this item has been processed (or
-            errbacks if any of the downloads fails).
+            errbacks if any of the downloads fail).
 
         :raises QueueOverflow: if our queue is full
         """
-        Message.log(message_type="cache-service:add-remote-capability", snapshot_cap=snapshot_cap)
+        Message.log(
+            message_type="cache-service:add-remote-capability",
+            snapshot_cap=snapshot_cap,
+        )
         d = Deferred()
         self._queue.put((snapshot_cap, d))
         return d
@@ -135,6 +142,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         Start a periodic loop that looks for work and does it.
         """
+        # XXX maybe convert this to use TimerService
         with start_action(message_type="cache-service:start"):
             service.Service.startService(self)
             self._service_d = self._process_queue()
