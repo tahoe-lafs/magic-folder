@@ -37,7 +37,9 @@ from hypothesis.strategies import (
 from magic_folder.util.capabilities import (
     to_readonly_capability,
 )
-import util
+from .util import (
+    await_file_contents,
+)
 
 
 @pytest_twisted.inlineCallbacks
@@ -70,16 +72,23 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
-    # put a file in our folder
-    with orig_folder.child("sylvester").open("w") as f:
-        f.write("zero\n" * 1000)
-    yield alice.add_snapshot("original", "sylvester")
-
     @pytest_twisted.inlineCallbacks
     def cleanup_original():
         yield alice.leave("original")
         yield alice.restart_magic_folder()
     request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = "zero\n" * 1000
+    with orig_folder.child("sylvester").open("w") as f:
+        f.write(content0)
+    yield alice.add_snapshot("original", "sylvester")
+
+    # update the file so there's two versions
+    content1 = "one\n" * 1000
+    with orig_folder.child("sylvester").open("w") as f:
+        f.write(content1)
+    yield alice.add_snapshot("original", "sylvester")
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -98,34 +107,21 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    found = False
-    for _ in range(10):
-        print("looking for 'sylvester'")
-        fs = recover_folder.listdir()
-        if "sylvester" in fs:
-            print("  found 'sylvester'")
-            found = True
-            break
-        yield deferLater(reactor, 1.0)
-    assert found, "Expected to find file 'sylvester' in recovery folder"
+    await_file_contents(
+        recover_folder.child("sylvester").path,
+        content1,
+    )
 
     # in the (ideally rare) case that the old device is found *and* a
     # new snapshot is uploaded, we put an update into the 'original'
     # folder. This also tests the normal 'update' flow as well.
-    content2 = "onee\n" * 1000
+    content2 = "two\n" * 1000
     with orig_folder.child("sylvester").open("w") as f:
         f.write(content2)
     yield alice.add_snapshot("original", "sylvester")
 
     # the new content should appear in the 'recovery' folder
-    found = False
-    for _ in range(10):
-        fs = recover_folder.listdir()
-        if "sylvester" in fs:
-            if recover_folder.child("sylvester").getContent() == content2:
-                found = True
-                break
-            else:
-                print("  content mismatch")
-        yield deferLater(reactor, 1.0)
-    assert found, "Expected to find new content in 'sylvester' within timeout"
+    await_file_contents(
+        recover_folder.child("sylvester").path,
+        content2,
+    )

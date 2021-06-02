@@ -649,8 +649,10 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
                 if current == contents:
                     return True
                 print("  file contents still mismatched")
-                print("  wanted: {}".format(contents.replace('\n', ' ')))
-                print("     got: {}".format(current.replace('\n', ' ')))
+                # annoying if we dump huge files to console
+                if len(contents) < 80:
+                    print("  wanted: {}".format(contents.replace('\n', ' ')))
+                    print("     got: {}".format(current.replace('\n', ' ')))
         time.sleep(1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
