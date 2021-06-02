@@ -321,7 +321,6 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        print(data)
         self.output.write(data)
 
     def errReceived(self, data):

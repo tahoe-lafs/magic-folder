@@ -115,13 +115,10 @@ class LocalSnapshotCreator(object):
             if not parents:
                 try:
                     parent_remote = self._db.get_remotesnapshot(mangled_name)
-                    print("REMOTE", parent_remote)
                     parent = yield create_snapshot_from_capability(parent_remote, self._tahoe_client)
                     parents.append(parent)
                 except KeyError:
                     pass
-
-            print("PARENTS", parents)
 
             # need to handle remote-parents when we have remote
             # snapshots
@@ -283,7 +280,6 @@ class RemoteSnapshotCreator(object):
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
-                print("BAD", Failure())
                 print(Failure())
 
     @inline_callbacks
@@ -293,7 +289,6 @@ class RemoteSnapshotCreator(object):
         """
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(name)
-        print("UPLOAD: {}".format(snapshot))
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,
