@@ -473,7 +473,7 @@ class CreateSnapshotTests(SyncTestCase):
     Tests for creating a new snapshot in an existing Magic Folder using a
     **POST**.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
     @given(
         local_authors(),
@@ -483,7 +483,7 @@ class CreateSnapshotTests(SyncTestCase):
     )
     def test_wait_for_completion(self, author, folder_name, path_in_folder, some_content):
         """
-        A **POST** request to **/v1/snapshot/:folder-name** does not receive a
+        A **POST** request to **/v1/magic-folder/:folder-name/snapshot** does not receive a
         response before the snapshot has been created in the local database.
         """
         local_path = FilePath(self.mktemp())
@@ -513,7 +513,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name).set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
             ),
             has_no_result(),
         )
@@ -526,7 +526,7 @@ class CreateSnapshotTests(SyncTestCase):
     def test_create_fails(self, author, folder_name, path_in_folder):
         """
         If a local snapshot cannot be created, a **POST** to
-        **/v1/snapshot/<folder-name>** receives a response with an HTTP error
+        **/v1/magic-folder/<folder-name>/snapshot** receives a response with an HTTP error
         code.
         """
         local_path = FilePath(self.mktemp())
@@ -551,7 +551,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name).set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -579,7 +579,7 @@ class CreateSnapshotTests(SyncTestCase):
     )
     def test_create_snapshot(self, author, folder_name, path_in_folder, some_content):
         """
-        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        A **POST** to **/v1/magic-folder/:folder-name/snapshot** with a **path** query argument
         creates a new local snapshot for the file at the given path in the
         named folder.
         """
@@ -605,7 +605,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name).set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -619,7 +619,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
-                self.url,
+                DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
             ),
             succeeded(
                 matches_response(
@@ -660,7 +660,7 @@ class CreateSnapshotTests(SyncTestCase):
     )
     def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
         """
-        A **POST** to **/v1/snapshot/:folder-name** with a **path** query argument
+        A **POST** to **/v1/magic-folder/:folder-name/snapshot** with a **path** query argument
         fails if the **path** is outside the magic-folder
         """
         local_path = FilePath(self.mktemp())
@@ -681,7 +681,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name).set(u"path", path_outside_folder),
+                self.url.child(folder_name, "snapshot").set(u"path", path_outside_folder),
             ),
             succeeded(
                 matches_response(
@@ -716,7 +716,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child("a-folder-that-doesnt-exist"),
+                self.url.child("a-folder-that-doesnt-exist").child('snapshot'),
             ),
             succeeded(
                 matches_response(
@@ -730,11 +730,11 @@ class ParticipantsTests(SyncTestCase):
     """
     Tests relating to the '/v1/participants/<folder>` API
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/participants")
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
     def test_participants_no_folder(self):
         """
-        An error results using /v1/participants API on non-existent
+        An error results using /v1/magic-folder/:folder-name/participants API on non-existent
         folder.
         """
         local_path = FilePath(self.mktemp())
@@ -758,7 +758,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
-                self.url.child("a-folder-that-doesnt-exist"),
+                self.url.child("a-folder-that-doesnt-exist", "participants"),
             ),
             succeeded(
                 matches_response(
@@ -772,7 +772,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child("a-folder-that-doesnt-exist"),
+                self.url.child("a-folder-that-doesnt-exist", "participants"),
             ),
             succeeded(
                 matches_response(
@@ -836,7 +836,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
                     "personal_dmd": personal_dmd,
@@ -860,7 +860,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
             ),
             succeeded(
                 matches_response(
@@ -927,7 +927,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "not-the-author": {"name": "kelly"},
                 }).encode("utf8")
@@ -990,7 +990,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"not-the-name": "kelly"},
                     "personal_dmd": "fake",
@@ -1056,7 +1056,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
                     "personal_dmd": personal_dmd,
@@ -1121,7 +1121,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
                     "personal_dmd": personal_dmd,
@@ -1180,7 +1180,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"GET",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
             ),
             succeeded(
                 matches_response(
@@ -1236,7 +1236,7 @@ class ParticipantsTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name),
+                self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
                     "personal_dmd": personal_dmd,
