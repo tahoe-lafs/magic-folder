@@ -427,7 +427,7 @@ def _magic_folder_api_runner(proto, reactor, request, other_args):
     Launch a ``magic-folder-api`` child process and return it.
     """
     if request.config.getoption('coverage'):
-        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
+        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder.api_cli"]
     else:
         prelude = [sys.executable, "-m", "magic_folder.api_cli"]
 
