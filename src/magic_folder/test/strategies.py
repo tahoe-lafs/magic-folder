@@ -79,6 +79,8 @@ DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
         # filesystems or not.  We might want to let them through if we can
         # make them work (they don't work as of this comment).
         "Cn",
+        # Exclude control characters
+        "Cc",
     ),
     blacklist_characters=(u"\x00", u".", u"/"),
 )
