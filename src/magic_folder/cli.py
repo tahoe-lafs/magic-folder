@@ -601,9 +601,7 @@ class MagicFolderService(MultiService):
 
         :return MagicFolder: The service for the matching magic-folder.
         """
-        print("GET XXX", folder_name, list(self._iter_magic_folder_services()))
         for service in self._iter_magic_folder_services():
-            print("{} == {} ? {}".format(service.folder_name, folder_name, service.folder_name == folder_name))
             if service.folder_name == folder_name:
                 return service
         raise KeyError(folder_name)
