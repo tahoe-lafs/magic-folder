@@ -36,6 +36,9 @@ from eliot import (
     start_action,
     register_exception_extractor,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from nacl.signing import (
     SigningKey,
@@ -399,7 +402,7 @@ class RemoteSnapshot(object):
         yield tahoe_client.stream_capability(self.content_cap, writable_file)
 
 
-@inlineCallbacks
+@inline_callbacks
 def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     """
     Create a RemoteSnapshot from a snapshot capability string
@@ -416,7 +419,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     action = start_action(
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot_from_capability",
     )
-    if True:#with action:
+    with action:
         snapshot_data = yield tahoe_client.directory_data(snapshot_cap)
         snapshot = snapshot_data["children"]
 
