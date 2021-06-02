@@ -18,6 +18,7 @@ from eliot import (
     log_call,
     start_action,
     start_task,
+    Message,
 )
 
 from twisted.application import service
@@ -195,7 +196,7 @@ class RemoteSnapshotCacheService(service.Service):
 
         :raises QueueOverflow: if our queue is full
         """
-        print("add_remote_capability", snapshot_cap)
+        Message.log(message_type="cache-service:add-remote-capability", snapshot_cap=snapshot_cap)
         d = Deferred()
         self._queue.put((snapshot_cap, d))
         return d
@@ -204,14 +205,16 @@ class RemoteSnapshotCacheService(service.Service):
         """
         Start a periodic loop that looks for work and does it.
         """
-        service.Service.startService(self)
-        self._service_d = self._process_queue()
+        with start_action(message_type="cache-service:start"):
+            service.Service.startService(self)
+            self._service_d = self._process_queue()
+            Message.log(starting=True)
 
-        def log(f):
-            print("fatal error")
-            print(f)
-            return None
-        self._service_d.addErrback(log)
+            def log(f):
+                print("fatal error")
+                print(f)
+                return None
+            self._service_d.addErrback(log)
 
     @inline_callbacks
     def _process_queue(self):
@@ -221,7 +224,7 @@ class RemoteSnapshotCacheService(service.Service):
         while True:
             try:
                 (snapshot_cap, d) = yield self._queue.get()
-                with start_action(action_type="downloader:locate_snapshot") as t:
+                with start_action(action_type="cache-service:locate_snapshot") as t:
                     try:
                         snapshot = self.cached_snapshots[snapshot_cap]
                         t.add_success_fields(cached=True)
@@ -264,8 +267,7 @@ class RemoteSnapshotCacheService(service.Service):
         # breadth-first traversal of the parents; we can stop early if
         # we find the above capability (our current notion of the
         # current Snapshot for this name).
-        q = deque()
-        q.append(snapshot)
+        q = deque([snapshot])
         while q:
             snap = q.popleft()
             if our_snapshot_cap in snap.parents_raw:
@@ -366,7 +368,7 @@ class MagicFolderUpdaterService(service.Service):
             except Exception:
                 d.errback(Failure())
 
-    @inlineCallbacks
+    @inline_callbacks
     def _process(self, snapshot):
         """
         Internal helper.
@@ -377,79 +379,83 @@ class MagicFolderUpdaterService(service.Service):
         Tahoe (i.e. to our Personal DMD)
         """
 
-        print("UPDATE", snapshot.name)
-        local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
-        staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+        with start_action(action_type="downloader:updater:process") as action:
+            local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
+            staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
 
-        # XXX not dealing with deletes yet; is snapshot.content_cap
-        # None for "delete" snapshots?
-        if not local_path.exists():
-            self._magic_fs.mark_overwrite(snapshot, staged)
+            # check if we have this snapshot already .. it's possible
+            # to have both local and remote snapshots.
+            try:
+                # can we reach the cache service from here?
+                remote_snap = yield create_snapshot_from_capability(
+                    self._config.get_remotesnapshot(snapshot.name),
+                    self.tahoe_client,
+                )
+                action.add_success_fields(
+                    remote=remote_snap.capability,
+                )
+            except KeyError:
+                remote_snap = None
+
+            try:
+                local_snap = self._config.get_local_snapshot(snapshot.name)
+                action.add_success_fields(
+                    local=local_snap.capability,
+                )
+            except KeyError:
+                local_snap = None
+
+            # note: if local_snap and remote_snap are both non-None
+            # then remote_snap should be the ancestor of local_snap
+
+            # XXX not dealing with deletes yet
+            if local_path.exists():
+                # if we have a valid local_snap or remote_snap that
+                # means we've uploaded this file at least once; if we
+                # share a common ancestor with the proposed change
+                # then it's an update. If local_snap is valid, it will
+                # be a newer one than remote_snap
+                existing_snap = local_snap or remote_snap
+
+                # do we have a common ancestor with the proposed change?
+                ancestor = False
+                q = deque([snapshot])
+                while q and not ancestor:
+                    snap = q.popleft()
+                    if existing_snap.capability in snap.parents_raw:
+                        ancestor = True
+                    else:
+                        q.extend(snap.parents_raw)
+                action.add_success_fields(ancestor=ancestor)
+
+                # whether we found a common ancestor or not
+                # tells us if we've got an overwrite or
+                # conflict
+                if ancestor:
+                    self._magic_fs.mark_overwrite(snapshot, staged)
+                else:
+                    self._magic_fs.mark_conflict(snapshot, staged)
+
+            else:
+                # there is no local file
+                # XXX we don't handle deletes yet
+                assert not local_snap and not remote_snap, "Internal inconsistency"
+                self._magic_fs.mark_overwrite(snapshot, staged)
+
+            # remember the last remote we've downloaded
             self._config.store_remotesnapshot(snapshot.name, snapshot)
-            # XXX update remotesnapshot db (then Personal DMD)
+
+            # XXX careful here, we still need something that makes
+            # sure mismatches between remotesnapshots in our db and
+            # the Personal DMD are reconciled .. that is, if we crash
+            # here and/or can't update our Personal DMD we need to
+            # retry later.
             yield self.tahoe_client.add_entry_to_mutable_directory(
                 self._config.upload_dircap,
                 snapshot.name,
-                snapshot.capability,
+                snapshot.capability.encode("ascii"),
                 replace=True,
             )
-
-        else:
-            # we have something in our magic-folder for this name
-            # already. if there are any local-snapshots for this name,
-            # we've got a conflict. (because there's definitely a
-            # local change that nobody else has seen *and* a remote
-            # change)
-            try:
-                local = self._config.get_local_snapshot(snapshot.name)
-                print("WE GOT A LOCAL ONE", local)
-                self._magic_fs.mark_conflict(snapshot, staged)
-            except KeyError:
-                # we have no local-snapshots. if this snapshot is
-                # descended from our notion of the last
-                # remote-snapshot, then it is an overwrite. otherwise,
-                # it is a conflict.
-
-                try:
-                    our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
-                except KeyError:
-                    # we've never seen this one before .. but the path
-                    # exists locally, *and* there's no localsnapshots
-                    # .. (maybe there's a race-window here: a file can
-                    # appear, but we haven't created a local snapshot
-                    # yet). I think we have to treat this as a
-                    # conflict too ..
-                    print("NO REMOTE, but we got a file")
-                    self._magic_fs.mark_conflict(snapshot, staged)
-                else:
-                    found_ancestor = False
-                    q = deque()
-                    q.append(snapshot)
-                    while q:
-                        snap = q.popleft()
-                        if our_snapshot_cap in snap.parents_raw:
-                            found_ancestor = True
-                            break
-
-                    if found_ancestor:
-                        self._magic_fs.mark_overwrite(snapshot, staged)
-                        self._config.store_remotesnapshot(snapshot.name, snapshot)
-                        # XXX update remotesnapshot db (then Personal
-                        # DMD) (careful here, we still need something
-                        # that makes sure mismatches between
-                        # remotesnapshots in our db and the Personal
-                        # DMD are reconciled .. that is, if we crash
-                        # here and/or can't update our Personal DMD we
-                        # need to retry later.
-                        yield self.tahoe_client.add_entry_to_mutable_directory(
-                            self._config.upload_dircap,
-                            snapshot.name,
-                            snapshot.capability,
-                            replace=True,
-                        )
-                    else:
-                        self._magic_fs.mark_conflict(snapshot, staged)
-
 
     # LoopingCall:
     #  - snap = await _queue.get()
@@ -555,7 +561,6 @@ class LocalMagicFolderFilesystem(object):
         :param FilePath staged_content: a local path to the downloaded
             content.
         """
-        print("OVERWRITE", remote_snapshot.name)
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
         staged_content.moveTo(local_path)
 
@@ -574,7 +579,6 @@ class LocalMagicFolderFilesystem(object):
         :param FilePath staged_content: a local path to the downloaded
             content.
         """
-        print("CONFLICT", remote_snapshot, staged_content)
         local_path = self.magic_path.preauthChild(
             magic2path(remote_snapshot.name) + ".conflict-{}".format(remote_snapshot.author.name)
         )
@@ -629,19 +633,18 @@ class DownloaderService(service.Service):
 
 
     def startService(self):
-        print("starting downloader")
 
         @inlineCallbacks
-        def log():
+        def log_errors():
             try:
                 yield self._scan_collective()
             except Exception as e:
                 print("bad: {}".format(e))
                 print(Failure())
 
-        self._processing_loop = LoopingCall(
-            log#self._scan_collective,
-        )
+        self._processing_loop = LoopingCall(log_errors)
+#            self._scan_collective,
+#        )
         self._processing = self._processing_loop.start(self._config.poll_interval, now=True)
 
     def stopService(self):
@@ -655,34 +658,30 @@ class DownloaderService(service.Service):
         self._processing_loop = None
         return d
 
-    @inlineCallbacks
+    @inline_callbacks
     def _scan_collective(self):
-        print("_scan_collective")
-        people = yield self._participants.list()
-        for person in people:
-            if person.is_self:
-                # if we keep the local remotesnapshot cache (in our
-                # config db) then this probably ought to check that
-                # it's correct .. maybe not ever poll, but ..
-                continue
-            print("{}: {}".format(person.name, person.dircap))
-            files = yield self._tahoe_client.list_directory(person.dircap)
-            print("  {} files:".format(len(files)))
-            for fname, data in files.items():
-                snapshot_cap, metadata = data
-                fpath = self._config.magic_path.preauthChild(magic2path(fname))
-                relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
-                print("    {}: {}".format(relpath, snapshot_cap))
-                # do we have this one?
-                try:
-                    remote = self._config.get_remotesnapshot(relpath)
-                    print(remote)
-                except KeyError:
-                    print("NO")
+        action = start_action(action_type="downloader:scan-collective")
+        with action:
+            people = yield self._participants.list()
+            for person in people:
+                Message.log(message_type="scan-participant", person=person.name, is_self=person.is_self)
+                if person.is_self:
+                    # if we keep the local remotesnapshot cache (in our
+                    # config db) then this probably ought to check that
+                    # it's correct .. maybe not ever poll, but ..
+                    continue
+                files = yield self._tahoe_client.list_directory(person.dircap)
+                action.add_success_fields(files=files)
+                for fname, data in files.items():
+                    snapshot_cap, metadata = data
+                    fpath = self._config.magic_path.preauthChild(magic2path(fname))
+                    relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
+                    action.add_success_fields(
+                        abspath=fpath.path,
+                        relpath=relpath,
+                    )
                     snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
-                    print("SNAP", snapshot)
                     yield self._folder_updater.add_remote_snapshot(snapshot)
-
 
     # LoopingCall:
     #  - download Collective DMD

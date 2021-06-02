@@ -15,6 +15,9 @@ from twisted.internet.defer import (
     Deferred,
     succeed,
 )
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.internet.task import (
     deferLater,
 )
@@ -187,6 +190,104 @@ class MagicFolderEnabledNode(object):
                 self.name,
             )
 
+    # magic-folder CLI API helpers
+
+    @inlineCallbacks
+    def add(self, folder_name, magic_directory, author=None, poll_interval=5):
+        """
+        magic-folder add
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add",
+                "--name", folder_name,
+                "--author", author or self.name,
+                "--poll-interval", str(int(poll_interval)),
+                magic_directory,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def show_config(self):
+        """
+        magic-folder show-config
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "show-config",
+            ],
+        )
+        output = yield proto.done
+        config = json.loads(output)
+        returnValue(config)
+
+    @inlineCallbacks
+    def list_(self, include_secret_information=None):
+        """
+        magic-folder list
+        """
+        proto = _CollectOutputProtocol()
+        args = [
+            "--config", self.magic_config_directory,
+            "list",
+            "--json",
+        ]
+        if include_secret_information:
+            args.append("--include-secret-information")
+
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            args,
+        )
+        output = yield proto.done
+        config = json.loads(output)
+        returnValue(config)
+
+    @inlineCallbacks
+    def add_snapshot(self, folder_name, relpath):
+        """
+        magic-folder-api add-snapshot
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add-snapshot",
+                "--folder", folder_name,
+                "--file", relpath,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def add_participant(self, folder_name, author_name, personal_dmd):
+        """
+        magic-folder-api add-participant
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add-participant",
+                "--folder", folder_name,
+                "--author", author_name,
+                "--personal-dmd", personal_dmd,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
 
 class _ProcessExitedProtocol(ProcessProtocol):
     """
@@ -220,6 +321,7 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
+        print(data)
         self.output.write(data)
 
     def errReceived(self, data):
@@ -312,6 +414,22 @@ def _magic_folder_runner(proto, reactor, request, other_args):
         prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
     else:
         prelude = [sys.executable, "-m", "magic_folder"]
+
+    return reactor.spawnProcess(
+        proto,
+        sys.executable,
+        prelude + other_args,
+    )
+
+
+def _magic_folder_api_runner(proto, reactor, request, other_args):
+    """
+    Launch a ``magic-folder-api`` child process and return it.
+    """
+    if request.config.getoption('coverage'):
+        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
+    else:
+        prelude = [sys.executable, "-m", "magic_folder.api_cli"]
 
     return reactor.spawnProcess(
         proto,

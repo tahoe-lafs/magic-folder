@@ -21,6 +21,7 @@ from zope.interface import (
 from eliot import (
     ActionType,
     MessageType,
+    Message,
     write_traceback,
 )
 from eliot.twisted import (
@@ -34,6 +35,7 @@ from .snapshot import (
     LocalAuthor,
     write_snapshot_to_tahoe,
     create_snapshot,
+    create_snapshot_from_capability,
 )
 from .config import (
     MagicFolderConfig,
@@ -83,6 +85,7 @@ class LocalSnapshotCreator(object):
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _tahoe_client = attr.ib()
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -104,6 +107,21 @@ class LocalSnapshotCreator(object):
                 parents = []
             else:
                 parents = [parent_snapshot]
+
+            # if we already have a parent here, it's a LocalSnapshot
+            # .. which means that any remote snapshot by definition
+            # must be "not our parent" (it should be the parent .. or
+            # grandparent etc .. of our localsnapshot)
+            if not parents:
+                try:
+                    parent_remote = self._db.get_remotesnapshot(mangled_name)
+                    print("REMOTE", parent_remote)
+                    parent = yield create_snapshot_from_capability(parent_remote, self._tahoe_client)
+                    parents.append(parent)
+                except KeyError:
+                    pass
+
+            print("PARENTS", parents)
 
             # need to handle remote-parents when we have remote
             # snapshots
@@ -160,7 +178,7 @@ class LocalSnapshotService(service.Service):
             except CancelledError:
                 break
             except Exception:
-                # XXX Probably should fire d here, someone might be waiting.
+                d.errback()
                 write_traceback()
 
     def stopService(self):
@@ -265,7 +283,8 @@ class RemoteSnapshotCreator(object):
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
-                pass
+                print("BAD", Failure())
+                print(Failure())
 
     @inline_callbacks
     def _upload_some_snapshots(self, name):
@@ -274,7 +293,7 @@ class RemoteSnapshotCreator(object):
         """
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(name)
-
+        print("UPLOAD: {}".format(snapshot))
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,

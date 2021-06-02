@@ -893,7 +893,7 @@ class MagicFolderConfig(object):
                 (?, ?, 0, ?)
             """,
             list(
-                (unicode(snapshot.identifier), index, parent_identifier)
+                (unicode(snapshot.identifier), index, parent_identifier.capability)
                 for (index, parent_identifier)
                 in enumerate(snapshot.parents_remote)
             ),

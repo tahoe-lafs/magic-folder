@@ -118,6 +118,7 @@ class MagicFolder(service.MultiService):
                     mf_config.author,
                     mf_config.stash_path,
                     mf_config.magic_path,
+                    tahoe_client,
                 ),
             ),
             uploader_service=UploaderService.from_config(

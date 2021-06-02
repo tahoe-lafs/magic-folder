@@ -348,3 +348,8 @@ def _entry():
     def main(reactor):
         return dispatch_magic_folder_api_command(sys.argv[1:])
     return react(main)
+
+
+if __name__ == '__main__':
+    # this allows one to run this like "python -m magic_folder.api_cli"
+    _entry()

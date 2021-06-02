@@ -317,7 +317,9 @@ class SnapshotAPIv1(Resource, object):
 
     def getChild(self, name, request):
         name_u = name.decode("utf-8")
+        print("XXX", name, name_u)
         folder_config = self._global_config.get_magic_folder(name_u)
+        print("XXX", folder_config)
         folder_service = self._global_service.get_folder_service(name_u)
         return MagicFolderSnapshotAPIv1(folder_config, folder_service)
 
@@ -337,7 +339,6 @@ class MagicFolderSnapshotAPIv1(Resource, object):
         Create a new Snapshot
         """
         path_u = request.args[b"path"][0].decode("utf-8")
-
 
         # preauthChild allows path-separators in the "path" (i.e. not
         # just a single path-segment). That is precisely what we want

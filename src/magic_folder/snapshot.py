@@ -451,8 +451,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         verify_snapshot_signature(author, signature, content_cap, metadata_cap, name)
 
         # find all parents
-        parents = [k for k in snapshot.keys() if k.startswith('parent')]
-        parent_caps = [snapshot[parent][1]["ro_uri"] for parent in parents]
+        parent_caps = metadata["parents"]
 
         returnValue(
             RemoteSnapshot(
@@ -607,7 +606,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent.capability)
+            parents_raw.append(parent)#.capability)
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
