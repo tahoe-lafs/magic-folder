@@ -1,3 +1,7 @@
+"""
+Classes and services relating to the operation of the Downloader
+"""
+
 from collections import deque
 
 import attr
@@ -52,86 +56,6 @@ from .magicpath import (
 from .snapshot import (
     create_snapshot_from_capability,
 )
-
-
-"""
-XXX Notes:
-- local state needs to note the last Snapshot we had for each name (does it?)
-- this state is synchronized to our Personal DMD when we're online
-
-Questions:
-- Do we want an Automat state-machine here?
-
-  Conceptually, each "path" in our magic-folder has a state-machine as it goes from waiting/updating/conflicted/etc (maybe more or less states, but ..)
-
-
-So, a magic-folder has remote-snapshots in its database.
-These are name -> (magic_path, capabilitiy-string).
-
-Given a "name", how do we determine if we need to download it?
-  -> want a "last downloaded" or "on-disk state" or something
-      - corresponds to the cap-string of the current stuff?
-      - (what if we have a LocalSnapshot or two in the queue?)
-  -> currently, the uploader creates a LocalSnapshot and then (eventually)
-     it is uploaded, the localsnapshot is deleted (and becomes a remote snapshot)
-    -> this process should note "on-disk state = capability-string"
-    -> does "on-disk state" say "null" or something before upload?
-      - maybe-equivalently: if we have pending LocalSnapshots for a
-        thing, we don't do downloads on it? (no, that can't be right
-        .. how would we learn if someone else updated meantime?)
-
-
-Recovery:
- - the only real use-case we have where the downloader would do
-   anything at all is recovery (until there are invites).
- - "magic-folder recover ..."
- - ^ gives us back information previous dumped. For example, we could
-    - use "list" subcommand with --include-secret-information and
-    - --json:
-
-     {
-        "name": "default",                                                                                        "author": {
-            "name": "bob",
-            "signing_key": "ZMQY4Z2N3HAYFRXHN4U3M6EE3SLV6DXEMWKS6TH2I6TVZW64PLAA====",
-            "verify_key": "TO4QG6VEH5FLYXSW3KQFYLXGKU4R7722FCU2T6Q65U3YZP4QD7TA===="
-        },
-        "upload_dircap": "URI:DIR2:pbrtrmm5wmt6a3xzklcnlhp5hq:p7knzkbvc3zeyg5xzpbdzp3vhmy7soqen2b5xldfdpex
-hqgffgiq",
-        "poll_interval": 60,
-        "is_admin": true,
-        "collective_dircap": "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolum
-rfa6c7prgkvq",
-        "stash_path": "/home/meejah/work/leastauthority/src/magic-folder/bob-magic/default/stash",               "magic_path": "/home/meejah/work/leastauthority/src/magic-folder/bobs-magic-folder"
-    }
-
- - okay, so we use the above information to create a new (but empty!)
-   magic-folder configured as above.
- - assuming "bobs-magic-folder" is emtpy (we're recovering after all .. assume clean slate?)
- - there will be zero snapshots in the database (no remote, no local)
- - so, downloader goes exploring.
-    - downloads the "collective dircap"
-    - finds one entry: ours
-    - downloads (via read-cap) that entry
-    - finds .. some stuff
-
- (HANG ON, it's kind of weird to download our *own* collective .. only
- in the recovery state would it not match, and checking it feels wrong
- .. e.g. what if we deleted a file? Then if the downloader runs before
- the uploader it might say "oh, wait, we need to update this missing
- file!")
-
-    - okay, so maybe it's better if in the "recovery" case what we do instead is:
-      - configure new folder "very much like" our old one, BUT:
-      - we have a new upload dircap
-      - we add our old / recovered one as another participant (albeit
-        this participant will never update)
-        (we need to be admin for this, but that's fine because we just created the folder)
-      - now the downloader can proceed as normal (our backup is just another folder participant)
-
-    - maybe the HTTP API is just "add participant" (directly). No
-      invite, we already have all the seekrit information we need.
-
-"""
 
 
 @attr.s
