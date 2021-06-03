@@ -48,9 +48,6 @@ from twisted.internet.defer import (
     CancelledError,
 )
 
-from .tahoe_client import (
-    TahoeClient,
-)
 from .config import (
     MagicFolderConfig,
 )
