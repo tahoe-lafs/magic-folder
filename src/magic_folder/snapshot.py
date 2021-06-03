@@ -511,7 +511,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
         elif isinstance(parent, RemoteSnapshot):
-            parents_remote.append(parent)
+            parents_remote.append(parent.capability)
         else:
             raise ValueError(
                 "Parent {} is type {} not LocalSnapshot or RemoteSnapshot".format(

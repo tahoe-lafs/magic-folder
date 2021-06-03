@@ -559,6 +559,8 @@ class DownloaderService(service.Service):
             tahoe_client,
         )
 
+    def __attrs_post_init__(self):
+        self._folder_updater.setServiceParent(self)
 
     def startService(self):
 

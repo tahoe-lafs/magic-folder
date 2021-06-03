@@ -181,7 +181,6 @@ class MagicFolder(service.MultiService):
         uploader_service.setServiceParent(self)
         remote_snapshot_cache.setServiceParent(self)
         downloader.setServiceParent(self)
-        downloader._folder_updater.setServiceParent(self)
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
         status_service.setServiceParent(self)
