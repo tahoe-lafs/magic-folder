@@ -292,7 +292,7 @@ class MagicFolderUpdaterService(service.Service):
     """
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
-    tahoe_client = attr.ib(validator=instance_of(TahoeClient))
+    tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
@@ -534,7 +534,7 @@ class InMemoryMagicFolderFilesystem(object):
 
 @attr.s
 @implementer(service.IService)
-class DownloaderService(service.Service):
+class DownloaderService(service.MultiService):
     """
     A service that periodically polls the Colletive DMD for new
     RemoteSnapshot capabilities to download.
@@ -560,7 +560,9 @@ class DownloaderService(service.Service):
         )
 
     def __attrs_post_init__(self):
+        service.MultiService.__init__(self)
         self._folder_updater.setServiceParent(self)
+        self._remote_snapshot_cache.setServiceParent(self)
 
     def startService(self):
 

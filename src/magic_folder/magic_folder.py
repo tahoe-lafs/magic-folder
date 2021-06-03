@@ -179,7 +179,6 @@ class MagicFolder(service.MultiService):
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
-        remote_snapshot_cache.setServiceParent(self)
         downloader.setServiceParent(self)
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
