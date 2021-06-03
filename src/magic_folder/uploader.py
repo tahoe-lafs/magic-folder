@@ -285,11 +285,8 @@ class RemoteSnapshotCreator(object):
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
-        # the new snapshot gets lost. Perhaps this can be solved by storing each
-        # LocalSnapshot in its own row than storing everything in a blob?
-        # https://github.com/LeastAuthority/magic-folder/issues/197
+        # the new snapshot gets lost.
 
-        # XXX above comment obsolete, right? (197 is fixed / database is normalized)
         for name in localsnapshot_names:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
