@@ -21,9 +21,6 @@ from twisted.internet.defer import (
     Deferred,
     succeed,
 )
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.internet.task import (
     deferLater,
 )

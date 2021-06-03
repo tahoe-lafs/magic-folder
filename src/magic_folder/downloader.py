@@ -1,3 +1,10 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
+
 """
 Classes and services relating to the operation of the Downloader
 """
@@ -19,9 +26,7 @@ from eliot.twisted import (
     inline_callbacks,
 )
 from eliot import (
-    log_call,
     start_action,
-    start_task,
     Message,
 )
 
@@ -50,7 +55,6 @@ from .config import (
     MagicFolderConfig,
 )
 from .magicpath import (
-    path2magic,
     magic2path,
 )
 from .snapshot import (
@@ -513,7 +517,7 @@ class LocalMagicFolderFilesystem(object):
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 @implementer(IMagicFolderFilesystem)

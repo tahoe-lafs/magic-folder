@@ -1,38 +1,22 @@
+from __future__ import (
+    absolute_import,
+    division,
+    print_function,
+    unicode_literals,
+)
+
 """
 Testing synchronizing files between participants
 """
 
-from __future__ import (
-    unicode_literals,
+from tempfile import (
+    mkdtemp,
 )
-
-from json import (
-    loads,
-)
-from tempfile import mkdtemp, mktemp
 
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.internet.task import (
-    deferLater,
-)
 import pytest_twisted
-from hypothesis.strategies import (
-    just,
-    one_of,
-    sampled_from,
-    booleans,
-    characters,
-    text,
-    lists,
-    builds,
-    binary,
-    integers,
-    floats,
-    fixed_dictionaries,
-    dictionaries,
-)
 
 from magic_folder.util.capabilities import (
     to_readonly_capability,

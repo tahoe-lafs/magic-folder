@@ -22,7 +22,6 @@ from eliot import (
     remove_destination,
     ILogger,
     ActionType,
-    log_call,
 )
 
 from logging import (

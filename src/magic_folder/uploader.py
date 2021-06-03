@@ -9,6 +9,9 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.failure import (
+    Failure,
+)
 from twisted.application import (
     service,
 )
@@ -27,7 +30,6 @@ from zope.interface import (
 from eliot import (
     ActionType,
     MessageType,
-    Message,
     write_traceback,
 )
 from eliot.twisted import (
@@ -352,8 +354,11 @@ class RemoteSnapshotCreator(object):
             # Remove the local snapshot content from the stash area.
             snapshot.content_path.asBytesMode("utf-8").remove()
         except Exception as e:
-            print("Failed to remove cache: '{}'".format(
-                snapshot.content_path.asTextMode("utf-8").path)
+            print(
+                "Failed to remove cache: '{}': {}".format(
+                    snapshot.content_path.asTextMode("utf-8").path,
+                    str(e),
+                )
             )
 
         # Remove the LocalSnapshot from the db.
