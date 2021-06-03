@@ -562,6 +562,7 @@ class DownloaderService(service.MultiService):
         self._remote_snapshot_cache.setServiceParent(self)
 
     def startService(self):
+        super(DownloaderService, self).startService()
 
         @inlineCallbacks
         def log_errors():
