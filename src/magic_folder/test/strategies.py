@@ -215,9 +215,6 @@ def folder_names():
         min_size=1,
     ).map(
         normalize,
-    ).filter(
-        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
-        _valid_path_segment
     )
 
 
