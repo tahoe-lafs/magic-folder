@@ -90,10 +90,6 @@ install_requires = [
     "klein==20.6.0",
 ]
 
-setup_requires = [
-    'setuptools >= 28.8.0, <45',  # for PEP-440 style versions
-]
-
 from setuptools import find_packages, setup
 from setuptools import Command
 from setuptools.command import install
@@ -296,7 +292,6 @@ setup(name="magic_folder",
       package_dir={'': 'src'},
       packages=find_packages('src') + ["twisted.plugins", "magic_folder.test.plugins"],
       classifiers=trove_classifiers,
-      python_requires="~=2.7",
       install_requires=install_requires,
       extras_require={
           # For magic-folder on "darwin" (macOS) and the BSDs
@@ -327,7 +322,6 @@ setup(name="magic_folder",
       package_data={"magic_folder": ["ported-modules.txt"],
                     },
       include_package_data=True,
-      setup_requires=setup_requires,
       entry_points={
           "console_scripts": [
               "magic-folder = magic_folder.cli:_entry",

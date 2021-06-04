@@ -74,9 +74,11 @@ else
     alternative="false"
 fi
 
+# Skip install here, as we've already done it in setup-virtualenv.sh
 ${TIMEOUT} "${BOOTSTRAP_VENV}"/bin/tox \
     -c "${PROJECT_ROOT}"/tox.ini \
     --workdir /tmp/magic-folder.tox \
+    --skip-pkg-install \
     -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
     ${MAGIC_FOLDER_TOX_ARGS} || "${alternative}"
 
