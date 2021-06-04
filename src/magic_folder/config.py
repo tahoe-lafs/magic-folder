@@ -1342,6 +1342,9 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
         """
+        if "/" in name or "\\" in name:
+            raise ValueError("Magic folder names cannot contain '/' or '\\'.")
+
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
