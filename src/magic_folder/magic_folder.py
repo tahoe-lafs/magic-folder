@@ -25,7 +25,7 @@ from .util.eliotutil import (
     validateSetMembership,
     validateInstanceOf,
 )
-from allmydata.util import log
+from twisted.python import log
 
 from .uploader import (
     LocalSnapshotService,

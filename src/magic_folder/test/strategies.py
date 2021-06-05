@@ -39,7 +39,6 @@ from hypothesis.strategies import (
     builds,
     binary,
     integers,
-    floats,
     fixed_dictionaries,
     dictionaries,
 )
@@ -50,9 +49,6 @@ from twisted.python.filepath import (
 
 from allmydata.util import (
     base32,
-)
-from allmydata.util.progress import (
-    PercentProgress,
 )
 from ..util.encoding import (
     # In the future we should generate text using different normalizations and
@@ -264,27 +260,6 @@ def filenodes():
         }),
     })
 
-
-
-def progresses():
-    """
-    Build ``PercentProgress`` instances.
-    """
-    def a_progress(progress, total_size):
-        p = PercentProgress(total_size)
-        p.set_progress(progress)
-        return p
-
-    return builds(
-        a_progress,
-        floats(
-            min_value=0.0,
-            max_value=100.0,
-            allow_nan=False,
-            allow_infinity=False,
-        ),
-        integers(min_value=0),
-    )
 
 
 def magic_folder_filenames():

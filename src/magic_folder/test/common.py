@@ -21,9 +21,6 @@ from functools import partial
 from unittest import case as _case
 from socket import (
     AF_INET,
-    SOCK_STREAM,
-    SOMAXCONN,
-    socket,
     error as socket_error,
 )
 from errno import (
@@ -56,21 +53,11 @@ from twisted.application import service
 from twisted.web.error import Error as WebError
 from twisted.internet.interfaces import (
     IStreamServerEndpointStringParser,
-    IReactorSocket,
 )
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
-
-from pyutil.assertutil import precondition
+from twisted.python import log
 
 from allmydata import uri
-from allmydata.interfaces import IImmutableFileNode,\
-                                 NotEnoughSharesError
-
-from allmydata.check_results import CheckResults, CheckAndRepairResults
-
-from allmydata.storage_client import StubServer
-from allmydata.util import log, iputil
-from allmydata.util.consumer import download_to_data
 
 from eliot import (
     log_call,
@@ -151,195 +138,10 @@ def really_bind(s, addr):
     raise Exception("Many bind attempts failed with EADDRINUSE")
 
 
-class SameProcessStreamEndpointAssigner(object):
-    """
-    A fixture which can assign streaming server endpoints for use *in this
-    process only*.
-
-    An effort is made to avoid address collisions for this port but the logic
-    for doing so is platform-dependent (sorry, Windows).
-
-    This is more reliable than trying to listen on a hard-coded non-zero port
-    number.  It is at least as reliable as trying to listen on port number
-    zero on Windows and more reliable than doing that on other platforms.
-    """
-    def setUp(self):
-        self._cleanups = []
-        # Make sure the `adopt-socket` endpoint is recognized.  We do this
-        # instead of providing a dropin because we don't want to make this
-        # endpoint available to random other applications.
-        f = UseTestPlugins()
-        f.setUp()
-        self._cleanups.append(f.cleanUp)
-
-    def tearDown(self):
-        for c in self._cleanups:
-            c()
-
-    def assign(self, reactor):
-        """
-        Make a new streaming server endpoint and return its string description.
-
-        This is intended to help write config files that will then be read and
-        used in this process.
-
-        :param reactor: The reactor which will be used to listen with the
-            resulting endpoint.  If it provides ``IReactorSocket`` then
-            resulting reliability will be extremely high.  If it doesn't,
-            resulting reliability will be pretty alright.
-
-        :return: A two-tuple of (location hint, port endpoint description) as
-            strings.
-        """
-        if IReactorSocket.providedBy(reactor):
-            # On this platform, we can reliable pre-allocate a listening port.
-            # Once it is bound we know it will not fail later with EADDRINUSE.
-            s = socket(AF_INET, SOCK_STREAM)
-            # We need to keep ``s`` alive as long as the file descriptor we put in
-            # this string might still be used.  We could dup() the descriptor
-            # instead but then we've only inverted the cleanup problem: gone from
-            # don't-close-too-soon to close-just-late-enough.  So we'll leave
-            # ``s`` alive and use it as the cleanup mechanism.
-            self._cleanups.append(s.close)
-            s.setblocking(False)
-            really_bind(s, ("127.0.0.1", 0))
-            s.listen(SOMAXCONN)
-            host, port = s.getsockname()
-            location_hint = "tcp:%s:%d" % (host, port)
-            port_endpoint = "adopt-socket:fd=%d" % (s.fileno(),)
-        else:
-            # On other platforms, we blindly guess and hope we get lucky.
-            portnum = iputil.allocate_tcp_port()
-            location_hint = "tcp:127.0.0.1:%d" % (portnum,)
-            port_endpoint = "tcp:%d:interface=127.0.0.1" % (portnum,)
-
-        return location_hint, port_endpoint
-
 @implementer(IPullProducer)
 class DummyProducer(object):
     def resumeProducing(self):
         pass
-
-@implementer(IImmutableFileNode)
-class FakeCHKFileNode(object):
-    """I provide IImmutableFileNode, but all of my data is stored in a
-    class-level dictionary."""
-
-    def __init__(self, filecap, all_contents):
-        precondition(isinstance(filecap, (uri.CHKFileURI, uri.LiteralFileURI)), filecap)
-        self.all_contents = all_contents
-        self.my_uri = filecap
-        self.storage_index = self.my_uri.get_storage_index()
-
-    def get_uri(self):
-        return self.my_uri.to_string()
-    def get_write_uri(self):
-        return None
-    def get_readonly_uri(self):
-        return self.my_uri.to_string()
-    def get_cap(self):
-        return self.my_uri
-    def get_verify_cap(self):
-        return self.my_uri.get_verify_cap()
-    def get_repair_cap(self):
-        return self.my_uri.get_verify_cap()
-    def get_storage_index(self):
-        return self.storage_index
-
-    def check(self, monitor, verify=False, add_lease=False):
-        s = StubServer("\x00"*20)
-        r = CheckResults(self.my_uri, self.storage_index,
-                         healthy=True, recoverable=True,
-                         count_happiness=10,
-                         count_shares_needed=3,
-                         count_shares_expected=10,
-                         count_shares_good=10,
-                         count_good_share_hosts=10,
-                         count_recoverable_versions=1,
-                         count_unrecoverable_versions=0,
-                         servers_responding=[s],
-                         sharemap={1: [s]},
-                         count_wrong_shares=0,
-                         list_corrupt_shares=[],
-                         count_corrupt_shares=0,
-                         list_incompatible_shares=[],
-                         count_incompatible_shares=0,
-                         summary="",
-                         report=[],
-                         share_problems=[],
-                         servermap=None)
-        return defer.succeed(r)
-    def check_and_repair(self, monitor, verify=False, add_lease=False):
-        d = self.check(verify)
-        def _got(cr):
-            r = CheckAndRepairResults(self.storage_index)
-            r.pre_repair_results = r.post_repair_results = cr
-            return r
-        d.addCallback(_got)
-        return d
-
-    def is_mutable(self):
-        return False
-    def is_readonly(self):
-        return True
-    def is_unknown(self):
-        return False
-    def is_allowed_in_immutable_directory(self):
-        return True
-    def raise_error(self):
-        pass
-
-    def get_size(self):
-        if isinstance(self.my_uri, uri.LiteralFileURI):
-            return self.my_uri.get_size()
-        try:
-            data = self.all_contents[self.my_uri.to_string()]
-        except KeyError as le:
-            raise NotEnoughSharesError(le, 0, 3)
-        return len(data)
-    def get_current_size(self):
-        return defer.succeed(self.get_size())
-
-    def read(self, consumer, offset=0, size=None):
-        # we don't bother to call registerProducer/unregisterProducer,
-        # because it's a hassle to write a dummy Producer that does the right
-        # thing (we have to make sure that DummyProducer.resumeProducing
-        # writes the data into the consumer immediately, otherwise it will
-        # loop forever).
-
-        d = defer.succeed(None)
-        d.addCallback(self._read, consumer, offset, size)
-        return d
-
-    def _read(self, ignored, consumer, offset, size):
-        if isinstance(self.my_uri, uri.LiteralFileURI):
-            data = self.my_uri.data
-        else:
-            if self.my_uri.to_string() not in self.all_contents:
-                raise NotEnoughSharesError(None, 0, 3)
-            data = self.all_contents[self.my_uri.to_string()]
-        start = offset
-        if size is not None:
-            end = offset + size
-        else:
-            end = len(data)
-        consumer.write(data[start:end])
-        return consumer
-
-
-    def get_best_readable_version(self):
-        return defer.succeed(self)
-
-
-    def download_to_data(self, progress=None):
-        return download_to_data(self, progress=progress)
-
-
-    download_best_version = download_to_data
-
-
-    def get_size_of_best_version(self):
-        return defer.succeed(self.get_size)
 
 
 def make_chk_file_cap(size):
@@ -350,12 +152,6 @@ def make_chk_file_cap(size):
                           size=size)
 def make_chk_file_uri(size):
     return make_chk_file_cap(size).to_string()
-
-def create_chk_filenode(contents, all_contents):
-    filecap = make_chk_file_cap(len(contents))
-    n = FakeCHKFileNode(filecap, all_contents)
-    all_contents[filecap.to_string()] = contents
-    return n
 
 
 def make_mutable_file_cap():
