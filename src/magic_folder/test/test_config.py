@@ -24,6 +24,9 @@ from hypothesis.strategies import (
     just,
     binary,
     lists,
+    tuples,
+    text,
+    characters
 )
 
 from testtools import (
@@ -373,8 +376,33 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
 
-    def test_get_folder_illegal_characters(self):
-        raise Exception()
+    @given(
+        tuples(
+            text(),
+            characters(
+                whitelist_categories=(
+                    # control characters
+                    "Cc",
+                ),
+                whitelist_characters=("/", "\\"),
+            ),
+            text(),
+        ).map("".join)
+    )
+    def test_get_folder_illegal_characters(self, folder_name):
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        alice = create_local_author(u"alice")
+        magic = self.temp.child("magic")
+        magic.makedirs()
+        with ExpectedException(ValueError, escape("Magic folder names cannot contain '/' or '\\' or control characters.")):
+            config.create_magic_folder(
+                folder_name,
+                magic,
+                alice,
+                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                60,
+            )
 
 
 class StoreLocalSnapshotTests(SyncTestCase):

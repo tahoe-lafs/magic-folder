@@ -84,6 +84,7 @@ from .snapshot import (
 )
 from .common import (
     atomic_makedirs,
+    valid_magic_folder_name,
 )
 from ._schema import (
     SchemaUpgrade,
@@ -1339,8 +1340,7 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
         """
-        if "/" in name or "\\" in name:
-            raise ValueError("Magic folder names cannot contain '/' or '\\'.")
+        valid_magic_folder_name(name)
 
         with self.database:
             cursor = self.database.cursor()

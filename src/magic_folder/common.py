@@ -12,6 +12,7 @@ from __future__ import (
 )
 
 from contextlib import contextmanager
+import unicodedata
 
 
 class BadResponseCode(Exception):
@@ -50,3 +51,7 @@ def atomic_makedirs(path):
         path_b.remove()
         # ...and pass on the error
         raise
+
+def valid_magic_folder_name(name):
+    if u"/" in name or u"\\" in name or any((unicodedata.category(c) == "Cc" for c in name)):
+        raise ValueError("Magic folder names cannot contain '/' or '\\' or control characters.")

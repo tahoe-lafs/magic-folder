@@ -67,6 +67,10 @@ from allmydata.client import (
     read_config,
 )
 
+from .common import (
+    valid_magic_folder_name,
+)
+
 from .magic_folder import (
     MagicFolder,
 )
@@ -275,6 +279,7 @@ class AddOptions(usage.Options):
                 "'{}' isn't a directory".format(local_dir)
             )
 
+
     def postOptions(self):
         super(AddOptions, self).postOptions()
         _fill_author_from_environment(self)
@@ -282,6 +287,10 @@ class AddOptions(usage.Options):
             raise usage.UsageError(
                 "Must specify the --name option"
             )
+        try:
+            valid_magic_folder_name(argv_to_unicode(self['name']))
+        except ValueError as e:
+            raise usage.UsageError(str(e))
         try:
             if int(self['poll-interval']) <= 0:
                 raise ValueError("should be positive")
