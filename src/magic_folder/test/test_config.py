@@ -374,6 +374,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             config.get_magic_folder(u"non-existent")
 
     def test_get_folder_illegal_characters(self):
+        raise Exception()
 
 
 class StoreLocalSnapshotTests(SyncTestCase):

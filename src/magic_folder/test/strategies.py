@@ -99,8 +99,6 @@ FOLDER_ALPHABET = characters(
     blacklist_categories=(
         # Exclude surrogates.  They're complicated.
         "Cs",
-        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
-        "Cc",
     ),
     blacklist_characters=(u"\x00", u"/", u"\\"),
 )
