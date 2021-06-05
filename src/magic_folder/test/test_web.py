@@ -637,7 +637,7 @@ class CreateSnapshotTests(SyncTestCase):
                                         # parents if there are any.
                                         u"parents": Equals([]),
                                         u"content-path": AfterPreprocessing(
-                                            lambda path: FilePath(path).getContent(),
+                                            lambda path: FilePath(path).asBytesMode("utf8").getContent(),
                                             Equals(some_content),
                                         ),
                                         u"author": Equals(author.to_remote_author().to_json()),
