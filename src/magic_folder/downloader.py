@@ -92,19 +92,18 @@ class RemoteSnapshotCacheService(service.Service):
     that happened (and so on startup, we should check and possibly
     push more things up to Tahoe)
     """
-    tahoe_client = attr.ib()
     folder_config = attr.ib()
-    _clock = attr.ib()  # IReactor
+    tahoe_client = attr.ib()
     cached_snapshots = attr.ib(default=attr.Factory(dict))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     @classmethod
-    def from_config(cls, clock, config, tahoe_client):
+    def from_config(cls, config, tahoe_client):
         """
         Create a RemoteSnapshotCacheService from the MagicFolder
         configuration.
         """
-        return cls(tahoe_client, config, clock)
+        return cls(config, tahoe_client)
 
     def add_remote_capability(self, snapshot_cap):
         """

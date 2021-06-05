@@ -108,7 +108,6 @@ class MagicFolder(service.MultiService):
             tahoe_client
         )
         remote_snapshot_cache_service = RemoteSnapshotCacheService.from_config(
-            clock=reactor,
             config=mf_config,
             tahoe_client=tahoe_client,
         )
