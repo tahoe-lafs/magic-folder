@@ -53,9 +53,7 @@ from allmydata.uri import (
 from allmydata.interfaces import (
     IDirnodeURI,
 )
-from allmydata.util.hashutil import (
-    timing_safe_compare,
-)
+from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .status import (
     StatusFactory,
@@ -515,8 +513,13 @@ def _is_authorized(request, get_auth_token):
     if len(authorization) > 1:
         return False
     auth_token = get_auth_token()
-    expected = u"Bearer {}".format(auth_token).encode("ascii")
+    expected = b"Bearer %s" % (auth_token,)
+    # This ends up calling `hmac.compare_digest`. Looking at the source for
+    # that method suggests that it tries to make timing dependence for unequal
+    # length strings be on the second argument.
+    # Pass the attacker controlled value, to avoid leaking length information
+    # of the expected value.
     return timing_safe_compare(
-        authorization[0].encode("ascii"),
         expected,
+        authorization[0].encode("ascii"),
     )

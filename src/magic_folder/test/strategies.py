@@ -234,7 +234,7 @@ def tahoe_lafs_readonly_dir_capabilities():
 
 def tokens():
     """
-    Build byte strings which are usable as Tahoe-LAFS web API authentication
+    Build byte strings which are usable as magic-folder web API authentication
     tokens.
     """
     return binary(
