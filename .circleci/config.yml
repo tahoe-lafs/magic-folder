@@ -148,7 +148,10 @@ jobs:
       - run:
           name: "Static-ish code checks"
           command: |
-            ~/.local/bin/tox -e codechecks
+            ~/.local/bin/tox -e codechecks-junit
+
+      - store_test_results:
+          path: "junit/"
 
   debian-10: &DEBIAN
     docker:
@@ -285,7 +288,7 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-junit"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
@@ -294,6 +297,8 @@ jobs:
       # DRY, YAML-style.  See the debian-10 steps.
       - run: *SETUP_VIRTUALENV
       - run: *RUN_TESTS
+      - store_test_results:
+          path: "junit/"
 
   integration-1.14:
     <<: *INTEGRATION
@@ -301,7 +306,7 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1_14"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1_14-junit"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
@@ -311,7 +316,7 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master-junit"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
