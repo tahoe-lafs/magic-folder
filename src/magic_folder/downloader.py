@@ -30,7 +30,10 @@ from eliot import (
     Message,
 )
 
-from twisted.application import service
+from twisted.application import (
+    service,
+    internet,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -53,6 +56,9 @@ from .config import (
 )
 from .magicpath import (
     magic2path,
+)
+from .status import (
+    IStatus,
 )
 from .snapshot import (
     create_snapshot_from_capability,
@@ -428,31 +434,6 @@ class MagicFolderUpdaterService(service.Service):
                 replace=True,
             )
 
-    # LoopingCall:
-    #  - snap = await _queue.get()
-    #  - decide what sort of change we have
-    #  - if overwrite: content_path = magic_fs.download_content_to_staging(snap)
-    #  - open state-db write transaction
-    #      - write new local state (e.g. update our "name" to point at snapshot, remove name)
-    #      - column for "did we write to tahoe yet?" marked False [*]
-    #      - if conflict: magic_fs.mark_conflict(snap, content_path)
-    #      - if overwrite: magic_fs.mark_overwrite(snap, content_path)
-    #      - if delete: magic_fs.mark_delete(snap)
-    #  - if db transaction fails, delete content_path
-    #
-    #  - link the snapshot capability into our Personal DMD
-    #  - change "wrote to tahoe" to true
-    #
-    #  XXX do we want that last bit .. "somewhere else"? like, a
-    #  separate service maybe? Thinking is that: on re-start we fill
-    #  its queue with "rows of the database that say 'we didn't write
-    #  to tahoe yet'" like what would happen if we died or failed
-    #  during the "write new snapshot capability to Personal DMD"
-    #  step...
-    #
-    # [*] or do we not want that column at all -- we could deduce it
-    # by examining our own Personal DMD.
-
 
 @implementer(IMagicFolderFilesystem)
 @attr.s
@@ -559,33 +540,11 @@ class DownloaderService(service.MultiService):
         service.MultiService.__init__(self)
         self._folder_updater.setServiceParent(self)
         self._remote_snapshot_cache.setServiceParent(self)
-
-    def startService(self):
-        super(DownloaderService, self).startService()
-
-        @inlineCallbacks
-        def log_errors():
-            try:
-                yield self._scan_collective()
-            except Exception as e:
-                print("bad: {}".format(e))
-                print(Failure())
-
-        self._processing_loop = LoopingCall(log_errors)
-#            self._scan_collective,
-#        )
-        self._processing = self._processing_loop.start(self._config.poll_interval, now=True)
-
-    def stopService(self):
-        """
-        Stop the uploader service.
-        """
-        service.Service.stopService(self)
-        d = self._processing
-        self._processing_loop.stop()
-        self._processing = None
-        self._processing_loop = None
-        return d
+        self._scanner = internet.TimerService(
+            self._config.poll_interval,
+            self._scan_collective,
+        )
+        self._scanner.setServiceParent(self)
 
     @inline_callbacks
     def _scan_collective(self):
@@ -595,9 +554,7 @@ class DownloaderService(service.MultiService):
             for person in people:
                 Message.log(message_type="scan-participant", person=person.name, is_self=person.is_self)
                 if person.is_self:
-                    # if we keep the local remotesnapshot cache (in our
-                    # config db) then this probably ought to check that
-                    # it's correct .. maybe not ever poll, but ..
+                    # we don't download from ourselves
                     continue
                 files = yield self._tahoe_client.list_directory(person.dircap)
                 action.add_success_fields(files=files)
@@ -611,33 +568,3 @@ class DownloaderService(service.MultiService):
                     )
                     snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
                     yield self._folder_updater.add_remote_snapshot(snapshot)
-
-    # LoopingCall:
-    #  - download Collective DMD
-    #      - for each name, download Personal DMD
-    #          - for each file:
-    #              - if capability doesn't match ours:
-    #                  - snap = await _remote_snapshot_cache.add_remote_capability(cap)
-    #                  - (snap and all its parents will be cached now)
-    #                  - _folder_updater.add_remote_snapshot(snap)
-    #
-    # "doesn't match ours": where 'ours' is .. what we have in our
-    #     database for "name -> remotesnapshot"? (maybe: *unless* we also
-    #     have a localsnapshot for that name?)
-    #
-    # If any of the above fails, we will resume on re-start: we will
-    # discover the 'new' capability again in the same way ("their"
-    # capability doesn't match ours) and the only difference will be
-    # that the snapshot-cache may not have to download anything .. and
-    # then the snapshot wil still be passed to the "updater" queue.
-    #
-    # re-thinking snapshot-cache: maybe it can just be in-memory (for
-    # now? maybe forever?) .. it's "a cache" anyway, and I think only
-    # has to "survive" long enough for us to decide "yes, we need to
-    # download that content" .. then we download that content, pass it
-    # to the "updater" which applies to filesystem, updates our
-    # database and updates the collective DMD
-    #
-    # WARNING: that "update the collective DMD" is a tahoe operation,
-    # so we'll have to remember "we wanted to do this" in case we
-    # can't do tahoe stuff right then ... :/ ... and also keep retrying

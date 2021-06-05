@@ -214,11 +214,12 @@ _magicfolder_config_schema = Schema([
         """,
         # XXX so ^ is essentially a cache of our Personal DMD? Is that .. wise?
 
-        # XXX for downloader, do we want to "cache" all snapshot
-        # information here in the database? possibly as a separate
-        # table? that means: everything except the content, I'd say
-        # .. we download the snapshot_cap itself and also download the
-        # metadata-cap.
+        # XXX I think we want a third column: "wrote to tahoe" (bool)
+        # that tells us if we successfully wrote this to our Personal
+        # DMD or not .. on startup, we want to do that for everything
+        # that still says "not" .. *or* we could just deduce from
+        # Personal DMD (i.e. anything here that mismatches gets
+        # uploaded).
     ]),
 ])
 
