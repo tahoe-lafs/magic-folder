@@ -34,10 +34,6 @@ from .fake_inotify import (
     humanReadableMask,
 )
 
-from allmydata.util.fileutil import (
-    PathInfo,
-)
-
 from eliot.twisted import (
     DeferredContext,
 )
@@ -113,21 +109,6 @@ LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
     [float, int, long],
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
-)
-
-PATHINFO = Field(
-    u"pathinfo",
-    lambda v: None if v is None else {
-        "isdir": v.isdir,
-        "isfile": v.isfile,
-        "islink": v.islink,
-        "exists": v.exists,
-        "size": v.size,
-        "mtime_ns": v.mtime_ns,
-        "ctime_ns": v.ctime_ns,
-    },
-    u"The metadata for this version of this file.",
-    validateInstanceOf((type(None), PathInfo)),
 )
 
 INOTIFY_EVENTS = Field(
