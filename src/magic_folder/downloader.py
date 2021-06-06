@@ -50,6 +50,9 @@ from twisted.internet.defer import (
     returnValue,
     CancelledError,
 )
+from twisted.web.error import (
+    SchemeNotSupported,
+)
 
 from .config import (
     MagicFolderConfig,
@@ -550,7 +553,13 @@ class DownloaderService(service.MultiService):
     def _scan_collective(self):
         action = start_action(action_type="downloader:scan-collective")
         with action:
-            people = yield self._participants.list()
+            try:
+                people = yield self._participants.list()
+            except SchemeNotSupported:
+                # mostly a testing aid; if we provided an "empty"
+                # Tahoe Client fake we get this error .. otherwise we
+                # need a proper collective set up.
+                people = []
             for person in people:
                 Message.log(message_type="scan-participant", person=person.name, is_self=person.is_self)
                 if person.is_self:
