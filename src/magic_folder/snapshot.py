@@ -473,7 +473,8 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 
 @inlineCallbacks
-def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None):
+def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
+                    raw_remote_parents=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -519,6 +520,8 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                     type(parent),
                 )
             )
+    if raw_remote_parents:
+        parents_remote.extend(raw_remote_parents)
 
     chunk_size = 1024*1024  # 1 MiB
     chunks_per_yield = 100

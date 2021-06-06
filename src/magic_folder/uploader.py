@@ -126,13 +126,11 @@ class LocalSnapshotCreator(object):
             if not parents:
                 try:
                     parent_remote = self._db.get_remotesnapshot(mangled_name)
-                    parent = yield create_snapshot_from_capability(parent_remote, self._tahoe_client)
-                    parents.append(parent)
+                    raw_remote = [parent_remote]
                 except KeyError:
                     pass
-
-            # need to handle remote-parents when we have remote
-            # snapshots
+            else:
+                raw_remote = []
 
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
@@ -145,6 +143,7 @@ class LocalSnapshotCreator(object):
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
                     parents=parents,
+                    raw_remote_parents=raw_remote,
                 )
 
                 # store the local snapshot to the disk
