@@ -397,7 +397,7 @@ def load_global_configuration(basedir):
     # but this is unsupported until Python 3.4.
     if not db_fname.exists():
         raise ValueError(
-            "{!r} doesn't exist.".format(db_fname.path),
+            "'{}' doesn't exist.".format(db_fname.path),
         )
 
     connection = _upgraded(
@@ -1194,7 +1194,7 @@ class GlobalConfigDatabase(object):
             cursor = self.database.cursor()
             cursor.execute("SELECT tahoe_node_directory FROM config")
             node_dir = FilePath(cursor.fetchone()[0])
-        with node_dir.child("node.url").open("rt") as f:
+        with node_dir.child("node.url").open("r") as f:
             return DecodedURL.from_text(f.read().strip().decode("utf8"))
 
     @property

@@ -11,10 +11,6 @@ from __future__ import (
     print_function,
 )
 
-from os.path import (
-    join,
-)
-
 from uuid import (
     UUID,
 )
@@ -47,6 +43,8 @@ from twisted.python.filepath import (
     FilePath,
 )
 
+from twisted.python.runtime import platformType
+
 from allmydata.util import (
     base32,
 )
@@ -65,6 +63,12 @@ from ..snapshot import (
     LocalSnapshot,
 )
 
+if platformType == "win32":
+    INVALID_FILENAME_CHARACTERS = (u"\x00", u"/", u"\\", ":", "\"", "?", "<", ">", "|", "*")
+else:
+    INVALID_FILENAME_CHARACTERS = (u"\x00", u"/")
+
+
 # There are problems handling non-ASCII paths on platforms without UTF-8
 # filesystem encoding.  Punt on them for now. :(
 #
@@ -77,8 +81,10 @@ DOTLESS_SLASHLESS_SEGMENT_ALPHABET = characters(
         # filesystems or not.  We might want to let them through if we can
         # make them work (they don't work as of this comment).
         "Cn",
+        # Exclude control characters
+        "Cc",
     ),
-    blacklist_characters=(u"\x00", u".", u"/"),
+    blacklist_characters=(u".",) + INVALID_FILENAME_CHARACTERS,
 )
 SEGMENT_ALPHABET = one_of(
     DOTLESS_SLASHLESS_SEGMENT_ALPHABET,
@@ -89,9 +95,18 @@ FOLDER_ALPHABET = characters(
     blacklist_categories=(
         # Exclude surrogates.  They're complicated.
         "Cs",
+        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
+        "Cc",
     ),
     blacklist_characters=(u"\x00", u"/"),
 )
+
+def _valid_path_segment(segment):
+    if platformType == "win32":
+        # https://docs.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/file-folder-name-whitespace-characters
+        return not segment.endswith((u".", u" "))
+    else:
+        return True
 
 def path_segments(alphabet=SEGMENT_ALPHABET):
     """
@@ -118,6 +133,8 @@ def path_segments(alphabet=SEGMENT_ALPHABET):
         lambda segment: segment not in {u".", u".."},
     ).map(
         normalize,
+    ).filter(
+        _valid_path_segment
     )
 
 def path_segments_without_dotfiles(path_segments=path_segments()):
@@ -131,6 +148,25 @@ def path_segments_without_dotfiles(path_segments=path_segments()):
         path_segments,
     )
 
+def _short_enough_path(path):
+    """
+    Check that the relative path is short enough to be used as a filesystem path.
+
+    This assumes that the path will be used as a subdirectory of one created by
+    ``TestCase.mktemp()``, with some slack in various places.
+
+    :return bool:
+    """
+    if platformType == "win32":
+        cwd = len(FilePath(".").path)
+        # The following numbers were all chosen with a little slack
+        # 230 - max path length on windows is ~256
+        # 120 - max length of test name is currently 101
+        # 20 - TestCase.mktemp() generates filenames this long (`/` + 16 random characters + 'tmp')
+        return len(path.encode('utf-8')) + cwd + 120 + 20 < 230
+    else:
+        return True
+
 def relative_paths(segments=path_segments()):
     """
     Build unicode strings which are usable as relative filesystem paths.
@@ -142,9 +178,10 @@ def relative_paths(segments=path_segments()):
         min_size=1,
         max_size=8,
     ).map(
-        lambda xs: join(*xs),
-    )
-
+        # We explicitly use `/` here rather than os.path.join since these are
+        # used both internally and on the filesystem.
+        lambda xs: u"/".join(xs),
+    ).filter(_short_enough_path)
 
 def absolute_paths(relative_paths=relative_paths()):
     """
@@ -174,6 +211,9 @@ def folder_names():
         min_size=1,
     ).map(
         normalize,
+    ).filter(
+        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
+        _valid_path_segment
     )
 
 

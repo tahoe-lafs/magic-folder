@@ -37,6 +37,7 @@ from testtools.matchers import (
 
 from .common import (
     SyncTestCase,
+    skipIf
 )
 from ..common import (
     atomic_makedirs,
@@ -46,6 +47,8 @@ from twisted.python.filepath import (
     Permissions,
     FilePath,
 )
+
+from twisted.python import runtime
 
 def get_synctestcase():
     # Hide this in a function so the test runner doesn't discover it and try
@@ -104,6 +107,7 @@ class SyncTestCaseTests(TestCase):
             "Expected parent of {!r} to be a directory".format(tmp),
         )
 
+    @skipIf(runtime.platformType == "win32", "windows does not have unix-like permissions")
     def test_parent_writeable(self):
         """
         ``SyncTestCase.mktemp`` returns a path the parent of which is writeable

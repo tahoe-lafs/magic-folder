@@ -13,6 +13,7 @@ from __future__ import (
 
 from contextlib import contextmanager
 
+
 class BadResponseCode(Exception):
     """
     An HTTP request received a response code which does not allow an operation
