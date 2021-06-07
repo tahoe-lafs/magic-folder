@@ -248,6 +248,10 @@ def addOutcomeDetails(testcase, outcome):
 
 
 class CreateMagicFolder(AsyncTestCase):
+
+    def cli(self, argv):
+        return cli(argv, self.config)
+
     @defer.inlineCallbacks
     def setUp(self):
         """
@@ -260,11 +264,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         self.tempdir = self.client_fixture.tempdir
         self.config_dir = FilePath(self.mktemp())
-        create_global_configuration(
+        self.config = create_testing_configuration(
             self.config_dir,
-            u"tcp:4321",
             self.client_fixture.node_directory,
-            u"tcp:localhost:4321",
         )
 
     @defer.inlineCallbacks
@@ -277,8 +279,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"test",
                 b"--author", b"test",
@@ -301,8 +303,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"foo",
                 b"--author", b"test",
@@ -315,8 +317,8 @@ class CreateMagicFolder(AsyncTestCase):
             Always(),
         )
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"foo",
                 b"--author", b"test",
@@ -342,8 +344,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"/",
                 b"--author", b"test",
@@ -371,8 +373,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"foo",
                 b"--author", b"test",
@@ -385,8 +387,8 @@ class CreateMagicFolder(AsyncTestCase):
             str(outcome),
         )
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"leave",
                 b"--name", b"foo",
                 b"--really-delete-write-capability",
@@ -409,8 +411,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--author", b"test",
                 b"--name", b"foo",
@@ -423,8 +425,8 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"leave",
                 b"--name", b"bar",
             ],
@@ -449,8 +451,8 @@ class CreateMagicFolder(AsyncTestCase):
         magic_folder = self.tempdir.child(u"magic-folder")
         magic_folder.makedirs()
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"add",
                 b"--name", b"foo",
                 b"--author", b"alice",
@@ -463,8 +465,8 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"leave",
                 b"--name", b"foo",
                 b"--really-delete-write-capability",
@@ -476,8 +478,8 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"leave",
                 b"--name", b"foo",
             ],
@@ -498,8 +500,8 @@ class CreateMagicFolder(AsyncTestCase):
         Leave a non-existant magic folder. This should result in
         an error.
         """
-        outcome = yield cli(
-            self.config_dir, [
+        outcome = yield self.cli(
+            [
                 b"leave",
                 b"--name", b"foo",
             ],
@@ -514,6 +516,8 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
+
+class ConfigOptionTests(SyncTestCase):
     def test_help_synopsis(self):
         """
         Test if synonsis is defined for the help switch.
@@ -533,7 +537,7 @@ class CreateMagicFolder(AsyncTestCase):
         with confdir.open("w") as f:
             f.write("dummy\n")
 
-        outcome = yield cli(confdir, ["list"])
+        outcome = yield cli(["--config", confdir, "list"])
         self.assertThat(outcome.code, Equals(1))
         self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
 
@@ -545,7 +549,7 @@ class CreateMagicFolder(AsyncTestCase):
         confdir = FilePath(self.mktemp())
         confdir.makedirs()
 
-        outcome = yield cli(confdir, ["list"])
+        outcome = yield cli(["--config", confdir, "list"])
         self.assertThat(outcome.code, Equals(1))
         self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
 
