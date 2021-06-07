@@ -9,6 +9,7 @@ from __future__ import (
 Tests relating generally to magic_folder.downloader
 """
 
+import io
 import base64
 
 from json import (
@@ -32,6 +33,13 @@ from testtools.twistedsupport import (
 from hypothesis import (
     given,
 )
+from twisted.internet import reactor
+from twisted.internet.task import (
+    deferLater,
+)
+from twisted.internet.defer import (
+    inlineCallbacks,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -41,10 +49,19 @@ from ..config import (
 from ..downloader import (
     RemoteSnapshotCacheService,
 )
+from ..magic_folder import (
+    MagicFolder,
+)
 from ..snapshot import (
     create_local_author,
     LocalSnapshot,
     sign_snapshot,
+    format_filenode,
+    create_snapshot,
+    write_snapshot_to_tahoe,
+)
+from ..status import (
+    WebSocketStatusService,
 )
 from ..tahoe_client import (
     create_tahoe_client,
@@ -56,6 +73,7 @@ from ..testing.web import (
 
 from .common import (
     SyncTestCase,
+    AsyncTestCase,
 )
 from .strategies import (
     tahoe_lafs_immutable_dir_capabilities,
@@ -67,7 +85,7 @@ class CacheTests(SyncTestCase):
     Tests for ``RemoteSnapshotCacheService``
     """
     def setup_example(self):
-        self.author = create_local_author(u"alice")
+        self.author = create_local_author("alice")
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
         self._global_config = create_testing_configuration(
@@ -84,12 +102,12 @@ class CacheTests(SyncTestCase):
             create_local_author("iris"),
             self.collective_cap,
             self.personal_cap,
-            120,
+            1,
         )
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
+            DecodedURL.from_text("http://invalid./"),
             self.http_client,
         )
         self.cache = RemoteSnapshotCacheService.from_config(
@@ -181,12 +199,138 @@ class CacheTests(SyncTestCase):
             self.cache.add_remote_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals(u"foo"),
+                    name=Equals("foo"),
                     metadata=ContainsDict({
-                        u"snapshot_version": Equals(1),
-                        u"parents": Equals([]),
-                        u"name": Equals(u"foo"),
+                        "snapshot_version": Equals(1),
+                        "parents": Equals([]),
+                        "name": Equals("foo"),
                     }),
                 )
             )
         )
+
+
+class UpdateTests(AsyncTestCase):
+    """
+    Tests for ``MagicFolderUpdaterService``
+
+    Each test here starts with a shared setup and a single Magic
+    Folder called "default":
+
+    - "alice" is us (self.personal_cap)
+    - "zara" is another participant (self.other_personal_cap)
+    - both are in the Collective
+    """
+
+    def setUp(self):
+        super(UpdateTests, self).setUp()
+        self.author = create_local_author("alice")
+        self.other = create_local_author("zara")
+        self.magic_path = FilePath(self.mktemp())
+        self.magic_path.makedirs()
+        self.state_path = FilePath(self.mktemp())
+        self.state_path.makedirs()
+        self.stash_path = self.state_path.child("stash")
+        self.stash_path.makedirs()
+
+        self._global_config = create_testing_configuration(
+            self.state_path,
+            FilePath("dummy"),
+        )
+
+        self.root = create_fake_tahoe_root()
+
+        # create the two Personal DMDs in Tahoe
+        _, self.personal_cap = self.root.add_data(
+            "URI:DIR2:",
+            dumps([
+                "dirnode",
+                {
+                    "children": {}
+                },
+            ]).encode("utf8"),
+        )
+        _, self.other_personal_cap = self.root.add_data(
+            "URI:DIR2:",
+            dumps([
+                "dirnode",
+                {
+                    "children": {},
+                },
+            ]).encode("utf8"),
+        )
+
+        # create the Collective DMD with both alice and zara
+        _, self.collective_cap = self.root.add_data(
+            "URI:DIR2:",
+            dumps([
+                "dirnode",
+                {
+                    "children": {
+                        self.author.name: format_filenode(self.personal_cap),
+                        self.other.name: format_filenode(self.other_personal_cap),
+                    }
+                },
+            ]).encode("utf8"),
+        )
+
+        # create our configuration and a magic-folder using the
+        # Collective above and alice's Personal DMD
+        self.config = self._global_config.create_magic_folder(
+            "default",
+            self.magic_path,
+            FilePath(self.mktemp()),
+            self.author,
+            self.collective_cap,
+            self.personal_cap,
+            1,
+        )
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            self.http_client,
+        )
+        self.status_service = WebSocketStatusService()
+        self.service = MagicFolder.from_config(
+            reactor,
+            self.tahoe_client,
+            "default",
+            self._global_config,
+            self.status_service,
+        )
+        self.service.startService()
+
+    def tearDown(self):
+        super(UpdateTests, self).tearDown()
+        return self.service.stopService()
+
+    @inlineCallbacks
+    def test_update(self):
+        """
+        We create a RemoteSnapshot and add it to zara's Personal DMD. The
+        downloader should fetch it into alice's magic-folder
+        """
+
+        content = b"foo" * 1000
+        local_snap = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content),
+            self.state_path,
+        )
+
+        remote_snap = yield write_snapshot_to_tahoe(local_snap, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap.capability.encode("utf8"),
+        )
+
+        # wait for the downloader to put this into Alice's magic-folder
+        for _ in range(10):
+            if "foo" in self.magic_path.listdir():
+                if self.magic_path.child("foo").getContent() == content:
+                    break
+            yield deferLater(reactor, 1.0)
+        assert self.magic_path.child("foo").exists()
+        assert self.magic_path.child("foo").getContent() == content, "content mismatch"
