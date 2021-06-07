@@ -150,6 +150,7 @@ class MagicFolder(service.MultiService):
                         mf_config.stash_path,
                     ),
                     mf_config,
+                    remote_snapshot_cache_service,
                     tahoe_client,
                 ),
                 tahoe_client=tahoe_client,

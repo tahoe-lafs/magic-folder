@@ -400,8 +400,8 @@ class MagicFolderUpdaterService(service.Service):
                 # remote_snap as an ancestor)
                 existing_snap = remote_snap
 
+                # we shouldn't queue updates if we already match, but double-check
                 if existing_snap.capability == snapshot.capability:
-                    # we already have the right content
                     return
 
                 # do we have a common ancestor with the proposed change?
