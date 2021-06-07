@@ -9,6 +9,7 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
+import time
 from tempfile import (
     mkdtemp,
 )
@@ -21,9 +22,84 @@ import pytest_twisted
 from magic_folder.util.capabilities import (
     to_readonly_capability,
 )
+from magic_folder.config import (
+    load_global_configuration,
+)
 from .util import (
     await_file_contents,
 )
+
+
+@pytest_twisted.inlineCallbacks
+def test_local_snapshots(request, reactor, temp_dir, alice, bob):
+    """
+    Create several snapshots while our Tahoe client is offline.
+    """
+
+    magic = FilePath(mkdtemp())
+
+    # add our magic-folder and re-start
+    yield alice.add("local", magic.path)
+    yield alice.restart_magic_folder()
+    alice_folders = yield alice.list_(True)
+    local_cfg = alice.global_config().get_magic_folder("local")
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup():
+        yield alice.leave("local")
+        yield alice.restart_magic_folder()
+    request.addfinalizer(cleanup)
+
+    # put a file in our folder
+    content0 = "zero\n" * 1000
+    magic.child("sylvester").setContent(content0)
+    yield alice.add_snapshot("local", "sylvester")
+
+    time.sleep(1)
+    x = yield alice.dump_state("local")
+    print(x)
+    former_remote = local_cfg.get_remotesnapshot("sylvester")
+
+    # turn off Tahoe
+    alice.pause_tahoe()
+
+    try:
+        # add several snapshots
+        content1 = "one\n" * 1000
+        magic.child("sylvester").setContent(content1)
+        yield alice.add_snapshot("local", "sylvester")
+        content2 = "two\n" * 1000
+        magic.child("sylvester").setContent(content2)
+        yield alice.add_snapshot("local", "sylvester")
+        content3 = "three\n" * 1000
+        magic.child("sylvester").setContent(content3)
+        yield alice.add_snapshot("local", "sylvester")
+
+        x = yield alice.dump_state("local")
+        print(x)
+
+        assert local_cfg.get_all_localsnapshot_paths() == {"sylvester"}
+        snap = local_cfg.get_local_snapshot("sylvester")
+        print(snap)
+        # we should have 3 snapshots total, each one the parent of the next
+        assert len(snap.parents_local) == 1 and \
+            len(snap.parents_local[0].parents_local) == 1 and \
+            len(snap.parents_local[0].parents_local[0].parents_local) == 0 and \
+            len(snap.parents_local[0].parents_local[0].parents_remote) == 1
+
+    finally:
+        # turn Tahoe back on
+        alice.resume_tahoe()
+
+    # local snapshots should turn into remotes...
+    found = False
+    for _ in range(10):
+        if len(local_cfg.get_all_localsnapshot_paths()) == 0:
+            if local_cfg.get_remotesnapshot("sylvester") != former_remote:
+                found = True
+                break
+        time.sleep(1)
+    assert found, "Expected 'sylvester' to be (only) a remote-snapshot"
 
 
 @pytest_twisted.inlineCallbacks

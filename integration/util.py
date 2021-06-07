@@ -7,6 +7,7 @@ from __future__ import (
 import sys
 import time
 import json
+import signal
 from os import mkdir
 from io import BytesIO
 from os.path import exists, join
@@ -30,6 +31,9 @@ from twisted.internet.protocol import (
 from twisted.internet.error import (
     ProcessExitedAlready,
     ProcessDone,
+)
+from twisted.python.filepath import (
+    FilePath,
 )
 
 import treq
@@ -55,6 +59,9 @@ import pytest_twisted
 from magic_folder.cli import (
     MagicFolderCommand,
     run_magic_folder_options,
+)
+from magic_folder.config import (
+    load_global_configuration,
 )
 
 
@@ -85,6 +92,9 @@ class MagicFolderEnabledNode(object):
     @property
     def magic_config_directory(self):
         return join(self.temp_dir, "magic-daemon-{}".format(self.name))
+
+    def global_config(self):
+        return load_global_configuration(FilePath(self.magic_config_directory))
 
     @property
     def magic_directory(self):
@@ -193,6 +203,12 @@ class MagicFolderEnabledNode(object):
                 self.name,
             )
 
+    def pause_tahoe(self):
+        self.tahoe.transport.signalProcess(signal.SIGSTOP)
+
+    def resume_tahoe(self):
+        self.tahoe.transport.signalProcess(signal.SIGCONT)
+
     # magic-folder CLI API helpers
 
     @inlineCallbacks
@@ -286,6 +302,23 @@ class MagicFolderEnabledNode(object):
                 "--folder", folder_name,
                 "--author", author_name,
                 "--personal-dmd", personal_dmd,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def dump_state(self, folder_name):
+        """
+        magic-folder-api dump-state
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "dump-state",
+                "--folder", folder_name,
             ],
         )
         yield proto.done
