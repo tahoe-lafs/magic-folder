@@ -26,8 +26,6 @@ from errno import (
     ENOENT,
 )
 
-import yaml
-
 from json import (
     loads,
 )
@@ -299,10 +297,6 @@ class NodeDirectory(Fixture):
         return self.path.child(u"node.url")
 
     @property
-    def magic_folder_url(self):
-        return self.path.child(u"magic-folder.url")
-
-    @property
     def private(self):
         return self.path.child(u"private")
 
@@ -310,44 +304,10 @@ class NodeDirectory(Fixture):
     def api_auth_token(self):
         return self.private.child(u"api_auth_token")
 
-    @property
-    def magic_folder_yaml(self):
-        return self.private.child(u"magic_folders.yaml")
-
-    def create_magic_folder(
-            self,
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            directory,
-            poll_interval,
-    ):
-        try:
-            magic_folder_config_bytes = self.magic_folder_yaml.getContent()
-        except IOError as e:
-            if e.errno == ENOENT:
-                magic_folder_config = {}
-            else:
-                raise
-        else:
-            magic_folder_config = yaml.safe_load(magic_folder_config_bytes)
-
-        magic_folder_config.setdefault(
-            u"magic-folders",
-            {},
-        )[folder_name] = {
-            u"collective_dircap": collective_dircap,
-            u"upload_dircap": upload_dircap,
-            u"directory": directory.path,
-            u"poll_interval": u"{}".format(poll_interval),
-        }
-        self.magic_folder_yaml.setContent(yaml.safe_dump(magic_folder_config))
-
     def _setUp(self):
         self.path.makedirs()
         self.tahoe_cfg.touch()
         self.node_url.setContent(b"http://127.0.0.1:9876/")
-        self.magic_folder_url.setContent(b"http://127.0.0.1:5432/")
         self.private.makedirs()
         self.api_auth_token.setContent(self.token)
 

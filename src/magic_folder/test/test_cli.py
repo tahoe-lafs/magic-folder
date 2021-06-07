@@ -25,9 +25,6 @@ from zope.interface import (
 
 import attr
 
-from testtools import (
-    ExpectedException,
-)
 from testtools.matchers import (
     Equals,
     ContainsDict,
@@ -42,17 +39,11 @@ from .fixtures import (
 from ..config import (
     load_global_configuration,
 )
-from ..endpoints import (
-    CannotConvertEndpointError,
-)
 from magic_folder.util.observer import (
     ListenObserver,
 )
 from magic_folder.initialize import (
     magic_folder_initialize,
-)
-from magic_folder.migrate import (
-    magic_folder_migrate,
 )
 from magic_folder.show_config import (
     magic_folder_show_config,
@@ -117,80 +108,6 @@ class TestInitialize(SyncTestCase):
         )
 
 
-class TestMigrate(SyncTestCase):
-    """
-    Confirm operation of 'magic-folder migrate' command
-    """
-
-    def setUp(self):
-        super(TestMigrate, self).setUp()
-        self.temp = FilePath(self.mktemp())
-        self.magic_path = self.temp.child("magic")
-        self.magic_path.makedirs()
-        self.node_dir = self.useFixture(NodeDirectory(self.temp.child("node")))
-        self.node_dir.create_magic_folder(
-            u"test-folder",
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
-            self.magic_path,
-            60,
-        )
-
-    def test_good(self):
-        magic_folder_migrate(
-            self.temp.child("new_magic"),
-            u"tcp:1234",
-            self.node_dir.path,
-            u"alice",
-            u"tcp:localhost:1234",
-        )
-        config = load_global_configuration(self.temp.child("new_magic"))
-        self.assertThat(
-            list(config.list_magic_folders()),
-            Equals([u"test-folder"]),
-        )
-
-    def test_bad_listen_string(self):
-        """
-        Passing a completely invalid 'endpoint listen string' (not even a
-        string) is an error
-        """
-        with ExpectedException(CannotConvertEndpointError):
-            magic_folder_migrate(
-                self.temp.child("new_magic"),
-                "1234",
-                self.node_dir.path,
-                u"alice",
-                None,
-            )
-
-    def test_invalid_listen_string(self):
-        """
-        Passing a non-string (bytes) for the listen-endpoint is an error
-        """
-        with ExpectedException(ValueError):
-            magic_folder_migrate(
-                self.temp.child("new_magic"),
-                b"1234",  # only accepts unicode
-                self.node_dir.path,
-                u"alice",
-                b"invalid",
-            )
-
-    def test_bad_connect_string(self):
-        """
-        Passing an un-parsable connect-endpoint-string is an error
-        """
-        with ExpectedException(ValueError):
-            magic_folder_migrate(
-                self.temp.child("new_magic"),
-                u"tcp:1234",
-                self.node_dir.path,
-                u"alice",
-                "localhost:1234",
-            )
-
-
 class TestShowConfig(SyncTestCase):
     """
     Confirm operation of 'magic-folder show-config' command
@@ -202,13 +119,6 @@ class TestShowConfig(SyncTestCase):
         self.magic_path = self.temp.child("magic")
         self.magic_path.makedirs()
         self.node_dir = self.useFixture(NodeDirectory(self.temp.child("node")))
-        self.node_dir.create_magic_folder(
-            u"test-folder",
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
-            self.magic_path,
-            60,
-        )
 
     def test_good(self):
         magic_folder_initialize(
