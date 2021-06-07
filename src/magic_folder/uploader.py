@@ -123,14 +123,13 @@ class LocalSnapshotCreator(object):
             # .. which means that any remote snapshot by definition
             # must be "not our parent" (it should be the parent .. or
             # grandparent etc .. of our localsnapshot)
+            raw_remote = []
             if not parents:
                 try:
                     parent_remote = self._db.get_remotesnapshot(mangled_name)
                     raw_remote = [parent_remote]
                 except KeyError:
                     pass
-            else:
-                raw_remote = []
 
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
