@@ -590,6 +590,9 @@ class TestDumpState(AsyncTestCase):
             line.strip()
             for line in options.stdout.getvalue().splitlines()
         ]
+
+        local_uuid = config.get_local_snapshot("foo").identifier
+
         self.assertThat(
             stdout_lines_no_whitespace,
             Equals([
@@ -599,7 +602,7 @@ class TestDumpState(AsyncTestCase):
                 "magic_path: {}".format(config.magic_path.path),
                 "collective: URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
                 "local snapshots:",
-                "foo:",
+                "foo: {}".format(local_uuid),
                 "remote snapshots:",
                 "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
             ])
