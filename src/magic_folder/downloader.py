@@ -588,6 +588,9 @@ class DownloaderService(service.MultiService):
                     # if this remote matches what we believe to be the
                     # latest, there is nothing to do .. otherwise, we
                     # have to figure out what to do
-                    our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+                    try:
+                        our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+                    except KeyError:
+                        our_snapshot_cap = None
                     if snapshot.capability != our_snapshot_cap:
                         yield self._folder_updater.add_remote_snapshot(snapshot)
