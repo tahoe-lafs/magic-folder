@@ -295,6 +295,7 @@ class APIv1(object):
         # will result if you pass an absolute path outside the folder
         # or a relative path that reaches up too far.
 
+        yield
         try:
             path = folder_config.magic_path.preauthChild(path_u)
         except InsecurePath as e:
@@ -303,7 +304,9 @@ class APIv1(object):
             returnValue(json.dumps({u"reason": str(e)}))
 
         try:
-            yield folder_service.local_snapshot_service.add_file(path)
+            # if we await the Deferred from add_file, this function
+            # won't return until the upload is completed.
+            folder_service.local_snapshot_service.add_file(path)
         except Exception as e:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
