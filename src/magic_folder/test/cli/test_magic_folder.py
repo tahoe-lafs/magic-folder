@@ -178,7 +178,6 @@ class ListMagicFolder(AsyncTestCase):
         self.config.create_magic_folder(
             u"list-some-folder",
             folder_path,
-            folder_path.child(u".state"),
             create_local_author(u"alice"),
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
@@ -202,7 +201,6 @@ class ListMagicFolder(AsyncTestCase):
         self.config.create_magic_folder(
             u"list-some-json-folder",
             folder_path,
-            folder_path.child(u".state"),
             create_local_author(u"alice"),
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
