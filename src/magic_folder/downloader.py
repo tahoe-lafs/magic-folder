@@ -298,6 +298,7 @@ class MagicFolderUpdaterService(service.Service):
     """
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
+    _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
@@ -391,22 +392,29 @@ class MagicFolderUpdaterService(service.Service):
 
             # XXX not dealing with deletes yet
             if local_path.exists():
-                # if we have a valid local_snap or remote_snap that
-                # means we've uploaded this file at least once; if we
-                # share a common ancestor with the proposed change
-                # then it's an update. If local_snap is valid, it will
-                # be a newer one than remote_snap
-                existing_snap = local_snap or remote_snap
+                # we have something locally. if we have no remote yet,
+                # it's a conflict (because we've not told anyone about
+                # it)
+
+                # (if we do have any locals, they will have this
+                # remote_snap as an ancestor)
+                existing_snap = remote_snap
+
+                if existing_snap.capability == snapshot.capability:
+                    # we already have the right content
+                    return
 
                 # do we have a common ancestor with the proposed change?
                 ancestor = False
                 q = deque([snapshot])
                 while q and not ancestor:
                     snap = q.popleft()
-                    if existing_snap.capability in snap.parents_raw:
-                        ancestor = True
-                    else:
-                        q.extend(snap.parents_raw)
+                    for parent_cap in snap.parents_raw:
+                        if existing_snap.capability == parent_cap:
+                            ancestor = True
+                            break
+                        else:
+                            q.append(self._remote_cache.cached_snapshots[parent_cap])
                 action.add_success_fields(ancestor=ancestor)
 
                 # whether we found a common ancestor or not
@@ -577,4 +585,9 @@ class DownloaderService(service.MultiService):
                         relpath=relpath,
                     )
                     snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
-                    yield self._folder_updater.add_remote_snapshot(snapshot)
+                    # if this remote matches what we believe to be the
+                    # latest, there is nothing to do .. otherwise, we
+                    # have to figure out what to do
+                    our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+                    if snapshot.capability != our_snapshot_cap:
+                        yield self._folder_updater.add_remote_snapshot(snapshot)
