@@ -25,9 +25,6 @@ from autobahn.twisted.resource import (
 from twisted.python.filepath import (
     InsecurePath,
 )
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -277,6 +274,7 @@ class APIv1(object):
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
+    @inlineCallbacks
     def add_snapshot(self, request, folder_name):
         """
         Create a new Snapshot
@@ -285,7 +283,7 @@ class APIv1(object):
             folder_config = self._global_config.get_magic_folder(folder_name)
             folder_service = self._global_service.get_folder_service(folder_name)
         except ValueError:
-            return NoResource(b"{}")
+            returnValue(NoResource(b"{}"))
 
         path_u = request.args[b"path"][0].decode("utf-8")
 
@@ -301,28 +299,18 @@ class APIv1(object):
         except InsecurePath as e:
             request.setResponseCode(http.NOT_ACCEPTABLE)
             _application_json(request)
-            return json.dumps({u"reason": str(e)})
+            returnValue(json.dumps({u"reason": str(e)}))
 
         try:
-            # if we await the Deferred from add_file, this function
-            # won't return until the upload is completed (and if
-            # e.g. Tahoe is offline we'll get a "failed to connect"
-            # error -- but meantime will be re-trying).
-            d = folder_service.local_snapshot_service.add_file(path)
-            # if the operation already errored out, though, we can
-            # pass that on to the user now.
-            if isinstance(d.result, Failure):
-                # we've handled the error
-                d.addErrback(lambda f: None)
-                raise d.result.value
+            yield folder_service.local_snapshot_service.add_file(path)
         except Exception as e:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
-            return json.dumps({u"reason": str(e)})
+            returnValue(json.dumps({u"reason": str(e)}))
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
-        return b"{}"
+        returnValue(b"{}")
 
     @app.route("/magic-folder", methods=["GET"])
     def list_folders(self, request):
