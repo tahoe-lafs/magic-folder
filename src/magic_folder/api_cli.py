@@ -7,6 +7,7 @@ from __future__ import (
 
 import sys
 import json
+from collections import deque
 
 from twisted.internet.task import (
     react,
@@ -94,7 +95,15 @@ def dump_state(options):
     print("  collective: {}".format(config.collective_dircap), file=options.stdout)
     print("  local snapshots:", file=options.stdout)
     for snap_name in config.get_all_localsnapshot_paths():
-        print("    {}: ".format(snap_name), file=options.stdout)
+        snap = config.get_local_snapshot(snap_name)
+        parents = ""
+        q = deque()
+        q.append(snap)
+        while q:
+            s = q.popleft()
+            parents += "{} -> ".format(s.identifier)
+            q.extend(s.parents_local)
+        print("    {}: {}".format(snap_name, parents[:-4]), file=options.stdout)
     print("  remote snapshots:", file=options.stdout)
     for snap_name in config.get_all_remotesnapshot_paths():
         snap = config.get_remotesnapshot(snap_name)
