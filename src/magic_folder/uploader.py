@@ -232,7 +232,7 @@ class LocalSnapshotService(service.Service):
         # exceptions
         if path.asBytesMode('utf-8').isdir():
             raise ValueError(
-                "expected a regular file, {!r} is a directory".format(path.path),
+                "expected a regular file, {} is a directory".format(path.path),
             )
 
         # add file into the queue

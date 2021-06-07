@@ -25,6 +25,9 @@ from autobahn.twisted.resource import (
 from twisted.python.filepath import (
     InsecurePath,
 )
+from twisted.python.failure import (
+    Failure,
+)
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
@@ -275,7 +278,6 @@ class APIv1(object):
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
-    @inlineCallbacks
     def add_snapshot(self, request, folder_name):
         """
         Create a new Snapshot
@@ -284,7 +286,7 @@ class APIv1(object):
             folder_config = self._global_config.get_magic_folder(folder_name)
             folder_service = self._global_service.get_folder_service(folder_name)
         except ValueError:
-            returnValue(NoResource(b"{}"))
+            return NoResource(b"{}")
 
         path_u = request.args[b"path"][0].decode("utf-8")
 
@@ -295,7 +297,6 @@ class APIv1(object):
         # will result if you pass an absolute path outside the folder
         # or a relative path that reaches up too far.
 
-        yield
         try:
             path = folder_config.magic_path.preauthChild(path_u)
         except InsecurePath as e:
@@ -305,16 +306,24 @@ class APIv1(object):
 
         try:
             # if we await the Deferred from add_file, this function
-            # won't return until the upload is completed.
-            folder_service.local_snapshot_service.add_file(path)
+            # won't return until the upload is completed (and if
+            # e.g. Tahoe is offline we'll get a "failed to connect"
+            # error -- but meantime will be re-trying).
+            d = folder_service.local_snapshot_service.add_file(path)
+            # if the operation already errored out, though, we can
+            # pass that on to the user now.
+            if isinstance(d.result, Failure):
+                # we've handled the error
+                d.addErrback(lambda f: None)
+                raise d.result.value
         except Exception as e:
             request.setResponseCode(http.INTERNAL_SERVER_ERROR)
             _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
+            return json.dumps({u"reason": str(e)})
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
-        returnValue(b"{}")
+        return b"{}"
 
     @app.route("/magic-folder", methods=["GET"])
     def list_folders(self, request):
