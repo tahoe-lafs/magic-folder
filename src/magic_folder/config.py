@@ -26,6 +26,7 @@ from os import (
 from base64 import (
     urlsafe_b64encode,
 )
+import hashlib
 
 from hyperlink import (
     DecodedURL,
@@ -1260,7 +1261,10 @@ class GlobalConfigDatabase(object):
             This directory will not exist and will be a sub-directory of the
             config location.
         """
-        return self.basedir.child(name)
+        h = hashlib.sha256()
+        h.update(name.encode("utf8"))
+        hashed_name = urlsafe_b64encode(h.digest()).decode('ascii')
+        return self.basedir.child(u"folder-{}".format(hashed_name))
 
     def remove_magic_folder(self, name):
         """
