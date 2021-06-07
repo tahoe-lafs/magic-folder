@@ -98,7 +98,7 @@ FOLDER_ALPHABET = characters(
         # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
         "Cc",
     ),
-    blacklist_characters=(u"\x00", u"/"),
+    blacklist_characters=(u"\x00", u"/", u"\\"),
 )
 
 def _valid_path_segment(segment):
@@ -211,9 +211,6 @@ def folder_names():
         min_size=1,
     ).map(
         normalize,
-    ).filter(
-        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
-        _valid_path_segment
     )
 
 
@@ -245,6 +242,7 @@ def tahoe_lafs_dir_capabilities():
     return builds(
         lambda a, b: u"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
         binary(min_size=16, max_size=16),
+
         binary(min_size=32, max_size=32),
     )
 

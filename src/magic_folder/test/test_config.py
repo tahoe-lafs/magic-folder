@@ -17,6 +17,7 @@ from twisted.python.filepath import (
 
 from hypothesis import (
     given,
+    example,
 )
 from hypothesis.strategies import (
     one_of,
@@ -59,6 +60,7 @@ from .strategies import (
     magic_folder_filenames,
     remote_snapshots,
     local_snapshots,
+    folder_names
 )
 from ..config import (
     SQLite3DatabaseLocation,
@@ -217,19 +219,33 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
     """
     def setUp(self):
         super(GlobalConfigDatabaseMagicFolderTests, self).setUp()
+        self.setup_tempdir()
+
+    def setup_example(self):
+        self.setup_tempdir()
+
+    def setup_tempdir(self):
         self.temp = FilePath(self.mktemp())
         self.node_dir = FilePath(self.mktemp())
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
-    def test_create_folder(self):
+
+    @given(
+        folder_names(),
+    )
+    # These examples ensure that it is possible to generate magic folders that
+    # contain characters that are invalid on windows.
+    @example(u".")
+    @example(u":")
+    @example(u'"')
+    def test_create_folder(self, folder_name):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
         magic.makedirs()
         magic_folder = config.create_magic_folder(
-            u"foo",
+            folder_name,
             magic,
-            self.temp.child("state"),
             alice,
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
@@ -248,7 +264,6 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         config.create_magic_folder(
             u"foo",
             magic,
-            self.temp.child("state"),
             alice,
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
@@ -258,12 +273,49 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             config.create_magic_folder(
                 u"foo",
                 magic,
-                self.temp.child("state2"),
                 alice,
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
             )
+
+    def test_create_folder_trailing_dot_space(self):
+        """
+        We can create folders that differ only in having a trailing dot or space in the name.
+
+        Windows will strip a trailing dot or space from filenames, so test that
+        we don't get state-directory colisions with names that differ only in a
+        trailing dot or space.
+        """
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        alice = create_local_author(u"alice")
+        magic = self.temp.child("magic")
+        magic.makedirs()
+        config.create_magic_folder(
+            u"foo",
+            magic,
+            alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
+        )
+        config.create_magic_folder(
+            u"foo.",
+            magic,
+            alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
+        )
+        config.create_magic_folder(
+            u"foo ",
+            magic,
+            alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
+        )
+
 
     def test_folder_nonexistant_magic_path(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
@@ -273,7 +325,6 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             config.create_magic_folder(
                 u"foo",
                 magic,
-                self.temp.child("state"),
                 alice,
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
@@ -282,15 +333,15 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
 
     def test_folder_state_already_exists(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        name = u"foo"
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
-        state = self.temp.child("state")
+        state = config._get_state_path(name)
         magic.makedirs()
         state.makedirs()  # shouldn't pre-exist, though
         with ExpectedException(ValueError, ".*{}.*".format(escape(state.path))):
             config.create_magic_folder(
-                u"foo",
-                magic,
+                name,
                 state,
                 alice,
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
@@ -303,14 +354,13 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         we can retrieve the stash-path from a magic-folder-confgi
         """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        name = u"foo"
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
-        state = self.temp.child("state")
         magic.makedirs()
         config.create_magic_folder(
-            u"foo",
+            name,
             magic,
-            state,
             alice,
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
@@ -320,7 +370,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         mf_config = config.get_magic_folder(u"foo")
         self.assertThat(
             mf_config.stash_path,
-            Equals(state.child("stash"))
+            Equals(config._get_state_path(name).child(u"stash")),
         )
 
     def test_get_folder_nonexistent(self):
