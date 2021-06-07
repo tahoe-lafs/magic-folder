@@ -301,7 +301,7 @@ class APIv1(object):
         except InsecurePath as e:
             request.setResponseCode(http.NOT_ACCEPTABLE)
             _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
+            return json.dumps({u"reason": str(e)})
 
         try:
             # if we await the Deferred from add_file, this function
