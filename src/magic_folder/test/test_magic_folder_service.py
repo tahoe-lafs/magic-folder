@@ -69,7 +69,6 @@ from .common import (
 )
 from .strategies import (
     relative_paths,
-    path_segments,
     local_authors,
     folder_names,
 )
@@ -210,8 +209,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
     @given(
         folder_names(),
         relative_paths(),
-        path_segments(),
-        relative_paths(),
         just(LOCAL_AUTHOR),
         sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
@@ -221,8 +218,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             self,
             name,
             file_path,
-            relative_magic_path,
-            relative_state_path,
             author,
             collective_cap_kind,
             poll_interval,
@@ -259,17 +254,14 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         basedir = FilePath(self.mktemp()).asTextMode("utf-8")
         global_config = create_global_configuration(
-            basedir,
+            basedir.child("config"),
             u"tcp:-1",
             FilePath(u"/non-tahoe-directory"),
             u"tcp:127.0.0.1:-1",
         )
 
-        magic_path = basedir.preauthChild(relative_magic_path)
+        magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         magic_path.asBytesMode("utf-8").makedirs()
-
-        statedir = basedir.child(u"state")
-        state_path = statedir.preauthChild(relative_state_path)
 
         target_path = magic_path.preauthChild(file_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
@@ -278,7 +270,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         global_config.create_magic_folder(
             name,
             magic_path,
-            state_path,
             author,
             collective_dircap,
             upload_dircap,

@@ -261,7 +261,6 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         self.db = self.global_db.create_magic_folder(
             u"some-folder",
             self.magic,
-            self.temp.child(u"state"),
             self.author,
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",

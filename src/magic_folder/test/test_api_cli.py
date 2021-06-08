@@ -539,7 +539,6 @@ class TestDumpState(AsyncTestCase):
         magic_path.makedirs()
         config = self.global_config.create_magic_folder(
             name="test",
-            state_path=self.magic_config.child("test_stash"),
             magic_path=magic_path,
             author=author,
             collective_dircap="URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
