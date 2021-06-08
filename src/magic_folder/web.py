@@ -160,7 +160,6 @@ class APIv1(object):
     app = Klein()
 
     @app.route("/status")
-    @inlineCallbacks
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
 
