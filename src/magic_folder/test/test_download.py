@@ -307,7 +307,7 @@ class UpdateTests(AsyncTestCase):
     @inlineCallbacks
     def test_update(self):
         """
-        We create a RemoteSnapshot and add it to zara's Personal DMD. The
+        Create a RemoteSnapshot and add it to zara's Personal DMD. The
         downloader should fetch it into alice's magic-folder
         """
 
@@ -334,3 +334,42 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content, "content mismatch"
+
+    @inlineCallbacks
+    def test_conflict(self):
+        """
+        Create a RemoteSnapshot and add it to zara's Personal DMD. The
+        downloader should fetch it into alice's magic-folder .. but we
+        arrange to have a local file there, so it should be a
+        conflict.
+        """
+
+        # first put a file "in the way"
+        original_content = b"not the right stuff\n"
+        self.magic_path.child("foo").setContent(original_content)
+
+        # build up content for zara's Personal DMD
+        content = b"foo" * 1000
+        local_snap = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content),
+            self.state_path,
+        )
+
+        remote_snap = yield write_snapshot_to_tahoe(local_snap, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap.capability.encode("utf8"),
+        )
+
+        # wait for the downloader to put this into Alice's magic-folder
+        for _ in range(10):
+            if "foo.conflict-zara" in self.magic_path.listdir():
+                break
+            yield deferLater(reactor, 1.0)
+
+        # we should conflict
+        assert self.magic_path.child("foo.conflict-zara").getContent() == content
+        assert self.magic_path.child("foo").getContent() == original_content
