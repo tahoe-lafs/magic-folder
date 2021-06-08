@@ -98,7 +98,6 @@ class CacheTests(SyncTestCase):
         self.config = self._global_config.create_magic_folder(
             "default",
             self.magic_path,
-            FilePath(self.mktemp()),
             create_local_author("iris"),
             self.collective_cap,
             self.personal_cap,
@@ -279,7 +278,6 @@ class UpdateTests(AsyncTestCase):
         self.config = self._global_config.create_magic_folder(
             "default",
             self.magic_path,
-            FilePath(self.mktemp()),
             self.author,
             self.collective_cap,
             self.personal_cap,
