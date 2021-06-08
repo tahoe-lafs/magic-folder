@@ -24,6 +24,7 @@ from testtools.matchers import (
     MatchesStructure,
     MatchesAll,
     MatchesPredicate,
+    MatchesException,
     ContainsDict,
     Always,
     Equals,
@@ -163,4 +164,21 @@ def is_hex_uuid():
     return MatchesPredicate(
         _is_hex_uuid,
         "%r is not a UUID hex representation.",
+    )
+
+
+def matches_flushed_traceback(exception, value_re=None):
+    """
+    Matches an eliot traceback message with the given exception.
+
+    This is expected to be used with :py:`testtools.matchers.MatchesListwise`,
+    on the result of :py:`eliot.MemoryLogger.flush_tracebacks`.
+
+    See :py:`testtools.matchers.MatchesExeption`.
+    """
+    def as_exc_info_tuple(message):
+        return message["exception"], message["reason"], message["traceback"]
+
+    return AfterPreprocessing(
+        as_exc_info_tuple, MatchesException(exception, value_re=value_re)
     )
