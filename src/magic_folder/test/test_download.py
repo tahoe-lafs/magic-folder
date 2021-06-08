@@ -329,7 +329,7 @@ class UpdateTests(AsyncTestCase):
             if "foo" in self.magic_path.listdir():
                 if self.magic_path.child("foo").getContent() == content:
                     break
-            yield deferLater(reactor, 1.0)
+            yield deferLater(reactor, 1.0, lambda: None)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content, "content mismatch"
 
@@ -366,7 +366,7 @@ class UpdateTests(AsyncTestCase):
         for _ in range(10):
             if "foo.conflict-zara" in self.magic_path.listdir():
                 break
-            yield deferLater(reactor, 1.0)
+            yield deferLater(reactor, 1.0, lambda: None)
 
         # we should conflict
         assert self.magic_path.child("foo.conflict-zara").getContent() == content
@@ -416,6 +416,6 @@ class UpdateTests(AsyncTestCase):
             if "foo" in self.magic_path.listdir():
                 if self.magic_path.child("foo").getContent() == content1:
                     break
-            yield deferLater(reactor, 1.0)
+            yield deferLater(reactor, 1.0, lambda: None)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
