@@ -419,4 +419,3 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
-

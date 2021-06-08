@@ -22,9 +22,6 @@ import pytest_twisted
 from magic_folder.util.capabilities import (
     to_readonly_capability,
 )
-from magic_folder.config import (
-    load_global_configuration,
-)
 from .util import (
     await_file_contents,
 )
@@ -41,7 +38,6 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
     # add our magic-folder and re-start
     yield alice.add("local", magic.path)
     yield alice.restart_magic_folder()
-    alice_folders = yield alice.list_(True)
     local_cfg = alice.global_config().get_magic_folder("local")
 
     @pytest_twisted.inlineCallbacks

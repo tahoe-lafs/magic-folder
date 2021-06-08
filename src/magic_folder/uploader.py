@@ -43,7 +43,6 @@ from .snapshot import (
     LocalAuthor,
     write_snapshot_to_tahoe,
     create_snapshot,
-    create_snapshot_from_capability,
 )
 from .status import (
     IStatus,

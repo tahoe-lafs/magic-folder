@@ -37,9 +37,6 @@ from twisted.application import (
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.internet.task import (
-    LoopingCall,
-)
 from twisted.python.failure import (
     Failure,
 )
@@ -59,9 +56,6 @@ from .config import (
 )
 from .magicpath import (
     magic2path,
-)
-from .status import (
-    IStatus,
 )
 from .snapshot import (
     create_snapshot_from_capability,
