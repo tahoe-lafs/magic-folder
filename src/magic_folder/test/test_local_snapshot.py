@@ -201,7 +201,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
                     MatchesListwise([
                         Equals(ValueError),
                         Equals((
-                            "expected a regular file, {} is a directory".format(
+                            "expected a regular file, {!r} is a directory".format(
                                 to_add.path,
                             ),
                         )),
