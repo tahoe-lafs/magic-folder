@@ -45,6 +45,9 @@ from twisted.web.resource import (
     Resource,
 )
 
+from werkzeug.exceptions import HTTPException
+from werkzeug.routing import RequestRedirect
+
 from klein import Klein
 
 from allmydata.uri import (
@@ -70,6 +73,11 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+
+def _ensure_utf8_bytes(value):
+    if isinstance(value, unicode):
+        return value.encode('utf-8')
+    return value
 
 
 def magic_folder_resource(get_auth_token, v1_resource):
@@ -158,6 +166,29 @@ class APIv1(object):
     _tahoe_client = attr.ib()
 
     app = Klein()
+
+    @app.handle_errors(HTTPException)
+    def handle_http_error(self, request, failure):
+        """
+        Convert a werkzeug py:`HTTPException` to a json response.
+
+        This mirrors the default code in klein for handling these
+        exceptions, but generates a json body.
+        """
+        exc = failure.value
+        request.setResponseCode(exc.code)
+        resp = exc.get_response({})
+        for header, value in resp.headers.items(lower=True):
+            # We skip these, since we have our own content.
+            if header in ("content-length", "content-type"):
+                continue
+            request.setHeader(
+                _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
+            )
+        _application_json(request)
+        if failure.check(RequestRedirect):
+            return json.dumps({"location": exc.new_url})
+        return json.dumps({"reason": exc.description})
 
     @app.route("/status")
     def status(self, request):
