@@ -382,26 +382,43 @@ class UpdateTests(AsyncTestCase):
 
         content0 = b"foo" * 1000
         content1 = b"bar" * 1000
-        local_snap = yield create_snapshot(
+        local_snap0 = yield create_snapshot(
             "foo",
             self.other,
-            io.BytesIO(content),
+            io.BytesIO(content0),
             self.state_path,
         )
 
-        remote_snap = yield write_snapshot_to_tahoe(local_snap, self.other, self.tahoe_client)
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap.capability.encode("utf8"),
+            remote_snap0.capability.encode("utf8"),
         )
 
-        # wait for the downloader to put this into Alice's magic-folder
+        # create an update
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            parents=[local_snap0],
+        )
+        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap1.capability.encode("utf8"),
+            replace=True,
+        )
+
+        # wait for the downloader to put this into Alice's
+        # magic-folder, which should (eventually) match the update.
         for _ in range(10):
             if "foo" in self.magic_path.listdir():
-                if self.magic_path.child("foo").getContent() == content:
+                if self.magic_path.child("foo").getContent() == content1:
                     break
             yield deferLater(reactor, 1.0)
         assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content, "content mismatch"
+        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
 
