@@ -47,6 +47,7 @@ from twisted.web.resource import (
     Resource,
 )
 
+from hyperlink import DecodedURL
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import RequestRedirect
 
@@ -169,6 +170,25 @@ class APIv1(object):
 
     app = Klein()
 
+    @app.handle_errors(RequestRedirect)
+    def handle_redirect(self, request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code, exc.name)
+        # Werkzeug double encodes the path of the redirect URL, when merging
+        # slashes[1]. It does not double encode the path when:
+        # - collapsing trailing slashes
+        # - redirecting aliases to the cannonical URL
+        # - an explicit redirect_to on a URL
+        # Since we don't have rules that trigger the second cases[2],
+        # we can work around this be decoding the path here.
+        # [1] https://github.com/pallets/werkzeug/issues/2157
+        # [2] checked in magic_folder.test.test_web.RedirectTests.test_werkzeug_issue_2157_fix
+        location = DecodedURL.from_text(exc.new_url.decode('utf-8'))
+        location = location.encoded_url.replace(path=location.path).to_text()
+        request.setHeader("location", location)
+        _application_json(request)
+        return json.dumps({"location": location})
+
     @app.handle_errors(HTTPException)
     def handle_http_error(self, request, failure):
         """
@@ -178,7 +198,7 @@ class APIv1(object):
         exceptions, but generates a json body.
         """
         exc = failure.value
-        request.setResponseCode(exc.code)
+        request.setResponseCode(exc.code, exc.name)
         resp = exc.get_response({})
         for header, value in resp.headers.items(lower=True):
             # We skip these, since we have our own content.
@@ -188,8 +208,6 @@ class APIv1(object):
                 _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
             )
         _application_json(request)
-        if failure.check(RequestRedirect):
-            return json.dumps({"location": exc.new_url})
         return json.dumps({"reason": exc.description})
 
     @app.handle_errors(Exception)

@@ -12,6 +12,7 @@ from __future__ import (
     unicode_literals,
 )
 
+from distutils.version import StrictVersion
 from json import (
     loads,
     dumps,
@@ -24,6 +25,7 @@ from hyperlink import (
 from hypothesis import (
     given,
     assume,
+    example,
 )
 
 from hypothesis.strategies import (
@@ -42,6 +44,8 @@ from testtools.matchers import (
     MatchesListwise,
     ContainsDict,
     IsInstance,
+    AllMatch,
+    MatchesPredicate
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -78,11 +82,14 @@ from treq.testing import (
     StubTreq,
 )
 
+import werkzeug
+
 from allmydata.util.base32 import (
     b2a,
 )
 
 from .common import (
+    skipIf,
     SyncTestCase,
 )
 from .matchers import (
@@ -109,6 +116,7 @@ from ..cli import (
 )
 from ..web import (
     magic_folder_resource,
+    APIv1,
 )
 from ..config import (
     create_global_configuration,
@@ -462,6 +470,109 @@ class ListMagicFolderTests(SyncTestCase):
                 ),
             ),
         )
+
+
+
+class RedirectTests(SyncTestCase):
+    """
+    Test for handling redirects from werkzeug.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    @skipIf(
+        # The version in the nixos snapshot we are using is <1
+        # so don't test redirect handling there.
+        StrictVersion(werkzeug.__version__) < StrictVersion("1.0.0"),
+        "Old versions of werkzeug don't merge slashes."
+    )
+    @given(
+        folder_names(),
+    )
+    @example("%25")
+    @example(":")
+    @example(",")
+    def test_merge_slashes(self, folder_name):
+        """
+        Test that redirects are generated and have a JSON body.
+
+        We test this by using a `//` in the URL path, which werkzeug
+        redirects to not have the `/`.
+        """
+        author = create_local_author("alice")
+
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author, local_path)},
+            start_folder_services=False,
+        )
+
+        dest_url = self.url.child(folder_name, "snapshot")
+
+        # We apply .to_uri() here since hyperlink and werkzeug disagree
+        # on which characters to encocde.
+        # Seee https://github.com/python-hyper/hyperlink/issues/168
+        def to_iri(url_bytes):
+            return DecodedURL.from_text(url_bytes.decode("utf8")).to_iri()
+        match_url = AfterPreprocessing(
+            to_iri, Equals(dest_url.to_iri()),
+        )
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child(folder_name, "", "snapshot"),
+            ),
+            succeeded(
+                matches_response(
+                    # Maybe this could be BAD_REQUEST instead, sometimes, if
+                    # the path argument was bogus somehow.
+                    code_matcher=Equals(308),
+                    headers_matcher=header_contains(
+                        {
+                            "Content-Type": Equals(["application/json"]),
+                            "Location": MatchesListwise(
+                                [
+                                    match_url
+                                ]
+                            ),
+                        }
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "location": match_url
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    def test_werkzeug_issue_2157_fix(self):
+        """
+        Ensure that the only redirects that werkzeug will generate are merging slashes.
+
+        This ensures that the workaround to
+        https://github.com/pallets/werkzeug/issues/2157 is correct.
+        """
+        self.assertThat(
+            APIv1.app.url_map.iter_rules(),
+            AllMatch(
+                MatchesPredicate(
+                    lambda rule: rule.is_leaf and not rule.alias,
+                    "Rule %r is not a leaf, has an alias, or has a redirect specified. "
+                    "This will break our fix for https://github.com/pallets/werkzeug/issues/2157"
+                )
+            ),
+        )
+
 
 
 class CreateSnapshotTests(SyncTestCase):
