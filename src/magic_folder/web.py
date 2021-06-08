@@ -22,6 +22,8 @@ from autobahn.twisted.resource import (
     WebSocketResource,
 )
 
+from eliot import write_failure
+
 from twisted.python.filepath import (
     InsecurePath,
 )
@@ -190,6 +192,16 @@ class APIv1(object):
             return json.dumps({"location": exc.new_url})
         return json.dumps({"reason": exc.description})
 
+    @app.handle_errors(Exception)
+    def fallback_error(self, request, failure):
+        """
+        Turn unknown exceptions into 500 errors, and log the failure.
+        """
+        write_failure(failure)
+        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+        _application_json(request)
+        return json.dumps({"reason": "unexpected error processing request"})
+
     @app.route("/status")
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
@@ -210,13 +222,7 @@ class APIv1(object):
             folder_config.upload_dircap,
             self._tahoe_client,
         )
-        try:
-            participants = yield collective.list()
-        except Exception:
-            # probably should log this failure
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            returnValue(json.dumps({"reason": "unexpected error processing request"}).encode("utf-8"))
+        participants = yield collective.list()
 
         reply = {
             part.name: {
@@ -283,13 +289,7 @@ class APIv1(object):
             folder_config.upload_dircap,
             self._tahoe_client,
         )
-        try:
-            yield collective.add(author, personal_dmd_cap)
-        except Exception:
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            # probably should log this error, at least for developers (so eliot?)
-            returnValue(json.dumps({"reason": "unexpected error processing request"}))
+        yield collective.add(author, personal_dmd_cap)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
