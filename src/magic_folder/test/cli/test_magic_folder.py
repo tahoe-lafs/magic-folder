@@ -74,6 +74,9 @@ from ...tahoe_client import (
     create_tahoe_client,
 )
 
+from ...common import (
+    InvalidMagicFolderName,
+)
 from ..common_util import (
     parse_cli,
 )
@@ -334,6 +337,34 @@ class CreateMagicFolder(AsyncTestCase):
             "Already have a magic-folder named 'foo'",
             outcome.stderr
         )
+
+    @defer.inlineCallbacks
+    def test_create_invalid_name(self):
+        """
+        `magic-folder add` reports invalid folder names.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
+        outcome = yield cli(
+            self.config_dir, [
+                b"add",
+                b"--name", b"/",
+                b"--author", b"test",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            InvalidMagicFolderName.message,
+            outcome.stderr
+        )
+
 
     @defer.inlineCallbacks
     def test_add_leave_folder(self):
