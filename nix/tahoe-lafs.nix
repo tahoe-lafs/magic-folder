@@ -6,8 +6,8 @@ let
   versioned-tahoe-lafs = tahoe-lafs.overrideAttrs (old: rec {
     # Upstream is versioned as 1.14.0.dev, still, even though it is now
     # 1.15.1.
-    version = "1.15.1";
-    name = "tahoe-lafs-1.15.1";
+    version = "1.14.0";
+    name = "tahoe-lafs-1.14.0";
     postPatch = ''
       ${old.postPatch}
 

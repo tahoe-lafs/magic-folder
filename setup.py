@@ -74,7 +74,16 @@ install_requires = [
     # good reason to expect things to break from release to release.  Pin a
     # specific version so we can upgrade intentionally when we know it will
     # work.
-    "tahoe-lafs == 1.15.1",
+
+    #FIXME:
+    # this is dependend on by our vendored tahoe
+    "future",
+    # this should be a test dependency
+    "tahoe-lafs == 1.14",
+    # https://github.com/tahoe-lafs/tahoe-lafs/pull/748
+    "cryptography<3",
+    "pyopenssl<20",
+
 
     # twisted-based HTTP client
     "treq",
