@@ -143,19 +143,12 @@ class RemoteSnapshotCacheService(service.Service):
 
     def startService(self):
         """
-        Start a periodic loop that looks for work and does it.
+        Pull new work from our queue, forever.
         """
-        # XXX maybe convert this to use TimerService
         with start_action(message_type="cache-service:start"):
             service.Service.startService(self)
             self._service_d = self._process_queue()
             Message.log(starting=True)
-
-            def log(f):
-                print("fatal error")
-                print(f)
-                return None
-            self._service_d.addErrback(log)
 
     @inline_callbacks
     def _process_queue(self):
@@ -531,7 +524,7 @@ class DownloaderService(service.MultiService):
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, name, config, participants, remote_snapshot_cache, folder_updater, tahoe_client):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """

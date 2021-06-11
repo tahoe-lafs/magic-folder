@@ -139,7 +139,6 @@ class MagicFolder(service.MultiService):
             ),
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=DownloaderService.from_config(
-                clock=reactor,
                 name=name,
                 config=mf_config,
                 participants=initial_participants,
