@@ -213,14 +213,6 @@ _magicfolder_config_schema = Schema([
             snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
         )
         """,
-        # XXX so ^ is essentially a cache of our Personal DMD? Is that .. wise?
-
-        # XXX I think we want a third column: "wrote to tahoe" (bool)
-        # that tells us if we successfully wrote this to our Personal
-        # DMD or not .. on startup, we want to do that for everything
-        # that still says "not" .. *or* we could just deduce from
-        # Personal DMD (i.e. anything here that mismatches gets
-        # uploaded).
     ]),
 ])
 
