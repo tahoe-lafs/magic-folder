@@ -51,10 +51,16 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
     magic.child("sylvester").setContent(content0)
     yield alice.add_snapshot("local", "sylvester")
 
-    time.sleep(1)
+    # wait until we've definitely uploaded it
+    for _ in range(10):
+        time.sleep(1)
+        try:
+            former_remote = local_cfg.get_remotesnapshot("sylvester")
+            break
+        except KeyError:
+            pass
     x = yield alice.dump_state("local")
     print(x)
-    former_remote = local_cfg.get_remotesnapshot("sylvester")
 
     # turn off Tahoe
     alice.pause_tahoe()
@@ -87,7 +93,8 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
         # turn Tahoe back on
         alice.resume_tahoe()
 
-    # local snapshots should turn into remotes...
+    # local snapshots should turn into remotes...and thus change our
+    # remote snapshot pointer
     found = False
     for _ in range(10):
         if len(local_cfg.get_all_localsnapshot_paths()) == 0:
