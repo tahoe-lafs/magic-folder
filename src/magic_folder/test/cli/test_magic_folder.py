@@ -104,11 +104,6 @@ class ListMagicFolder(AsyncTestCase):
         and run it.
         """
         yield super(ListMagicFolder, self).setUp()
-        self.client_fixture = SelfConnectedClient(reactor)
-        yield self.client_fixture.use_on(self)
-
-        self.tempdir = self.client_fixture.tempdir
-        self.node_directory = self.client_fixture.node_directory
 
         # the Web APIs need a reference to a "global_service" .. which
         # is cli.MagicFolderService (a MultiService in fact). It
@@ -130,7 +125,7 @@ class ListMagicFolder(AsyncTestCase):
         self.service = GlobalService()
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
-            self.node_directory,
+            FilePath(u"/no/tahoe/node-directory"),
         )
         self.http_client = create_testing_http_client(
             reactor,
