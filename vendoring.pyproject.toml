@@ -1,0 +1,40 @@
+[tool.vendoring]
+destination = "src/magic_folder/_vendor/"
+requirements = "src/magic_folder/_vendor/vendor.txt"
+namespace = "magic_folder._vendor"
+
+protected-files = ["__init__.py", "README.rst", "vendor.txt"]
+patches-dir = "misc/patches"
+
+[tool.vendoring.transformations]
+substitute = [
+  { match='from ._monkeypatch import patch', replace="def patch(): pass" },
+]
+drop = [
+    "bin",
+    "allmydata.pyi",
+    "allmydata/__main__.py",
+    "allmydata/_[a-uw-z]*",
+    "allmydata/[a-h]*",
+    "allmydata/immutable",
+    "allmydata/introducer",
+    "allmydata/[j-r]*",
+    "allmydata/scripts",
+    "allmydata/storage/crawler.py",
+    "allmydata/storage/[d-z]*",
+    "allmydata/storage_client.py",
+    "allmydata/test*",
+    "allmydata/unknown.py",
+    "allmydata/util/abbreviate.py",
+    "allmydata/util/_[a-z]*",
+    "allmydata/util/[c-d]*",
+    "allmydata/util/[f-g]*",
+    "allmydata/util/happinessutil.py",
+    "allmydata/util/humanreadable.py",
+    "allmydata/util/[i-k]*",
+    "allmydata/util/[m]*",
+    "allmydata/util/namespace.py",
+    "allmydata/util/[o-z]*",
+    "allmydata/[v]*",
+    "allmydata/web*",
+]
