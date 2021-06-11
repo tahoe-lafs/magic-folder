@@ -7,7 +7,9 @@ extend-ignore =
     FI5
     # flake8-future-import '__future__ import "unicode_literals" missing'
     FI14
-extend-exclude = src/magic_folder/_version.py
+extend-exclude =
+    src/magic_folder/_version.py
+    src/magic_folder/_vendor/*/
 # flake8-future-import options
 min-version = 2.7
 require-code = true
