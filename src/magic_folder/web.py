@@ -47,10 +47,10 @@ from twisted.web.resource import (
 
 from klein import Klein
 
-from allmydata.uri import (
+from ._vendor.allmydata.uri import (
     from_string as tahoe_uri_from_string,
 )
-from allmydata.interfaces import (
+from ._vendor.allmydata.interfaces import (
     IDirnodeURI,
 )
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare

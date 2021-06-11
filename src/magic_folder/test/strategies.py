@@ -45,7 +45,7 @@ from twisted.python.filepath import (
 
 from twisted.python.runtime import platformType
 
-from allmydata.util import (
+from .._vendor.allmydata.util import (
     base32,
 )
 from ..util.encoding import (

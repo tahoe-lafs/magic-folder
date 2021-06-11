@@ -57,7 +57,7 @@ from twisted.internet.interfaces import (
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
 from twisted.python import log
 
-from allmydata import uri
+from .._vendor.allmydata import uri
 
 from eliot import (
     log_call,

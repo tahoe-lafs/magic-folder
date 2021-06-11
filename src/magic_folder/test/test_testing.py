@@ -28,7 +28,7 @@ from twisted.web.http import (
     GONE,
 )
 
-from allmydata.uri import (
+from .._vendor.allmydata.uri import (
     from_string,
     CHKFileURI,
 )

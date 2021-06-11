@@ -75,7 +75,7 @@ from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
 
-from allmydata.uri import (
+from .._vendor.allmydata.uri import (
     is_uri,
     from_string as uri_from_string,
 )
