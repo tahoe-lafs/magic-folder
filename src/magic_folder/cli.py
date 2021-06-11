@@ -63,7 +63,7 @@ from ._vendor.allmydata.util.encodingutil import (
     to_bytes,
 )
 
-from ._vendor.allmydata.client import (
+from allmydata.client import (
     read_config,
 )
 
