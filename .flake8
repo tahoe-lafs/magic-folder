@@ -11,10 +11,3 @@ extend-exclude = src/magic_folder/_version.py
 # flake8-future-import options
 min-version = 2.7
 require-code = true
-
-
-per-file-ignores =
-    # The inotify code has a number of errors that don't exist elsewhere
-    # so turn the off individually.
-    src/magic_folder/*/inotify.py: E201,E203,E221,E222,E225,E128,E502,E712,E722,W503,W504
-    src/magic_folder/*/fake_inotify.py: W504
