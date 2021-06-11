@@ -300,16 +300,10 @@ class MagicFolderUpdaterService(service.Service):
 
     def startService(self):
         """
-        Start a periodic loop that looks for work and does it.
+        Wait for a single item from the queue and process it, forever.
         """
         service.Service.startService(self)
         self._service_d = self._process_queue()
-
-        def log(f):
-            print("fatal error")
-            print(f)
-            return None
-        self._service_d.addErrback(log)
 
     def stopService(self):
         """
