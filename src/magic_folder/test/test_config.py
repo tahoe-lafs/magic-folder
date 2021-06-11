@@ -24,6 +24,9 @@ from hypothesis.strategies import (
     just,
     binary,
     lists,
+    tuples,
+    text,
+    characters
 )
 
 from testtools import (
@@ -62,6 +65,7 @@ from .strategies import (
     local_snapshots,
     folder_names
 )
+from ..common import InvalidMagicFolderName
 from ..config import (
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -380,6 +384,33 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         with ExpectedException(ValueError):
             config.get_magic_folder(u"non-existent")
+
+    @given(
+        tuples(
+            text(),
+            characters(
+                whitelist_categories=(
+                    "Cc", "Cs", "Cn",
+                ),
+                whitelist_characters=("/", "\\"),
+            ),
+            text(),
+        ).map("".join)
+    )
+    def test_get_folder_illegal_characters(self, folder_name):
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        alice = create_local_author(u"alice")
+        magic = self.temp.child("magic")
+        magic.makedirs()
+        with ExpectedException(InvalidMagicFolderName):
+            config.create_magic_folder(
+                folder_name,
+                magic,
+                alice,
+                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                60,
+            )
 
 
 class StoreLocalSnapshotTests(SyncTestCase):

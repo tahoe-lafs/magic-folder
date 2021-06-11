@@ -74,6 +74,9 @@ from ...tahoe_client import (
     create_tahoe_client,
 )
 
+from ...common import (
+    InvalidMagicFolderName,
+)
 from ..common_util import (
     parse_cli,
 )
@@ -101,11 +104,6 @@ class ListMagicFolder(AsyncTestCase):
         and run it.
         """
         yield super(ListMagicFolder, self).setUp()
-        self.client_fixture = SelfConnectedClient(reactor)
-        yield self.client_fixture.use_on(self)
-
-        self.tempdir = self.client_fixture.tempdir
-        self.node_directory = self.client_fixture.node_directory
 
         # the Web APIs need a reference to a "global_service" .. which
         # is cli.MagicFolderService (a MultiService in fact). It
@@ -127,7 +125,7 @@ class ListMagicFolder(AsyncTestCase):
         self.service = GlobalService()
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
-            self.node_directory,
+            FilePath(u"/no/tahoe/node-directory"),
         )
         self.http_client = create_testing_http_client(
             reactor,
@@ -334,6 +332,34 @@ class CreateMagicFolder(AsyncTestCase):
             "Already have a magic-folder named 'foo'",
             outcome.stderr
         )
+
+    @defer.inlineCallbacks
+    def test_create_invalid_name(self):
+        """
+        `magic-folder add` reports invalid folder names.
+        """
+        # Get a magic folder.
+        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder.makedirs()
+
+        outcome = yield cli(
+            self.config_dir, [
+                b"add",
+                b"--name", b"/",
+                b"--author", b"test",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            InvalidMagicFolderName.message,
+            outcome.stderr
+        )
+
 
     @defer.inlineCallbacks
     def test_add_leave_folder(self):

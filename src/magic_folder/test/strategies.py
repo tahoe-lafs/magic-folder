@@ -92,10 +92,11 @@ SEGMENT_ALPHABET = one_of(
 )
 
 FOLDER_ALPHABET = characters(
+    # See `magic_folder.common.valid_magic_folder_name` for why we have these
+    # restrictions.
     blacklist_categories=(
-        # Exclude surrogates.  They're complicated.
         "Cs",
-        # FIXME: https://github.com/LeastAuthority/magic-folder/issues/369
+        "Cn",
         "Cc",
     ),
     blacklist_characters=(u"\x00", u"/", u"\\"),

@@ -88,6 +88,10 @@ install_requires = [
 
     # last py2 release of klein
     "klein==20.6.0",
+
+    # Loading old magic-folders config for migration
+    # Minimum version is the version packaged in the nix snapshot we use.
+    "PyYAML >= 5.1.1"
 ]
 
 setup_requires = [

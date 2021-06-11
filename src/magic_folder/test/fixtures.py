@@ -26,7 +26,7 @@ from errno import (
     ENOENT,
 )
 
-import yaml
+from ..util.encoding import load_yaml, dump_yaml
 
 from json import (
     loads,
@@ -330,7 +330,7 @@ class NodeDirectory(Fixture):
             else:
                 raise
         else:
-            magic_folder_config = yaml.safe_load(magic_folder_config_bytes)
+            magic_folder_config = load_yaml(magic_folder_config_bytes)
 
         magic_folder_config.setdefault(
             u"magic-folders",
@@ -341,7 +341,7 @@ class NodeDirectory(Fixture):
             u"directory": directory.path,
             u"poll_interval": u"{}".format(poll_interval),
         }
-        self.magic_folder_yaml.setContent(yaml.safe_dump(magic_folder_config))
+        self.magic_folder_yaml.setContent(dump_yaml(magic_folder_config))
 
     def _setUp(self):
         self.path.makedirs()
