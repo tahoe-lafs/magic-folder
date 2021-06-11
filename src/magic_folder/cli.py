@@ -58,12 +58,12 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.util.encodingutil import (
+from ._vendor.allmydata.util.encodingutil import (
     argv_to_unicode,
     to_bytes,
 )
 
-from allmydata.client import (
+from ._vendor.allmydata.client import (
     read_config,
 )
 

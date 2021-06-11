@@ -14,7 +14,7 @@ Utilities for interacting with Tahoe capability-strings
 """
 
 
-from allmydata.uri import (
+from .._vendor.allmydata.uri import (
     from_string as tahoe_uri_from_string,
     IDirnodeURI,
     IFileURI,

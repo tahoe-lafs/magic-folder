@@ -78,7 +78,7 @@ from treq.testing import (
     StubTreq,
 )
 
-from allmydata.util.base32 import (
+from .._vendor.allmydata.util.base32 import (
     b2a,
 )
 

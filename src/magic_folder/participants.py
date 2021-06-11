@@ -28,11 +28,11 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from allmydata.interfaces import (
+from ._vendor.allmydata.interfaces import (
     IReadonlyDirectoryURI,
     IDirectoryURI,
 )
-from allmydata.uri import (
+from ._vendor.allmydata.uri import (
     from_string as tahoe_uri_from_string,
 )
 
