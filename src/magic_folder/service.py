@@ -8,8 +8,9 @@ from __future__ import (
     unicode_literals,
 )
 
+from configparser import ConfigParser
+
 import attr
-from allmydata.client import read_config
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
 from twisted.application.service import MultiService
@@ -34,6 +35,19 @@ def poll(label, operation, reactor):
             break
         print("Not {}: {}".format(label, message))
         yield deferLater(reactor, 1.0, lambda: None)
+
+
+def read_tahoe_config(node_directory):
+    """
+    :return ConfigParser: The parsed configuration file.
+    """
+    config = node_directory.child("tahoe.cfg").getContent()
+    # Byte Order Mark is an optional garbage code point you sometimes get at
+    # the start of UTF-8 encoded files. Especially on Windows. Skip it by using
+    # utf-8-sig. https://en.wikipedia.org/wiki/Byte_order_mark
+    parser = ConfigParser(strict=False)
+    parser.read_string(config.decode("utf-8-sig"))
+    return parser
 
 
 @attr.s
@@ -132,8 +146,8 @@ class MagicFolderService(MultiService):
     def _when_connected_enough(self):
         # start processing the upload queue when we've connected to
         # enough servers
-        tahoe_config = read_config(self.config.tahoe_node_directory.path, "portnum")
-        threshold = int(tahoe_config.get_config("client", "shares.needed"))
+        tahoe_config = read_tahoe_config(self.config.tahoe_node_directory)
+        threshold = int(tahoe_config.get("client", "shares.needed"))
 
         @inline_callbacks
         def enough():
