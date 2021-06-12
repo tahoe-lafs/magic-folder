@@ -7,6 +7,9 @@ from __future__ import (
 
 import sys
 import getpass
+
+
+import six
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -56,11 +59,6 @@ from treq.client import (
 
 from eliot.twisted import (
     inline_callbacks,
-)
-
-from allmydata.util.encodingutil import (
-    argv_to_unicode,
-    to_bytes,
 )
 
 from allmydata.client import (
@@ -113,11 +111,22 @@ from .config import (
 from .tahoe_client import (
     create_tahoe_client,
 )
-
 from .join import (
     magic_folder_join
 )
 
+if six.PY2:
+    def to_unicode(s):
+        """
+        Convert an argument to unicode.
+        """
+        try:
+            return unicode(s, "utf-8")
+        except UnicodeDecodeError:
+            raise usage.UsageError("Argument {!r} cannot be decoded as UTF-8.", s)
+else:
+    def to_unicode(s):
+        return s
 
 _default_config_path = user_config_dir("magic-folder")
 
@@ -258,8 +267,8 @@ class AddOptions(usage.Options):
     synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
-        ("name", "n", None, "The name of this magic-folder"),
-        ("author", "A", None, "Our name for Snapshots authored here"),
+        ("name", "n", None, "The name of this magic-folder", to_unicode),
+        ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
     ]
     description = (
         "Create a new magic-folder."
@@ -289,7 +298,7 @@ class AddOptions(usage.Options):
                 "Must specify the --name option"
             )
         try:
-            valid_magic_folder_name(argv_to_unicode(self['name']))
+            valid_magic_folder_name(self['name'])
         except InvalidMagicFolderName as e:
             raise usage.UsageError(str(e))
         try:
@@ -311,8 +320,8 @@ def add(options):
     client = create_tahoe_client(options.parent.config.tahoe_client_url, treq)
     yield magic_folder_create(
         options.parent.config,
-        argv_to_unicode(options["name"]),
-        argv_to_unicode(options["author"]),
+        options["name"],
+        options["author"],
         options.local_dir,
         options["poll-interval"],
         client,
@@ -361,7 +370,7 @@ class InviteOptions(usage.Options):
 
     def parseArgs(self, nickname):
         super(InviteOptions, self).parseArgs()
-        self.nickname = argv_to_unicode(nickname)
+        self.nickname = to_unicode(nickname)
 
     def postOptions(self):
         if self["name"] is None:
@@ -413,7 +422,7 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-        self.invite_code = to_bytes(argv_to_unicode(invite_code))
+        self.invite_code = to_unicode(invite_code)
 
     def postOptions(self):
         super(JoinOptions, self).postOptions()
