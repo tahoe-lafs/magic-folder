@@ -6,12 +6,9 @@ from __future__ import (
 )
 
 import six
-import sys
 
 from twisted.python.filepath import FilePath
-from twisted.python.monkey import MonkeyPatcher
 from twisted.internet import defer
-from twisted.python import runtime
 from twisted.application import service
 
 from eliot import (
@@ -25,7 +22,6 @@ from .util.eliotutil import (
     validateSetMembership,
     validateInstanceOf,
 )
-from twisted.python import log
 
 from .uploader import (
     LocalSnapshotService,
@@ -45,34 +41,6 @@ if six.PY3:
 _DEFAULT_DOWNLOAD_UMASK = 0o077
 
 IN_EXCL_UNLINK = long(0x04000000)
-
-
-def _get_inotify_module():
-    try:
-        if sys.platform == "win32":
-            from .windows import inotify
-        elif runtime.platform.supportsINotify():
-            from twisted.internet import inotify
-        elif not sys.platform.startswith("linux"):
-            from .watchdog import inotify
-        else:
-            raise NotImplementedError("filesystem notification needed for Magic Folder is not supported.\n"
-                                      "This currently requires Linux, Windows, or macOS.")
-        return inotify
-    except (ImportError, AttributeError) as e:
-        log.msg(e)
-        if sys.platform == "win32":
-            raise NotImplementedError("filesystem notification needed for Magic Folder is not supported.\n"
-                                      "Windows support requires at least Vista, and has only been tested on Windows 7.")
-        raise
-
-
-def get_inotify_module():
-    # Until Twisted #9579 is fixed, the Docker check just screws things up.
-    # Disable it.
-    monkey = MonkeyPatcher()
-    monkey.addPatch(runtime.platform, "isDocker", lambda: False)
-    return monkey.runWithPatches(_get_inotify_module)
 
 
 class MagicFolder(service.MultiService):

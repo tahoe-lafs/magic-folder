@@ -106,7 +106,7 @@ class ListMagicFolder(AsyncTestCase):
         yield super(ListMagicFolder, self).setUp()
 
         # the Web APIs need a reference to a "global_service" .. which
-        # is cli.MagicFolderService (a MultiService in fact). It
+        # is service.MagicFolderService (a MultiService in fact). It
         # doesn't declare an interface, but only uses
         # "get_folder_service(folder_name)" .. so we'll duck-type it
         # instead

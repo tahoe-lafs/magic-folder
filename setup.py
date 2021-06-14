@@ -92,6 +92,9 @@ install_requires = [
     # Loading old magic-folders config for migration
     # Minimum version is the version packaged in the nix snapshot we use.
     "PyYAML >= 5.1.1"
+
+    # Backported configparser for Python 2:
+    "configparser ; python_version < '3.0'",
 ]
 
 setup_requires = [
