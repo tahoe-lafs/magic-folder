@@ -54,6 +54,11 @@ def pytest_addoption(parser):
         "--coverage", action="store_true", dest="coverage",
         help="Collect coverage statistics",
     )
+    parser.addoption(
+        "--tahoe-version", dest="tahoe_version",
+        help="Tahoe version to install (used for storage-servers and client)",
+        default="tahoe-lafs==1.15.1",
+    )
 
 @pytest.fixture(autouse=True, scope='session')
 def eliot_logging():
@@ -103,14 +108,14 @@ def temp_dir(request):
     return tmp
 
 
+# NB: conceptually, it kind of makes sense to parametrize this fixture
+# on "Tahoe version" .. a quick attempt at that lead to all but the
+# first version failing; I think something doesn't get cleaned-up
+# properly between runs "or something". Instead, we use a command-line
+# option to specify tahoe-version and have multiple separate runs
+# (which looks better in CI anyway).
 @pytest.fixture(
     scope='session',
-    params=[
-        # could use "None" or something to use "our" venv
-        'tahoe-lafs==1.15.1',
-#        'https://github.com/tahoe-lafs/tahoe-lafs/archive/refs/heads/master.zip#egg=tahoe-lafs',
-#        'tahoe-lafs==1.14.0',
-    ]
 )
 def tahoe_venv(request, reactor, temp_dir):
     """
@@ -118,6 +123,7 @@ def tahoe_venv(request, reactor, temp_dir):
     one from the Tahoe we depend on.
     """
     venv_dir = join(temp_dir, "tahoe_venv")
+    tahoe_version = request.config.getoption("tahoe_version")
     print("creating venv", venv_dir, sys.executable)
     out_protocol = _DumpOutputProtocol(None)
     reactor.spawnProcess(
@@ -133,7 +139,7 @@ def tahoe_venv(request, reactor, temp_dir):
     reactor.spawnProcess(
         out_protocol,
         tahoe_python,
-        (tahoe_python, "-m", "pip", "install", request.param),
+        (tahoe_python, "-m", "pip", "install", tahoe_version),
         env=environ,
     )
     pytest_twisted.blockon(out_protocol.done)

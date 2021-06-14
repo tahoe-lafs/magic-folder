@@ -90,14 +90,6 @@ class MagicFolderEnabledNode(object):
     def magic_directory(self):
         return join(self.temp_dir, "magic-{}".format(self.name))
 
-# XXX to test on multiple tahoes:
-# - need to make a 'virtualenv_tahoe' or similar fixture
-# - ^ used to install tahoe 1.14 or 1.15.1 or whatever
-# - this code here runs 'tahoe' commands from the 'virtualenv_tahoe'
-#
-# - also probably want to test with a ZKAP-enabled tahoe node
-# - means zkap-authorizor?
-
     @classmethod
     @inlineCallbacks
     def create(
