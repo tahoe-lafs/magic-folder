@@ -68,6 +68,20 @@ workflows:
             # integration tests.
             - "debian-10"
 
+      - "integration-1.14":
+          <<: *DOCKERHUB_CONTEXT
+          requires:
+            # If the unit test suite doesn't pass, don't bother running the
+            # integration tests.
+            - "debian-10"
+
+      - "integration-master":
+          <<: *DOCKERHUB_CONTEXT
+          requires:
+            # If the unit test suite doesn't pass, don't bother running the
+            # integration tests.
+            - "debian-10"
+
   images:
     # Build the Docker images used by the ci jobs.  This makes the ci jobs
     # faster and takes various spurious failures out of the critical path.
@@ -272,6 +286,38 @@ jobs:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration"
+      # Disable artifact collection because py.test can't produce any.
+      ARTIFACTS_OUTPUT_PATH: ""
+
+    steps:
+      - "checkout"
+      # DRY, YAML-style.  See the debian-10 steps.
+      - run: *SETUP_VIRTUALENV
+      - run: *RUN_TESTS
+
+  integration-1.14:
+    <<: *DEBIAN
+
+    environment:
+      <<: *UTF_8_ENVIRONMENT
+      # Select the integration tests tox environments.
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1.14"
+      # Disable artifact collection because py.test can't produce any.
+      ARTIFACTS_OUTPUT_PATH: ""
+
+    steps:
+      - "checkout"
+      # DRY, YAML-style.  See the debian-10 steps.
+      - run: *SETUP_VIRTUALENV
+      - run: *RUN_TESTS
+
+  integration-master:
+    <<: *DEBIAN
+
+    environment:
+      <<: *UTF_8_ENVIRONMENT
+      # Select the integration tests tox environments.
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
