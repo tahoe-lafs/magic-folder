@@ -10,7 +10,8 @@ Audience: developers working on magic-folder itself
 
 **Note:** some of this document describes features that aren't yet implemented; those are noted with (Not implemented).
 
-This describes the general operation of the remote to local synchronization as outlined in "the Leif Design" (see :ref:`Leif's Proposal: Magic-Folder "single-file" snapshot design`).
+This describes the general operation of the remote to local synchronization.
+The overall design was first articulated in "the Leif Design" (see :ref:`Leif's Proposal: Magic-Folder "single-file" snapshot design`).
 
 We do not describe the synchronization of the list of participants in a magic-folder.
 This list will consist of at least:
