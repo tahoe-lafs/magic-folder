@@ -313,7 +313,7 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:bob", include_args=[], include_result=False)
-def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-bob'))
     except OSError:
@@ -336,7 +336,7 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:edmond", include_args=[], include_result=False)
-def edmond(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def edmond(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
             reactor,
