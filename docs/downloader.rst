@@ -75,10 +75,10 @@ So, Snapshots to download are discovered by:
 - for each user in it:
   - read their Personal DMD
   - for each entry in the Personal DMD:
-    - queue the Snapshot for caching, including all parents
+    - queue the Snapshot for caching, including all parents (see note)
     - after download, queue the Snapshot for updates
 
-Note that we don't always download *every* parent; we can stop early if a common ancestor is found.
+Note that we don't always download *every* parent; we stop early if a common ancestor is found (see below).
 
 
 Downloading Snapshots
