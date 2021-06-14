@@ -52,6 +52,9 @@ Once a Snapshot is downloaded it is passed to the ``MagicFolderUpdaterService`` 
 
 Downloading new Snapshots from other participants ultimately causes changes to the local filesystem (in the magic-folder).
 
+(Not implemented). It may be the case that one or more parent Snapshots are missing.
+In this case, we cannot cache or otherwise see those Snapshots and must take local action accordingly; see the section on conflicts for more.
+
 
 What Snapshots to Download
 --------------------------
@@ -92,6 +95,7 @@ Conflict Resolution is described in :ref:`Multi-party Conflict Detection` under 
 Briefly: a ``RemoteSnapshot`` is traced through its parents until a common ancestor is found.
 If the new Snapshot is a descendant of our latest Snapshot for that name, it's an overwrite.
 If it is not, there is a conflict (unless we don't yet have that name at all, then it's a creation).
+(Not implemented). If we cannot traverse all parents due to missing Snapshots and have still failed to find a common ancestor we must assume it is a conflict.
 
 
 On Overwrite
