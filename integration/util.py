@@ -24,6 +24,9 @@ from twisted.internet.defer import (
 from twisted.internet.task import (
     deferLater,
 )
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.internet.protocol import (
     ProcessProtocol,
 )
@@ -449,7 +452,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
             config_path = join(node_dir, 'tahoe.cfg')
             config = get_config(config_path)
             set_config(config, 'node', 'log_gatherer.furl', flog_gatherer)
-            write_config(config_path, config)
+            write_config(FilePath(config_path), config)
         created_d.addCallback(created)
 
     d = Deferred()
