@@ -55,9 +55,9 @@ def pytest_addoption(parser):
         help="Collect coverage statistics",
     )
     parser.addoption(
-        "--tahoe-version", dest="tahoe_version",
-        help="Tahoe version to install (used for storage-servers and client)",
-        default="tahoe-lafs==1.15.1",
+        "--tahoe-requirements", dest="tahoe_requirements",
+        help="A 'requirements.txt' file to install Tahoe with",
+        default="requirements/tahoe-integration-1.15.txt",
     )
 
 @pytest.fixture(autouse=True, scope='session')
