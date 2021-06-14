@@ -109,8 +109,7 @@ On Conflict
 
 The ``content`` of the ``RemoteSnapshot`` is downloaded and moved into a "conflict file" (see Leif Design) beside the conflicting content.
 The Personal DMD is **not** updated.
-Once the conflict is "resolved" then a new Snapshot is created with two parents: the latest
-Snapshot we had at conflict time and the conflicting Snapshot.
+(Not implemented). Once the conflict is "resolved" then a new Snapshot is created with two parents: the latest Snapshot we had at conflict time and the conflicting Snapshot.
 Our Personal DMD is updated to point at this new Snapshot.
 
 (Not implemented). "Resolving" a snapshot will be noticed via more filesystem manipulation: the ``.confict`` file is deleted or moved (and the existing file is taken to be the new content).
