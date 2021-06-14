@@ -85,8 +85,7 @@ First, we create a new Magic Folder into which we'll recover::
     $ magic-folder --config ~/magicfolder2 add --author desktop --name recovered_cats --poll-interval 120 ~/favourite-kitties
     Created magic-folder named 'recovered_cats'
 
-Next, we need to decide if we are the admin for this Magic Folder or not.
-Here we only describe the case where you are the admin and there is only a single participant in the original Magic Folder.
+Here we only describe the case where you are the admin and there is only a single participant in the original Magic Folder (other cases are to-be-designed still).
 
 Use the ``magic-folder-api`` command to add a new participant to the just-created Magic Folder:
 
