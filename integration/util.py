@@ -579,18 +579,6 @@ def await_file_vanishes(path, timeout=10):
     raise FileShouldVanishException(path, timeout)
 
 
-def cli(request, reactor, node_dir, *argv):
-    """
-    Run a tahoe CLI subcommand for a given node.
-    """
-    proto = _CollectOutputProtocol()
-    _tahoe_runner(
-        proto, reactor, tahoe_venv, request,
-        ['--node-directory', node_dir] + list(argv),
-    )
-    return proto.done
-
-
 def node_url(node_dir, uri_fragment):
     """
     Create a fully qualified URL by reading config from `node_dir` and
