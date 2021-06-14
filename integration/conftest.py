@@ -288,7 +288,7 @@ def introducer_furl(introducer, temp_dir):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice", include_args=[], include_result=False)
-def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-alice'))
     except OSError:
