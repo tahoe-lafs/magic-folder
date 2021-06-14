@@ -329,10 +329,6 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     )
 
 
-# XXX have to get 'tahoe_venv/bin/python' or whatever all the way down
-# here to _tahoe_runner .. from I guess MagicFolderEnabledNode?
-
-
 def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
     """
     Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
