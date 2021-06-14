@@ -1231,7 +1231,7 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
 
-        :raises: ValueError if there is no such Magic Folder
+        :raises ValueError: if there is no such Magic Folder
         """
         with self.database:
             cursor = self.database.cursor()
