@@ -96,6 +96,7 @@ Briefly: a ``RemoteSnapshot`` is traced through its parents until a common ances
 If the new Snapshot is a descendant of our latest Snapshot for that name, it's an overwrite.
 If it is not, there is a conflict (unless we don't yet have that name at all, then it's a creation).
 (Not implemented). If we cannot traverse all parents due to missing Snapshots and have still failed to find a common ancestor we must assume it is a conflict.
+(Not implemented). If there is a local file "in the way" for which no ``LocalSnapshot`` already exists it is also a conflict.
 
 
 On Overwrite
