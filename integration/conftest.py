@@ -123,7 +123,6 @@ def tahoe_venv(request, reactor, temp_dir):
     one from the Tahoe we depend on.
     """
     venv_dir = join(temp_dir, "tahoe_venv")
-    tahoe_version = request.config.getoption("tahoe_version")
     print("creating venv", venv_dir, sys.executable)
     out_protocol = _DumpOutputProtocol(None)
     reactor.spawnProcess(
@@ -139,7 +138,7 @@ def tahoe_venv(request, reactor, temp_dir):
     reactor.spawnProcess(
         out_protocol,
         tahoe_python,
-        (tahoe_python, "-m", "pip", "install", tahoe_version),
+        (tahoe_python, "-m", "pip", "install", "-r", request.config.getoption("tahoe_requirements")),
         env=environ,
     )
     pytest_twisted.blockon(out_protocol.done)
