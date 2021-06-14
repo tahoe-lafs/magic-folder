@@ -46,8 +46,8 @@ This can be gathered for all folders at once with a ``magic-folder`` command::
 
     $ magic-folder list --json --include-secret-information
 
-Running that command will produce a JSON ``dict`` containing one key for each Magic Folder.
-These will point to a ``dict`` containing all the information about this Magic Folder.
+Running that command will produce a JSON ``object`` containing one key for each Magic Folder.
+These will point to a ``object`` containing all the information about this Magic Folder.
 The relevant keys here are:
 - ``"upload-dircap"``: our Personal DMD write-capability
 - ``"collective-dircap"``: a write-capability or read-capability to the Collective DMD (not used in this revision of this document but it is useful to save)
