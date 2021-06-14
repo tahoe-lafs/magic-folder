@@ -103,7 +103,7 @@ from ..snapshot import (
     create_local_author,
     format_filenode,
 )
-from ..cli import (
+from ..service import (
     MagicFolderService,
 )
 from ..web import (

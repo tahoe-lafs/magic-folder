@@ -10,33 +10,11 @@ from random import randrange
 
 from twisted.internet import reactor, defer
 from twisted.python import failure
-from twisted.trial import unittest
-
-from pyutil.assertutil import precondition
-
-from allmydata.util.encodingutil import (unicode_platform, get_filesystem_encoding,
-                                         get_io_encoding)
 
 from ..cli import (
     MagicFolderCommand,
 )
 
-def skip_if_cannot_represent_filename(u):
-    precondition(isinstance(u, unicode))
-
-    enc = get_filesystem_encoding()
-    if not unicode_platform():
-        try:
-            u.encode(enc)
-        except UnicodeEncodeError:
-            raise unittest.SkipTest("A non-ASCII filename could not be encoded on this platform.")
-
-def skip_if_cannot_represent_argv(u):
-    precondition(isinstance(u, unicode))
-    try:
-        u.encode(get_io_encoding())
-    except UnicodeEncodeError:
-        raise unittest.SkipTest("A non-ASCII argv could not be encoded on this platform.")
 
 def parse_cli(*argv):
     # This parses the CLI options (synchronously), and returns the Options

@@ -21,17 +21,12 @@ from eliot import (
     add_destinations,
     remove_destination,
     ILogger,
-    ActionType,
 )
 
 from logging import (
     INFO,
     Handler,
     getLogger,
-)
-
-from .fake_inotify import (
-    humanReadableMask,
 )
 
 from eliot.twisted import (
@@ -109,27 +104,6 @@ LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
     [float, int, long],
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
-)
-
-INOTIFY_EVENTS = Field(
-    u"inotify_events",
-    humanReadableMask,
-    u"Details about a filesystem event generating a notification event.",
-    validateInstanceOf((int, long)),
-)
-
-MAYBE_NOTIFY = ActionType(
-    u"filesystem:notification:maybe-notify",
-    [],
-    [],
-    u"A filesystem event is being considered for dispatch to an application handler.",
-)
-
-CALLBACK = ActionType(
-    u"filesystem:notification:callback",
-    [INOTIFY_EVENTS],
-    [],
-    u"A filesystem event is being dispatched to an application callback."
 )
 
 

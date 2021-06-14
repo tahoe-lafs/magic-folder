@@ -86,12 +86,18 @@ install_requires = [
     # We use them directly, rather than the re-exports from allmydata
     "pyutil >= 3.3.0",
 
+    # This is the version of cryptography required by tahoe-lafs
+    "cryptography >= 2.6",
+
     # last py2 release of klein
     "klein==20.6.0",
 
     # Loading old magic-folders config for migration
     # Minimum version is the version packaged in the nix snapshot we use.
     "PyYAML >= 5.1.1"
+
+    # Backported configparser for Python 2:
+    "configparser ; python_version < '3.0'",
 ]
 
 setup_requires = [
