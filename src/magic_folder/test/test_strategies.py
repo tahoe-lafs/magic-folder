@@ -16,7 +16,7 @@ from hypothesis import (
     assume,
 )
 
-from allmydata.uri import (
+from .._vendor.allmydata.uri import (
     from_string as cap_from_string,
 )
 

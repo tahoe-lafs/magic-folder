@@ -1,0 +1,42 @@
+[tool.vendoring]
+destination = "src/magic_folder/_vendor/"
+requirements = "src/magic_folder/_vendor/vendor.txt"
+namespace = "magic_folder._vendor"
+
+protected-files = ["__init__.py", "README.rst", "vendor.txt"]
+patches-dir = "misc/patches"
+
+[tool.vendoring.transformations]
+substitute = [
+  { match='from ._monkeypatch import patch', replace="def patch(): pass" },
+  { match='from allmydata.storage.server import', replace="from allmydata.storage.common import" },
+  { match='from allmydata.util.assertutil import', replace="from pyutil.assertutil import" },
+]
+drop = [
+    "bin",
+    "allmydata.pyi",
+    "allmydata/__main__.py",
+    "allmydata/_[a-uw-z]*",
+    "allmydata/[a-h]*",
+    "allmydata/immutable",
+    "allmydata/introducer",
+    "allmydata/[j-r]*",
+    "allmydata/scripts",
+    "allmydata/stats.py",
+    "allmydata/storage/crawler.py",
+    "allmydata/storage/[d-z]*",
+    "allmydata/storage_client.py",
+    "allmydata/test*",
+    "allmydata/unknown.py",
+    "allmydata/util/abbreviate.py",
+    "allmydata/util/_[a-z]*",
+    "allmydata/util/[a]*",
+    "allmydata/util/base62.py",
+    "allmydata/util/[c-g]*",
+    "allmydata/util/happinessutil.py",
+    "allmydata/util/humanreadable.py",
+    "allmydata/util/[i-m]*",
+    "allmydata/util/namespace.py",
+    "allmydata/util/[o-z]*",
+    "allmydata/[v-z]*",
+]
