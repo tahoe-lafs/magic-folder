@@ -413,6 +413,12 @@ class MagicFolderUpdaterService(service.Service):
                 assert not local_snap and not remote_snap, "Internal inconsistency"
                 self._magic_fs.mark_overwrite(snapshot, staged)
 
+            # Note, if we crash here (after moving the file into place
+            # but before noting that in our database) then we could
+            # produce LocalSnapshots referencing the wrong
+            # parent. This will be corrected when we re-start and make
+            # it past this point again.
+
             # remember the last remote we've downloaded
             self._config.store_remotesnapshot(snapshot.name, snapshot)
 
