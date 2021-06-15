@@ -301,7 +301,7 @@ jobs:
     environment:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1.14"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1_14"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
