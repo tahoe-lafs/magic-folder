@@ -11,6 +11,7 @@ Tests relating generally to magic_folder.downloader
 
 import io
 import base64
+from mock import Mock
 
 from json import (
     dumps,
@@ -25,6 +26,7 @@ from testtools.matchers import (
     Always,
     Equals,
     ContainsDict,
+    AfterPreprocessing,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -198,6 +200,133 @@ class CacheTests(SyncTestCase):
                 )
             )
         )
+
+    def test_cache_parents(self):
+        """
+        Caching a RemoteSnapshot with parents works
+        """
+        self.setup_example()
+        mangled_name = "foo"
+        parents = []
+        genesis = None
+
+        for who in range(5):
+            metadata = {
+                "snapshot_version": 1,
+                "name": mangled_name,
+                "author": self.author.to_remote_author().to_json(),
+                "parents": parents,
+            }
+            content_data = u"content {}\n".format(who).encode("utf8") * 1000
+            content_cap = self.root.add_data("URI:CHK:", content_data)[1]
+            metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))[1]
+
+            _, cap = self.root.add_data(
+                "URI:DIR2-CHK:",
+                dumps([
+                    "dirnode",
+                    {
+                        "mutable": False,
+                        "children": {
+                            "content": [
+                                "filenode",
+                                {
+                                    "format": "CHK",
+                                    "ro_uri": content_cap,
+                                    "mutable": False,
+                                    "metadata": {},
+                                    "size": 4704
+                                }
+                            ],
+                            "metadata": [
+                                "filenode",
+                                {
+                                    "format": "CHK",
+                                    "ro_uri": metadata_cap,
+                                    "mutable": False,
+                                    "metadata": {
+                                        "magic_folder": {
+                                            "author_signature": base64.b64encode(
+                                                sign_snapshot(
+                                                    self.author,
+                                                    mangled_name,
+                                                    content_cap,
+                                                    metadata_cap
+                                                ).signature
+                                            ),
+                                        }
+                                    },
+                                    "size": 246
+                                }
+                            ]
+                        }
+                    }
+                ])
+            )
+            parents = [cap]
+            if genesis is None:
+                genesis = cap
+
+        # cache the oldest parent first
+        self.assertThat(
+            self.cache.add_remote_capability(genesis),
+            succeeded(
+                MatchesStructure(
+                    name=Equals("foo"),
+                    metadata=ContainsDict({
+                        "snapshot_version": Equals(1),
+                        "parents": Equals([]),
+                        "name": Equals("foo"),
+                    }),
+                )
+            )
+        )
+        # we should have a single snapshot cached
+        self.assertThat(
+            len(self.cache.cached_snapshots),
+            Equals(1),
+        )
+
+        # we've set up some fake data; lets see if the cache service
+        # will cache this successfully.
+        self.assertThat(
+            self.cache.add_remote_capability(cap),
+            succeeded(
+                MatchesStructure(
+                    name=Equals("foo"),
+                    metadata=ContainsDict({
+                        "snapshot_version": Equals(1),
+                        "parents": AfterPreprocessing(len, Equals(1)),
+                        "name": Equals("foo"),
+                    }),
+                )
+            )
+        )
+        # we should have cached all the snapshots now
+        self.assertThat(
+            len(self.cache.cached_snapshots),
+            Equals(5),
+        )
+
+        # our tahoe client should not be asked anything if we re-cache
+        # the already-cached tree of Snapshots .. turn our client into
+        # a Mock to absorb any calls it receives.
+        self.cache.tahoe_client = Mock()
+        self.assertThat(
+            self.cache.add_remote_capability(cap),
+            succeeded(
+                MatchesStructure(
+                    name=Equals("foo"),
+                    metadata=ContainsDict({
+                        "snapshot_version": Equals(1),
+                        "parents": AfterPreprocessing(len, Equals(1)),
+                        "name": Equals("foo"),
+                    }),
+                )
+            )
+        )
+        self.cache.tahoe_client.assert_not_called()
+
 
 
 class UpdateTests(AsyncTestCase):
