@@ -346,12 +346,12 @@ class MagicFolderUpdaterService(service.Service):
             local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
             staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
 
-            # check if we have this snapshot already .. it's possible
-            # to have both local and remote snapshots.
+            # see if we have existing local or remote snapshots for
+            # this name already
             try:
-                remote_cap = self._config.get_remotesnapshot(snapshot.name),
+                remote_cap = self._config.get_remotesnapshot(snapshot.name)
                 # w/ no KeyError we have seen this before
-                action.add_success_fields(remote=remote_snap.capability)
+                action.add_success_fields(remote=remote_cap)
                 try:
                     remote_snap = self._remote_cache.cached_snapshots[remote_cap]
                 except KeyError:
@@ -364,30 +364,41 @@ class MagicFolderUpdaterService(service.Service):
             try:
                 local_snap = self._config.get_local_snapshot(snapshot.name)
                 action.add_success_fields(
-                    local=local_snap.capability,
+                    local=local_snap.content_path.path,
                 )
             except KeyError:
                 local_snap = None
 
             # note: if local_snap and remote_snap are both non-None
-            # then remote_snap should be the ancestor of local_snap
+            # then remote_snap should already be the ancestor of
+            # local_snap by definition.
+
+            # XXX check if we're already conflicted; if so, do not continue
 
             # XXX not dealing with deletes yet
+
+            is_conflict = False
             if local_path.exists():
-                # we have something locally. if we have no remote yet,
-                # it's a conflict (because we've not told anyone about
-                # it)
+                # there is a file here already .. if we have any
+                # LocalSnapshots for this name, then we've got local
+                # edits and it must be a conflict. If we have nothing
+                # in our remotesnapshot database then we've just not
+                # made a LocalSnapshot yet (so it's still a conflict).
+                if local_snap is not None or remote_snap is None:
+                    is_conflict = True
 
-                # (if we do have any locals, they will have this
-                # remote_snap as an ancestor)
-                existing_snap = remote_snap
+                else:
+                    existing_snap = remote_snap
 
-                # we shouldn't even queue updates if we already match,
-                # but double-check just in case
-                if existing_snap is not None and existing_snap.capability == snapshot.capability:
-                    return
+                    # we shouldn't even queue updates if we already match,
+                    # but double-check here just in case
+                    if existing_snap is not None and \
+                       existing_snap.capability == snapshot.capability:
+                        return
 
-                # do we have a common ancestor with the proposed change?
+                # "If the new snapshot is a descendant of the client's
+                # existing snapshot, then this update is an 'overwrite'"
+
                 ancestor = False
                 q = deque([snapshot])
                 while q and not ancestor:
@@ -400,25 +411,26 @@ class MagicFolderUpdaterService(service.Service):
                             q.append(self._remote_cache.cached_snapshots[parent_cap])
                 action.add_success_fields(ancestor=ancestor)
 
-                # whether we found a common ancestor or not
-                # tells us if we've got an overwrite or
-                # conflict
-                if ancestor:
-                    self._magic_fs.mark_overwrite(snapshot, staged)
-                else:
-                    self._magic_fs.mark_conflict(snapshot, staged)
+                if not ancestor:
+                    is_conflict = True
 
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_snap, "Internal inconsistency"
+                assert not local_snap and not remote_snap, "Internal inconsistency: record of a Snapshot for this name but no local file"
+                is_conflict = False
+
+            # now we know if we have a conflict or not; mark it.
+            if is_conflict:
+                self._magic_fs.mark_conflict(snapshot, staged)
+            else:
                 self._magic_fs.mark_overwrite(snapshot, staged)
 
             # Note, if we crash here (after moving the file into place
             # but before noting that in our database) then we could
-            # produce LocalSnapshots referencing the wrong
-            # parent. This will be corrected when we re-start and make
-            # it past this point again.
+            # produce LocalSnapshots referencing the wrong parent. We
+            # will no longer produce snapshots with the wrong parent
+            # once we re-run and get past this point.
 
             # remember the last remote we've downloaded
             self._config.store_remotesnapshot(snapshot.name, snapshot)
@@ -506,8 +518,27 @@ class InMemoryMagicFolderFilesystem(object):
     """
 
     def __init__(self):
-        """
-        """
+        self.actions = []
+
+    def download_content_to_staging(self, remote_snapshot, tahoe_client):
+        self.actions.append(
+            ("download", remote_snapshot)
+        )
+
+    def mark_overwrite(self, remote_snapshot, staged_content):
+        self.actions.append(
+            ("overwrite", remote_snapshot)
+        )
+
+    def mark_conflict(self, remote_snapshot, staged_content):
+        self.actions.append(
+            ("conflict", remote_snapshot)
+        )
+
+    def mark_delete(self, remote_snapshot):
+        self.actions.append(
+            ("delete", remote_snapshot)
+        )
 
 
 @attr.s

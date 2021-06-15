@@ -21,6 +21,10 @@ from hyperlink import (
     DecodedURL,
 )
 
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from testtools.matchers import (
     MatchesStructure,
     Always,
@@ -45,18 +49,25 @@ from twisted.internet.defer import (
 from twisted.python.filepath import (
     FilePath,
 )
+from treq.testing import (
+    StubTreq,
+    StringStubbingResource,
+)
+
 from ..config import (
     create_testing_configuration,
 )
 from ..downloader import (
     RemoteSnapshotCacheService,
+    MagicFolderUpdaterService,
+    InMemoryMagicFolderFilesystem,
 )
 from ..magic_folder import (
     MagicFolder,
 )
 from ..snapshot import (
     create_local_author,
-    LocalSnapshot,
+    RemoteSnapshot,
     sign_snapshot,
     format_filenode,
     create_snapshot,
@@ -328,7 +339,6 @@ class CacheTests(SyncTestCase):
         self.cache.tahoe_client.assert_not_called()
 
 
-
 class UpdateTests(AsyncTestCase):
     """
     Tests for ``MagicFolderUpdaterService``
@@ -349,8 +359,6 @@ class UpdateTests(AsyncTestCase):
         self.magic_path.makedirs()
         self.state_path = FilePath(self.mktemp())
         self.state_path.makedirs()
-        self.stash_path = self.state_path.child("stash")
-        self.stash_path.makedirs()
 
         self._global_config = create_testing_configuration(
             self.state_path,
@@ -539,3 +547,184 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0, lambda: None)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+
+    @inlineCallbacks
+    def test_multi_update(self):
+        """
+        Create a snapshot in zara's Personal DMD, then update it 2x
+        """
+
+        content0 = b"foo" * 1000
+        content1 = b"bar" * 1000
+        content2 = b"baz" * 1000
+        local_snap0 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+        )
+
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability.encode("utf8"),
+        )
+
+        # create an update
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            parents=[local_snap0],
+        )
+        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap1.capability.encode("utf8"),
+            replace=True,
+        )
+
+        # wait for the downloader to put this into Alice's
+        # magic-folder, which should (eventually) match the update.
+        for _ in range(10):
+            if "foo" in self.magic_path.listdir():
+                if self.magic_path.child("foo").getContent() == content1:
+                    break
+            yield deferLater(reactor, 1.0, lambda: None)
+        assert self.magic_path.child("foo").exists()
+        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+
+        # create a second update
+        local_snap2 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content2),
+            self.state_path,
+            parents=[remote_snap1],
+        )
+        remote_snap2 = yield write_snapshot_to_tahoe(local_snap2, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap2.capability.encode("utf8"),
+            replace=True,
+        )
+
+        # wait for the downloader to put this into Alice's
+        # magic-folder, which should (eventually) match the update.
+        for _ in range(10):
+            if "foo" in self.magic_path.listdir():
+                if self.magic_path.child("foo").getContent() == content2:
+                    break
+            yield deferLater(reactor, 1.0, lambda: None)
+        assert self.magic_path.child("foo").exists()
+        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+
+
+class ConflictTests(AsyncTestCase):
+    """
+    Tests for ``MagicFolderUpdaterService``
+    """
+
+    def setUp(self):
+        super(ConflictTests, self).setUp()
+        self.alice = create_local_author("alice")
+        self.carol = create_local_author("carol")
+
+        self.alice_magic_path = FilePath(self.mktemp())
+        self.alice_magic_path.makedirs()
+        self.state_path = FilePath(self.mktemp())
+        self.state_path.makedirs()
+
+        self.filesystem = InMemoryMagicFolderFilesystem()
+
+        self._global_config = create_testing_configuration(
+            self.state_path,
+            FilePath("dummy"),
+        )
+
+        self.alice_collective = "URI:DIR2:"
+        self.alice_personal = "URI:DIR2:"
+
+        self.alice_config = self._global_config.create_magic_folder(
+            "default",
+            self.alice_magic_path,
+            self.alice,
+            self.alice_collective,
+            self.alice_personal,
+            1,
+        )
+
+        # note, we don't "run" this service, just populate .cached_snapshots
+        self.remote_cache = RemoteSnapshotCacheService(
+            folder_config=self.alice_config,
+            tahoe_client=None,
+        )
+
+        self.tahoe_calls = []
+
+        def get_resource_for(method, url, params, headers, data):
+            self.tahoe_calls.append((method, url, params, headers, data))
+            return (200, {}, b"{}")
+
+        self.updater = MagicFolderUpdaterService(
+            magic_fs=self.filesystem,
+            config=self.alice_config,
+            remote_cache=self.remote_cache,
+            tahoe_client=create_tahoe_client(
+                DecodedURL.from_text(u"http://invalid./"),
+                StubTreq(StringStubbingResource(get_resource_for)),
+            )
+        )
+        self.updater.startService()
+
+    def tearDown(self):
+        super(ConflictTests, self).tearDown()
+        return self.updater.stopService()
+
+    @inline_callbacks
+    def test_update_with_local(self):
+        """
+        Give the updater a remote update while we also have a LocalSnapshot
+        """
+
+        cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
+        remote0 = RemoteSnapshot(
+            name="foo",
+            author=self.carol,
+            metadata=b"URI:CHK:",
+            capability=cap0,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache.cached_snapshots[cap0] = remote0
+
+        local0_content = b"dummy content"
+        local0 = yield create_snapshot(
+            name="foo",
+            author=self.alice,
+            data_producer=io.BytesIO(local0_content),
+            snapshot_stash_dir=self.state_path,
+            parents=None,
+            raw_remote_parents=None,
+        )
+        # if we have a local, we must have the path locally
+        self.alice_magic_path.child("foo").setContent(local0_content)
+        self.alice_config.store_local_snapshot(local0)
+
+        # tell the updater to examine the remote-snapshot
+        yield self.updater.add_remote_snapshot(remote0)
+
+        # we have a local-snapshot for the same name as the incoming
+        # remote, so this is a conflict
+
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", remote0),
+                ("conflict", remote0),
+            ])
+        )
