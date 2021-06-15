@@ -175,6 +175,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
+        timeout=25,
     )
 
     # in the (ideally rare) case that the old device is found *and* a
