@@ -349,14 +349,15 @@ class MagicFolderUpdaterService(service.Service):
             # check if we have this snapshot already .. it's possible
             # to have both local and remote snapshots.
             try:
-                # can we reach the cache service from here?
-                remote_snap = yield create_snapshot_from_capability(
-                    self._config.get_remotesnapshot(snapshot.name),
-                    self.tahoe_client,
-                )
-                action.add_success_fields(
-                    remote=remote_snap.capability,
-                )
+                remote_cap = self._config.get_remotesnapshot(snapshot.name),
+                # w/ no KeyError we have seen this before
+                action.add_success_fields(remote=remote_snap.capability)
+                try:
+                    remote_snap = self._remote_cache.cached_snapshots[remote_cap]
+                except KeyError:
+                    raise RuntimeError(
+                        "Internal inconsistency: remotesnapshot not in cache"
+                    )
             except KeyError:
                 remote_snap = None
 
