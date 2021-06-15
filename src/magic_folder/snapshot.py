@@ -202,13 +202,13 @@ def _snapshot_signature_string(name, content_capability, metadata_capability):
     return snapshot_string.encode("utf8")
 
 
-def sign_snapshot(local_author, snapshot, content_capability, metadata_capability):
+def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capability):
     """
     Signs the given snapshot with provided author
 
     :param LocalAuthor local_author: the author to sign the data with
 
-    :param LocalSnapshot snapshot: snapshot to sign
+    :param unicode snapshot_name: mangled snapshot name to sign
 
     :param bytes content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
@@ -222,7 +222,7 @@ def sign_snapshot(local_author, snapshot, content_capability, metadata_capabilit
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
-        snapshot.name,
+        snapshot_name,
         content_capability,
         metadata_capability,
     )
@@ -650,7 +650,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
-    author_signature = sign_snapshot(author_key, snapshot, content_cap, metadata_cap)
+    author_signature = sign_snapshot(author_key, snapshot.name, content_cap, metadata_cap)
     author_signature_base64 = base64.b64encode(author_signature.signature)
 
     # create the actual snapshot: an immutable directory with

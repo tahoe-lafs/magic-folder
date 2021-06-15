@@ -142,15 +142,6 @@ class CacheTests(SyncTestCase):
         _, content_cap = self.root.add_data("URI:CHK:", b"content\n" * 1000)
         _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))
 
-        snap = LocalSnapshot(
-            mangled_name,
-            self.author,
-            metadata,
-            FilePath("non-exist"),
-            parents_local=[],
-            parents_remote=[],
-        )
-
         data = dumps([
             "dirnode",
             {
@@ -177,7 +168,7 @@ class CacheTests(SyncTestCase):
                                     "author_signature": base64.b64encode(
                                         sign_snapshot(
                                             self.author,
-                                            snap,
+                                            mangled_name,
                                             content_cap,
                                             metadata_cap
                                         ).signature
