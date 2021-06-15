@@ -279,7 +279,7 @@ jobs:
       MAGIC_FOLDER_WARNINGS_LOG: "/tmp/artifacts/deprecation-warnings.log"
 
 
-  integration:
+  integration: &INTEGRATION
     <<: *DEBIAN
 
     environment:
@@ -296,7 +296,7 @@ jobs:
       - run: *RUN_TESTS
 
   integration-1.14:
-    <<: *DEBIAN
+    <<: *INTEGRATION
 
     environment:
       <<: *UTF_8_ENVIRONMENT
@@ -305,14 +305,8 @@ jobs:
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
 
-    steps:
-      - "checkout"
-      # DRY, YAML-style.  See the debian-10 steps.
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
-
   integration-master:
-    <<: *DEBIAN
+    <<: *INTEGRATION
 
     environment:
       <<: *UTF_8_ENVIRONMENT
@@ -320,12 +314,6 @@ jobs:
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master"
       # Disable artifact collection because py.test can't produce any.
       ARTIFACTS_OUTPUT_PATH: ""
-
-    steps:
-      - "checkout"
-      # DRY, YAML-style.  See the debian-10 steps.
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
 
 
   ubuntu-18.04:
