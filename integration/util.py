@@ -334,7 +334,7 @@ def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
     Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
     `other_args`.
     """
-    args = [join(tahoe_venv, 'bin', 'python'), '-m', 'allmydata.scripts.runner']
+    args = [str(tahoe_venv.joinpath('bin', 'python')), '-m', 'allmydata.scripts.runner']
     args += other_args
     return reactor.spawnProcess(
         proto,

@@ -117,28 +117,29 @@ def temp_dir(request):
 @pytest.fixture(
     scope='session',
 )
-def tahoe_venv(request, reactor, temp_dir):
+def tahoe_venv(request, reactor, tmp_path_factory):
     """
     A virtualenv for our Tahoe install, letting us install a different
     one from the Tahoe we depend on.
     """
-    venv_dir = join(temp_dir, "tahoe_venv")
+    venv_dir = tmp_path_factory.mktemp("venv")
+    #venv_dir = join(temp_dir, "tahoe_venv")
     print("creating venv", venv_dir, sys.executable)
     out_protocol = _DumpOutputProtocol(None)
     reactor.spawnProcess(
         out_protocol,
         sys.executable,
-        ("python", "-m", "virtualenv", venv_dir),
+        ("python", "-m", "virtualenv", str(venv_dir)),
         env=environ,
     )
     pytest_twisted.blockon(out_protocol.done)
-    tahoe_python = join(venv_dir, "bin", "python")
+    tahoe_python = venv_dir.joinpath("bin", "python")
 
     out_protocol = _DumpOutputProtocol(None)
     reactor.spawnProcess(
         out_protocol,
-        tahoe_python,
-        (tahoe_python, "-m", "pip", "install", "-r", request.config.getoption("tahoe_requirements")),
+        str(tahoe_python),
+        (str(tahoe_python), "-m", "pip", "install", "-r", request.config.getoption("tahoe_requirements")),
         env=environ,
     )
     pytest_twisted.blockon(out_protocol.done)
@@ -148,7 +149,7 @@ def tahoe_venv(request, reactor, temp_dir):
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:flog_binary", include_args=[])
 def flog_binary(tahoe_venv):
-    return join(tahoe_venv, "bin", "flogtool")
+    return str(tahoe_venv.joinpath("bin", "flogtool"))
 
 
 @pytest.fixture(scope='session')
