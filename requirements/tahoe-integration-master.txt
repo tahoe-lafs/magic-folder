@@ -1,1 +1,1 @@
-https://github.com/tahoe-lafs/tahoe-lafs/archive/refs/heads/master.zip#egg=tahoe-lafs
+git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
