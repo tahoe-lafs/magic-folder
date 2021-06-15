@@ -41,5 +41,10 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
      -e "${MAGIC_FOLDER_TOX_ENVIRONMENT}" \
      ${MAGIC_FOLDER_TOX_ARGS}
 
-# Temporarily install eliot tools during job
-"${BOOTSTRAP_VENV}"/bin/pip install eliot eliot-tree
+# Download packages needed for integration tests
+for req in "${PROJECT_ROOT}"/requirements/tahoe-integration-*.txt; do
+    "${BOOTSTRAP_VENV}/bin/pip" \
+        wheel \
+        --wheel-dir "${WHEELHOUSE_PATH}" \
+        -r "${req}"
+done
