@@ -1,6 +1,6 @@
 # https://circleci.com/docs/2.0/
 
-version: 2
+version: 2.1
 workflows:
   version: 2
   ci:
@@ -26,12 +26,12 @@ workflows:
           requires:
             - "debian-10"
 
-      - "ubuntu-20.04":
+      - "ubuntu-20_04":
           <<: *DOCKERHUB_CONTEXT
-      - "ubuntu-18.04":
+      - "ubuntu-18_04":
           <<: *DOCKERHUB_CONTEXT
           requires:
-            - "ubuntu-20.04"
+            - "ubuntu-20_04"
 
       - "fedora-34":
           <<: *DOCKERHUB_CONTEXT
@@ -43,11 +43,11 @@ workflows:
       - "centos-8":
           <<: *DOCKERHUB_CONTEXT
 
-      - "nixos-19.09":
+      - "nixos-19_09":
           <<: *DOCKERHUB_CONTEXT
 
       # Test against PyPy 2.7/7.3.0
-      - "pypy2.7-7.3":
+      - "pypy27-7_3":
           <<: *DOCKERHUB_CONTEXT
 
       # Other assorted tasks and configurations
@@ -81,22 +81,46 @@ workflows:
                 - "main"
 
     jobs:
-      - "build-image-debian-9":
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-debian-10":
+          name: "build-image-debian-9"
+          distro: "debian"
+          tag: "9"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-ubuntu-18.04":
+          name: "build-image-debian-10"
+          distro: "debian"
+          tag: "10"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-ubuntu-20.04":
+          name: "build-image-ubuntu-18.04"
+          distro: "ubuntu"
+          tag: "18.04"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-33":
+          name: "build-image-ubuntu-20.04"
+          distro: "ubuntu"
+          tag: "20.04"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-fedora-34":
+          name: "build-image-fedora-33"
+          distro: "fedora"
+          tag: "33"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-centos-8":
+          name: "build-image-fedora-34"
+          distro: "fedora"
+          tag: "34"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
-      - "build-image-pypy-2.7-7.3.4-buster":
+          name: "build-image-centos-8"
+          distro: "centos"
+          tag: "8"
+      - build-image:
           <<: *DOCKERHUB_CONTEXT
+          name: "build-image-pypy-2.7-7.3.4-buster"
+          distro: "pypy"
+          tag: "2.7-7.3.4-buster"
 
 
 jobs:
@@ -224,7 +248,7 @@ jobs:
         user: "nobody"
 
 
-  pypy2.7-7.3:
+  pypy27-7_3:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
@@ -282,7 +306,7 @@ jobs:
       - run: *RUN_TESTS
 
 
-  ubuntu-18.04:
+  ubuntu-18_04:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
@@ -290,7 +314,7 @@ jobs:
         user: "nobody"
 
 
-  ubuntu-20.04:
+  ubuntu-20_04:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
@@ -337,7 +361,7 @@ jobs:
         user: "nobody"
 
 
-  nixos-19.09:
+  nixos-19_09:
     docker:
       # Run in a highly Nix-capable environment.
       - auth: *DOCKERHUB_AUTH
@@ -424,13 +448,21 @@ jobs:
     # perhaps 10% - 20%.
     #
     # https://circleci.com/blog/how-to-build-a-docker-image-on-circleci-2-0/
+    parameters: 
+      distro:
+        description: Distro to build
+        type: string
+      tag:
+        description: Distro to build
+        type: string
+
     docker:
       - auth: *DOCKERHUB_AUTH
         image: "docker:17.05.0-ce-git"
 
     environment:
-      DISTRO: "magicfolderci/<DISTRO>:foo"
-      TAG: "magicfolderci/distro:<TAG>"
+      DISTRO: "<< parameters.distro >>"
+      TAG: "<< parameters.tag >>"
 
     steps:
       - "checkout"
@@ -452,67 +484,3 @@ jobs:
           name: "Push image"
           command: |
             docker push magicfolderci/${DISTRO}:${TAG}
-
-
-  build-image-debian-9:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "debian"
-      TAG: "9"
-
-
-  build-image-debian-10:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "debian"
-      TAG: "10"
-
-
-  build-image-ubuntu-18.04:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "ubuntu"
-      TAG: "18.04"
-
-
-  build-image-ubuntu-20.04:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "ubuntu"
-      TAG: "20.04"
-
-
-  build-image-centos-8:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "centos"
-      TAG: "8"
-
-
-  build-image-fedora-33:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "fedora"
-      TAG: "33"
-
-
-  build-image-fedora-34:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "fedora"
-      TAG: "34"
-
-
-  build-image-pypy-2.7-7.3.4-buster:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "pypy"
-      TAG: "2.7-7.3.4-buster"
