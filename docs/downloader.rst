@@ -103,6 +103,7 @@ On Overwrite
 ------------
 
 The ``content`` of the ``RemoteSnapshot`` is downloaded and moved into place in our Magic Folder.
+The local ``remotesnapshot`` database table is updated to point at our new ``RemoteSnapshot``.
 Our Personal DMD is updated to point at this Snapshot.
 
 In case there is no ``content`` this is a delete and we simply remove the corresponding local file.
