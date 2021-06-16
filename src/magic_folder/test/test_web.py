@@ -42,6 +42,7 @@ from testtools.matchers import (
     AllMatch,
     ContainsDict,
     Equals,
+    Contains,
     IsInstance,
     MatchesAny,
     MatchesDict,
@@ -443,6 +444,54 @@ class MagicFolderTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_add_folder_not_existing(self, folder_name):
+        """
+        A request for **POST /v1/magic-folder** with a path that does not exist
+        fails with BAD REQUEST.
+        """
+        folder_path = FilePath(self.mktemp())
+
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+
+        basedir = FilePath(self.mktemp())
+        treq = treq_for_folders(
+            object(),
+            basedir,
+            AUTH_TOKEN,
+            {},
+            False,
+            tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
+                'name': folder_name,
+                'author_name': self.author.name,
+                'local_path': folder_path.path,
+                'poll_interval': 60,
+            })),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Contains("does not exist"),
+                            }
+                        ),
                     ),
                 ),
             ),

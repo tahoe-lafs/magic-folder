@@ -9,16 +9,19 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals
 )
 
 from twisted.internet.defer import (
     inlineCallbacks,
 )
+from twisted.web import http
 
 from allmydata.uri import (
     from_string as tahoe_uri_from_string,
 )
 
+from .common import APIError
 from .snapshot import (
     create_local_author,
 )
@@ -48,7 +51,10 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tah
     """
 
     if name in config.list_magic_folders():
-        raise Exception("Already have a magic-folder named '{}'".format(name))
+        raise APIError(
+            code=http.CONFLICT,
+            reason="Already have a magic-folder named '{}'".format(name),
+        )
 
     # create our author
     author = create_local_author(author_name)

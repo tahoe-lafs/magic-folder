@@ -69,6 +69,9 @@ from twisted.python.filepath import (
 from twisted.python.compat import (
     nativeString,
 )
+from twisted.web import (
+    http,
+)
 
 from zope.interface import (
     implementer,
@@ -84,6 +87,7 @@ from .snapshot import (
     LocalSnapshot,
 )
 from .common import (
+    APIError,
     atomic_makedirs,
     valid_magic_folder_name,
 )
@@ -1336,17 +1340,20 @@ class GlobalConfigDatabase(object):
             cursor = self.database.cursor()
             cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
             if len(cursor.fetchall()):
-                raise ValueError(
-                    "Already have a magic-folder named '{}'".format(name)
+                raise APIError(
+                    code=http.CONFLICT,
+                    reason="Already have a magic-folder named '{}'".format(name)
                 )
         if not magic_path.asBytesMode("utf-8").exists():
-            raise ValueError(
-                "'{}' does not exist".format(magic_path.path)
+            raise APIError(
+                code=http.BAD_REQUEST,
+                reason="'{}' does not exist".format(magic_path.path)
             )
         state_path = self._get_state_path(name).asTextMode("utf-8")
         if state_path.asBytesMode("utf-8").exists():
-            raise ValueError(
-                "magic-folder state directory '{}' already exists".format(state_path.path)
+            raise APIError(
+                code=http.INTERNAL_SERVER_ERROR,
+                reason="magic-folder state directory '{}' already exists".format(state_path.path)
             )
 
         stash_path = state_path.child(u"stash").asTextMode("utf-8")
