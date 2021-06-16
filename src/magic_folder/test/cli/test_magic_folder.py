@@ -59,6 +59,7 @@ from ...config import (
 )
 from ...client import (
     create_testing_http_client,
+    create_magic_folder_client,
 )
 from ...status import (
     WebSocketStatusService,
@@ -139,6 +140,7 @@ class ListMagicFolder(AsyncTestCase):
             create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
             WebSocketStatusService(),
         )
+        self.client = create_magic_folder_client(reactor, self.config, self.http_client)
 
     @defer.inlineCallbacks
     def test_list_none(self):
@@ -147,7 +149,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this.
         """
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.http_client, output)
+        yield magic_folder_list(reactor, self.config, self.client, output)
         self.assertThat(
             output.getvalue(),
             Contains(u"No magic-folders")
@@ -160,7 +162,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this in JSON format if given ``--json``.
         """
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.http_client, output, as_json=True)
+        yield magic_folder_list(reactor, self.config, self.client, output, as_json=True)
         self.assertThat(
             output.getvalue(),
             AfterPreprocessing(json.loads, Equals({}))
@@ -185,7 +187,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.http_client, output)
+        yield magic_folder_list(reactor, self.config, self.client, output)
         self.expectThat(output.getvalue(), Contains(u"list-some-folder"))
         self.expectThat(output.getvalue(), Contains(folder_path.path))
 
@@ -211,7 +213,7 @@ class ListMagicFolder(AsyncTestCase):
         yield magic_folder_list(
             reactor,
             self.config,
-            self.http_client,
+            self.client,
             output,
             as_json=True,
             include_secret_information=True,

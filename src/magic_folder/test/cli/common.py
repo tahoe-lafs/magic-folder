@@ -38,7 +38,7 @@ class ProcessOutcome(object):
         return self.code == 0
 
 @inlineCallbacks
-def cli(argv, global_config=None):
+def cli(argv, global_config=None, http_client=None):
     """
     Perform an in-process equivalent to the given magic-folder command.
 
@@ -56,6 +56,9 @@ def cli(argv, global_config=None):
     options.stderr = MixedIO()
     if global_config is not None:
         options._config = global_config
+    if http_client is not None:
+        options._http_client = http_client
+
     try:
         try:
             options.parseOptions(argv)

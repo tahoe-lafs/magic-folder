@@ -17,20 +17,15 @@ from twisted.internet.defer import (
     inlineCallbacks,
 )
 
-from .client import (
-    create_magic_folder_client,
-)
-
-
 @inlineCallbacks
-def magic_folder_list(reactor, config, http_client, output, as_json=False, include_secret_information=False):
+def magic_folder_list(reactor, config, client, output, as_json=False, include_secret_information=False):
     """
     List folders associated with a node.
 
     :param GlobalConfigDatabase config: our configuration
 
-    :param HTTPClient http_client: a treq.HTTPClient instance we can
-        use to make API requests.
+    :param MagicFolderClient client: a client that connects to the
+        magic-folder API.
 
     :param output: a file-like object to which the output will be written
 
@@ -41,8 +36,6 @@ def magic_folder_list(reactor, config, http_client, output, as_json=False, inclu
 
     :return: JSON response from `GET /v1/magic-folder`.
     """
-    client = create_magic_folder_client(reactor, config, http_client)
-
     mf_info = yield client.list_folders(include_secret_information)
 
     if as_json:
