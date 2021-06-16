@@ -61,6 +61,7 @@ from allmydata.interfaces import (
 )
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
+from .common import APIError
 from .status import (
     StatusFactory,
     IStatus,
@@ -167,6 +168,13 @@ class APIv1(object):
     _tahoe_client = attr.ib()
 
     app = Klein()
+
+    @app.handle_errors(APIError)
+    def handle_api_error(self, request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
+        _application_json(request)
+        return json.dumps({"reason": exc.reason})
 
     @app.handle_errors(RequestRedirect)
     def handle_redirect(self, request, failure):
