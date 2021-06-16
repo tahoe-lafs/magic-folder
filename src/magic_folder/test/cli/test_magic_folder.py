@@ -10,6 +10,8 @@ from io import (
     StringIO,
 )
 
+from eliot.twisted import inline_callbacks
+
 from testtools import (
     ExpectedException,
 )
@@ -529,6 +531,7 @@ class ConfigOptionTests(SyncTestCase):
         o.parent = magic_folder_cli.MagicFolderCommand()
         o.parent.getSynopsis()
 
+    @inline_callbacks
     def test_config_directory_is_file(self):
         """
         Using --config with a file is an error
@@ -537,11 +540,11 @@ class ConfigOptionTests(SyncTestCase):
         with confdir.open("w") as f:
             f.write("dummy\n")
 
-        outcome = yield cli(["--config", confdir, "list"])
+        outcome = yield cli(["--config", confdir.path, "list"])
         self.assertThat(outcome.code, Equals(1))
         self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_config_directory_empty(self):
         """
         A directory that is empty isn't valid for --config
@@ -549,9 +552,56 @@ class ConfigOptionTests(SyncTestCase):
         confdir = FilePath(self.mktemp())
         confdir.makedirs()
 
-        outcome = yield cli(["--config", confdir, "list"])
+        outcome = yield cli(["--config", confdir.path, "list"])
         self.assertThat(outcome.code, Equals(1))
         self.assertThat(outcome.stderr, Contains("Unable to load configuration"))
+
+    @inline_callbacks
+    def test_config_directory(self):
+        """
+        Passing --config option loads the configuration from the provided directory.
+        """
+        confdir = FilePath(self.mktemp())
+        nodedir = self.useFixture(
+            NodeDirectory(FilePath(self.mktemp()))
+        )
+        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
+
+        options = magic_folder_cli.MagicFolderCommand()
+        options.parseOptions(["--config", confdir.path, "list"])
+        self.assertThat(
+            options.config,
+            MatchesStructure(
+                basedir=Equals(confdir),
+                api_endpoint=Equals(u"tcp:5555"),
+                tahoe_node_directory=Equals(nodedir.path),
+            )
+        )
+
+    @inline_callbacks
+    def test_default_config_directory(self):
+        """
+        Not passing a --config loads the configuration from the default directory.
+        """
+        confdir = FilePath(self.mktemp())
+        nodedir = self.useFixture(
+            NodeDirectory(FilePath(self.mktemp()))
+        )
+        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
+
+        options = magic_folder_cli.MagicFolderCommand()
+        # twisted.python.usage.Options use .opts to store
+        # the defaults before parsing. We override that
+        # here to test that parsing a command without
+        # --config picks up that default.
+        options.opts["config"] = confdir.path
+        options.parseOptions(["list"])
+        self.assertThat(
+            options.config,
+            MatchesStructure(
+                basedir=Equals(confdir),
+            )
+        )
 
 
 class CreateErrors(SyncTestCase):
