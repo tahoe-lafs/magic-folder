@@ -26,6 +26,7 @@ from eliot import (
     Field,
 )
 from eliot.testing import capture_logging
+from eliot.twisted import DeferredContext
 
 from twisted.internet.defer import (
     maybeDeferred,
@@ -69,21 +70,15 @@ def eliot_logged_test(f):
         from eliot._output import _DEFAULT_LOGGER as default_logger
 
         def republish():
-            # This is called as a cleanup function after capture_logging has
-            # restored the global/default logger to its original state.  We
-            # can now emit messages that go to whatever global destinations
-            # are installed.
-
             # The memory logger captures both the raw messages and the
             # serializer. We pass them both to the global logger, so that the
             # expected serialization is preserved.
             logger = storage.logger
             for msg, serializer in zip(logger.messages, logger.serializers):
+                # We copy the message here, as the cleanup function that
+                # capture_logging installs will also try to serialize all
+                # messages.
                 default_logger.write(msg, serializer)
-
-            # And now that we've re-published all of the test's messages, we
-            # can finish the test's action.
-            storage.action.finish()
 
         @capture_logging(None)
         def run(self, logger):
@@ -93,17 +88,15 @@ def eliot_logged_test(f):
             # fine to pass this as a keyword argument to `f` but implementing
             # that now will give me conflict headaches so I'm not doing it.
             self.eliot_logger = logger
+            # Arrange for all messages written to the memory logger that
+            # `capture_logging` installs to be re-written to the global/default
+            # logger so they might end up in a log file somewhere, if someone
+            # wants.  This has to be done *before* the cleanup function capture_logging
+            # runs, as that function can serialize all, some or none of the captured
+            # messages.
+            self.addCleanup(republish)
             return f(self, *a, **kw)
 
-        # Arrange for all messages written to the memory logger that
-        # `capture_logging` installs to be re-written to the global/default
-        # logger so they might end up in a log file somewhere, if someone
-        # wants.  This has to be done in a cleanup function (or later) because
-        # capture_logging restores the original logger in a cleanup function.
-        # We install our cleanup function here, before we call run, so that it
-        # runs *after* the cleanup function capture_logging installs (cleanup
-        # functions are a stack).
-        self.addCleanup(republish)
 
         # Begin an action that should comprise all messages from the decorated
         # test method.
@@ -117,10 +110,7 @@ def eliot_logged_test(f):
 
             # Support both Deferred-returning and non-Deferred-returning
             # tests.
-            d = maybeDeferred(run, self)
-
-            # Let the test runner do its thing.
-            return d
+            return DeferredContext(maybeDeferred(run, self)).addActionFinish()
 
     return run_and_republish
 

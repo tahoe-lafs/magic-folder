@@ -22,6 +22,8 @@ from autobahn.twisted.resource import (
     WebSocketResource,
 )
 
+from eliot import write_failure
+
 from twisted.python.filepath import (
     InsecurePath,
 )
@@ -44,6 +46,10 @@ from twisted.web import (
 from twisted.web.resource import (
     Resource,
 )
+
+from hyperlink import DecodedURL
+from werkzeug.exceptions import HTTPException
+from werkzeug.routing import RequestRedirect
 
 from klein import Klein
 
@@ -68,6 +74,11 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+
+def _ensure_utf8_bytes(value):
+    if isinstance(value, unicode):
+        return value.encode('utf-8')
+    return value
 
 
 def magic_folder_resource(get_auth_token, v1_resource):
@@ -157,6 +168,56 @@ class APIv1(object):
 
     app = Klein()
 
+    @app.handle_errors(RequestRedirect)
+    def handle_redirect(self, request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code, exc.name)
+        # Werkzeug double encodes the path of the redirect URL, when merging
+        # slashes[1]. It does not double encode the path when:
+        # - collapsing trailing slashes
+        # - redirecting aliases to the cannonical URL
+        # - an explicit redirect_to on a URL
+        # Since we don't have rules that trigger the second cases[2],
+        # we can work around this be decoding the path here.
+        # [1] https://github.com/pallets/werkzeug/issues/2157
+        # [2] checked in magic_folder.test.test_web.RedirectTests.test_werkzeug_issue_2157_fix
+        location = DecodedURL.from_text(exc.new_url.decode('utf-8'))
+        location = location.encoded_url.replace(path=location.path).to_text()
+        request.setHeader("location", location)
+        _application_json(request)
+        return json.dumps({"location": location})
+
+    @app.handle_errors(HTTPException)
+    def handle_http_error(self, request, failure):
+        """
+        Convert a werkzeug py:`HTTPException` to a json response.
+
+        This mirrors the default code in klein for handling these
+        exceptions, but generates a json body.
+        """
+        exc = failure.value
+        request.setResponseCode(exc.code, exc.name)
+        resp = exc.get_response({})
+        for header, value in resp.headers.items(lower=True):
+            # We skip these, since we have our own content.
+            if header in ("content-length", "content-type"):
+                continue
+            request.setHeader(
+                _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
+            )
+        _application_json(request)
+        return json.dumps({"reason": exc.description})
+
+    @app.handle_errors(Exception)
+    def fallback_error(self, request, failure):
+        """
+        Turn unknown exceptions into 500 errors, and log the failure.
+        """
+        write_failure(failure)
+        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+        _application_json(request)
+        return json.dumps({"reason": "unexpected error processing request"})
+
     @app.route("/status")
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
@@ -177,13 +238,7 @@ class APIv1(object):
             folder_config.upload_dircap,
             self._tahoe_client,
         )
-        try:
-            participants = yield collective.list()
-        except Exception:
-            # probably should log this failure
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            returnValue(json.dumps({"reason": "unexpected error processing request"}).encode("utf-8"))
+        participants = yield collective.list()
 
         reply = {
             part.name: {
@@ -250,13 +305,7 @@ class APIv1(object):
             folder_config.upload_dircap,
             self._tahoe_client,
         )
-        try:
-            yield collective.add(author, personal_dmd_cap)
-        except Exception:
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            # probably should log this error, at least for developers (so eliot?)
-            returnValue(json.dumps({"reason": "unexpected error processing request"}))
+        yield collective.add(author, personal_dmd_cap)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
