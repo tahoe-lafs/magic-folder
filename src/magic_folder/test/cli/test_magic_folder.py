@@ -6,9 +6,6 @@ from __future__ import (
 
 import json
 import os.path
-from io import (
-    StringIO,
-)
 
 from eliot.twisted import inline_callbacks
 
@@ -59,7 +56,6 @@ from ...config import (
 )
 from ...client import (
     create_testing_http_client,
-    create_magic_folder_client,
 )
 from ...status import (
     WebSocketStatusService,
@@ -69,9 +65,6 @@ from ...endpoints import (
 )
 from ...snapshot import (
     create_local_author,
-)
-from ...list import (
-    magic_folder_list,
 )
 from ...tahoe_client import (
     create_tahoe_client,
@@ -100,7 +93,11 @@ class ListMagicFolder(AsyncTestCase):
     """
     Tests for the command-line interface ``magic-folder list``.
     """
-    @defer.inlineCallbacks
+
+    def cli(self, argv):
+        return cli(argv, self.config, self.http_client)
+
+    @inline_callbacks
     def setUp(self):
         """
         Create a Tahoe-LAFS node which can contain some magic folder configuration
@@ -140,35 +137,30 @@ class ListMagicFolder(AsyncTestCase):
             create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
             WebSocketStatusService(),
         )
-        self.client = create_magic_folder_client(reactor, self.config, self.http_client)
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_list_none(self):
         """
         When there are no Magic Folders at all, the output of the list command
         reports this.
         """
-        output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.client, output)
-        self.assertThat(
-            output.getvalue(),
-            Contains(u"No magic-folders")
+        outcome = yield self.cli(
+            [b"list"],
         )
+        self.assertThat(outcome.stdout, Contains(u"No magic-folders"))
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_list_none_json(self):
         """
         When there are no Magic Folders at all, the output of the list command
         reports this in JSON format if given ``--json``.
         """
-        output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.client, output, as_json=True)
-        self.assertThat(
-            output.getvalue(),
-            AfterPreprocessing(json.loads, Equals({}))
+        outcome = yield self.cli(
+            [b"list", b"--json"],
         )
+        self.assertThat(outcome.stdout, AfterPreprocessing(json.loads, Equals({})))
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_list_some(self):
         """
         When there are Magic Folders, the output of the list command describes
@@ -186,12 +178,11 @@ class ListMagicFolder(AsyncTestCase):
             1,
         )
 
-        output = StringIO()
-        yield magic_folder_list(reactor, self.config, self.client, output)
-        self.expectThat(output.getvalue(), Contains(u"list-some-folder"))
-        self.expectThat(output.getvalue(), Contains(folder_path.path))
+        outcome = yield self.cli([b"list"])
+        self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
+        self.expectThat(outcome.stdout, Contains(folder_path.path))
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_list_some_json(self):
         """
         When there are Magic Folders, the output of the list command describes
@@ -209,18 +200,11 @@ class ListMagicFolder(AsyncTestCase):
             1,
         )
 
-        output = StringIO()
-        yield magic_folder_list(
-            reactor,
-            self.config,
-            self.client,
-            output,
-            as_json=True,
-            include_secret_information=True,
+        outcome = yield self.cli(
+            [b"list", b"--json", b"--include-secret-information"],
         )
-
-        self.expectThat(
-            output.getvalue(),
+        self.assertThat(
+            outcome.stdout,
             AfterPreprocessing(
                 json.loads,
                 ContainsDict({
