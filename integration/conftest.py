@@ -4,9 +4,10 @@ from __future__ import (
     print_function,
 )
 
+import sys
 import shutil
 from time import sleep
-from os import mkdir, listdir
+from os import mkdir, listdir, environ
 from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
@@ -53,6 +54,11 @@ def pytest_addoption(parser):
         "--coverage", action="store_true", dest="coverage",
         help="Collect coverage statistics",
     )
+    parser.addoption(
+        "--tahoe-requirements", dest="tahoe_requirements",
+        help="A 'requirements.txt' file to install Tahoe with",
+        default="requirements/tahoe-integration-1.15.txt",
+    )
 
 @pytest.fixture(autouse=True, scope='session')
 def eliot_logging():
@@ -66,6 +72,7 @@ def eliot_logging():
 # page". They're all session-scoped which has the "pro" that we only
 # set up the grid once, but the "con" that each test has to be a
 # little careful they're not stepping on toes etc :/
+
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:reactor", include_result=False)
@@ -101,10 +108,48 @@ def temp_dir(request):
     return tmp
 
 
+# NB: conceptually, it kind of makes sense to parametrize this fixture
+# on "Tahoe version" .. a quick attempt at that lead to all but the
+# first version failing; I think something doesn't get cleaned-up
+# properly between runs "or something". Instead, we use a command-line
+# option to specify tahoe-version and have multiple separate runs
+# (which looks better in CI anyway).
+@pytest.fixture(
+    scope='session',
+)
+def tahoe_venv(request, reactor, tmp_path_factory):
+    """
+    A virtualenv for our Tahoe install, letting us install a different
+    one from the Tahoe we depend on.
+    """
+    venv_dir = tmp_path_factory.mktemp("venv")
+    #venv_dir = join(temp_dir, "tahoe_venv")
+    print("creating venv", venv_dir, sys.executable)
+    out_protocol = _DumpOutputProtocol(None)
+    reactor.spawnProcess(
+        out_protocol,
+        sys.executable,
+        ("python", "-m", "virtualenv", str(venv_dir)),
+        env=environ,
+    )
+    pytest_twisted.blockon(out_protocol.done)
+    tahoe_python = venv_dir.joinpath("bin", "python")
+
+    out_protocol = _DumpOutputProtocol(None)
+    reactor.spawnProcess(
+        out_protocol,
+        str(tahoe_python),
+        (str(tahoe_python), "-m", "pip", "install", "-r", request.config.getoption("tahoe_requirements")),
+        env=environ,
+    )
+    pytest_twisted.blockon(out_protocol.done)
+    return venv_dir
+
+
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:flog_binary", include_args=[])
-def flog_binary():
-    return which('flogtool')[0]
+def flog_binary(tahoe_venv):
+    return str(tahoe_venv.joinpath("bin", "flogtool"))
 
 
 @pytest.fixture(scope='session')
@@ -172,7 +217,7 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
     include_args=["temp_dir", "flog_gatherer"],
     include_result=False,
 )
-def introducer(reactor, temp_dir, flog_gatherer, request):
+def introducer(reactor, tahoe_venv, temp_dir, flog_gatherer, request):
     config = '''
 [node]
 nickname = introducer0
@@ -191,6 +236,7 @@ tub.location = tcp:localhost:9321
         _tahoe_runner(
             done_proto,
             reactor,
+            tahoe_venv,
             request,
             (
                 'create-introducer',
@@ -212,6 +258,7 @@ tub.location = tcp:localhost:9321
     transport = _tahoe_runner(
         protocol,
         reactor,
+        tahoe_venv,
         request,
         (
             'run',
@@ -241,7 +288,7 @@ def introducer_furl(introducer, temp_dir):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:alice", include_args=[], include_result=False)
-def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-alice'))
     except OSError:
@@ -250,6 +297,7 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
     node = pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
             reactor,
+            tahoe_venv,
             request,
             temp_dir,
             introducer_furl,
@@ -265,7 +313,7 @@ def alice(reactor, temp_dir, introducer_furl, flog_gatherer, request):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:bob", include_args=[], include_result=False)
-def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-bob'))
     except OSError:
@@ -274,6 +322,7 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
             reactor,
+            tahoe_venv,
             request,
             temp_dir,
             introducer_furl,
@@ -287,10 +336,11 @@ def bob(reactor, temp_dir, introducer_furl, flog_gatherer, request):
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:edmond", include_args=[], include_result=False)
-def edmond(reactor, temp_dir, introducer_furl, flog_gatherer, request):
+def edmond(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
             reactor,
+            tahoe_venv,
             request,
             temp_dir,
             introducer_furl,

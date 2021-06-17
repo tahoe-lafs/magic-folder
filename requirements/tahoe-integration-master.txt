@@ -1,0 +1,1 @@
+git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs

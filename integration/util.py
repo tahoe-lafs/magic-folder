@@ -95,6 +95,7 @@ class MagicFolderEnabledNode(object):
     def create(
             cls,
             reactor,
+            tahoe_venv,
             request,
             temp_dir,
             introducer_furl,
@@ -111,6 +112,7 @@ class MagicFolderEnabledNode(object):
         Note this depends on pytest/Twisted integration for magical blocking.
 
         :param reactor: The reactor to use to launch the processes.
+        :param tahoe_venv: Directory where our virtualenv is located.
         :param request: The pytest request object to use for cleanup.
         :param bytes temp_dir: A directory beneath which to place the
             Tahoe-LAFS node.
@@ -129,6 +131,7 @@ class MagicFolderEnabledNode(object):
         # Make the Tahoe-LAFS node process
         tahoe = yield _create_node(
             reactor,
+            tahoe_venv,
             request,
             temp_dir,
             introducer_furl,
@@ -326,12 +329,12 @@ def _magic_folder_runner(proto, reactor, request, other_args):
     )
 
 
-def _tahoe_runner(proto, reactor, request, other_args):
+def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
     """
     Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
     `other_args`.
     """
-    args = [sys.executable, '-m', 'allmydata.scripts.runner']
+    args = [str(tahoe_venv.joinpath('bin', 'python')), '-m', 'allmydata.scripts.runner']
     args += other_args
     return reactor.spawnProcess(
         proto,
@@ -367,7 +370,7 @@ class TahoeProcess(object):
         return "<TahoeProcess in '{}'>".format(self._node_dir)
 
 
-def _run_node(reactor, node_dir, request, magic_text):
+def _run_node(reactor, tahoe_venv, node_dir, request, magic_text):
     """
     Run a tahoe process from its node_dir.
 
@@ -384,6 +387,7 @@ def _run_node(reactor, node_dir, request, magic_text):
     transport = _tahoe_runner(
         protocol,
         reactor,
+        tahoe_venv,
         request,
         [
             '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
@@ -407,7 +411,7 @@ def _run_node(reactor, node_dir, request, magic_text):
     return protocol.magic_seen
 
 
-def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
+def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
                  storage=True,
                  magic_text=None,
                  needed=2,
@@ -442,7 +446,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
             args.append('--no-storage')
         args.append(node_dir)
 
-        _tahoe_runner(done_proto, reactor, request, args)
+        _tahoe_runner(done_proto, reactor, tahoe_venv, request, args)
         created_d = done_proto.done
 
         def created(_):
@@ -455,7 +459,7 @@ def _create_node(reactor, request, temp_dir, introducer_furl, flog_gatherer, nam
     d = Deferred()
     d.callback(None)
     d.addCallback(lambda _: created_d)
-    d.addCallback(lambda _: _run_node(reactor, node_dir, request, magic_text))
+    d.addCallback(lambda _: _run_node(reactor, tahoe_venv, node_dir, request, magic_text))
     return d
 
 
@@ -573,18 +577,6 @@ def await_file_vanishes(path, timeout=10):
             return
         time.sleep(1)
     raise FileShouldVanishException(path, timeout)
-
-
-def cli(request, reactor, node_dir, *argv):
-    """
-    Run a tahoe CLI subcommand for a given node.
-    """
-    proto = _CollectOutputProtocol()
-    _tahoe_runner(
-        proto, reactor, request,
-        ['--node-directory', node_dir] + list(argv),
-    )
-    return proto.done
 
 
 def node_url(node_dir, uri_fragment):

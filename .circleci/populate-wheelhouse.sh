@@ -44,6 +44,12 @@ export PIP_FIND_LINKS="file://${WHEELHOUSE_PATH}"
     ${BASIC_DEPS} \
     ${TEST_DEPS} \
     ${REPORTING_DEPS}
+for req in "${PROJECT_ROOT}"/requirements/*.txt; do
+    "${PIP}" \
+        wheel \
+        --wheel-dir "${WHEELHOUSE_PATH}" \
+        -r "${req}"
+done
 
 # Debug output
 echo "The wheelhouse contains:"
