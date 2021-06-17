@@ -43,7 +43,6 @@ from twisted.python.failure import (
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
-    inlineCallbacks,
     returnValue,
     CancelledError,
 )
@@ -158,7 +157,15 @@ class RemoteSnapshotCacheService(service.Service):
         while True:
             try:
                 (snapshot_cap, d) = yield self._queue.get()
-                with start_action(action_type="cache-service:locate_snapshot") as t:
+                with start_action(action_type="cache-service:locate_snapshot",
+                                  capability=snapshot_cap) as t:
+                    #FIXME: We are inconsitent here on whether we
+                    # wait until we've downloaded all parents
+                    # in returning from add_remote_capability
+                    # - if we've not seen the snapshot, we will wait
+                    # - however, if we've already cached the snapshot,
+                    #   we'll immediately return it, even if we are still
+                    #   processing all our parents.
                     try:
                         snapshot = self.cached_snapshots[snapshot_cap]
                         t.add_success_fields(cached=True)
@@ -171,7 +178,7 @@ class RemoteSnapshotCacheService(service.Service):
             except Exception:
                 d.errback(Failure())
 
-    @inlineCallbacks
+    @inline_callbacks
     def _cache_snapshot(self, snapshot_cap):
         """
         Internal helper.
@@ -190,6 +197,9 @@ class RemoteSnapshotCacheService(service.Service):
             self.tahoe_client,
         )
         self.cached_snapshots[snapshot_cap] = snapshot
+        Message.log(message_type="remote-cache:cached",
+                    name=snapshot.name,
+                    capability=snapshot.capability)
 
         # the target of our search through all parent Snapshots
         try:
@@ -208,8 +218,12 @@ class RemoteSnapshotCacheService(service.Service):
                 break
             else:
                 for i in range(len(snap.parents_raw)):
+                    # FIXME: we may have already cached some of the parents
                     parent = yield snap.fetch_parent(self.tahoe_client, i)
                     self.cached_snapshots[parent.capability] = parent
+                    Message.log(message_type="remote-cache:cached",
+                                name=parent.name,
+                                capability=parent.capability)
                     q.append(parent)
 
         returnValue(snapshot)
@@ -279,6 +293,7 @@ class MagicFolderUpdaterService(service.Service):
     Updates the local magic-folder when given locally-cached
     RemoteSnapshots. These RemoteSnapshot instance must have all
     relevant parents available (via the cache service).
+    FIXME: we aren't guaranteed this
 
     "Relevent" here means all parents unless we find a common
     ancestor.
@@ -342,7 +357,10 @@ class MagicFolderUpdaterService(service.Service):
         Tahoe (i.e. to our Personal DMD)
         """
 
-        with start_action(action_type="downloader:updater:process") as action:
+        with start_action(action_type="downloader:updater:process",
+                          name=snapshot.name,
+                          capability=snapshot.capability,
+                          ) as action:
             local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
             staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
 
@@ -351,6 +369,8 @@ class MagicFolderUpdaterService(service.Service):
             try:
                 remote_cap = self._config.get_remotesnapshot(snapshot.name)
                 # w/ no KeyError we have seen this before
+                #FIXME: this is quite confusing, we expect the snapshot to be in the 
+                # cache be
                 action.add_success_fields(remote=remote_cap)
                 try:
                     remote_snap = self._remote_cache.cached_snapshots[remote_cap]
@@ -458,7 +478,7 @@ class LocalMagicFolderFilesystem(object):
     magic_path = attr.ib(validator=instance_of(FilePath))
     staging_path = attr.ib(validator=instance_of(FilePath))
 
-    @inlineCallbacks
+    @inline_callbacks
     def download_content_to_staging(self, remote_snapshot, tahoe_client):
         """
         IMagicFolderFilesystem API
@@ -595,12 +615,13 @@ class DownloaderService(service.MultiService):
                     # we don't download from ourselves
                     continue
                 files = yield self._tahoe_client.list_directory(person.dircap)
-                action.add_success_fields(files=files)
+                action.add_success_fields(files=files) #FIXME: this can't be in a loop
                 for fname, data in files.items():
                     snapshot_cap, metadata = data
                     fpath = self._config.magic_path.preauthChild(magic2path(fname))
                     relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
                     action.add_success_fields(
+                        #FIXME, this can't be in a loop
                         abspath=fpath.path,
                         relpath=relpath,
                     )

@@ -190,3 +190,65 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
         recover_folder.child("sylvester").path,
         content2,
     )
+
+@pytest_twisted.inlineCallbacks
+def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
+    magic = FilePath(mkdtemp())
+    original_folder = magic.child("cats")
+    recover_folder = magic.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    yield alice.restart_magic_folder()
+    alice_folders = yield alice.list_(True)
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup_original():
+        yield alice.leave("original")
+        yield alice.restart_magic_folder()
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = "zero\n" * 1000
+    original_folder.child("sylvester").setContent(content0)
+    yield alice.add_snapshot("original", "sylvester")
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+    yield bob.restart_magic_folder()
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup_recovery():
+        yield bob.leave("recovery")
+        yield bob.restart_magic_folder()
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    await_file_contents(
+        recover_folder.child("sylvester").path,
+        content0,
+        timeout=25,
+    )
+
+    yield bob.restart_magic_folder()
+
+    # update the file (so now there's two versions)
+    content1 = "one\n" * 1000
+    original_folder.child("sylvester").setContent(content1)
+    yield alice.add_snapshot("original", "sylvester")
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    await_file_contents(
+        recover_folder.child("sylvester").path,
+        content1,
+        timeout=25,
+    )

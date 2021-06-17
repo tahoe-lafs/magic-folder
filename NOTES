@@ -1,0 +1,8 @@
+remotesnapshotdb:
+  - filename -> snapshot capability mapping
+  - contains our local view of our personal DMD
+  - we always write to this, and only then update the personal DMD
+    - thus, this will always be equal to, or (CHECKME) a descendant of the
+      snapshot in the personal DMD
+  - calling this "remote_snapshots" is misleading, since we don't track snapshots
+    from other particpants here

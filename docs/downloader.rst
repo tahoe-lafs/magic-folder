@@ -91,6 +91,12 @@ This ``RemoteSnapshot`` is stored in memory.
 Additionally, all parents of the Snapshot are also cached.
 We can stop caching parents once we find a "common ancestor"; this means a parent in the remote snapshot that matches the one in our Personal DMD.
 
+.. note:
+
+    This is really checking if our current snapshot is an ancestor of the given snapshot;
+    if there is a conflict between this and another particpant, then the common ancestor
+    is not our current snapshot
+
 Conflict Resolution is described in :ref:`Multi-party Conflict Detection` under the Leif's Design section.
 Briefly: a ``RemoteSnapshot`` is traced through its parents until a common ancestor is found.
 If the new Snapshot is a descendant of our latest Snapshot for that name, it's an overwrite.
