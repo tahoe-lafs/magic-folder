@@ -38,15 +38,15 @@ class ProcessOutcome(object):
         return self.code == 0
 
 @inlineCallbacks
-def cli(config_directory, argv):
+def cli(argv, global_config=None, http_client=None):
     """
     Perform an in-process equivalent to the given magic-folder command.
-
-    :param FilePath config_directory: The path to our configuration
 
     :param list[bytes] argv: The magic-folder arguments which define the
         command to run.  This does not include "magic-folder" itself, just the
         following arguments.  For example, ``[b"list"]``.
+
+    :param GlobalConfigDatabase global_config: The global configuration to use.
 
     :return Deferred[ProcessOutcome]: The side-effects and result of the
         process.
@@ -54,12 +54,14 @@ def cli(config_directory, argv):
     options = MagicFolderCommand()
     options.stdout = MixedIO()
     options.stderr = MixedIO()
+    if global_config is not None:
+        options._config = global_config
+    if http_client is not None:
+        options._http_client = http_client
+
     try:
         try:
-            options.parseOptions([
-                b"--config",
-                config_directory.asBytesMode().path,
-            ] + argv)
+            options.parseOptions(argv)
         except UsageError as e:
             print(e, file=options.stderr)
             result = 1
