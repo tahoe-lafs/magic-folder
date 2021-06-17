@@ -3,6 +3,9 @@ self: super: {
     packageOverrides = self.lib.composeExtensions
       old.packageOverrides
       (python-self: python-super: rec {
+        attrs = python-self.callPackage ./attrs.nix { };
+        pytest = python-self.callPackage ./pytest.nix { };
+        pytest_4 = pytest;
         # The newest typing is incompatible with the packaged version of
         # Hypothesis.  Upgrading Hypothesis is like pulling on a loose thread in
         # a sweater.  I pulled it as far as pytest where I found there was no
