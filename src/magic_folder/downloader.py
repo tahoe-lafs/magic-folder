@@ -369,8 +369,7 @@ class MagicFolderUpdaterService(service.Service):
             try:
                 remote_cap = self._config.get_remotesnapshot(snapshot.name)
                 # w/ no KeyError we have seen this before
-                #FIXME: this is quite confusing, we expect the snapshot to be in the 
-                # cache be
+                #FIXME: we have no guarantee that we'll have cached our "remote" snapshot
                 action.add_success_fields(remote=remote_cap)
                 try:
                     remote_snap = self._remote_cache.cached_snapshots[remote_cap]

@@ -238,12 +238,16 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
         timeout=25,
     )
 
-    yield bob.restart_magic_folder()
+    yield bob.stop_magic_folder()
 
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
     yield alice.add_snapshot("original", "sylvester")
+
+    time.sleep(2)
+
+    yield bob.start_magic_folder()
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
