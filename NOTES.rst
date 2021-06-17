@@ -1,17 +1,50 @@
+Questions
+=========
+
+short-term
+----------
+
+- Do we want to keep multiple local snapshots and publish all of them, or do we
+  want to skip ones intermediate ones that we have not yet uploaded.
+
+  - keeping them gives us better ability to preserve history,
+  - skipping them means less storage used, which may reduce the impact of 
+    https://whetstone.privatestorage.io/privatestorage/bizops/-/issues/170#note_13921
+
+- Do we need to ensure that we only ever have a single instance of the service
+  running at the same time?
+
+  - Probably, I think some of our synchronization guarantees are tied to
+    blocking on the reactor thread, which we lose if we have multiple process.
+  - How do we detect if we are running?
+
+long-term
+---------
+
+- (resolved?) Will the snapshot in the remotesnapshotdb ever not be a descendant of the one in the Personal DMD?
+  - We might choose to do this if two machines created a file, and we choose to resolve
+    entirely in favor of the other remote?
+  - A third machine may have observed *our* snapshot, and have a descendant of it. Breaking
+    the link would then force that conflict to be resolved again, when syncing with that
+    machine.
+- is there a reason that snapshots store their name? this is related to noticing file moves
+
 Persistent Formats
 ==================
 
 remotesnapshotdb
-................
+----------------
 - filename -> snapshot capability mapping
 - contains our local view of our personal DMD
+
 - we always write to this, and only then update the personal DMD
 
   - thus, this will always be equal to, or a descendant of the
     snapshot in the personal DMD
 
 - calling this "remote_snapshots" is misleading, since we don't track snapshots
-  from other particpants here
+  from other particpants here (this causes confusion, because snapshots here are
+  explicitly not RemoteSnapshotCacheService)
 - given that we always want to pair updating the db with then updating our
   personal DMD, we should either:
 
@@ -19,10 +52,60 @@ remotesnapshotdb
   - have a service that scans our db and updates the DMD
     (the second one could handle updating the db, and then queuing an DMD update)
 
+Personal DMD
+------------
+
+- filename -> snapshot capability mapping
+- This is the durable record of the state of files on the local machine; that is,
+  if this machine were to be lost, only things reflected in the personal DMD would
+  be recoverable.
+- the snapshot listed here will always be a ancestor of the local snapshot
+- only a single machine should ever be writting to a single DMD, so in theory, we
+  should alway know what is in the the personal DMD (modulo crashes/failures)
+  
+  - should we enforce this by only providing read-only caps for use in recovery info
+  - do we want to try and notice if it gets changed out from under us?
+
+    - we could do this by keeping track of the cap we are about to write, and
+      the cap we have written last. The invariant would be that the cap in the
+      DMD will always be one of those two. We can recover by writing either the
+      cap we were about to write, or a newer one(after having updae the one we
+      are about to write).
+    - Looking at tahoe code, there is not any kind of atomic compare-and-set we
+      can perform on tahoe directories, so there will always be a race condition
+      we can't detect where someone else has written to the DMD as we are about
+      to write to it.
+
 
 Service Components
 ==================
 
 RemoteSnapshotCacheService
-..........................
+--------------------------
+- capability ->  ``RemoteSnapshot``  mapping cache
+- not currently persisted locally
+- downloads until we reach the *current* entry in the remotesnapshotdb of the name
 
+  - note that as time passes, the snapshot we stop at will get newer, so we
+    will not have all the parents of earlier cached snapshots, as we would have
+    if we had cached them later
+
+- FIXME: Code using ``add_remote_capability`` assumes that all\* parents of the capability
+  will be cached by the time it returns but that will often not be the case
+
+  - also "add" doesn't seem like a good name, "get" is much closer to what it is doing
+
+- why does this use a queue?
+
+ - tahoe can likely respond to several requests at once
+ - it makes control flow harder to follow
+ - I suspect that it can cause surpising delays when one caller is has requested
+   a snapshot with a long chain of parents, but won't care about them, and another
+   caller is blocked from getting a response until all the parents of the first are
+   downloaded
+ - while it may make sense to start downloading parents automatically, I think it
+   would make sense to prioritize (or respond directly to; this would require some
+   care to avoid requesting the same snapshot more than once) direct requests
+
+- we should probably encapsulate ``.cached_snapshots`` behind a function; I'm not
+  sure why outside consumers can't just use this to trigger a download if it is not cached

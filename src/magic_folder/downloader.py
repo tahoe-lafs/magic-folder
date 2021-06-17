@@ -87,6 +87,9 @@ class RemoteSnapshotCacheService(service.Service):
     too; we should be putting that information into our Personal DMD
     ... so what happens when it's out of date? (source-of-truth MUST
     be our Personal DMD ...)
+    TP: That *MUST* is incorrect. It is the source of data that survives
+    loss of the machine, but we treat the remote-snapshot-db as the source
+    of truth.
 
      -> actually, maybe the local db should be the "source of truth":
     we only put entries into it if we're about to push it to Tahoe
