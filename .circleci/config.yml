@@ -409,7 +409,7 @@ jobs:
             #
             # Keep failed build intermediates so we can upload logs for failed
             # runs as artifacts, too.
-            nix-build --keep-failed --cores 3 --max-jobs 2 nix/
+            nix-build --show-trace --keep-failed --cores 3 --max-jobs 2 nix/
 
       - "run":
           name: "Prepare logs for upload"
