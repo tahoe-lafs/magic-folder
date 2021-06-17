@@ -1,7 +1,7 @@
 { python2Packages }:
 let
   repo = ((import ./tahoe-lafs-repo.nix) + "/nix");
-  tahoe-lafs-drv = repo + "/default.nix";
+  tahoe-lafs-drv = repo + "/tahoe-lafs.nix";
   tahoe-lafs = python2Packages.callPackage tahoe-lafs-drv { };
   versioned-tahoe-lafs = tahoe-lafs.overrideAttrs (old: rec {
     # Upstream is versioned as 1.14.0.dev, still, even though it is now
