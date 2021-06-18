@@ -22,12 +22,28 @@ long-term
 ---------
 
 - (resolved?) Will the snapshot in the remotesnapshotdb ever not be a descendant of the one in the Personal DMD?
+
   - We might choose to do this if two machines created a file, and we choose to resolve
     entirely in favor of the other remote?
   - A third machine may have observed *our* snapshot, and have a descendant of it. Breaking
     the link would then force that conflict to be resolved again, when syncing with that
     machine.
+
 - is there a reason that snapshots store their name? this is related to noticing file moves
+
+
+- writing files atomically:
+  windows:
+
+  - https://antonymale.co.uk/windows-atomic-file-writes.html
+    - https://web.archive.org/web/20160115141959/http://blogs.msdn.com/b/adioltean/archive/2005/12/28/507866.aspx
+  - https://pypi.org/project/atomicwrites/
+  - https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilea
+    - via https://docs.microsoft.com/en-us/windows/win32/fileio/deprecation-of-txf
+
+  unix:
+
+  - renameat2 with RENAME_EXCHANGE
 
 random
 ------
@@ -131,3 +147,9 @@ DownloaderService
     as long this waits for :py:`MagicFolderUpdaterService.add_remote_snapshot`
     to return, we will always wait for the queue to empty before queuing up a new
     snapshot.
+
+MagicFolderUpdaterService
+=========================
+Update a given file based on a provided snapshot.
+
+- looks`

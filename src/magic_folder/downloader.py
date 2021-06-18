@@ -326,11 +326,20 @@ class MagicFolderUpdaterService(service.Service):
         Tahoe (i.e. to our Personal DMD)
         """
 
+        #FIXME we should consider a lock or something to ensure that we don't
+        # try to modify the same file twice. We can do that in-proccess if
+        # we also ensure that not other process is running.
+        # NOTE: This isn't *currently* a problem as this is only ever called one at a time.
+
         with start_action(action_type="downloader:updater:process",
                           name=snapshot.name,
                           capability=snapshot.capability,
                           ) as action:
             local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
+            #FIXME: we should not download the file if we aren't going to use it
+            # particularly if we do so synchronously.
+            # For example, we will download the contents of out-of-date snapshots
+            # every scan
             staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
 
             # see if we have existing local or remote snapshots for
@@ -405,6 +414,12 @@ class MagicFolderUpdaterService(service.Service):
             if is_conflict:
                 self._magic_fs.mark_conflict(snapshot, staged)
             else:
+                #FIXME: checking for local snapshots is not sufficent, as it
+                # may have changed since we last looked at the file
+                # There is probably an unavoidable window where the file could
+                # be changed, but the current one is too big.
+                # NOTE: we could maybe rename the existing file and check that
+                # it hasn't changed
                 self._magic_fs.mark_overwrite(snapshot, staged)
 
             # Note, if we crash here (after moving the file into place
