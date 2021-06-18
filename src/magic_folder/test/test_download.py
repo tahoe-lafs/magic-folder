@@ -728,3 +728,51 @@ class ConflictTests(AsyncTestCase):
                 ("conflict", remote0),
             ])
         )
+
+    @inline_callbacks
+    def test_update_with_ancestor(self):
+        """
+        Give the updater a remote update that has an ancestor which is
+        'our' snapshot
+        """
+
+        parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        parent_content = b"parent" * 1000
+        self.remote_cache.cached_snapshots[parent_cap] = parent
+        self.alice_config.store_remotesnapshot("foo", parent)
+
+        cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
+        remote0 = RemoteSnapshot(
+            name="foo",
+            author=self.carol,
+            metadata=b"URI:CHK:",
+            capability=cap0,
+            parents_raw=[parent_cap],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache.cached_snapshots[cap0] = remote0
+
+        # we've 'seen' this file before so we must have the path locally
+        self.alice_magic_path.child("foo").setContent(parent_content)
+
+        # tell the updater to examine the remote-snapshot
+        yield self.updater.add_remote_snapshot(remote0)
+
+        # we have a local-snapshot for the same name as the incoming
+        # remote, so this is a conflict
+
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", remote0),
+                ("overwrite", remote0),
+            ])
+        )
