@@ -338,16 +338,9 @@ class MagicFolderUpdaterService(service.Service):
             try:
                 remote_cap = self._config.get_remotesnapshot(snapshot.name)
                 # w/ no KeyError we have seen this before
-                #FIXME: we have no guarantee that we'll have cached our "remote" snapshot
                 action.add_success_fields(remote=remote_cap)
-                try:
-                    remote_snap = self._remote_cache.get_snapshot_from_capability(remote_cap)
-                except KeyError:
-                    raise RuntimeError(
-                        "Internal inconsistency: remotesnapshot not in cache"
-                    )
             except KeyError:
-                remote_snap = None
+                remote_cap = None
 
             try:
                 local_snap = self._config.get_local_snapshot(snapshot.name)
@@ -357,8 +350,8 @@ class MagicFolderUpdaterService(service.Service):
             except KeyError:
                 local_snap = None
 
-            # note: if local_snap and remote_snap are both non-None
-            # then remote_snap should already be the ancestor of
+            # note: if local_snap and remote_cap are both non-None
+            # then remote_cap should already be the ancestor of
             # local_snap by definition.
 
             # XXX check if we're already conflicted; if so, do not continue
@@ -372,40 +365,40 @@ class MagicFolderUpdaterService(service.Service):
                 # edits and it must be a conflict. If we have nothing
                 # in our remotesnapshot database then we've just not
                 # made a LocalSnapshot yet (so it's still a conflict).
-                if local_snap is not None or remote_snap is None:
+                if local_snap is not None or remote_cap is None:
                     is_conflict = True
 
                 else:
-                    existing_snap = remote_snap
-
                     # we shouldn't even queue updates if we already match,
                     # but double-check here just in case
-                    if existing_snap is not None and \
-                       existing_snap.capability == snapshot.capability:
+                    if remote_cap is not None and \
+                       remote_cap == snapshot.capability:
                         return
 
-                # "If the new snapshot is a descendant of the client's
-                # existing snapshot, then this update is an 'overwrite'"
+                    # "If the new snapshot is a descendant of the client's
+                    # existing snapshot, then this update is an 'overwrite'"
+                    # FIXME (fixed): a local snapshot cannot have remote
+                    # decendants
 
-                ancestor = False
-                q = deque([snapshot])
-                while q and not ancestor:
-                    snap = q.popleft()
-                    for parent_cap in snap.parents_raw:
-                        if existing_snap.capability == parent_cap:
-                            ancestor = True
-                            break
-                        else:
-                            q.append(self._remote_cache.get_snapshot_from_capability(parent_cap))
-                action.add_success_fields(ancestor=ancestor)
+                    ancestor = False
+                    q = deque([snapshot])
+                    while q and not ancestor:
+                        snap = q.popleft()
+                        for parent_cap in snap.parents_raw:
+                            if remote_cap == parent_cap:
+                                ancestor = True
+                                break
+                            else:
+                                q.append(self._remote_cache.get_snapshot_from_capability(parent_cap))
+                    action.add_success_fields(ancestor=ancestor)
 
-                if not ancestor:
-                    is_conflict = True
+                    if not ancestor:
+                        is_conflict = True
 
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_snap, "Internal inconsistency: record of a Snapshot for this name but no local file"
+                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
 
             # now we know if we have a conflict or not; mark it.
