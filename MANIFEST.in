@@ -5,6 +5,7 @@ include Dockerfile
 include tox.ini .appveyor.yml .travis.yml
 include .coveragerc
 recursive-include src *.xhtml *.js *.png *.css *.svg *.txt
+recursive-include requirements *.in *.txt
 graft docs
 graft misc
 graft static
