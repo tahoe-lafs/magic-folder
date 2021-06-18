@@ -56,8 +56,9 @@ from .common import (
 )
 
 from .client import (
-    create_http_client,
     CannotAccessAPIError,
+    create_magic_folder_client,
+    create_http_client,
 )
 
 from .invite import (
@@ -326,7 +327,7 @@ def list_(options):
     yield magic_folder_list(
         reactor,
         options.parent.config,
-        create_http_client(reactor, options.parent.config.api_client_endpoint),
+        options.parent.client,
         options.stdout,
         options["json"],
         options["include-secret-information"],
@@ -535,6 +536,8 @@ class BaseOptions(usage.Options):
     ]
 
     _config = None  # lazy-instantiated by .config @property
+    _http_client = None  # lazy-initalized by .client @property
+    _client = None  # lazy-instantiated by .client @property
 
     @property
     def _config_path(self):
@@ -557,6 +560,20 @@ class BaseOptions(usage.Options):
                     u"Unable to load configuration: {}".format(e)
                 )
         return self._config
+
+    @property
+    def client(self):
+        if self._http_client is None:
+            from twisted.internet import reactor
+            self._http_client = create_http_client(reactor, self.config.api_client_endpoint)
+        if self._client is None:
+            from twisted.internet import reactor
+            self._client = create_magic_folder_client(
+                reactor,
+                self.config,
+                self._http_client,
+            )
+        return self._client
 
 
 class MagicFolderCommand(BaseOptions):
