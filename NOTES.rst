@@ -29,6 +29,11 @@ long-term
     machine.
 - is there a reason that snapshots store their name? this is related to noticing file moves
 
+random
+------
+- attrs validators get passed self, so we could use one to call setServiceParent for services
+  This could be used for e.g. magic_folder.magic_folder.MagicFolder
+
 Persistent Formats
 ==================
 
@@ -109,3 +114,19 @@ RemoteSnapshotCacheService
 
 - we should probably encapsulate ``.cached_snapshots`` behind a function; I'm not
   sure why outside consumers can't just use this to trigger a download if it is not cached
+
+DownloaderService
+=================
+
+- Service that periodically polls other personal DMDs for new snapshots
+- for each participant
+  - for each file
+    - if the snapshot in that DMD doesn't match the snapshot in our remotesnapshotdb
+      - enqueue that snapshot for processing
+- Improvements
+  - scan all DMD's for each file, and enqueue them all for processing together
+  - I was going to suggest that we shouldn't queue up multiple snapshots for
+    the same name (particularly from the same remote) which is true. But since
+    as long this waits for :py:`MagicFolderUpdaterService.add_remote_snapshot`
+    to return, we will always wait for the queue to empty before queuing up a new
+    snapshot.
