@@ -24,6 +24,7 @@ from zope.interface import (
 
 from eliot.twisted import (
     inline_callbacks,
+    DeferredContext,
 )
 from eliot import (
     start_action,
@@ -305,49 +306,14 @@ class MagicFolderUpdaterService(service.Service):
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
-    _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
         """
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
         """
-        d = Deferred()
-        self._queue.put((snapshot, d))
-        return d
-
-    def startService(self):
-        """
-        Wait for a single item from the queue and process it, forever.
-        """
-        service.Service.startService(self)
-        self._service_d = self._process_queue()
-
-    def stopService(self):
-        """
-        Don't process queued items anymore.
-        """
-        d = self._service_d
-        self._service_d.cancel()
-        service.Service.stopService(self)
-        self._service_d = None
-        return d
-
-    @inline_callbacks
-    def _process_queue(self):
-        """
-        Wait for a single item from the queue and process it, forever.
-        """
-        while True:
-            try:
-                (snapshot, d) = yield self._queue.get()
-                with start_action(action_type="downloader:modify_filesystem"):
-                    yield self._process(snapshot)
-                    d.callback(None)
-            except CancelledError:
-                break
-            except Exception:
-                d.errback(Failure())
+        with start_action(action_type="downloader:modify_filesystem").context() as action:
+            return DeferredContext(self._process(snapshot)).addActionFinish(action)
 
     @inline_callbacks
     def _process(self, snapshot):
