@@ -100,7 +100,7 @@ class RemoteSnapshotCacheService(service.Service):
     """
     folder_config = attr.ib()
     tahoe_client = attr.ib()
-    cached_snapshots = attr.ib(default=attr.Factory(dict))
+    _cached_snapshots = attr.ib(default=attr.Factory(dict))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     @classmethod
@@ -111,7 +111,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         return cls(config, tahoe_client)
 
-    def add_remote_capability(self, snapshot_cap):
+    def get_snapshot_from_capability(self, snapshot_cap):
         """
         Add the given immutable Snapshot capability to our queue.
 
@@ -171,7 +171,7 @@ class RemoteSnapshotCacheService(service.Service):
                     #   we'll immediately return it, even if we are still
                     #   processing all our parents.
                     try:
-                        snapshot = self.cached_snapshots[snapshot_cap]
+                        snapshot = self._cached_snapshots[snapshot_cap]
                         t.add_success_fields(cached=True)
                     except KeyError:
                         t.add_success_fields(cached=False)
@@ -200,7 +200,7 @@ class RemoteSnapshotCacheService(service.Service):
             snapshot_cap,
             self.tahoe_client,
         )
-        self.cached_snapshots[snapshot_cap] = snapshot
+        self._cached_snapshots[snapshot_cap] = snapshot
         Message.log(message_type="remote-cache:cached",
                     name=snapshot.name,
                     capability=snapshot.capability)
@@ -224,7 +224,7 @@ class RemoteSnapshotCacheService(service.Service):
                 for i in range(len(snap.parents_raw)):
                     # FIXME: we may have already cached some of the parents
                     parent = yield snap.fetch_parent(self.tahoe_client, i)
-                    self.cached_snapshots[parent.capability] = parent
+                    self._cached_snapshots[parent.capability] = parent
                     Message.log(message_type="remote-cache:cached",
                                 name=parent.name,
                                 capability=parent.capability)
@@ -341,7 +341,7 @@ class MagicFolderUpdaterService(service.Service):
                 #FIXME: we have no guarantee that we'll have cached our "remote" snapshot
                 action.add_success_fields(remote=remote_cap)
                 try:
-                    remote_snap = self._remote_cache.cached_snapshots[remote_cap]
+                    remote_snap = self._remote_cache.get_snapshot_from_capability(remote_cap)
                 except KeyError:
                     raise RuntimeError(
                         "Internal inconsistency: remotesnapshot not in cache"
@@ -396,7 +396,7 @@ class MagicFolderUpdaterService(service.Service):
                             ancestor = True
                             break
                         else:
-                            q.append(self._remote_cache.cached_snapshots[parent_cap])
+                            q.append(self._remote_cache.get_snapshot_from_capability(parent_cap))
                 action.add_success_fields(ancestor=ancestor)
 
                 if not ancestor:
@@ -606,7 +606,7 @@ class DownloaderService(service.MultiService):
                         abspath=fpath.path,
                         relpath=relpath,
                     )
-                    snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
+                    snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
                     # if this remote matches what we believe to be the
                     # latest, there is nothing to do .. otherwise, we
                     # have to figure out what to do
