@@ -596,9 +596,22 @@ class DownloaderService(service.MultiService):
         self._remote_snapshot_cache.setServiceParent(self)
         self._scanner = internet.TimerService(
             self._config.poll_interval,
-            self._scan_collective,
+            # FIXME: we need to somehow catch errors here so we don't stop syncing
+            # we could choose let unexepected errors here stop syncing, but
+            # we'd need a way to be able to restart syncing
+            self._loop,
         )
         self._scanner.setServiceParent(self)
+
+    def _loop(self):
+        d = self._scan_collective()
+
+        def eb(failure):
+            # FIXME: This should report an error to status service
+            pass
+
+        d.addErrback(eb)
+        return d
 
     @inline_callbacks
     def _scan_collective(self):
