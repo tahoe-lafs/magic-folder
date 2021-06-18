@@ -730,10 +730,10 @@ class ConflictTests(AsyncTestCase):
         )
 
     @inline_callbacks
-    def test_update_with_ancestor(self):
+    def test_update_with_parent(self):
         """
-        Give the updater a remote update that has an ancestor which is
-        'our' snapshot
+        Give the updater a remote update that has a parent which is 'our'
+        snapshot
         """
 
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
@@ -774,5 +774,46 @@ class ConflictTests(AsyncTestCase):
             Equals([
                 ("download", remote0),
                 ("overwrite", remote0),
+            ])
+        )
+
+    @inline_callbacks
+    def test_update_with_old_ancestor(self):
+        """
+        Give the updater a remote update where 'our' snapshot is the
+        grandparent
+        """
+
+        remotes = []
+
+        for letter in 'abcd':
+            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
+            parent = RemoteSnapshot(
+                name="foo",
+                author=self.alice,
+                metadata=b"URI:CHK:",
+                capability=parent_cap,
+                parents_raw=[] if not remotes else [remotes[-1].capability],
+                content_cap=b"URI:CHK:",
+            )
+            self.remote_cache.cached_snapshots[parent_cap] = parent
+            remotes.append(parent)
+
+        # set "our" parent to the oldest one
+        self.alice_config.store_remotesnapshot("foo", remotes[0])
+
+        # we've 'seen' this file before so we must have the path locally
+        self.alice_magic_path.child("foo").setContent(b"dummy")
+
+        # tell the updater to examine the youngest remote
+        youngest = remotes[-1]
+        yield self.updater.add_remote_snapshot(youngest)
+
+        # we have a common ancestor so this should be an update
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", youngest),
+                ("overwrite", youngest),
             ])
         )
