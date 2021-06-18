@@ -152,4 +152,35 @@ MagicFolderUpdaterService
 =========================
 Update a given file based on a provided snapshot.
 
-- looks`
+- dowloads data to temporary file  (FIXME: this should only happen if we will use it)
+- checks if the given snapshot is a conflict:
+
+  - if there is a local file
+
+    - if we have a localsnapshot -> conflict
+    - if we have a remotesnap
+
+      - if our remote snapshot is an ancestor of the given snapshot -> not conflict
+      - otherwise -> conflict
+
+  - if there is not local file
+
+    - if we have a local or remote snapshot
+
+      - currently an error, as we don't handle deletes
+
+    - otherwise -> not conflict
+
+- move download data into position:
+
+  - if conflict -> write file as "<filename>.conflict-<snapshot author>"
+  - if not conflict -> write at name
+
+
+Things that are missing:
+- checking if the provided snapshot is an ancestor of our snapshot
+
+  - currently we will detect this case as a conflict
+
+- checking if there are local changes since we last scanned, before overwriting
+  the local file, if the provide snapshot is newer
