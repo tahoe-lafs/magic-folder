@@ -95,8 +95,9 @@ RemoteSnapshotCacheService
     will not have all the parents of earlier cached snapshots, as we would have
     if we had cached them later
 
-- FIXME: Code using ``add_remote_capability`` assumes that all\* parents of the capability
-  will be cached by the time it returns but that will often not be the case
+- FIXME: ``MagicFolderUpdaterService``'s docstring says it depends on
+  ``add_remote_capability`` caching all\* parents of the capability will
+  by the time it returns but that will often not be the case
 
   - also "add" doesn't seem like a good name, "get" is much closer to what it is doing
 
