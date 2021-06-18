@@ -428,6 +428,9 @@ class MagicFolderUpdaterService(service.Service):
             # will no longer produce snapshots with the wrong parent
             # once we re-run and get past this point.
 
+            #FIXME only do this if there wasn't a conflict
+            # If there is a conflict, we should record it somewhere 
+            # for resolving conflicts
             # remember the last remote we've downloaded
             self._config.store_remotesnapshot(snapshot.name, snapshot)
 

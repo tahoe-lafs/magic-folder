@@ -176,6 +176,12 @@ Update a given file based on a provided snapshot.
   - if conflict -> write file as "<filename>.conflict-<snapshot author>"
   - if not conflict -> write at name
 
+- write provided snapshot as our remotesnapshot
+
+  - what if there was a conflict, or our snapshot is newer than the provided one
+
+- write the snapshot from our remotesnapshotdb to our personal DMD
+
 
 Things that are missing:
 - checking if the provided snapshot is an ancestor of our snapshot
