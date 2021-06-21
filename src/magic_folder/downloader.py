@@ -272,6 +272,23 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
+def is_ancestor_of(cache, cap, snapshot):
+    """
+    :param RemoteSnapshotCacheService cache: cached snapshots
+
+    :returns bool: True if 'cap' is an ancestor of 'snapshot'
+    """
+    q = deque([snapshot])
+    while q:
+        snap = q.popleft()
+        for parent_cap in snap.parents_raw:
+            if cap == parent_cap:
+                return True
+            else:
+                q.append(cache.cached_snapshots[parent_cap])
+    return False
+
+
 @attr.s
 @implementer(service.IService)
 class MagicFolderUpdaterService(service.Service):
@@ -280,7 +297,7 @@ class MagicFolderUpdaterService(service.Service):
     RemoteSnapshots. These RemoteSnapshot instance must have all
     relevant parents available (via the cache service).
 
-    "Relevent" here means all parents unless we find a common
+    "Relevant" here means all parents unless we find a common
     ancestor.
     """
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
@@ -399,19 +416,15 @@ class MagicFolderUpdaterService(service.Service):
                 # "If the new snapshot is a descendant of the client's
                 # existing snapshot, then this update is an 'overwrite'"
 
-                ancestor = False
-                q = deque([snapshot])
-                while q and not ancestor:
-                    snap = q.popleft()
-                    for parent_cap in snap.parents_raw:
-                        if existing_snap.capability == parent_cap:
-                            ancestor = True
-                            break
-                        else:
-                            q.append(self._remote_cache.cached_snapshots[parent_cap])
+                ancestor = is_ancestor_of(self._remote_cache, existing_snap.capability, snapshot)
                 action.add_success_fields(ancestor=ancestor)
 
                 if not ancestor:
+                    # if the incoming remotesnapshot is actually an
+                    # ancestor of _our_ snapshot, then we have nothing
+                    # to do (we are newer)
+                    if is_ancestor_of(self._remote_cache, snapshot.capability, existing_snap):
+                        return
                     is_conflict = True
 
             else:
@@ -613,4 +626,6 @@ class DownloaderService(service.MultiService):
                     except KeyError:
                         our_snapshot_cap = None
                     if snapshot.capability != our_snapshot_cap:
+                        if our_snapshot_cap is not None:
+                            yield self._remote_snapshot_cache.add_remote_capability(our_snapshot_cap)
                         yield self._folder_updater.add_remote_snapshot(snapshot)
