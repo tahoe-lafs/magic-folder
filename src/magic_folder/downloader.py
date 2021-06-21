@@ -204,13 +204,10 @@ class RemoteSnapshotCacheService(service.Service):
         q = deque([snapshot])
         while q:
             snap = q.popleft()
-            if our_snapshot_cap in snap.parents_raw:
-                break
-            else:
-                for i in range(len(snap.parents_raw)):
-                    parent = yield snap.fetch_parent(self.tahoe_client, i)
-                    self.cached_snapshots[parent.capability] = parent
-                    q.append(parent)
+            for i in range(len(snap.parents_raw)):
+                parent = yield snap.fetch_parent(self.tahoe_client, i)
+                self.cached_snapshots[parent.capability] = parent
+                q.append(parent)
 
         returnValue(snapshot)
 
