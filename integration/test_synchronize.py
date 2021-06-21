@@ -24,6 +24,7 @@ from magic_folder.util.capabilities import (
 )
 from .util import (
     await_file_contents,
+    ensure_file_not_created,
 )
 
 
@@ -315,9 +316,10 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
-        error_if=[
-            recover_folder.child("sylvester.conflict-alice").path,
-        ],
+    )
+    ensure_file_not_created(
+        recover_folder.child("sylvester.conflict-alice").path,
+        timeout=25,
     )
 
     # update the file in alice's folder
@@ -329,6 +331,95 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     # shouldn't overwrite our changes
     await_file_contents(
         recover_folder.child("sylvester").path,
+        content1,
+        timeout=25,
+    )
+
+@pytest_twisted.inlineCallbacks
+def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
+    magic = FilePath(mkdtemp())
+    original_folder = magic.child("cats")
+    recover_folder = magic.child("kitties")
+    recover2_folder = magic.child("mice")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+    recover2_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    yield alice.restart_magic_folder()
+    alice_folders = yield alice.list_(True)
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup_original():
+        yield alice.leave("original")
+        yield alice.restart_magic_folder()
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = "zero\n" * 1000
+    original_folder.child("sylvester").setContent(content0)
+    yield alice.add_snapshot("original", "sylvester")
+
+    time.sleep(5)
+    yield alice.stop_magic_folder()
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+    yield bob.restart_magic_folder()
+    bob_folders = yield bob.list_(True)
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup_recovery():
+        yield bob.leave("recovery")
+        yield bob.restart_magic_folder()
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    await_file_contents(
+        recover_folder.child("sylvester").path,
+        content0,
+        timeout=25,
+    )
+
+    # update the file (so now there's two versions)
+    content1 = "one\n" * 1000
+    recover_folder.child("sylvester").setContent(content1)
+    yield bob.add_snapshot("recovery", "sylvester")
+
+    # We shouldn't see this show up as a conflict, since we are newer than
+    # alice
+    ensure_file_not_created(
+        recover_folder.child("sylvester.conflict-alice").path,
+        timeout=25,
+    )
+
+    time.sleep(5)
+    yield bob.stop_magic_folder()
+
+    # create the second 'recovery' magic-folder
+    yield edmond.add("recovery-2", recover2_folder.path)
+    yield edmond.restart_magic_folder()
+
+    # add the 'recovery' magic-folder as a participant in the
+    # 'recovery-2' folder
+    bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
+    yield edmond.add_participant("recovery-2", "bob", bob_cap)
+
+    @pytest_twisted.inlineCallbacks
+    def cleanup_recovery():
+        yield edmond.leave("recovery-2")
+        yield edmond.restart_magic_folder()
+    request.addfinalizer(cleanup_recovery)
+
+    await_file_contents(
+        recover2_folder.child("sylvester").path,
         content1,
         timeout=25,
     )
