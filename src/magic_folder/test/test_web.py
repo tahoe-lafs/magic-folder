@@ -38,14 +38,15 @@ from hypothesis.strategies import (
 
 from testtools.matchers import (
     AfterPreprocessing,
-    MatchesAny,
+    AllMatch,
+    ContainsDict,
     Equals,
+    IsInstance,
+    MatchesAny,
     MatchesDict,
     MatchesListwise,
-    ContainsDict,
-    IsInstance,
-    AllMatch,
-    MatchesPredicate
+    MatchesPredicate,
+    StartsWith,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -981,6 +982,66 @@ class ParticipantsTests(SyncTestCase):
                                 u'personal_dmd': personal_dmd,
                             }
                         })
+                    )
+                )
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+    )
+    def test_add_participant_invalid(self, author, folder_name):
+        """
+        Missing keys in 'participant' JSON produces error
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        folder_config = magic_folder_config(
+            create_local_author(author),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        # put our Collective DMD into the fake root
+        root._uri.data[folder_config["collective-dircap"]] = dumps([
+            u"dirnode",
+            {
+                u"children": {
+                    author: format_filenode(folder_config["upload-dircap"]),
+                },
+            },
+        ])
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        # add a participant using the API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url.child(folder_name, "participants"),
+                "not-json".encode("utf-8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({"reason": StartsWith("Could not load JSON: ")})
                     )
                 )
             )
