@@ -335,6 +335,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
         timeout=25,
     )
 
+
 @pytest_twisted.inlineCallbacks
 def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     magic = FilePath(mkdtemp())
@@ -346,39 +347,39 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     recover2_folder.makedirs()
 
     # add our magic-folder and re-start
-    yield alice.add("original", original_folder.path)
+    yield alice.add("twice0", original_folder.path)
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("original")
+        yield alice.leave("twice0")
         yield alice.restart_magic_folder()
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("original", "sylvester")
+    yield alice.add_snapshot("twice0", "sylvester")
 
     time.sleep(5)
     yield alice.stop_magic_folder()
 
     # create the 'recovery' magic-folder
-    yield bob.add("recovery", recover_folder.path)
+    yield bob.add("twice1", recover_folder.path)
     yield bob.restart_magic_folder()
     bob_folders = yield bob.list_(True)
 
     @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("recovery")
+        yield bob.leave("twice1")
         yield bob.restart_magic_folder()
     request.addfinalizer(cleanup_recovery)
 
-    # add the 'original' magic-folder as a participant in the
+    # add the 'twice0' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
-    yield bob.add_participant("recovery", "alice", alice_cap)
+    alice_cap = to_readonly_capability(alice_folders["twice0"]["upload_dircap"])
+    yield bob.add_participant("twice1", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
@@ -391,7 +392,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     recover_folder.child("sylvester").setContent(content1)
-    yield bob.add_snapshot("recovery", "sylvester")
+    yield bob.add_snapshot("twice1", "sylvester")
 
     # We shouldn't see this show up as a conflict, since we are newer than
     # alice
@@ -400,21 +401,20 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
         timeout=25,
     )
 
-    time.sleep(5)
     yield bob.stop_magic_folder()
 
     # create the second 'recovery' magic-folder
-    yield edmond.add("recovery-2", recover2_folder.path)
+    yield edmond.add("twice2", recover2_folder.path)
     yield edmond.restart_magic_folder()
 
     # add the 'recovery' magic-folder as a participant in the
     # 'recovery-2' folder
-    bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
-    yield edmond.add_participant("recovery-2", "bob", bob_cap)
+    bob_cap = to_readonly_capability(bob_folders["twice1"]["upload_dircap"])
+    yield edmond.add_participant("twice2", "bob", bob_cap)
 
     @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield edmond.leave("recovery-2")
+        yield edmond.leave("twice2")
         yield edmond.restart_magic_folder()
     request.addfinalizer(cleanup_recovery)
 
