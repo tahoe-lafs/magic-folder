@@ -316,13 +316,14 @@ class MagicFolderUpdaterService(service.Service):
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
 
+    @inline_callbacks
     def add_remote_snapshot(self, snapshot):
         """
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
         """
-        with start_action(action_type="downloader:modify_filesystem").context() as action:
-            return DeferredContext(self._process(snapshot)).addActionFinish(action)
+        with start_action(action_type="downloader:modify_filesystem"):
+            yield self._process(snapshot)
 
     @inline_callbacks
     def _process(self, snapshot):
