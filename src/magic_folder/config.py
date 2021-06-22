@@ -211,15 +211,17 @@ _magicfolder_config_schema = Schema([
         CREATE TABLE remote_snapshots
         (
             name          TEXT PRIMARY KEY, -- mangled name in UTF-8
-            snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
+            snapshot_cap  TEXT,             -- Tahoe-LAFS URI that represents the remote snapshot
+            timestamp     INTEGER           -- Last-modified timestamp
         )
         """,
+
+        # 'timestamp' here comes from the (tahoe) metadata['mtime'] of
+        # the 'content' pointer of the RemoteSnapshot .. in turn, this
+        # came from the LocalSnapshot which was the mtime of the file
     ]),
 ])
 
-
-## XXX "parents_local" should be IDs of other local_snapshots, not
-## sure how to do that w/o docs here
 
 DELETE_SNAPSHOTS = ActionType(
     u"config:state-db:delete-local-snapshot-entry",
@@ -960,19 +962,20 @@ class MagicFolderConfig(object):
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
+        mtime = remote_snapshot.metadata["modification_time"]
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
         with action:
             try:
-                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
-                               (name, snapshot_cap))
+                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?,?)",
+                               (name, snapshot_cap, mtime))
                 action.add_success_fields(insert_or_update=u"insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute("UPDATE remote_snapshots"
-                               " SET snapshot_cap=?"
+                               " SET snapshot_cap=?, timestamp=?"
                                " WHERE [name]=?",
-                               (snapshot_cap, name))
+                               (snapshot_cap, mtime, name))
                 action.add_success_fields(insert_or_update=u"update")
 
     @with_cursor
@@ -1007,6 +1010,30 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row:
                 return row[0].encode("utf-8")
+            raise KeyError(name)
+
+    @with_cursor
+    def get_remotesnapshot_mtime(self, cursor, name):
+        """
+        return the timestamp of the latest remote snapshot that the client
+        has recorded in the db.
+
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+        :raise KeyError: If no snapshot exists for the given name.
+
+        :returns int: the timestamp of the remotesnapshot
+        """
+        action = FETCH_REMOTE_SNAPSHOTS_FROM_DB(
+            relpath=name,
+        )
+        with action:
+            cursor.execute("SELECT timestamp FROM remote_snapshots"
+                           " WHERE [name]=?",
+                           (name,))
+            row = cursor.fetchone()
+            if row:
+                return int(row[0])
             raise KeyError(name)
 
     @property
