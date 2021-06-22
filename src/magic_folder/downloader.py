@@ -428,12 +428,12 @@ class MagicFolderUpdaterService(service.Service):
                 # this is a conflict.
 
             else:
-                #FIXME: checking for local snapshots is not sufficent, as it
-                # may have changed since we last looked at the file
-                # There is probably an unavoidable window where the file could
-                # be changed, but the current one is too big.
-                # NOTE: we could maybe rename the existing file and check that
-                # it hasn't changed
+                # there is a longer dance described in detail in
+                # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
+                # which may do even better at reducing the window for
+                # local changes to get overwritten. Currently, that
+                # window is the 3 python statements between here and
+                # ".mark_overwrite()"
                 last_minute_change = False
                 if local_timestamp is None:
                     if local_path.exists():
