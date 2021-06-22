@@ -1,3 +1,7 @@
+"""
+Classes and services relating to the operation of the Downloader
+"""
+
 from __future__ import (
     absolute_import,
     division,
@@ -5,11 +9,8 @@ from __future__ import (
     unicode_literals,
 )
 
-"""
-Classes and services relating to the operation of the Downloader
-"""
-
 from collections import deque
+from functools import wraps
 
 import attr
 from attr.validators import (
@@ -37,14 +38,9 @@ from twisted.application import (
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.internet.defer import (
-    Deferred,
-    DeferredQueue,
+    DeferredLock,
     returnValue,
-    CancelledError,
 )
 from twisted.web.error import (
     SchemeNotSupported,
@@ -59,6 +55,13 @@ from .magicpath import (
 from .snapshot import (
     create_snapshot_from_capability,
 )
+
+def _exclusively(f):
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        return self._lock.run(f, self, *args, **kwargs)
+
+    return wrapper
 
 
 @attr.s
@@ -99,8 +102,8 @@ class RemoteSnapshotCacheService(service.Service):
     """
     folder_config = attr.ib()
     tahoe_client = attr.ib()
-    _cached_snapshots = attr.ib(default=attr.Factory(dict))
-    _queue = attr.ib(default=attr.Factory(DeferredQueue))
+    _cached_snapshots = attr.ib(factory=dict)
+    _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
     def from_config(cls, config, tahoe_client):
@@ -110,80 +113,43 @@ class RemoteSnapshotCacheService(service.Service):
         """
         return cls(config, tahoe_client)
 
+    @_exclusively
+    @inline_callbacks
     def get_snapshot_from_capability(self, snapshot_cap):
         """
-        Add the given immutable Snapshot capability to our queue.
-
-        When this queue item is processed, we download the Snapshot,
-        then download the metadata.
+        Download the given immutable Snapshot capability and all its parents.
 
         (When we have signatures this should verify the signature
         before downloading anything else)
-
-        We also download parents of this Snapshot until we find a
-        common ancestor .. meaning we keep downloading parents until
-        we find one that matches the remotesnapshot entry in our local
-        database. If we have no entry for this Snapshot we download
-        all parents (which will also be the case if there is no common
-        ancestor).
 
         :param bytes snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
+        """
+        with start_action(action_type="cache-service:locate_snapshot",
+                          capability=snapshot_cap) as t:
+            #FIXME: We are inconsitent here on whether we
+            # wait until we've downloaded all parents
+            # in returning from add_remote_capability
+            # - if we've not seen the snapshot, we will wait
+            # - however, if we've already cached the snapshot,
+            #   we'll immediately return it, even if we are still
+            #   processing all our parents.
 
-        :raises QueueOverflow: if our queue is full
-        """
-        Message.log(
-            message_type="cache-service:add-remote-capability",
-            snapshot_cap=snapshot_cap,
-        )
-        d = Deferred()
-        self._queue.put((snapshot_cap, d))
-        return d
+            # --> (but if we've already cached it, then we've
+            # already cached its parents too..)
+            # NOTE: that is only true *now*, when we don't short-circuit
+            # finding parents.
 
-    def startService(self):
-        """
-        Pull new work from our queue, forever.
-        """
-        with start_action(message_type="cache-service:start"):
-            service.Service.startService(self)
-            self._service_d = self._process_queue()
-            Message.log(starting=True)
-
-    @inline_callbacks
-    def _process_queue(self):
-        """
-        Wait for a single item from the queue and process it, forever.
-        """
-        while True:
             try:
-                (snapshot_cap, d) = yield self._queue.get()
-                with start_action(action_type="cache-service:locate_snapshot",
-                                  capability=snapshot_cap) as t:
-                    #FIXME: We are inconsitent here on whether we
-                    # wait until we've downloaded all parents
-                    # in returning from add_remote_capability
-                    # - if we've not seen the snapshot, we will wait
-                    # - however, if we've already cached the snapshot,
-                    #   we'll immediately return it, even if we are still
-                    #   processing all our parents.
-
-                    # --> (but if we've already cached it, then we've
-                    # already cached its parents too..)
-
-                    try:
-                        snapshot = self._cached_snapshots[snapshot_cap]
-                        t.add_success_fields(cached=True)
-                    except KeyError:
-                        t.add_success_fields(cached=False)
-                        snapshot = yield self._cache_snapshot(snapshot_cap)
-                    d.callback(snapshot)
-            except CancelledError:
-                break
-            except Exception:
-                d.errback(Failure())
+                snapshot = self._cached_snapshots[snapshot_cap]
+                t.add_success_fields(cached=True)
+            except KeyError:
+                t.add_success_fields(cached=False)
+                snapshot = yield self._cache_snapshot(snapshot_cap)
+        returnValue(snapshot)
 
     @inline_callbacks
     def _cache_snapshot(self, snapshot_cap):
@@ -220,15 +186,28 @@ class RemoteSnapshotCacheService(service.Service):
 
         returnValue(snapshot)
 
-    def stopService(self):
+    def is_ancestor_of(self, target_cap, child_cap):
         """
-        Don't process queued items anymore.
+        Check if 'target_cap' is an ancestor of 'child_cap'
+
+        .. note::
+
+            ``child_cap`` must have already have been dowloaded
+
+        :returns bool:
         """
-        d = self._service_d
-        self._service_d.cancel()
-        service.Service.stopService(self)
-        self._service_d = None
-        return d
+        assert child_cap in self._cached_snapshots is not None, "Remote should be cached already"
+        snapshot = self._cached_snapshots[child_cap]
+
+        q = deque([snapshot])
+        while q:
+            snap = q.popleft()
+            for parent_cap in snap.parents_raw:
+                if target_cap == parent_cap:
+                    return True
+                else:
+                    q.append(self._cached_snapshots[parent_cap])
+        return False
 
 
 class IMagicFolderFilesystem(Interface):
@@ -278,21 +257,6 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
-def is_ancestor_of(cache, cap, snapshot):
-    """
-    :param RemoteSnapshotCacheService cache: cached snapshots
-
-    :returns bool: True if 'cap' is an ancestor of 'snapshot'
-    """
-    q = deque([snapshot])
-    while q:
-        snap = q.popleft()
-        for parent_cap in snap.parents_raw:
-            if cap == parent_cap:
-                return True
-            else:
-                q.append(cache._cached_snapshots[parent_cap])
-    return False
 
 
 @attr.s
@@ -311,7 +275,9 @@ class MagicFolderUpdaterService(service.Service):
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
+    _lock = attr.ib(init=False, factory=DeferredLock)
 
+    @_exclusively
     @inline_callbacks
     def add_remote_snapshot(self, snapshot):
         """
@@ -337,6 +303,7 @@ class MagicFolderUpdaterService(service.Service):
         # we also ensure that not other process is running.
 
         # -> no other process can run on the same magic-folders config
+        # FIXME: As far as I can tell, nothing enforces this
 
         # NOTE: This isn't *currently* a problem as this is only ever called one at a time.
 
@@ -393,22 +360,19 @@ class MagicFolderUpdaterService(service.Service):
                     is_conflict = True
 
                 else:
-                    existing_snap = self._remote_cache._cached_snapshots.get(remote_cap, None)
-
-                    assert existing_snap is not None, "Remote should be cached already"
-                    assert existing_snap.capability != snapshot.capability, "already match"
+                    assert remote_cap != snapshot.capability, "already match"
 
                     # "If the new snapshot is a descendant of the client's
                     # existing snapshot, then this update is an 'overwrite'"
 
-                    ancestor = is_ancestor_of(self._remote_cache, existing_snap.capability, snapshot)
+                    ancestor = self._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
                     action.add_success_fields(ancestor=ancestor)
 
                     if not ancestor:
                         # if the incoming remotesnapshot is actually an
                         # ancestor of _our_ snapshot, then we have nothing
                         # to do because we are newer
-                        if is_ancestor_of(self._remote_cache, snapshot.capability, existing_snap):
+                        if self._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
                             return
                         is_conflict = True
 
