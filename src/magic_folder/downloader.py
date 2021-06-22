@@ -196,6 +196,15 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
+        # This is here so that `_cached_snapshots` can remain an implementation detail,
+        # and to make the improvements below require less changes elsewhere.
+        # TODO: We can make this more efficent in the future by tracking some extra data.
+        # - for each snapshot in our remotesnapshotdb, we are going to check if something is
+        #   an ancestor very often, so could cache that information (we'd probably want to
+        #   integrate this with whatever updates that, as moving our remotesnapshot forward
+        #   only incrementally adds to the ancestors of the remote
+        # - for checking in the other direction, we can skip checking parents of any ancestors that are
+        #   also ancestors of our remotesnapshot
         assert child_cap in self._cached_snapshots is not None, "Remote should be cached already"
         snapshot = self._cached_snapshots[child_cap]
 
