@@ -192,6 +192,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
         content2,
     )
 
+
 @pytest_twisted.inlineCallbacks
 def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     magic = FilePath(mkdtemp())
@@ -201,35 +202,35 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    yield alice.add("original", original_folder.path)
+    yield alice.add("internal", original_folder.path)
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("original")
+        yield alice.leave("internal")
         yield alice.restart_magic_folder()
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("original", "sylvester")
+    yield alice.add_snapshot("internal", "sylvester")
 
-    # create the 'recovery' magic-folder
-    yield bob.add("recovery", recover_folder.path)
+    # create the 'rec' magic-folder
+    yield bob.add("rec", recover_folder.path)
     yield bob.restart_magic_folder()
 
     @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("recovery")
+        yield bob.leave("rec")
         yield bob.restart_magic_folder()
     request.addfinalizer(cleanup_recovery)
 
-    # add the 'original' magic-folder as a participant in the
-    # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
-    yield bob.add_participant("recovery", "alice", alice_cap)
+    # add the 'internal' magic-folder as a participant in the
+    # 'rec' folder
+    alice_cap = to_readonly_capability(alice_folders["internal"]["upload_dircap"])
+    yield bob.add_participant("rec", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
@@ -244,7 +245,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
-    yield alice.add_snapshot("original", "sylvester")
+    yield alice.add_snapshot("internal", "sylvester")
 
     time.sleep(2)
 
@@ -258,6 +259,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
         timeout=25,
     )
 
+
 @pytest_twisted.inlineCallbacks
 @pytest.mark.xfail(strict=True, reason="Demonstrating a bug in the implementation.")
 def test_ancestors(request, reactor, temp_dir, alice, bob):
@@ -268,38 +270,38 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    yield alice.add("original", original_folder.path)
+    yield alice.add("ancestor0", original_folder.path)
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("original")
+        yield alice.leave("ancestor0")
         yield alice.restart_magic_folder()
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("original", "sylvester")
+    yield alice.add_snapshot("ancestor0", "sylvester")
 
-    # create the 'recovery' magic-folder
-    yield bob.add("recovery", recover_folder.path)
+    # create the 'ancestor1' magic-folder
+    yield bob.add("ancestor1", recover_folder.path)
     yield bob.restart_magic_folder()
 
     @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("recovery")
+        yield bob.leave("ancestor1")
         yield bob.restart_magic_folder()
     request.addfinalizer(cleanup_recovery)
 
-    # add the 'original' magic-folder as a participant in the
-    # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
-    yield bob.add_participant("recovery", "alice", alice_cap)
+    # add the 'ancestor0' magic-folder as a participant in the
+    # 'ancestor1' folder
+    alice_cap = to_readonly_capability(alice_folders["ancestor0"]["upload_dircap"])
+    yield bob.add_participant("ancestor1", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
-    # in the 'recovery' filesystem
+    # in the 'ancestor1' filesystem
     await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
@@ -309,7 +311,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     recover_folder.child("sylvester").setContent(content1)
-    yield bob.add_snapshot("recovery", "sylvester")
+    yield bob.add_snapshot("ancestor1", "sylvester")
 
     # FIXME: We shouldn't see this show up as a conflict,
     # since we are newer than alice
@@ -321,7 +323,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
 
     content2 = "two\n" * 1000
     original_folder.child("sylvester").setContent(content2)
-    yield alice.add_snapshot("original", "sylvester")
+    yield alice.add_snapshot("ancestor0", "sylvester")
 
     # FIXME: Since we made changes to the file, a
     # change to alice shouldn't overwrite our changes
@@ -330,5 +332,5 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
         content2,
         timeout=25,
     )
-    # FIXME: we shouldn't still see the *original* content in the conflict file
+    # FIXME: we shouldn't still see the *ancestor0* content in the conflict file
     assert recover_folder.child("sylvester.conflict-alice").getContent() == content0
