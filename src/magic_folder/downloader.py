@@ -24,7 +24,6 @@ from zope.interface import (
 
 from eliot.twisted import (
     inline_callbacks,
-    DeferredContext,
 )
 from eliot import (
     start_action,
@@ -208,13 +207,6 @@ class RemoteSnapshotCacheService(service.Service):
         Message.log(message_type="remote-cache:cached",
                     name=snapshot.name,
                     capability=snapshot.capability)
-
-        # the target of our search through all parent Snapshots
-        try:
-            our_snapshot_cap = self.folder_config.get_remotesnapshot(snapshot.name)
-        except KeyError:
-            # we've never seen this one before
-            our_snapshot_cap = None
 
         # breadth-first traversal of the parents
         q = deque([snapshot])
