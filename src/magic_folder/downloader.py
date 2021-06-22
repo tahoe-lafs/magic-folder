@@ -395,9 +395,9 @@ class MagicFolderUpdaterService(service.Service):
                     is_conflict = True
 
                 else:
-                    existing_snap = remote_snap
+                    existing_snap = self._remote_cache._cached_snapshots.get(remote_cap, None)
 
-                    assert existing_snap is not None
+                    assert existing_snap is not None, "Remote should be cached already"
                     assert existing_snap.capability != snapshot.capability, "already match"
 
                     # "If the new snapshot is a descendant of the client's
