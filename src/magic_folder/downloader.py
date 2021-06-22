@@ -108,7 +108,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         return cls(config, tahoe_client)
 
-    def add_remote_capability(self, snapshot_cap):
+    def cache_remote(self, snapshot_cap):
         """
         Add the given immutable Snapshot capability to our queue.
 
@@ -614,7 +614,7 @@ class DownloaderService(service.MultiService):
                         abspath=fpath.path,
                         relpath=relpath,
                     )
-                    snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
+                    snapshot = yield self._remote_snapshot_cache.cache_remote(snapshot_cap)
                     # if this remote matches what we believe to be the
                     # latest, there is nothing to do .. otherwise, we
                     # have to figure out what to do
@@ -624,5 +624,5 @@ class DownloaderService(service.MultiService):
                         our_snapshot_cap = None
                     if snapshot.capability != our_snapshot_cap:
                         if our_snapshot_cap is not None:
-                            yield self._remote_snapshot_cache.add_remote_capability(our_snapshot_cap)
+                            yield self._remote_snapshot_cache.cache_remote(our_snapshot_cap)
                         yield self._folder_updater.add_remote_snapshot(snapshot)
