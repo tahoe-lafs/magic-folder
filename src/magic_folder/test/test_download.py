@@ -136,7 +136,7 @@ class CacheTests(SyncTestCase):
         Trying to cache a non-existent capability produces an error
         """
         self.assertThat(
-            failed(self.cache.get_snapshot_for_capability(remote_cap)),
+            failed(self.cache.get_snapshot_from_capability(remote_cap)),
             Always(),
         )
 
@@ -199,7 +199,7 @@ class CacheTests(SyncTestCase):
         # we've set up some fake data; lets see if the cache service
         # will cache this successfully.
         self.assertThat(
-            self.cache.get_snapshot_for_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -280,7 +280,7 @@ class CacheTests(SyncTestCase):
 
         # cache the oldest parent first
         self.assertThat(
-            self.cache.get_snapshot_for_capability(genesis),
+            self.cache.get_snapshot_from_capability(genesis),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -301,7 +301,7 @@ class CacheTests(SyncTestCase):
         # we've set up some fake data; lets see if the cache service
         # will cache this successfully.
         self.assertThat(
-            self.cache.get_snapshot_for_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -324,7 +324,7 @@ class CacheTests(SyncTestCase):
         # a Mock to absorb any calls it receives.
         self.cache.tahoe_client = Mock()
         self.assertThat(
-            self.cache.get_snapshot_for_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
