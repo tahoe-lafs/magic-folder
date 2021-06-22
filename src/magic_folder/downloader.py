@@ -170,6 +170,10 @@ class RemoteSnapshotCacheService(service.Service):
                     # - however, if we've already cached the snapshot,
                     #   we'll immediately return it, even if we are still
                     #   processing all our parents.
+
+                    # --> (but if we've already cached it, then we've
+                    # already cached its parents too..)
+
                     try:
                         snapshot = self._cached_snapshots[snapshot_cap]
                         t.add_success_fields(cached=True)
