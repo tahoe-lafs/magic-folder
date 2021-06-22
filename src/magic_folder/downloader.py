@@ -289,6 +289,7 @@ class MagicFolderUpdaterService(service.Service):
     RemoteSnapshots. These RemoteSnapshot instance must have all
     relevant parents available (via the cache service).
     FIXME: we aren't guaranteed this
+    -> why not?
 
     "Relevant" here means all parents unless we find a common
     ancestor.
