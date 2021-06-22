@@ -62,7 +62,7 @@ jobs:
         PIP_FIND_LINKS: ./wheelhouse
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v1"
+      uses: "actions/upload-artifact@v2"
       if-no-files-found: "warn"
       with:
         name: "eliot.log"
