@@ -82,20 +82,6 @@ class RemoteSnapshotCacheService(service.Service):
 
     Note: we *could* keep all this in our database .. but then we have
     to evict things from it at some point.
-
-    XXX: the "remote-snapshots" database is kind of 'just a cache'
-    too; we should be putting that information into our Personal DMD
-    ... so what happens when it's out of date? (source-of-truth MUST
-    be our Personal DMD ...)
-    TP: That *MUST* is incorrect. It is the source of data that survives
-    loss of the machine, but we treat the remote-snapshot-db as the source
-    of truth.
-
-     -> actually, maybe the local db should be the "source of truth":
-    we only put entries into it if we're about to push it to Tahoe
-    .. so if things don't match up, it's because we crashed before
-    that happened (and so on startup, we should check and possibly
-    push more things up to Tahoe)
     """
     folder_config = attr.ib()
     tahoe_client = attr.ib()
