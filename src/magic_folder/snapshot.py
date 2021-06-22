@@ -438,16 +438,16 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # find all parents
         parent_caps = metadata["parents"]
 
-        returnValue(
-            RemoteSnapshot(
-                name=name,
-                author=author,
-                metadata=metadata,
-                content_cap=content_cap,
-                parents_raw=parent_caps,
-                capability=snapshot_cap.decode("ascii"),
-            )
+    returnValue(
+        RemoteSnapshot(
+            name=name,
+            author=author,
+            metadata=metadata,
+            content_cap=content_cap,
+            parents_raw=parent_caps,
+            capability=snapshot_cap.decode("ascii"),
         )
+    )
 
 
 @inline_callbacks
