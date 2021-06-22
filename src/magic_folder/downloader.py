@@ -219,7 +219,7 @@ class RemoteSnapshotCacheService(service.Service):
             for i in range(len(snap.parents_raw)):
                 # FIXME: we may have already cached some of the parents
                 parent = yield snap.fetch_parent(self.tahoe_client, i)
-                self.cached_snapshots[parent.capability] = parent
+                self._cached_snapshots[parent.capability] = parent
                 q.append(parent)
 
         returnValue(snapshot)
@@ -295,7 +295,7 @@ def is_ancestor_of(cache, cap, snapshot):
             if cap == parent_cap:
                 return True
             else:
-                q.append(cache.cached_snapshots[parent_cap])
+                q.append(cache._cached_snapshots[parent_cap])
     return False
 
 
