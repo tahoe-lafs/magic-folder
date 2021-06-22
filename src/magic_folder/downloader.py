@@ -102,6 +102,9 @@ class RemoteSnapshotCacheService(service.Service):
     """
     folder_config = attr.ib()
     tahoe_client = attr.ib()
+    # We maintain the invariant that either these snapshots are closed
+    # under taking parents, or we are locked, and the remaining parents
+    # are queued to be downloaded
     _cached_snapshots = attr.ib(factory=dict)
     _lock = attr.ib(init=False, factory=DeferredLock)
 
@@ -178,9 +181,15 @@ class RemoteSnapshotCacheService(service.Service):
         q = deque([snapshot])
         while q:
             snap = q.popleft()
-            for i in range(len(snap.parents_raw)):
-                # FIXME: we may have already cached some of the parents
-                parent = yield snap.fetch_parent(self.tahoe_client, i)
+            for parent_cap in snap.parents_raw:
+                if parent_cap in self._cached_snapshots:
+                    # either a previous call cached this snapshot
+                    # or we've already queued it for traversal
+                    continue
+                parent = yield create_snapshot_from_capability(
+                    parent_cap,
+                    self.tahoe_client,
+                )
                 self._cached_snapshots[parent.capability] = parent
                 q.append(parent)
 
