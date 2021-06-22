@@ -339,7 +339,14 @@ class MagicFolderUpdaterService(service.Service):
         #FIXME we should consider a lock or something to ensure that we don't
         # try to modify the same file twice. We can do that in-proccess if
         # we also ensure that not other process is running.
+
+        # -> no other process can run on the same magic-folders config
+
         # NOTE: This isn't *currently* a problem as this is only ever called one at a time.
+
+        # -> we only will run a single one of these per magic-folder,
+        #    this can only be called one at a time (that's why this
+        #    was a queue before removed in b0fb1159459b04ca490cccd961ad1092f98c63e5
 
         with start_action(action_type="downloader:updater:process",
                           name=snapshot.name,
