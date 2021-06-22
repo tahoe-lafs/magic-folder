@@ -381,7 +381,9 @@ class MagicFolderUpdaterService(service.Service):
             # XXX not dealing with deletes yet
 
             is_conflict = False
+            local_timestamp = None
             if local_path.exists():
+                local_timestamp = local_path.getModificationTime()
                 # there is a file here already .. if we have any
                 # LocalSnapshots for this name, then we've got local
                 # edits and it must be a conflict. If we have nothing
@@ -432,7 +434,18 @@ class MagicFolderUpdaterService(service.Service):
                 # be changed, but the current one is too big.
                 # NOTE: we could maybe rename the existing file and check that
                 # it hasn't changed
-                self._magic_fs.mark_overwrite(snapshot, staged)
+                last_minute_change = False
+                if local_timestamp is None:
+                    if local_path.exists():
+                        last_minute_change = True
+                else:
+                    if local_path.getModificationTime() != local_timestamp:
+                        last_minute_change = True
+                if last_minute_change:
+                    self._magic_fs.mark_conflict(snapshot, staged)
+                    # FIXME note conflict internally
+                else:
+                    self._magic_fs.mark_overwrite(snapshot, staged)
 
                 # Note, if we crash here (after moving the file into place
                 # but before noting that in our database) then we could
