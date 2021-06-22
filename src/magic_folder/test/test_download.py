@@ -294,7 +294,7 @@ class CacheTests(SyncTestCase):
         )
         # we should have a single snapshot cached
         self.assertThat(
-            len(self.cache.cached_snapshots),
+            len(self.cache._cached_snapshots),
             Equals(1),
         )
 
@@ -315,7 +315,7 @@ class CacheTests(SyncTestCase):
         )
         # we should have cached all the snapshots now
         self.assertThat(
-            len(self.cache.cached_snapshots),
+            len(self.cache._cached_snapshots),
             Equals(5),
         )
 
@@ -658,7 +658,7 @@ class ConflictTests(AsyncTestCase):
             1,
         )
 
-        # note, we don't "run" this service, just populate .cached_snapshots
+        # note, we don't "run" this service, just populate ._cached_snapshots
         self.remote_cache = RemoteSnapshotCacheService(
             folder_config=self.alice_config,
             tahoe_client=None,
@@ -700,7 +700,7 @@ class ConflictTests(AsyncTestCase):
             parents_raw=[],
             content_cap=b"URI:CHK:",
         )
-        self.remote_cache.cached_snapshots[cap0] = remote0
+        self.remote_cache._cached_snapshots[cap0] = remote0
 
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
@@ -746,7 +746,7 @@ class ConflictTests(AsyncTestCase):
             content_cap=b"URI:CHK:",
         )
         parent_content = b"parent" * 1000
-        self.remote_cache.cached_snapshots[parent_cap] = parent
+        self.remote_cache._cached_snapshots[parent_cap] = parent
         self.alice_config.store_remotesnapshot("foo", parent)
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
@@ -758,7 +758,7 @@ class ConflictTests(AsyncTestCase):
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
         )
-        self.remote_cache.cached_snapshots[cap0] = remote0
+        self.remote_cache._cached_snapshots[cap0] = remote0
 
         # we've 'seen' this file before so we must have the path locally
         self.alice_magic_path.child("foo").setContent(parent_content)
@@ -796,7 +796,7 @@ class ConflictTests(AsyncTestCase):
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
             )
-            self.remote_cache.cached_snapshots[parent_cap] = parent
+            self.remote_cache._cached_snapshots[parent_cap] = parent
             remotes.append(parent)
 
         # set "our" parent to the oldest one
