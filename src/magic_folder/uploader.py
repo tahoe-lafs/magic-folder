@@ -310,6 +310,11 @@ class RemoteSnapshotCreator(object):
             self._local_author,
             self._tahoe_client,
         )
+        from eliot import Message
+        Message.log(message_type="snapshot:metadata",
+                    metadata=remote_snapshot.metadata,
+                    name=remote_snapshot.name,
+                    capability=remote_snapshot.capability)
 
         # if we crash here, we'll retry and re-upload (hopefully
         # de-duplication works for the content at laest) the

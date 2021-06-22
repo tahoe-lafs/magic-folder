@@ -25,7 +25,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.web.client import (
@@ -372,9 +371,10 @@ class RemoteSnapshot(object):
     capability = attr.ib()
     parents_raw = attr.ib()
     content_cap = attr.ib()
+    # FIXME: we have to caches (here and downloader.RemoteSnapshotCacheService
     _parents_cache = attr.ib(default=attr.Factory(dict))
 
-    @inlineCallbacks
+    @inline_callbacks
     def fetch_parent(self, tahoe_client, parent_index):
         """
         Download the given parent, creating a RemoteSnapshot. These are
@@ -394,7 +394,7 @@ class RemoteSnapshot(object):
             self._parents_cache[capability] = snapshot
             returnValue(snapshot)
 
-    @inlineCallbacks
+    @inline_callbacks
     def fetch_content(self, tahoe_client, writable_file):
         """
         Fetches our content from the grid, returning an IBodyProducer?
@@ -472,7 +472,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
                     raw_remote_parents=None):
     """
@@ -588,7 +588,7 @@ def format_filenode(cap, metadata=None):
 
 
 
-@inlineCallbacks
+@inline_callbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
     Writes a LocalSnapshot object to the given tahoe grid. Will also

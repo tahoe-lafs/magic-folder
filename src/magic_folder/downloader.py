@@ -24,6 +24,7 @@ from zope.interface import (
 
 from eliot.twisted import (
     inline_callbacks,
+    DeferredContext,
 )
 from eliot import (
     start_action,
@@ -43,7 +44,6 @@ from twisted.python.failure import (
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
-    inlineCallbacks,
     returnValue,
     CancelledError,
 )
@@ -88,6 +88,9 @@ class RemoteSnapshotCacheService(service.Service):
     too; we should be putting that information into our Personal DMD
     ... so what happens when it's out of date? (source-of-truth MUST
     be our Personal DMD ...)
+    TP: That *MUST* is incorrect. It is the source of data that survives
+    loss of the machine, but we treat the remote-snapshot-db as the source
+    of truth.
 
      -> actually, maybe the local db should be the "source of truth":
     we only put entries into it if we're about to push it to Tahoe
@@ -97,7 +100,7 @@ class RemoteSnapshotCacheService(service.Service):
     """
     folder_config = attr.ib()
     tahoe_client = attr.ib()
-    cached_snapshots = attr.ib(default=attr.Factory(dict))
+    _cached_snapshots = attr.ib(default=attr.Factory(dict))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     @classmethod
@@ -108,7 +111,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         return cls(config, tahoe_client)
 
-    def add_remote_capability(self, snapshot_cap):
+    def get_snapshot_from_capability(self, snapshot_cap):
         """
         Add the given immutable Snapshot capability to our queue.
 
@@ -158,9 +161,17 @@ class RemoteSnapshotCacheService(service.Service):
         while True:
             try:
                 (snapshot_cap, d) = yield self._queue.get()
-                with start_action(action_type="cache-service:locate_snapshot") as t:
+                with start_action(action_type="cache-service:locate_snapshot",
+                                  capability=snapshot_cap) as t:
+                    #FIXME: We are inconsitent here on whether we
+                    # wait until we've downloaded all parents
+                    # in returning from add_remote_capability
+                    # - if we've not seen the snapshot, we will wait
+                    # - however, if we've already cached the snapshot,
+                    #   we'll immediately return it, even if we are still
+                    #   processing all our parents.
                     try:
-                        snapshot = self.cached_snapshots[snapshot_cap]
+                        snapshot = self._cached_snapshots[snapshot_cap]
                         t.add_success_fields(cached=True)
                     except KeyError:
                         t.add_success_fields(cached=False)
@@ -171,7 +182,7 @@ class RemoteSnapshotCacheService(service.Service):
             except Exception:
                 d.errback(Failure())
 
-    @inlineCallbacks
+    @inline_callbacks
     def _cache_snapshot(self, snapshot_cap):
         """
         Internal helper.
@@ -189,7 +200,10 @@ class RemoteSnapshotCacheService(service.Service):
             snapshot_cap,
             self.tahoe_client,
         )
-        self.cached_snapshots[snapshot_cap] = snapshot
+        self._cached_snapshots[snapshot_cap] = snapshot
+        Message.log(message_type="remote-cache:cached",
+                    name=snapshot.name,
+                    capability=snapshot.capability)
 
         # the target of our search through all parent Snapshots
         try:
@@ -208,8 +222,12 @@ class RemoteSnapshotCacheService(service.Service):
                 break
             else:
                 for i in range(len(snap.parents_raw)):
+                    # FIXME: we may have already cached some of the parents
                     parent = yield snap.fetch_parent(self.tahoe_client, i)
-                    self.cached_snapshots[parent.capability] = parent
+                    self._cached_snapshots[parent.capability] = parent
+                    Message.log(message_type="remote-cache:cached",
+                                name=parent.name,
+                                capability=parent.capability)
                     q.append(parent)
 
         returnValue(snapshot)
@@ -279,6 +297,7 @@ class MagicFolderUpdaterService(service.Service):
     Updates the local magic-folder when given locally-cached
     RemoteSnapshots. These RemoteSnapshot instance must have all
     relevant parents available (via the cache service).
+    FIXME: we aren't guaranteed this
 
     "Relevent" here means all parents unless we find a common
     ancestor.
@@ -287,49 +306,14 @@ class MagicFolderUpdaterService(service.Service):
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
-    _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def add_remote_snapshot(self, snapshot):
         """
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
         """
-        d = Deferred()
-        self._queue.put((snapshot, d))
-        return d
-
-    def startService(self):
-        """
-        Wait for a single item from the queue and process it, forever.
-        """
-        service.Service.startService(self)
-        self._service_d = self._process_queue()
-
-    def stopService(self):
-        """
-        Don't process queued items anymore.
-        """
-        d = self._service_d
-        self._service_d.cancel()
-        service.Service.stopService(self)
-        self._service_d = None
-        return d
-
-    @inline_callbacks
-    def _process_queue(self):
-        """
-        Wait for a single item from the queue and process it, forever.
-        """
-        while True:
-            try:
-                (snapshot, d) = yield self._queue.get()
-                with start_action(action_type="downloader:modify_filesystem"):
-                    yield self._process(snapshot)
-                    d.callback(None)
-            except CancelledError:
-                break
-            except Exception:
-                d.errback(Failure())
+        with start_action(action_type="downloader:modify_filesystem").context() as action:
+            return DeferredContext(self._process(snapshot)).addActionFinish(action)
 
     @inline_callbacks
     def _process(self, snapshot):
@@ -342,8 +326,20 @@ class MagicFolderUpdaterService(service.Service):
         Tahoe (i.e. to our Personal DMD)
         """
 
-        with start_action(action_type="downloader:updater:process") as action:
+        #FIXME we should consider a lock or something to ensure that we don't
+        # try to modify the same file twice. We can do that in-proccess if
+        # we also ensure that not other process is running.
+        # NOTE: This isn't *currently* a problem as this is only ever called one at a time.
+
+        with start_action(action_type="downloader:updater:process",
+                          name=snapshot.name,
+                          capability=snapshot.capability,
+                          ) as action:
             local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
+            #FIXME: we should not download the file if we aren't going to use it
+            # particularly if we do so synchronously.
+            # For example, we will download the contents of out-of-date snapshots
+            # every scan
             staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
 
             # see if we have existing local or remote snapshots for
@@ -352,14 +348,8 @@ class MagicFolderUpdaterService(service.Service):
                 remote_cap = self._config.get_remotesnapshot(snapshot.name)
                 # w/ no KeyError we have seen this before
                 action.add_success_fields(remote=remote_cap)
-                try:
-                    remote_snap = self._remote_cache.cached_snapshots[remote_cap]
-                except KeyError:
-                    raise RuntimeError(
-                        "Internal inconsistency: remotesnapshot not in cache"
-                    )
             except KeyError:
-                remote_snap = None
+                remote_cap = None
 
             try:
                 local_snap = self._config.get_local_snapshot(snapshot.name)
@@ -369,8 +359,8 @@ class MagicFolderUpdaterService(service.Service):
             except KeyError:
                 local_snap = None
 
-            # note: if local_snap and remote_snap are both non-None
-            # then remote_snap should already be the ancestor of
+            # note: if local_snap and remote_cap are both non-None
+            # then remote_cap should already be the ancestor of
             # local_snap by definition.
 
             # XXX check if we're already conflicted; if so, do not continue
@@ -384,46 +374,52 @@ class MagicFolderUpdaterService(service.Service):
                 # edits and it must be a conflict. If we have nothing
                 # in our remotesnapshot database then we've just not
                 # made a LocalSnapshot yet (so it's still a conflict).
-                if local_snap is not None or remote_snap is None:
+                if local_snap is not None or remote_cap is None:
                     is_conflict = True
 
                 else:
-                    existing_snap = remote_snap
-
                     # we shouldn't even queue updates if we already match,
                     # but double-check here just in case
-                    if existing_snap is not None and \
-                       existing_snap.capability == snapshot.capability:
+                    if remote_cap is not None and \
+                       remote_cap == snapshot.capability:
                         return
 
-                # "If the new snapshot is a descendant of the client's
-                # existing snapshot, then this update is an 'overwrite'"
+                    # "If the new snapshot is a descendant of the client's
+                    # existing snapshot, then this update is an 'overwrite'"
+                    # FIXME (fixed): a local snapshot cannot have remote
+                    # decendants
 
-                ancestor = False
-                q = deque([snapshot])
-                while q and not ancestor:
-                    snap = q.popleft()
-                    for parent_cap in snap.parents_raw:
-                        if existing_snap.capability == parent_cap:
-                            ancestor = True
-                            break
-                        else:
-                            q.append(self._remote_cache.cached_snapshots[parent_cap])
-                action.add_success_fields(ancestor=ancestor)
+                    ancestor = False
+                    q = deque([snapshot])
+                    while q and not ancestor:
+                        snap = q.popleft()
+                        for parent_cap in snap.parents_raw:
+                            if remote_cap == parent_cap:
+                                ancestor = True
+                                break
+                            else:
+                                q.append(self._remote_cache.get_snapshot_from_capability(parent_cap))
+                    action.add_success_fields(ancestor=ancestor)
 
-                if not ancestor:
-                    is_conflict = True
+                    if not ancestor:
+                        is_conflict = True
 
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_snap, "Internal inconsistency: record of a Snapshot for this name but no local file"
+                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
 
             # now we know if we have a conflict or not; mark it.
             if is_conflict:
                 self._magic_fs.mark_conflict(snapshot, staged)
             else:
+                #FIXME: checking for local snapshots is not sufficent, as it
+                # may have changed since we last looked at the file
+                # There is probably an unavoidable window where the file could
+                # be changed, but the current one is too big.
+                # NOTE: we could maybe rename the existing file and check that
+                # it hasn't changed
                 self._magic_fs.mark_overwrite(snapshot, staged)
 
             # Note, if we crash here (after moving the file into place
@@ -432,6 +428,9 @@ class MagicFolderUpdaterService(service.Service):
             # will no longer produce snapshots with the wrong parent
             # once we re-run and get past this point.
 
+            #FIXME only do this if there wasn't a conflict
+            # If there is a conflict, we should record it somewhere 
+            # for resolving conflicts
             # remember the last remote we've downloaded
             self._config.store_remotesnapshot(snapshot.name, snapshot)
 
@@ -458,7 +457,7 @@ class LocalMagicFolderFilesystem(object):
     magic_path = attr.ib(validator=instance_of(FilePath))
     staging_path = attr.ib(validator=instance_of(FilePath))
 
-    @inlineCallbacks
+    @inline_callbacks
     def download_content_to_staging(self, remote_snapshot, tahoe_client):
         """
         IMagicFolderFilesystem API
@@ -574,9 +573,22 @@ class DownloaderService(service.MultiService):
         self._remote_snapshot_cache.setServiceParent(self)
         self._scanner = internet.TimerService(
             self._config.poll_interval,
-            self._scan_collective,
+            # FIXME: we need to somehow catch errors here so we don't stop syncing
+            # we could choose let unexepected errors here stop syncing, but
+            # we'd need a way to be able to restart syncing
+            self._loop,
         )
         self._scanner.setServiceParent(self)
+
+    def _loop(self):
+        d = self._scan_collective()
+
+        def eb(failure):
+            # FIXME: This should report an error to status service
+            pass
+
+        d.addErrback(eb)
+        return d
 
     @inline_callbacks
     def _scan_collective(self):
@@ -595,16 +607,17 @@ class DownloaderService(service.MultiService):
                     # we don't download from ourselves
                     continue
                 files = yield self._tahoe_client.list_directory(person.dircap)
-                action.add_success_fields(files=files)
+                action.add_success_fields(files=files) #FIXME: this can't be in a loop
                 for fname, data in files.items():
                     snapshot_cap, metadata = data
                     fpath = self._config.magic_path.preauthChild(magic2path(fname))
                     relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
                     action.add_success_fields(
+                        #FIXME, this can't be in a loop
                         abspath=fpath.path,
                         relpath=relpath,
                     )
-                    snapshot = yield self._remote_snapshot_cache.add_remote_capability(snapshot_cap)
+                    snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
                     # if this remote matches what we believe to be the
                     # latest, there is nothing to do .. otherwise, we
                     # have to figure out what to do
