@@ -404,25 +404,22 @@ class MagicFolderUpdaterService(service.Service):
                 else:
                     existing_snap = remote_snap
 
-                    # we shouldn't even queue updates if we already match,
-                    # but double-check here just in case
-                    if existing_snap is not None and \
-                       existing_snap.capability == snapshot.capability:
-                        return
+                    assert existing_snap is not None
+                    assert existing_snap.capability != snapshot.capability, "already match"
 
-                # "If the new snapshot is a descendant of the client's
-                # existing snapshot, then this update is an 'overwrite'"
+                    # "If the new snapshot is a descendant of the client's
+                    # existing snapshot, then this update is an 'overwrite'"
 
-                ancestor = is_ancestor_of(self._remote_cache, existing_snap.capability, snapshot)
-                action.add_success_fields(ancestor=ancestor)
+                    ancestor = is_ancestor_of(self._remote_cache, existing_snap.capability, snapshot)
+                    action.add_success_fields(ancestor=ancestor)
 
-                if not ancestor:
-                    # if the incoming remotesnapshot is actually an
-                    # ancestor of _our_ snapshot, then we have nothing
-                    # to do (we are newer)
-                    if is_ancestor_of(self._remote_cache, snapshot.capability, existing_snap):
-                        return
-                    is_conflict = True
+                    if not ancestor:
+                        # if the incoming remotesnapshot is actually an
+                        # ancestor of _our_ snapshot, then we have nothing
+                        # to do because we are newer
+                        if is_ancestor_of(self._remote_cache, snapshot.capability, existing_snap):
+                            return
+                        is_conflict = True
 
             else:
                 # there is no local file
@@ -430,7 +427,10 @@ class MagicFolderUpdaterService(service.Service):
                 assert not local_snap and not remote_snap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
 
-            # now we know if we have a conflict or not; mark it.
+            # once here, we know if we have a conflict or not. if
+            # there is nothing to do, we shold have returned
+            # already. so mark an overwrite or conflict into the
+            # filesystem.
             if is_conflict:
                 self._magic_fs.mark_conflict(snapshot, staged)
             else:
