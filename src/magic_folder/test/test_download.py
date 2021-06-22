@@ -817,3 +817,101 @@ class ConflictTests(AsyncTestCase):
                 ("overwrite", youngest),
             ])
         )
+
+    @inline_callbacks
+    def test_update_with_no_ancestor(self):
+        """
+        Give the updater a remote update with no ancestors
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
+        other = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=other_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[other_cap] = other
+
+        # so "alice" has "other" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_remotesnapshot("foo", other)
+
+        # ...child->parent aren't related to "other"
+        yield self.updater.add_remote_snapshot(child)
+
+        # so, no common ancestor: a conflict
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", child),
+                ("conflict", child),
+            ])
+        )
+
+    @inline_callbacks
+    def test_old_update(self):
+        """
+        An update that's older than our local one
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        # so "alice" has "child" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_remotesnapshot("foo", child)
+
+        # we update with the parent (so, it's old)
+        yield self.updater.add_remote_snapshot(parent)
+
+        # so we should do nothing
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", parent),
+            ])
+        )
