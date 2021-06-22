@@ -63,8 +63,8 @@ jobs:
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v2"
-      if-no-files-found: "warn"
       with:
+        if-no-files-found: "warn"
         name: "eliot.log"
         path: "eliot.log"
 
