@@ -136,8 +136,8 @@ class CacheTests(SyncTestCase):
         Trying to cache a non-existent capability produces an error
         """
         self.assertThat(
-            failed(self.cache.get_snapshot_from_capability(remote_cap)),
-            Always(),
+            self.cache.get_snapshot_from_capability(remote_cap),
+            failed(Always())
         )
 
     def test_cache_single(self):
