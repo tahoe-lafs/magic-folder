@@ -439,6 +439,7 @@ class MagicFolderUpdaterService(service.Service):
                     if local_path.exists():
                         last_minute_change = True
                 else:
+                    local_path.changed()
                     if local_path.getModificationTime() != local_timestamp:
                         last_minute_change = True
                 if last_minute_change:
