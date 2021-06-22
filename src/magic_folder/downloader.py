@@ -278,8 +278,7 @@ class IMagicFolderFilesystem(Interface):
 
 
 @attr.s
-@implementer(service.IService)
-class MagicFolderUpdaterService(service.Service):
+class MagicFolderUpdater(object):
     """
     Updates the local magic-folder when given locally-cached
     RemoteSnapshots. These RemoteSnapshot instance must have all
@@ -562,7 +561,7 @@ class DownloaderService(service.MultiService):
     _config = attr.ib()
     _participants = attr.ib()
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdaterService))
+    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
     _tahoe_client = attr.ib()
 
     @classmethod
@@ -580,8 +579,6 @@ class DownloaderService(service.MultiService):
 
     def __attrs_post_init__(self):
         service.MultiService.__init__(self)
-        self._folder_updater.setServiceParent(self)
-        self._remote_snapshot_cache.setServiceParent(self)
         self._scanner = internet.TimerService(
             self._config.poll_interval,
             # FIXME: we need to somehow catch errors here so we don't stop syncing

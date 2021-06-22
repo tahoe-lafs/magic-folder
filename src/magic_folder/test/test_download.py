@@ -59,7 +59,7 @@ from ..config import (
 )
 from ..downloader import (
     RemoteSnapshotCacheService,
-    MagicFolderUpdaterService,
+    MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
 )
 from ..magic_folder import (
@@ -341,7 +341,7 @@ class CacheTests(SyncTestCase):
 
 class UpdateTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdaterService``
+    Tests for ``MagicFolderUpdater``
 
     Each test here starts with a shared setup and a single Magic
     Folder called "default":
@@ -626,7 +626,7 @@ class UpdateTests(AsyncTestCase):
 
 class ConflictTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdaterService``
+    Tests for ``MagicFolderUpdater``
     """
 
     def setUp(self):
@@ -670,7 +670,7 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
-        self.updater = MagicFolderUpdaterService(
+        self.updater = MagicFolderUpdater(
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
@@ -679,11 +679,6 @@ class ConflictTests(AsyncTestCase):
                 StubTreq(StringStubbingResource(get_resource_for)),
             )
         )
-        self.updater.startService()
-
-    def tearDown(self):
-        super(ConflictTests, self).tearDown()
-        return self.updater.stopService()
 
     @inline_callbacks
     def test_update_with_local(self):

@@ -32,7 +32,7 @@ from .uploader import (
 from .downloader import (
     RemoteSnapshotCacheService,
     DownloaderService,
-    MagicFolderUpdaterService,
+    MagicFolderUpdater,
     LocalMagicFolderFilesystem,
 )
 from .participants import (
@@ -111,7 +111,7 @@ class MagicFolder(service.MultiService):
                 config=mf_config,
                 participants=initial_participants,
                 remote_snapshot_cache=remote_snapshot_cache_service,
-                folder_updater=MagicFolderUpdaterService(
+                folder_updater=MagicFolderUpdater(
                     LocalMagicFolderFilesystem(
                         mf_config.magic_path,
                         mf_config.stash_path,
