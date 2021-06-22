@@ -371,28 +371,6 @@ class RemoteSnapshot(object):
     capability = attr.ib()
     parents_raw = attr.ib()
     content_cap = attr.ib()
-    # FIXME: we have to caches (here and downloader.RemoteSnapshotCacheService
-    _parents_cache = attr.ib(default=attr.Factory(dict))
-
-    @inline_callbacks
-    def fetch_parent(self, tahoe_client, parent_index):
-        """
-        Download the given parent, creating a RemoteSnapshot. These are
-        cached so only the first call will be slow.
-
-        :param tahoe_client: the client to use
-
-        :param parent_index: which parent to fetch
-
-        :returns: a RemoteSnapshot instance.
-        """
-        capability = self.parents_raw[parent_index]
-        try:
-            returnValue(self._parents_cache[capability])
-        except KeyError:
-            snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
-            self._parents_cache[capability] = snapshot
-            returnValue(snapshot)
 
     @inline_callbacks
     def fetch_content(self, tahoe_client, writable_file):
@@ -460,16 +438,16 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # find all parents
         parent_caps = metadata["parents"]
 
-        returnValue(
-            RemoteSnapshot(
-                name=name,
-                author=author,
-                metadata=metadata,
-                content_cap=content_cap,
-                parents_raw=parent_caps,
-                capability=snapshot_cap.decode("ascii"),
-            )
+    returnValue(
+        RemoteSnapshot(
+            name=name,
+            author=author,
+            metadata=metadata,
+            content_cap=content_cap,
+            parents_raw=parent_caps,
+            capability=snapshot_cap.decode("ascii"),
         )
+    )
 
 
 @inline_callbacks
