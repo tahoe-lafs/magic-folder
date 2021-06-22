@@ -644,5 +644,5 @@ class DownloaderService(service.MultiService):
                         our_snapshot_cap = None
                     if snapshot.capability != our_snapshot_cap:
                         if our_snapshot_cap is not None:
-                            yield self._remote_snapshot_cache.cache_remote(our_snapshot_cap)
+                            yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                         yield self._folder_updater.add_remote_snapshot(snapshot)
