@@ -915,3 +915,16 @@ class ConflictTests(AsyncTestCase):
                 ("download", parent),
             ])
         )
+
+    def test_filepath_moveto(self):
+        """
+        TEMP: does FilePath.moveTo() work at all on Windows?
+        """
+
+        root = FilePath(self.mktemp())
+        root.makedirs()
+
+        root.child("file0").setContent("dummy contents\n")
+        root.child("file1").setContent("very different contents\n")
+
+        root.child("file1").moveTo(root.child("file0"))
