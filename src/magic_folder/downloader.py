@@ -488,7 +488,13 @@ class LocalMagicFolderFilesystem(object):
             content.
         """
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
+        tmp = None
+        if local_path.exists():
+            tmp = local_path.temporarySibling(b".snap")
+            local_path.moveTo(tmp)
         staged_content.moveTo(local_path)
+        if tmp is not None:
+            tmp.remove()
 
     def mark_conflict(self, remote_snapshot, staged_content):
         """
