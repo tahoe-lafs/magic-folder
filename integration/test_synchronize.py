@@ -261,7 +261,6 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
 
 
 @pytest_twisted.inlineCallbacks
-@pytest.mark.xfail(strict=True, reason="Demonstrating a bug in the implementation.")
 def test_ancestors(request, reactor, temp_dir, alice, bob):
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
@@ -308,29 +307,29 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
         timeout=25,
     )
 
-    # update the file (so now there's two versions)
+    # update the file in bob's folder
     content1 = "one\n" * 1000
     recover_folder.child("sylvester").setContent(content1)
     yield bob.add_snapshot("ancestor1", "sylvester")
 
-    # FIXME: We shouldn't see this show up as a conflict,
-    # since we are newer than alice
     await_file_contents(
-        recover_folder.child("sylvester.conflict-alice").path,
-        content0,
+        recover_folder.child("sylvester").path,
+        content1,
         timeout=25,
+        error_if=[
+            recover_folder.child("sylvester.conflict-alice").path,
+        ],
     )
 
+    # update the file in alice's folder
     content2 = "two\n" * 1000
     original_folder.child("sylvester").setContent(content2)
     yield alice.add_snapshot("ancestor0", "sylvester")
 
-    # FIXME: Since we made changes to the file, a
-    # change to alice shouldn't overwrite our changes
+    # Since we made local changes to the file, a change to alice
+    # shouldn't overwrite our changes
     await_file_contents(
         recover_folder.child("sylvester").path,
-        content2,
+        content1,
         timeout=25,
     )
-    # FIXME: we shouldn't still see the *ancestor0* content in the conflict file
-    assert recover_folder.child("sylvester.conflict-alice").getContent() == content0
