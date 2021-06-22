@@ -601,8 +601,8 @@ class DownloaderService(service.MultiService):
         d = self._scan_collective()
 
         def eb(failure):
-            # FIXME: This should report an error to status service
-            pass
+            # in some cases, might want to surface elsewhere
+            print(failure)
 
         d.addErrback(eb)
         return d
