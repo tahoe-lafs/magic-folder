@@ -12,6 +12,17 @@ from collections import deque
 from twisted.internet.task import (
     react,
 )
+from twisted.internet.defer import (
+    Deferred,
+)
+from twisted.internet.endpoints import (
+    clientFromString,
+)
+
+from autobahn.twisted.websocket import (
+    WebSocketClientProtocol,
+    WebSocketClientFactory,
+)
 
 from twisted.python.filepath import (
     FilePath,
@@ -168,6 +179,42 @@ def list_participants(options):
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
+class MonitorOptions(usage.Options):
+    pass
+
+
+class StatusProtocol(WebSocketClientProtocol):
+    """
+    Client-side protocol that receives status updates from
+    magic-folder
+    """
+
+    def onMessage(self, payload, is_binary):
+        print(payload, file=self.factory._output)
+
+
+def monitor(options):
+    """
+    Print out updates from the WebSocket status API
+    """
+
+    endpoint_str = options.parent.config.api_client_endpoint
+    websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+
+    from twisted.internet import reactor
+    endpoint = clientFromString(reactor, endpoint_str)
+    factory = WebSocketClientFactory(
+        websocket_uri,
+        headers={
+            "Authorization": "Bearer {}".format(options.parent.config.api_token),
+        }
+    )
+    factory._output = options.parent.stdout
+    factory.protocol = StatusProtocol
+    endpoint.connect(factory)
+    return Deferred()
+
+
 class MagicFolderApiCommand(usage.Options):
     """
     top-level command (entry-point is "magic-folder-api")
@@ -224,6 +271,7 @@ class MagicFolderApiCommand(usage.Options):
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
+        ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -324,6 +372,7 @@ def run_magic_folder_api_options(options):
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
+        "monitor": monitor,
     }[options.subCommand]
 
     # we want to let exceptions out to the top level if --debug is on
