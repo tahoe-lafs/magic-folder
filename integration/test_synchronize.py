@@ -17,6 +17,7 @@ from tempfile import (
 from twisted.python.filepath import (
     FilePath,
 )
+import pytest
 import pytest_twisted
 
 from magic_folder.util.capabilities import (
@@ -41,10 +42,9 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
     yield alice.restart_magic_folder()
     local_cfg = alice.global_config().get_magic_folder("local")
 
-    @pytest_twisted.inlineCallbacks
     def cleanup():
-        yield alice.leave("local")
-        yield alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.leave("local"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
     request.addfinalizer(cleanup)
 
     # put a file in our folder
@@ -140,10 +140,9 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("original")
-        yield alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.leave("original"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -160,10 +159,9 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     yield bob.add("recovery", recover_folder.path)
     yield bob.restart_magic_folder()
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("recovery")
-        yield bob.restart_magic_folder()
+        pytest_twisted.blockon(bob.leave("recovery"))
+        pytest_twisted.blockon(bob.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'original' magic-folder as a participant in the
@@ -206,10 +204,9 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("internal")
-        yield alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.leave("internal"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -221,10 +218,9 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     yield bob.add("rec", recover_folder.path)
     yield bob.restart_magic_folder()
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("rec")
-        yield bob.restart_magic_folder()
+        pytest_twisted.blockon(bob.leave("rec"))
+        pytest_twisted.blockon(bob.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'internal' magic-folder as a participant in the
@@ -273,10 +269,9 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("ancestor0")
-        yield alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.leave("ancestor0"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -288,10 +283,9 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     yield bob.add("ancestor1", recover_folder.path)
     yield bob.restart_magic_folder()
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("ancestor1")
-        yield bob.restart_magic_folder()
+        pytest_twisted.blockon(bob.leave("ancestor1"))
+        pytest_twisted.blockon(bob.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'ancestor0' magic-folder as a participant in the
@@ -350,10 +344,9 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_original():
-        yield alice.leave("original")
-        yield alice.restart_magic_folder()
+        pytest_twisted.blockon(alice.leave("original"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -369,10 +362,9 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     yield bob.restart_magic_folder()
     bob_folders = yield bob.list_(True)
 
-    @pytest_twisted.inlineCallbacks
     def cleanup_recovery():
-        yield bob.leave("recovery")
-        yield bob.restart_magic_folder()
+        pytest_twisted.blockon(bob.leave("recovery"))
+        pytest_twisted.blockon(bob.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'original' magic-folder as a participant in the
@@ -407,16 +399,15 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     yield edmond.add("recovery-2", recover2_folder.path)
     yield edmond.restart_magic_folder()
 
+    def cleanup_recovery():
+        pytest_twisted.blockon(edmond.leave("recovery-2"))
+        pytest_twisted.blockon(edmond.restart_magic_folder())
+    request.addfinalizer(cleanup_recovery)
+
     # add the 'recovery' magic-folder as a participant in the
     # 'recovery-2' folder
     bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
     yield edmond.add_participant("recovery-2", "bob", bob_cap)
-
-    @pytest_twisted.inlineCallbacks
-    def cleanup_recovery():
-        yield edmond.leave("recovery-2")
-        yield edmond.restart_magic_folder()
-    request.addfinalizer(cleanup_recovery)
 
     await_file_contents(
         recover2_folder.child("sylvester").path,
