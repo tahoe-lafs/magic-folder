@@ -53,8 +53,6 @@ workflows:
       # Other assorted tasks and configurations
       - "lint":
           <<: *DOCKERHUB_CONTEXT
-      - "deprecations":
-          <<: *DOCKERHUB_CONTEXT
       - "c-locale":
           <<: *DOCKERHUB_CONTEXT
       # Any locale other than C or UTF-8.
@@ -266,17 +264,6 @@ jobs:
       <<: *UTF_8_ENVIRONMENT
       # aka "Latin 1"
       LANG: "en_US.ISO-8859-1"
-
-
-  deprecations:
-    <<: *DEBIAN
-
-    environment:
-      <<: *UTF_8_ENVIRONMENT
-      # Select the deprecations tox environments.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "deprecations,upcoming-deprecations"
-      # Put the logs somewhere we can report them.
-      MAGIC_FOLDER_WARNINGS_LOG: "/tmp/artifacts/deprecation-warnings.log"
 
 
   integration: &INTEGRATION
