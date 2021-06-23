@@ -375,34 +375,23 @@ jobs:
     docker:
       # Run in a highly Nix-capable environment.
       - auth: *DOCKERHUB_AUTH
-        image: "nixorg/nix:circleci"
+        image: "nixos/nix:latest"
 
     environment:
+      # CACHIX_AUTH_TOKEN is manually set in the CircleCI web UI and allows us to push to CACHIX_NAME.
+      CACHIX_NAME: "privatestorage-magic-folder-ci"
+
       NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09-small.tar.gz"
 
     steps:
-      - "checkout"
+      - run:
+          name: "Set up Cachix"
+          command: |
+            nix-env -iA nixpkgs.cachix nixpkgs.bash
+            cachix use "${CACHIX_NAME}"
+            nix path-info --all > /tmp/store-path-pre-build
 
-      - restore_cache:
-          # Get all of Nix's state relating to the particular revision of
-          # nixpkgs we're using.  It will always be the same.  CircleCI
-          # artifacts and nixpkgs store objects are probably mostly hosted in
-          # the same place (S3) so there's not a lot of difference for
-          # anything that's pre-built.  For anything we end up building
-          # ourselves, though, this saves us all of the build time (less the
-          # download time).
-          #
-          # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
-          name: "Restore Nix Store Paths"
-          keys:
-            # Construct cache keys that allow sharing as long as nixpkgs
-            # revision is unchanged.
-            #
-            # If nixpkgs changes then potentially a lot of cached packages for
-            # the base system will be invalidated so we may as well drop them
-            # and make a new cache with the new packages.
-            - magic_folder-nix-store-v1-19.09-small
-            - magic_folder-nix-store-v1-
+      - "checkout"
 
       - "run":
           name: "Build and Test"
@@ -420,13 +409,14 @@ jobs:
             #
             # Keep failed build intermediates so we can upload logs for failed
             # runs as artifacts, too.
-            nix-build --keep-failed --cores 3 --max-jobs 2 nix/
+            nix-build --show-trace --keep-failed --cores 3 --max-jobs 2 nix/
 
       - "run":
           name: "Prepare logs for upload"
           # They need to be moved to the right place always, whether tests
           # passed or failed.
           when: "always"
+          shell: /usr/bin/env bash -eo pipefail
           command: |
             mkdir -p /tmp/artifacts/logs
 
@@ -445,11 +435,24 @@ jobs:
       - store_artifacts:
           path: "/tmp/artifacts/logs"
 
-      - save_cache:
-          name: "Cache Nix Store Paths"
-          key: magic_folder-nix-store-v1-19.09-small
-          paths:
-            - "/nix"
+      - run:
+          name: "Push to Cachix"
+          when: "always"
+          command: |
+            # Cribbed from
+            # https://circleci.com/blog/managing-secrets-when-you-have-pull-requests-from-outside-contributors/
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+              # I'm sure you're thinking "CIRCLE_PR_NUMBER must just be the
+              # number of the PR being built".  Sorry, dear reader, you have
+              # guessed poorly.  It is also conditionally set based on whether
+              # this is a PR from a fork or not.
+              #
+              # https://circleci.com/docs/2.0/env-vars/#built-in-environment-variables
+              echo "Skipping Cachix push for forked PR."
+            else
+              # https://docs.cachix.org/continuous-integration-setup/circleci.html
+              bash -c "comm -13 <(sort /tmp/store-path-pre-build | grep -v '\.drv$') <(nix path-info --all | grep -v '\.drv$' | sort) | cachix push $CACHIX_NAME"
+            fi
 
   build-image: &BUILD_IMAGE
     # This is a template for a job to build a Docker image that has as much of

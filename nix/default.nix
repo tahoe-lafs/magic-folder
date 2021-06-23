@@ -1,7 +1,11 @@
 # This is the main entrypoint for the magic-folder derivation.
 { pkgs ? import <nixpkgs> { } }:
 let
-  pkgs' = pkgs.extend (import ./overlays.nix);
+  tahoe-repo = (import ./tahoe-lafs-repo.nix);
+  pkgs' = pkgs.appendOverlays [
+    (import (tahoe-repo + "/nix/overlays.nix"))
+    (import ./overlays.nix)
+  ];
   callPackage = pkgs'.python27Packages.callPackage;
 in
   callPackage ./magic-folder.nix {

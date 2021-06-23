@@ -14,6 +14,8 @@ from __future__ import (
 from contextlib import contextmanager
 import unicodedata
 
+import attr
+
 
 class BadResponseCode(Exception):
     """
@@ -32,6 +34,43 @@ class BadMetadataResponse(Exception):
     An attempt to load some metadata about something received a response that
     cannot be interpreted as that metadata.
     """
+
+@attr.s(auto_exc=True, frozen=True)
+class APIError(Exception):
+    """
+    An error to be reported from the API.
+
+    :ivar reason unicode: The message to be returned as the ``reason`` key of
+       the error response.
+    :ivar code int: The HTTP status code to use for this error.
+    """
+
+    reason = attr.ib(validator=attr.validators.instance_of(unicode))
+    code = attr.ib(
+        default=None,
+        validator=attr.validators.optional(attr.validators.instance_of(int)),
+    )
+
+    @classmethod
+    def from_exception(cls, code, exception, prefix=None):
+        """
+        Return an exception with the given code, and reason from the given exception.
+
+        :param code int: The HTTP status code to use for this error.
+        :param exception Exception: The exception to get the error message from.
+        :param prefix unicode: A prefix to add to the error message.
+
+        :returns APIError: An error with the given error code and a message that is
+            ``"{prefix}: {exception message}"``.
+        """
+        if prefix is not None:
+            reason = u"{}: {}".format(prefix, exception)
+        else:
+            reason = u"{}".format(exception)
+        return cls(code=code, reason=reason)
+
+    def __str__(self):
+        return self.reason
 
 
 @contextmanager
