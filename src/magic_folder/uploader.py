@@ -51,8 +51,9 @@ from .status import (
 from .config import (
     MagicFolderConfig,
 )
-from . import (
-    magicpath,
+from .magicpath import (
+    magic2path,
+    path2magic,
 )
 
 
@@ -111,7 +112,7 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             relpath = u"/".join(path.segmentsFrom(self._magic_dir))
-            mangled_name = magicpath.path2magic(relpath)
+            mangled_name = path2magic(relpath)
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
             except KeyError:
@@ -275,11 +276,8 @@ class RemoteSnapshotCreator(object):
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
-        # update our status if we have nothing to do
-        if len(localsnapshot_names):
-            self._status.upload_started(self._config.name)
-        else:
-            self._status.upload_stopped(self._config.name)
+        for name in localsnapshot_names:
+            self._status.upload_queued(self._config.name, magic2path(name))
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
@@ -290,6 +288,7 @@ class RemoteSnapshotCreator(object):
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
+                    self._status.upload_started(self._config.name, magic2path(name))
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # XXX this existing comment is wrong; there are many
@@ -299,6 +298,9 @@ class RemoteSnapshotCreator(object):
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
                 print(Failure())
+            finally:
+                self._status.upload_finished(self._config.name, magic2path(name))
+
 
     @inline_callbacks
     def _upload_some_snapshots(self, name):
