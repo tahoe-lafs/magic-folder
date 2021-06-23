@@ -185,9 +185,12 @@ class MagicFolderEnabledNode(object):
 
     @inlineCallbacks
     def stop_magic_folder(self):
-        self.magic_folder.signalProcess('TERM')
+        if self.magic_folder is None:
+            return
         try:
+            self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
+            self.magic_folder = None
         except ProcessExitedAlready:
             pass
 
@@ -229,6 +232,24 @@ class MagicFolderEnabledNode(object):
                 "--author", author or self.name,
                 "--poll-interval", str(int(poll_interval)),
                 magic_directory,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def leave(self, folder_name):
+        """
+        magic-folder add
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "leave",
+                "--name", folder_name,
+                "--really-delete-write-capability",
             ],
         )
         yield proto.done
@@ -610,16 +631,15 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
     return d
 
 
-class UnwantedFilesException(Exception):
+class UnwantedFileException(Exception):
     """
     While waiting for some files to appear, some undesired files
     appeared instead (or in addition).
     """
-    def __init__(self, waiting, unwanted):
-        super(UnwantedFilesException, self).__init__(
-            u"While waiting for '{}', unwanted files appeared: {}".format(
-                waiting,
-                u', '.join(unwanted),
+    def __init__(self, unwanted):
+        super(UnwantedFileException, self).__init__(
+            u"Unwanted file appeared: {}".format(
+                unwanted,
             )
         )
 
@@ -657,7 +677,7 @@ class FileShouldVanishException(Exception):
         )
 
 
-def await_file_contents(path, contents, timeout=15, error_if=None):
+def await_file_contents(path, contents, timeout=15):
     """
     wait up to `timeout` seconds for the file at `path` (any path-like
     object) to have the exact content `contents`.
@@ -668,11 +688,6 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
         print("  waiting for '{}'".format(path))
-        if error_if and any([exists(p) for p in error_if]):
-            raise UnwantedFilesException(
-                waiting=path,
-                unwanted=[p for p in error_if if exists(p)],
-            )
         if exists(path):
             try:
                 with open(path, 'r') as f:
@@ -691,6 +706,14 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
+
+def ensure_file_not_created(path, timeout=15):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        print("  waiting for '{}'".format(path))
+        if exists(path):
+            raise UnwantedFileException(path)
+        time.sleep(1)
 
 
 def await_files_exist(paths, timeout=15, await_all=False):

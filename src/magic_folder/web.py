@@ -61,6 +61,7 @@ from allmydata.interfaces import (
 )
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
+from .common import APIError
 from .status import (
     StatusFactory,
     IStatus,
@@ -152,6 +153,14 @@ class BearerTokenAuthorization(Resource, object):
         # Don't let anything through that isn't authorized.
         return Unauthorized()
 
+def _load_json(body):
+    """
+    Load json from body, raising :py:`APIError` on failure.
+    """
+    try:
+        return json.loads(body)
+    except ValueError as e:
+        raise APIError.from_exception(http.BAD_REQUEST, e, prefix="Could not load JSON")
 
 @attr.s
 class APIv1(object):
@@ -167,6 +176,13 @@ class APIv1(object):
     _tahoe_client = attr.ib()
 
     app = Klein()
+
+    @app.handle_errors(APIError)
+    def handle_api_error(self, request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
+        _application_json(request)
+        return json.dumps({"reason": exc.reason})
 
     @app.handle_errors(RequestRedirect)
     def handle_redirect(self, request, failure):
@@ -264,41 +280,38 @@ class APIv1(object):
             returnValue(NoResource(b"{}"))
 
         body = request.content.read()
-        try:
-            participant = json.loads(body)
-            required_keys = {
-                "author",
-                "personal_dmd",
-            }
-            required_author_keys = {
-                "name",
-                # not yet
-                # "public_key_base32",
-            }
-            if set(participant.keys()) != required_keys:
-                raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
-            if set(participant["author"].keys()) != required_author_keys:
-                raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
+        participant = _load_json(body)
 
-            author = create_author(
-                participant["author"]["name"],
-                # we don't yet properly track keys but need one
-                # here .. this won't be correct, but we won't use
-                # it .. following code still only looks at the
-                # .name attribute
-                # see https://github.com/LeastAuthority/magic-folder/issues/331
-                VerifyKey(os.urandom(32)),
-            )
+        required_keys = {
+            "author",
+            "personal_dmd",
+        }
+        required_author_keys = {
+            "name",
+            # not yet
+            # "public_key_base32",
+        }
+        if set(participant.keys()) != required_keys:
+            raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
+        if set(participant["author"].keys()) != required_author_keys:
+            raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
 
-            dmd = tahoe_uri_from_string(participant["personal_dmd"])
-            if not IDirnodeURI.providedBy(dmd):
-                raise _InputError("personal_dmd must be a directory-capability")
-            if not dmd.is_readonly():
-                raise _InputError("personal_dmd must be read-only")
-            personal_dmd_cap = participant["personal_dmd"]
-        except _InputError as e:
-            request.setResponseCode(http.BAD_REQUEST)
-            returnValue(json.dumps({"reason": str(e)}))
+        author = create_author(
+            participant["author"]["name"],
+            # we don't yet properly track keys but need one
+            # here .. this won't be correct, but we won't use
+            # it .. following code still only looks at the
+            # .name attribute
+            # see https://github.com/LeastAuthority/magic-folder/issues/331
+            VerifyKey(os.urandom(32)),
+        )
+
+        dmd = tahoe_uri_from_string(participant["personal_dmd"])
+        if not IDirnodeURI.providedBy(dmd):
+            raise _InputError("personal_dmd must be a directory-capability")
+        if not dmd.is_readonly():
+            raise _InputError("personal_dmd must be read-only")
+        personal_dmd_cap = participant["personal_dmd"]
 
         collective = participants_from_collective(
             folder_config.collective_dircap,
@@ -396,11 +409,13 @@ class APIv1(object):
         })
 
 
-class _InputError(ValueError):
+class _InputError(APIError):
     """
     Local errors with our input validation to report back to HTTP
     clients.
     """
+    def __init__(self, reason):
+        super(_InputError, self).__init__(code=http.BAD_REQUEST, reason=reason)
 
 def _application_json(request):
     request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])

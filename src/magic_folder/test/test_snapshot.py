@@ -541,7 +541,7 @@ class TestRemoteSnapshot(SyncTestCase):
         )
 
         # turn the parent into a RemoteSnapshot
-        d = snapshots[2].fetch_parent(self.tahoe_client, 0)
+        d = create_snapshot_from_capability(snapshots[2].parents_raw[0], self.tahoe_client)
         d.addCallback(snapshots.append)
         self.assertThat(d, succeeded(Always()))
         self.assertThat(

@@ -25,7 +25,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.web.client import (
@@ -372,29 +371,8 @@ class RemoteSnapshot(object):
     capability = attr.ib()
     parents_raw = attr.ib()
     content_cap = attr.ib()
-    _parents_cache = attr.ib(default=attr.Factory(dict))
 
-    @inlineCallbacks
-    def fetch_parent(self, tahoe_client, parent_index):
-        """
-        Download the given parent, creating a RemoteSnapshot. These are
-        cached so only the first call will be slow.
-
-        :param tahoe_client: the client to use
-
-        :param parent_index: which parent to fetch
-
-        :returns: a RemoteSnapshot instance.
-        """
-        capability = self.parents_raw[parent_index]
-        try:
-            returnValue(self._parents_cache[capability])
-        except KeyError:
-            snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
-            self._parents_cache[capability] = snapshot
-            returnValue(snapshot)
-
-    @inlineCallbacks
+    @inline_callbacks
     def fetch_content(self, tahoe_client, writable_file):
         """
         Fetches our content from the grid, returning an IBodyProducer?
@@ -460,19 +438,19 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # find all parents
         parent_caps = metadata["parents"]
 
-        returnValue(
-            RemoteSnapshot(
-                name=name,
-                author=author,
-                metadata=metadata,
-                content_cap=content_cap,
-                parents_raw=parent_caps,
-                capability=snapshot_cap.decode("ascii"),
-            )
+    returnValue(
+        RemoteSnapshot(
+            name=name,
+            author=author,
+            metadata=metadata,
+            content_cap=content_cap,
+            parents_raw=parent_caps,
+            capability=snapshot_cap.decode("ascii"),
         )
+    )
 
 
-@inlineCallbacks
+@inline_callbacks
 def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
                     raw_remote_parents=None, modified_time=None):
     """
@@ -591,7 +569,7 @@ def format_filenode(cap, metadata=None):
 
 
 
-@inlineCallbacks
+@inline_callbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
     Writes a LocalSnapshot object to the given tahoe grid. Will also

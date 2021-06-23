@@ -59,7 +59,7 @@ from ..config import (
 )
 from ..downloader import (
     RemoteSnapshotCacheService,
-    MagicFolderUpdaterService,
+    MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
 )
 from ..magic_folder import (
@@ -136,8 +136,8 @@ class CacheTests(SyncTestCase):
         Trying to cache a non-existent capability produces an error
         """
         self.assertThat(
-            failed(self.cache.add_remote_capability(remote_cap)),
-            Always(),
+            self.cache.get_snapshot_from_capability(remote_cap),
+            failed(Always())
         )
 
     def test_cache_single(self):
@@ -199,7 +199,7 @@ class CacheTests(SyncTestCase):
         # we've set up some fake data; lets see if the cache service
         # will cache this successfully.
         self.assertThat(
-            self.cache.add_remote_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -280,7 +280,7 @@ class CacheTests(SyncTestCase):
 
         # cache the oldest parent first
         self.assertThat(
-            self.cache.add_remote_capability(genesis),
+            self.cache.get_snapshot_from_capability(genesis),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -294,14 +294,14 @@ class CacheTests(SyncTestCase):
         )
         # we should have a single snapshot cached
         self.assertThat(
-            len(self.cache.cached_snapshots),
+            len(self.cache._cached_snapshots),
             Equals(1),
         )
 
         # we've set up some fake data; lets see if the cache service
         # will cache this successfully.
         self.assertThat(
-            self.cache.add_remote_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -315,7 +315,7 @@ class CacheTests(SyncTestCase):
         )
         # we should have cached all the snapshots now
         self.assertThat(
-            len(self.cache.cached_snapshots),
+            len(self.cache._cached_snapshots),
             Equals(5),
         )
 
@@ -324,7 +324,7 @@ class CacheTests(SyncTestCase):
         # a Mock to absorb any calls it receives.
         self.cache.tahoe_client = Mock()
         self.assertThat(
-            self.cache.add_remote_capability(cap),
+            self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
                     name=Equals("foo"),
@@ -341,7 +341,7 @@ class CacheTests(SyncTestCase):
 
 class UpdateTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdaterService``
+    Tests for ``MagicFolderUpdater``
 
     Each test here starts with a shared setup and a single Magic
     Folder called "default":
@@ -626,7 +626,7 @@ class UpdateTests(AsyncTestCase):
 
 class ConflictTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdaterService``
+    Tests for ``MagicFolderUpdater``
     """
 
     def setUp(self):
@@ -658,7 +658,7 @@ class ConflictTests(AsyncTestCase):
             1,
         )
 
-        # note, we don't "run" this service, just populate .cached_snapshots
+        # note, we don't "run" this service, just populate ._cached_snapshots
         self.remote_cache = RemoteSnapshotCacheService(
             folder_config=self.alice_config,
             tahoe_client=None,
@@ -670,7 +670,7 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
-        self.updater = MagicFolderUpdaterService(
+        self.updater = MagicFolderUpdater(
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
@@ -679,11 +679,6 @@ class ConflictTests(AsyncTestCase):
                 StubTreq(StringStubbingResource(get_resource_for)),
             )
         )
-        self.updater.startService()
-
-    def tearDown(self):
-        super(ConflictTests, self).tearDown()
-        return self.updater.stopService()
 
     @inline_callbacks
     def test_update_with_local(self):
@@ -700,7 +695,7 @@ class ConflictTests(AsyncTestCase):
             parents_raw=[],
             content_cap=b"URI:CHK:",
         )
-        self.remote_cache.cached_snapshots[cap0] = remote0
+        self.remote_cache._cached_snapshots[cap0] = remote0
 
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
@@ -746,7 +741,7 @@ class ConflictTests(AsyncTestCase):
             content_cap=b"URI:CHK:",
         )
         parent_content = b"parent" * 1000
-        self.remote_cache.cached_snapshots[parent_cap] = parent
+        self.remote_cache._cached_snapshots[parent_cap] = parent
         self.alice_config.store_remotesnapshot("foo", parent)
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
@@ -758,7 +753,7 @@ class ConflictTests(AsyncTestCase):
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
         )
-        self.remote_cache.cached_snapshots[cap0] = remote0
+        self.remote_cache._cached_snapshots[cap0] = remote0
 
         # we've 'seen' this file before so we must have the path locally
         self.alice_magic_path.child("foo").setContent(parent_content)
@@ -796,7 +791,7 @@ class ConflictTests(AsyncTestCase):
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
             )
-            self.remote_cache.cached_snapshots[parent_cap] = parent
+            self.remote_cache._cached_snapshots[parent_cap] = parent
             remotes.append(parent)
 
         # set "our" parent to the oldest one
@@ -815,5 +810,103 @@ class ConflictTests(AsyncTestCase):
             Equals([
                 ("download", youngest),
                 ("overwrite", youngest),
+            ])
+        )
+
+    @inline_callbacks
+    def test_update_with_no_ancestor(self):
+        """
+        Give the updater a remote update with no ancestors
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
+        other = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=other_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[other_cap] = other
+
+        # so "alice" has "other" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_remotesnapshot("foo", other)
+
+        # ...child->parent aren't related to "other"
+        yield self.updater.add_remote_snapshot(child)
+
+        # so, no common ancestor: a conflict
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", child),
+                ("conflict", child),
+            ])
+        )
+
+    @inline_callbacks
+    def test_old_update(self):
+        """
+        An update that's older than our local one
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata=b"URI:CHK:",
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        # so "alice" has "child" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_remotesnapshot("foo", child)
+
+        # we update with the parent (so, it's old)
+        yield self.updater.add_remote_snapshot(parent)
+
+        # so we should do nothing
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("download", parent),
             ])
         )

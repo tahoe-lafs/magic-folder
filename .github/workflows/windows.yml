@@ -1,8 +1,10 @@
 name: Windows Testing
 
 on:
-  - "push"
-  - "pull_request"
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   unit-tests:
@@ -60,9 +62,9 @@ jobs:
         PIP_FIND_LINKS: ./wheelhouse
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v1"
-      if: "always()"
+      uses: "actions/upload-artifact@v2"
       with:
+        if-no-files-found: "warn"
         name: "eliot.log"
         path: "eliot.log"
 
