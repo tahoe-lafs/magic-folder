@@ -17,7 +17,6 @@ from tempfile import (
 from twisted.python.filepath import (
     FilePath,
 )
-import pytest
 import pytest_twisted
 
 from magic_folder.util.capabilities import (
