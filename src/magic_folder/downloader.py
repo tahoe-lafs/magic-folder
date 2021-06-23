@@ -119,19 +119,6 @@ class RemoteSnapshotCacheService(service.Service):
         """
         with start_action(action_type="cache-service:locate_snapshot",
                           capability=snapshot_cap) as t:
-            #FIXME: We are inconsitent here on whether we
-            # wait until we've downloaded all parents
-            # in returning from add_remote_capability
-            # - if we've not seen the snapshot, we will wait
-            # - however, if we've already cached the snapshot,
-            #   we'll immediately return it, even if we are still
-            #   processing all our parents.
-
-            # --> (but if we've already cached it, then we've
-            # already cached its parents too..)
-            # NOTE: that is only true *now*, when we don't short-circuit
-            # finding parents.
-
             try:
                 snapshot = self._cached_snapshots[snapshot_cap]
                 t.add_success_fields(cached=True)
@@ -191,8 +178,6 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
-        # This is here so that `_cached_snapshots` can remain an implementation detail,
-        # and to make the improvements below require less changes elsewhere.
         # TODO: We can make this more efficent in the future by tracking some extra data.
         # - for each snapshot in our remotesnapshotdb, we are going to check if something is
         #   an ancestor very often, so could cache that information (we'd probably want to
@@ -288,6 +273,8 @@ class MagicFolderUpdater(object):
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
         """
+        # the lock ensures we only run _process() one at a time per
+        # process
         with start_action(action_type="downloader:modify_filesystem"):
             yield self._process(snapshot)
 
@@ -301,19 +288,6 @@ class MagicFolderUpdater(object):
         note the new snapshot-cap in our database and then push it to
         Tahoe (i.e. to our Personal DMD)
         """
-
-        #FIXME we should consider a lock or something to ensure that we don't
-        # try to modify the same file twice. We can do that in-proccess if
-        # we also ensure that not other process is running.
-
-        # -> no other process can run on the same magic-folders config
-        # FIXME: As far as I can tell, nothing enforces this
-
-        # NOTE: This isn't *currently* a problem as this is only ever called one at a time.
-
-        # -> we only will run a single one of these per magic-folder,
-        #    this can only be called one at a time (that's why this
-        #    was a queue before removed in b0fb1159459b04ca490cccd961ad1092f98c63e5
 
         with start_action(action_type="downloader:updater:process",
                           name=snapshot.name,
