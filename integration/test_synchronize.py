@@ -174,7 +174,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
-        timeout=25,
+        timeout=15,
     )
 
     # in the (ideally rare) case that the old device is found *and* a
@@ -193,6 +193,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
 @pytest_twisted.inlineCallbacks
 def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
+    #FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -233,7 +234,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
-        timeout=25,
+        timeout=15,
     )
 
     yield bob.stop_magic_folder()
@@ -252,12 +253,13 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
-        timeout=25,
+        timeout=15,
     )
 
 
 @pytest_twisted.inlineCallbacks
 def test_ancestors(request, reactor, temp_dir, alice, bob):
+    # FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -298,7 +300,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
-        timeout=25,
+        timeout=15,
     )
 
     # update the file in bob's folder
@@ -309,11 +311,11 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
-        timeout=25,
+        timeout=15,
     )
     ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
-        timeout=25,
+        timeout=15,
     )
 
     # update the file in alice's folder
@@ -326,11 +328,13 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
-        timeout=25,
+        timeout=15,
     )
+
 
 @pytest_twisted.inlineCallbacks
 def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
+    #XXX FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -377,7 +381,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
-        timeout=25,
+        timeout=15,
     )
 
     # update the file (so now there's two versions)
@@ -389,7 +393,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     # alice
     ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
-        timeout=25,
+        timeout=15,
     )
 
     time.sleep(5)
@@ -412,5 +416,5 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     await_file_contents(
         recover2_folder.child("sylvester").path,
         content1,
-        timeout=25,
+        timeout=15,
     )
