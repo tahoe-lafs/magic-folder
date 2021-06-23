@@ -185,9 +185,12 @@ class MagicFolderEnabledNode(object):
 
     @inlineCallbacks
     def stop_magic_folder(self):
-        self.magic_folder.signalProcess('TERM')
+        if self.magic_folder is None:
+            return
         try:
+            self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
+            self.magic_folder = None
         except ProcessExitedAlready:
             pass
 
@@ -229,6 +232,24 @@ class MagicFolderEnabledNode(object):
                 "--author", author or self.name,
                 "--poll-interval", str(int(poll_interval)),
                 magic_directory,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def leave(self, folder_name):
+        """
+        magic-folder add
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "leave",
+                "--name", folder_name,
+                "--really-delete-write-capability",
             ],
         )
         yield proto.done
