@@ -123,6 +123,7 @@ class MagicFolder(service.MultiService):
                 name=name,
                 config=mf_config,
                 participants=initial_participants,
+                status=status_service,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(
                     LocalMagicFolderFilesystem(
@@ -132,6 +133,7 @@ class MagicFolder(service.MultiService):
                     mf_config,
                     remote_snapshot_cache_service,
                     tahoe_client,
+                    status_service,
                 ),
                 tahoe_client=tahoe_client,
             ),

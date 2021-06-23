@@ -41,6 +41,7 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     DeferredLock,
+    DeferredList,
     returnValue,
 )
 from twisted.web.error import (
@@ -56,6 +57,10 @@ from .magicpath import (
 from .snapshot import (
     create_snapshot_from_capability,
 )
+from .status import (
+    IStatus,
+)
+
 
 def _exclusively(f):
     @wraps(f)
@@ -265,6 +270,7 @@ class MagicFolderUpdater(object):
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
+    _status = attr.ib(validator=provides(IStatus))
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @_exclusively
@@ -294,12 +300,8 @@ class MagicFolderUpdater(object):
                           name=snapshot.name,
                           capability=snapshot.capability,
                           ) as action:
-            local_path = self._config.magic_path.preauthChild(magic2path(snapshot.name))
-            #FIXME: we should not download the file if we aren't going to use it
-            # particularly if we do so synchronously.
-            # For example, we will download the contents of out-of-date snapshots
-            # every scan
-            staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+            relpath = magic2path(snapshot.name)
+            local_path = self._config.magic_path.preauthChild(relpath)
 
             # see if we have existing local or remote snapshots for
             # this name already
@@ -360,6 +362,12 @@ class MagicFolderUpdater(object):
                 # XXX we don't handle deletes yet
                 assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
+
+            self._status.download_started(self._config.name, relpath)
+            try:
+                staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+            finally:
+                self._status.download_finished(self._config.name, relpath)
 
             # once here, we know if we have a conflict or not. if
             # there is nothing to do, we shold have returned
@@ -527,18 +535,20 @@ class DownloaderService(service.MultiService):
 
     _config = attr.ib()
     _participants = attr.ib()
+    _status = attr.ib()
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, name, config, participants, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """
         return cls(
             config,
             participants,
+            status,
             remote_snapshot_cache,
             folder_updater,
             tahoe_client,
@@ -568,6 +578,8 @@ class DownloaderService(service.MultiService):
     @inline_callbacks
     def _scan_collective(self):
         action = start_action(action_type="downloader:scan-collective")
+
+        pending_work = []
         with action:
             try:
                 people = yield self._participants.list()
@@ -592,15 +604,36 @@ class DownloaderService(service.MultiService):
                         abspath=fpath.path,
                         relpath=relpath,
                     )
-                    snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-                    # if this remote matches what we believe to be the
-                    # latest, there is nothing to do .. otherwise, we
-                    # have to figure out what to do
-                    try:
-                        our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
-                    except KeyError:
-                        our_snapshot_cap = None
-                    if snapshot.capability != our_snapshot_cap:
-                        if our_snapshot_cap is not None:
-                            yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                        yield self._folder_updater.add_remote_snapshot(snapshot)
+
+                    d = self._process_snapshot(snapshot_cap, relpath)
+                    pending_work.append(d)
+
+                    def error(f):
+                        # probably want to surface somewhere
+                        # (depending on what the error is)
+                        print(f)
+                    d.addErrback(error)
+        yield DeferredList(pending_work)
+
+    @inline_callbacks
+    def _process_snapshot(self, snapshot_cap, relpath):
+        """
+        Internal helper.
+
+        Does the work of caching and acting on a single remote
+        Snapshot.
+
+        :returns Deferred: fires with None upon completion
+        """
+        snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
+        # if this remote matches what we believe to be the
+        # latest, there is nothing to do .. otherwise, we
+        # have to figure out what to do
+        try:
+            our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+        except KeyError:
+            our_snapshot_cap = None
+        if snapshot.capability != our_snapshot_cap:
+            if our_snapshot_cap is not None:
+                yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+            yield self._folder_updater.add_remote_snapshot(snapshot)
