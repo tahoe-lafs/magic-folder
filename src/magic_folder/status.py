@@ -57,6 +57,22 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
+    def download_started(folder, relpath):
+        """
+        Started downloading a Snapshot + content from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def download_finished(folder, relpath):
+        """
+        Completed downloading and synchronizing a Snapshot from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
 
 class StatusProtocol(WebSocketServerProtocol):
     """
@@ -178,15 +194,20 @@ class WebSocketStatusService(service.Service):
             len(folder["uploads"])
             for folder in self._folders.values()
         )
+        download_activity = any(
+            len(folder["downloads"])
+            for folder in self._folders.values()
+        )
 
         def folder_data_for(name):
             return {
                 "uploads": self._folders.get(name, {}).get("uploads", {}),
+                "downloads": self._folders.get(name, {}).get("downloads", {}),
             }
 
         return json.dumps({
             "state": {
-                "synchronizing": upload_activity,
+                "synchronizing": upload_activity or download_activity,
                 "folders": {
                     name: folder_data_for(name)
                     for name in self._config.list_magic_folders()
@@ -236,4 +257,22 @@ class WebSocketStatusService(service.Service):
         IStatus API
         """
         del self._folders[folder]["uploads"][relpath]
+        self._maybe_update_clients()
+
+    def download_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        data = {
+            "name": relpath,
+            "started_at": self._clock.seconds(),
+        }
+        self._folders[folder]["downloads"][relpath] = data
+        self._maybe_update_clients()
+
+    def download_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["downloads"][relpath]
         self._maybe_update_clients()
