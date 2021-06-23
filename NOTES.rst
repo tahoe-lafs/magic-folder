@@ -7,6 +7,7 @@ short-term
 - Do we want to keep multiple local snapshots and publish all of them, or do we
   want to skip ones intermediate ones that we have not yet uploaded.
 
+  - keeping them is a feature (for "version control")
   - keeping them gives us better ability to preserve history,
   - skipping them means less storage used, which may reduce the impact of 
     https://whetstone.privatestorage.io/privatestorage/bizops/-/issues/170#note_13921
@@ -14,8 +15,7 @@ short-term
 - Do we need to ensure that we only ever have a single instance of the service
   running at the same time?
 
-  - Probably, I think some of our synchronization guarantees are tied to
-    blocking on the reactor thread, which we lose if we have multiple process.
+  - yes.
   - How do we detect if we are running?
 
 long-term
@@ -87,6 +87,7 @@ Personal DMD
   - should we enforce this by only providing read-only caps for use in recovery info
   - do we want to try and notice if it gets changed out from under us?
 
+    -> no.
     - we could do this by keeping track of the cap we are about to write, and
       the cap we have written last. The invariant would be that the cap in the
       DMD will always be one of those two. We can recover by writing either the
@@ -97,6 +98,9 @@ Personal DMD
       we can't detect where someone else has written to the DMD as we are about
       to write to it.
 
+    -> no, you can't have two clients writing to the same DMD. That's
+       why two instances can't ever have the same writecap.
+
 
 Service Components
 ==================
@@ -106,6 +110,8 @@ RemoteSnapshotCacheService
 - capability ->  ``RemoteSnapshot``  mapping cache
 - not currently persisted locally
 - downloads until we reach the *current* entry in the remotesnapshotdb of the name
+
+  -> this optimization was removed
 
   - note that as time passes, the snapshot we stop at will get newer, so we
     will not have all the parents of earlier cached snapshots, as we would have
