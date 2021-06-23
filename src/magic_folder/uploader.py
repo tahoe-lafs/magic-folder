@@ -28,6 +28,7 @@ from zope.interface import (
     implementer,
 )
 from eliot import (
+    Message,
     ActionType,
     MessageType,
     write_traceback,
@@ -310,7 +311,6 @@ class RemoteSnapshotCreator(object):
             self._local_author,
             self._tahoe_client,
         )
-        from eliot import Message
         Message.log(message_type="snapshot:metadata",
                     metadata=remote_snapshot.metadata,
                     name=remote_snapshot.name,
