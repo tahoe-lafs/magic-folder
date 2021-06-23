@@ -25,7 +25,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.web.client import (
@@ -35,6 +34,9 @@ from twisted.web.client import (
 from eliot import (
     start_action,
     register_exception_extractor,
+)
+from eliot.twisted import (
+    inline_callbacks,
 )
 
 from nacl.signing import (
@@ -199,13 +201,13 @@ def _snapshot_signature_string(name, content_capability, metadata_capability):
     return snapshot_string.encode("utf8")
 
 
-def sign_snapshot(local_author, snapshot, content_capability, metadata_capability):
+def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capability):
     """
     Signs the given snapshot with provided author
 
     :param LocalAuthor local_author: the author to sign the data with
 
-    :param LocalSnapshot snapshot: snapshot to sign
+    :param unicode snapshot_name: mangled snapshot name to sign
 
     :param bytes content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
@@ -219,7 +221,7 @@ def sign_snapshot(local_author, snapshot, content_capability, metadata_capabilit
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
-        snapshot.name,
+        snapshot_name,
         content_capability,
         metadata_capability,
     )
@@ -370,22 +372,7 @@ class RemoteSnapshot(object):
     parents_raw = attr.ib()
     content_cap = attr.ib()
 
-    @inlineCallbacks
-    def fetch_parent(self, tahoe_client, parent_index):
-        """
-        Download the given parent, creating a RemoteSnapshot.
-
-        :param tahoe_client: the client to use
-
-        :param parent_index: which parent to fetch
-
-        :returns: a RemoteSnapshot instance.
-        """
-        capability = self.parents_raw[parent_index]
-        snapshot = yield create_snapshot_from_capability(capability, tahoe_client)
-        returnValue(snapshot)
-
-    @inlineCallbacks
+    @inline_callbacks
     def fetch_content(self, tahoe_client, writable_file):
         """
         Fetches our content from the grid, returning an IBodyProducer?
@@ -393,7 +380,7 @@ class RemoteSnapshot(object):
         yield tahoe_client.stream_capability(self.content_cap, writable_file)
 
 
-@inlineCallbacks
+@inline_callbacks
 def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     """
     Create a RemoteSnapshot from a snapshot capability string
@@ -449,23 +436,23 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         verify_snapshot_signature(author, signature, content_cap, metadata_cap, name)
 
         # find all parents
-        parents = [k for k in snapshot.keys() if k.startswith('parent')]
-        parent_caps = [snapshot[parent][1]["ro_uri"] for parent in parents]
+        parent_caps = metadata["parents"]
 
-        returnValue(
-            RemoteSnapshot(
-                name=name,
-                author=author,
-                metadata=metadata,
-                content_cap=content_cap,
-                parents_raw=parent_caps,
-                capability=snapshot_cap.decode("ascii"),
-            )
+    returnValue(
+        RemoteSnapshot(
+            name=name,
+            author=author,
+            metadata=metadata,
+            content_cap=content_cap,
+            parents_raw=parent_caps,
+            capability=snapshot_cap.decode("ascii"),
         )
+    )
 
 
-@inlineCallbacks
-def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None):
+@inline_callbacks
+def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
+                    raw_remote_parents=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -503,7 +490,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
         elif isinstance(parent, RemoteSnapshot):
-            parents_remote.append(parent)
+            parents_remote.append(parent.capability)
         else:
             raise ValueError(
                 "Parent {} is type {} not LocalSnapshot or RemoteSnapshot".format(
@@ -511,6 +498,8 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                     type(parent),
                 )
             )
+    if raw_remote_parents:
+        parents_remote.extend(raw_remote_parents)
 
     chunk_size = 1024*1024  # 1 MiB
     chunks_per_yield = 100
@@ -577,7 +566,7 @@ def format_filenode(cap, metadata=None):
 
 
 
-@inlineCallbacks
+@inline_callbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
     Writes a LocalSnapshot object to the given tahoe grid. Will also
@@ -605,7 +594,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent.capability)
+            parents_raw.append(parent)#.capability)
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
@@ -639,7 +628,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
-    author_signature = sign_snapshot(author_key, snapshot, content_cap, metadata_cap)
+    author_signature = sign_snapshot(author_key, snapshot.name, content_cap, metadata_cap)
     author_signature_base64 = base64.b64encode(author_signature.signature)
 
     # create the actual snapshot: an immutable directory with

@@ -131,7 +131,14 @@ KNOWN_CAPABILITIES = [
     for t in dir(allmydata.uri)
     if hasattr(getattr(allmydata.uri, t), 'BASE_STRING')
 ]
-
+MUTABLE_CAPABILITIES = [
+    b'URI:DIR2:',
+    b'URI:DIR2-RO:',
+    b'URI:SSK:',
+    b'URI:SSK-RO:',
+    b'URI:MDMF:',
+    b'URI:MDMF-RO:',
+]
 
 def capability_generator(kind):
     """
@@ -261,9 +268,11 @@ class _FakeTahoeUriHandler(Resource, object):
         if not isinstance(data, bytes):
             raise TypeError("'data' must be bytes")
 
-        for k in self.data:
-            if self.data[k] == data:
-                return (False, k)
+        # for immutables we need to check content
+        if kind not in MUTABLE_CAPABILITIES:
+            for k in self.data:
+                if self.data[k] == data:
+                    return (False, k)
 
         return (True, self._add_new_data(kind, data))
 

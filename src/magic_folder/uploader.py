@@ -9,6 +9,9 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.failure import (
+    Failure,
+)
 from twisted.application import (
     service,
 )
@@ -25,6 +28,7 @@ from zope.interface import (
     implementer,
 )
 from eliot import (
+    Message,
     ActionType,
     MessageType,
     write_traceback,
@@ -92,6 +96,7 @@ class LocalSnapshotCreator(object):
     _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
+    _tahoe_client = attr.ib()
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -114,8 +119,17 @@ class LocalSnapshotCreator(object):
             else:
                 parents = [parent_snapshot]
 
-            # need to handle remote-parents when we have remote
-            # snapshots
+            # if we already have a parent here, it's a LocalSnapshot
+            # .. which means that any remote snapshot by definition
+            # must be "not our parent" (it should be the parent .. or
+            # grandparent etc .. of our localsnapshot)
+            raw_remote = []
+            if not parents:
+                try:
+                    parent_remote = self._db.get_remotesnapshot(mangled_name)
+                    raw_remote = [parent_remote]
+                except KeyError:
+                    pass
 
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
@@ -128,6 +142,7 @@ class LocalSnapshotCreator(object):
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
                     parents=parents,
+                    raw_remote_parents=raw_remote,
                 )
 
                 # store the local snapshot to the disk
@@ -170,7 +185,7 @@ class LocalSnapshotService(service.Service):
             except CancelledError:
                 break
             except Exception:
-                # XXX Probably should fire d here, someone might be waiting.
+                d.errback()
                 write_traceback()
 
     def stopService(self):
@@ -268,19 +283,21 @@ class RemoteSnapshotCreator(object):
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
-        # the new snapshot gets lost. Perhaps this can be solved by storing each
-        # LocalSnapshot in its own row than storing everything in a blob?
-        # https://github.com/LeastAuthority/magic-folder/issues/197
+        # the new snapshot gets lost.
+
         for name in localsnapshot_names:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
                     yield self._upload_some_snapshots(name)
             except Exception:
+                # XXX this existing comment is wrong; there are many
+                # reasons we could receive an Exception here not just
+                # "Tahoe is gone" ...
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
-                pass
+                print(Failure())
 
     @inline_callbacks
     def _upload_some_snapshots(self, name):
@@ -289,17 +306,36 @@ class RemoteSnapshotCreator(object):
         """
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(name)
-
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,
             self._tahoe_client,
         )
+        Message.log(message_type="snapshot:metadata",
+                    metadata=remote_snapshot.metadata,
+                    name=remote_snapshot.name,
+                    capability=remote_snapshot.capability)
+
+        # if we crash here, we'll retry and re-upload (hopefully
+        # de-duplication works for the content at laest) the
+        # Snapshot but no consequences
 
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
         yield self._config.store_remotesnapshot(name, remote_snapshot)
+
+        # if we crash here, there's an inconsistency between our
+        # remote and local state: we believe the version is X but
+        # other participants see X<-ancestor-Y (that is, version Y
+        # that has X as an ancestor) .. we will re-try the whole
+        # operation and get back here. The Downloader may be confused
+        # but it should find "X" the common ancestor even if another
+        # version X<--Y<--Z is published (and hence properly see it as
+        # an overwrite). If we create a new LocalSnapshot while
+        # inconsistent we will note the parent as X when it was really
+        # the _content_ from parent Y .. we'll still I think correctly
+        # detect the conflict but any diff migh be weird.
 
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
@@ -309,8 +345,20 @@ class RemoteSnapshotCreator(object):
             replace=True,
         )
 
-        # Remove the local snapshot content from the stash area.
-        snapshot.content_path.asBytesMode("utf-8").remove()
+        # if removing the stashed content fails here, we MUST move on
+        # to delete the LocalSnapshot because we may not be able to
+        # re-create the Snapshot (maybe the content is "partially
+        # deleted"?
+        try:
+            # Remove the local snapshot content from the stash area.
+            snapshot.content_path.asBytesMode("utf-8").remove()
+        except Exception as e:
+            print(
+                "Failed to remove cache: '{}': {}".format(
+                    snapshot.content_path.asTextMode("utf-8").path,
+                    str(e),
+                )
+            )
 
         # Remove the LocalSnapshot from the db.
         yield self._config.delete_localsnapshot(name)
@@ -357,7 +405,6 @@ class UploaderService(service.Service):
         )
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
-
 
     def stopService(self):
         """

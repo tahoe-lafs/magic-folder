@@ -20,6 +20,7 @@ from twisted.python.filepath import (
 )
 from twisted.application.service import (
     Service,
+    MultiService,
 )
 from twisted.internet import task
 from hypothesis import (
@@ -97,6 +98,8 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
             status_service=WebSocketStatusService(),
+            remote_snapshot_cache=Service(),
+            downloader=MultiService(),
             initial_participants=participants,
             clock=reactor,
         )
@@ -136,6 +139,8 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
             status_service=WebSocketStatusService(),
+            remote_snapshot_cache=Service(),
+            downloader=MultiService(),
             initial_participants=participants,
             clock=clock,
         )
@@ -181,6 +186,8 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_service=local_snapshot_service,
             uploader_service=uploader_service,
             status_service=WebSocketStatusService(),
+            remote_snapshot_cache=Service(),
+            downloader=MultiService(),
             initial_participants=participants,
             clock=clock,
         )

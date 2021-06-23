@@ -22,6 +22,9 @@ from appdirs import (
 from twisted.internet.task import (
     react,
 )
+from twisted.internet.protocol import (
+    Factory,
+)
 from twisted.logger import (
     globalLogBeginner,
     FileLogObserver,
@@ -501,6 +504,11 @@ def run(options):
 
     # being logging to stdout
     def event_to_string(event):
+        # "t.i.protocol.Factory" produces a bunch of 'starting' and
+        # 'stopping' messages that are quite noisy in the logs (and
+        # don't provide useful information); skip them.
+        if isinstance(event.get("log_source", None), Factory):
+            return
         # docstring seems to indicate eventAsText() includes a
         # newline, but it .. doesn't
         return u"{}\n".format(

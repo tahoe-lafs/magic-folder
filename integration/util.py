@@ -7,6 +7,7 @@ from __future__ import (
 import sys
 import time
 import json
+import signal
 from os import mkdir
 from io import BytesIO
 from os.path import exists, join
@@ -30,6 +31,9 @@ from twisted.internet.protocol import (
 from twisted.internet.error import (
     ProcessExitedAlready,
     ProcessDone,
+)
+from twisted.python.filepath import (
+    FilePath,
 )
 
 import treq
@@ -55,6 +59,9 @@ import pytest_twisted
 from magic_folder.cli import (
     MagicFolderCommand,
     run_magic_folder_options,
+)
+from magic_folder.config import (
+    load_global_configuration,
 )
 
 
@@ -85,6 +92,9 @@ class MagicFolderEnabledNode(object):
     @property
     def magic_config_directory(self):
         return join(self.temp_dir, "magic-daemon-{}".format(self.name))
+
+    def global_config(self):
+        return load_global_configuration(FilePath(self.magic_config_directory))
 
     @property
     def magic_directory(self):
@@ -175,9 +185,12 @@ class MagicFolderEnabledNode(object):
 
     @inlineCallbacks
     def stop_magic_folder(self):
-        self.magic_folder.signalProcess('TERM')
+        if self.magic_folder is None:
+            return
         try:
+            self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
+            self.magic_folder = None
         except ProcessExitedAlready:
             pass
 
@@ -195,6 +208,145 @@ class MagicFolderEnabledNode(object):
                 self.temp_dir,
                 self.name,
             )
+
+    def pause_tahoe(self):
+        self.tahoe.transport.signalProcess(signal.SIGSTOP)
+
+    def resume_tahoe(self):
+        self.tahoe.transport.signalProcess(signal.SIGCONT)
+
+    # magic-folder CLI API helpers
+
+    @inlineCallbacks
+    def add(self, folder_name, magic_directory, author=None, poll_interval=5):
+        """
+        magic-folder add
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add",
+                "--name", folder_name,
+                "--author", author or self.name,
+                "--poll-interval", str(int(poll_interval)),
+                magic_directory,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def leave(self, folder_name):
+        """
+        magic-folder add
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "leave",
+                "--name", folder_name,
+                "--really-delete-write-capability",
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def show_config(self):
+        """
+        magic-folder show-config
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "show-config",
+            ],
+        )
+        output = yield proto.done
+        config = json.loads(output)
+        returnValue(config)
+
+    @inlineCallbacks
+    def list_(self, include_secret_information=None):
+        """
+        magic-folder list
+        """
+        proto = _CollectOutputProtocol()
+        args = [
+            "--config", self.magic_config_directory,
+            "list",
+            "--json",
+        ]
+        if include_secret_information:
+            args.append("--include-secret-information")
+
+        _magic_folder_runner(
+            proto, self.reactor, self.request,
+            args,
+        )
+        output = yield proto.done
+        config = json.loads(output)
+        returnValue(config)
+
+    @inlineCallbacks
+    def add_snapshot(self, folder_name, relpath):
+        """
+        magic-folder-api add-snapshot
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add-snapshot",
+                "--folder", folder_name,
+                "--file", relpath,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def add_participant(self, folder_name, author_name, personal_dmd):
+        """
+        magic-folder-api add-participant
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "add-participant",
+                "--folder", folder_name,
+                "--author", author_name,
+                "--personal-dmd", personal_dmd,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
+
+    @inlineCallbacks
+    def dump_state(self, folder_name):
+        """
+        magic-folder-api dump-state
+        """
+        proto = _CollectOutputProtocol()
+        _magic_folder_api_runner(
+            proto, self.reactor, self.request,
+            [
+                "--config", self.magic_config_directory,
+                "dump-state",
+                "--folder", folder_name,
+            ],
+        )
+        yield proto.done
+        returnValue(proto.output.getvalue())
 
 
 class _ProcessExitedProtocol(ProcessProtocol):
@@ -321,6 +473,22 @@ def _magic_folder_runner(proto, reactor, request, other_args):
         prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
     else:
         prelude = [sys.executable, "-m", "magic_folder"]
+
+    return reactor.spawnProcess(
+        proto,
+        sys.executable,
+        prelude + other_args,
+    )
+
+
+def _magic_folder_api_runner(proto, reactor, request, other_args):
+    """
+    Launch a ``magic-folder-api`` child process and return it.
+    """
+    if request.config.getoption('coverage'):
+        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder.api_cli"]
+    else:
+        prelude = [sys.executable, "-m", "magic_folder.api_cli"]
 
     return reactor.spawnProcess(
         proto,
@@ -463,16 +631,15 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
     return d
 
 
-class UnwantedFilesException(Exception):
+class UnwantedFileException(Exception):
     """
     While waiting for some files to appear, some undesired files
     appeared instead (or in addition).
     """
-    def __init__(self, waiting, unwanted):
-        super(UnwantedFilesException, self).__init__(
-            u"While waiting for '{}', unwanted files appeared: {}".format(
-                waiting,
-                u', '.join(unwanted),
+    def __init__(self, unwanted):
+        super(UnwantedFileException, self).__init__(
+            u"Unwanted file appeared: {}".format(
+                unwanted,
             )
         )
 
@@ -510,7 +677,7 @@ class FileShouldVanishException(Exception):
         )
 
 
-def await_file_contents(path, contents, timeout=15, error_if=None):
+def await_file_contents(path, contents, timeout=15):
     """
     wait up to `timeout` seconds for the file at `path` (any path-like
     object) to have the exact content `contents`.
@@ -521,11 +688,6 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
     start_time = time.time()
     while time.time() - start_time < timeout:
         print("  waiting for '{}'".format(path))
-        if error_if and any([exists(p) for p in error_if]):
-            raise UnwantedFilesException(
-                waiting=path,
-                unwanted=[p for p in error_if if exists(p)],
-            )
         if exists(path):
             try:
                 with open(path, 'r') as f:
@@ -536,12 +698,22 @@ def await_file_contents(path, contents, timeout=15, error_if=None):
                 if current == contents:
                     return True
                 print("  file contents still mismatched")
-                print("  wanted: {}".format(contents.replace('\n', ' ')))
-                print("     got: {}".format(current.replace('\n', ' ')))
+                # annoying if we dump huge files to console
+                if len(contents) < 80:
+                    print("  wanted: {}".format(contents.replace('\n', ' ')))
+                    print("     got: {}".format(current.replace('\n', ' ')))
         time.sleep(1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
+
+def ensure_file_not_created(path, timeout=15):
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        print("  waiting for '{}'".format(path))
+        if exists(path):
+            raise UnwantedFileException(path)
+        time.sleep(1)
 
 
 def await_files_exist(paths, timeout=15, await_all=False):

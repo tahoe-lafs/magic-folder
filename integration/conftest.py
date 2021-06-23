@@ -6,11 +6,15 @@ from __future__ import (
 
 import sys
 import shutil
+import subprocess
+from pathlib2 import Path
 from time import sleep
 from os import mkdir, listdir, environ
 from os.path import join, exists
 from tempfile import mkdtemp, mktemp
 from functools import partial
+
+from configparser import ConfigParser
 
 from foolscap.furl import (
     decode_furl,
@@ -55,9 +59,9 @@ def pytest_addoption(parser):
         help="Collect coverage statistics",
     )
     parser.addoption(
-        "--tahoe-requirements", dest="tahoe_requirements",
-        help="A 'requirements.txt' file to install Tahoe with",
-        default="requirements/tahoe-integration-1.15.txt",
+        "--tahoe-tox-env", dest="tahoe_tox_env",
+        help="A tox env to run tahoe from.",
+        default="tahoe1_15",
     )
 
 @pytest.fixture(autouse=True, scope='session')
@@ -117,33 +121,33 @@ def temp_dir(request):
 @pytest.fixture(
     scope='session',
 )
-def tahoe_venv(request, reactor, tmp_path_factory):
+def tahoe_venv(request, reactor):
     """
     A virtualenv for our Tahoe install, letting us install a different
     one from the Tahoe we depend on.
     """
-    venv_dir = tmp_path_factory.mktemp("venv")
-    #venv_dir = join(temp_dir, "tahoe_venv")
-    print("creating venv", venv_dir, sys.executable)
+    tahoe_env = request.config.getoption("tahoe_tox_env")
+    print("creating venv")
     out_protocol = _DumpOutputProtocol(None)
     reactor.spawnProcess(
         out_protocol,
         sys.executable,
-        ("python", "-m", "virtualenv", str(venv_dir)),
+        ("python", "-m", "tox", "--notest", "-e", tahoe_env),
         env=environ,
     )
     pytest_twisted.blockon(out_protocol.done)
-    tahoe_python = venv_dir.joinpath("bin", "python")
 
-    out_protocol = _DumpOutputProtocol(None)
-    reactor.spawnProcess(
-        out_protocol,
-        str(tahoe_python),
-        (str(tahoe_python), "-m", "pip", "install", "-r", request.config.getoption("tahoe_requirements")),
+    output = subprocess.check_output(
+        [sys.executable, "-m", "tox", "-e", request.config.getoption("tahoe_tox_env"), "--showconfig"],
         env=environ,
     )
-    pytest_twisted.blockon(out_protocol.done)
-    return venv_dir
+
+    parser = ConfigParser(strict=False)
+    parser.read_string(output.decode("utf-8"))
+
+    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
+
+    return Path(venv_dir)
 
 
 @pytest.fixture(scope='session')

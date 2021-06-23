@@ -271,6 +271,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             author=self.author,
             stash_dir=self.db.stash_path,
             magic_dir=self.db.magic_path,
+            tahoe_client=None,
         )
 
     @given(lists(path_segments(), unique=True),
