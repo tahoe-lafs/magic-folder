@@ -36,7 +36,6 @@ def _is_newer_than_current(folder_config, name, local_mtime):
         localsnap = folder_config.get_local_snapshot(name)
         existing_mtime = localsnap.metadata["mtime"]
     except KeyError:
-        localsnap = None
         existing_mtime = None
 
     # if we have no LocalSnapshot(s) proceed to see if we have a
