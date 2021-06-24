@@ -12,9 +12,6 @@ from eliot.twisted import inline_callbacks
 from testtools import (
     ExpectedException,
 )
-from testtools.content import (
-    text_content,
-)
 from testtools.twistedsupport import (
     succeeded,
 )
@@ -218,21 +215,6 @@ class ListMagicFolder(AsyncTestCase):
                 }),
             ),
         )
-
-
-def addOutcomeDetails(testcase, outcome):
-    testcase.addDetail(
-        u"stdout",
-        text_content(outcome.stdout),
-    )
-    testcase.addDetail(
-        u"stderr",
-        text_content(outcome.stderr),
-    )
-    testcase.addDetail(
-        u"code",
-        text_content(unicode(outcome.code)),
-    )
 
 
 class CreateMagicFolder(AsyncTestCase):
