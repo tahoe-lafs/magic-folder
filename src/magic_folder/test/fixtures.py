@@ -46,6 +46,7 @@ from twisted.python.filepath import (
 )
 from twisted.internet.task import (
     deferLater,
+    Clock,
 )
 from twisted.internet.defer import (
     Deferred,
@@ -89,6 +90,7 @@ from ..status import (
 from ..config import (
     SQLite3DatabaseLocation,
     MagicFolderConfig,
+    create_testing_configuration,
 )
 
 class INTRODUCER(object):
@@ -404,10 +406,14 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.poll_interval,
         )
 
+        self._global_config = create_testing_configuration(
+            self.temp.child(b"config"),
+            self.temp.child(b"tahoe-node"),
+        )
         self.remote_snapshot_creator = RemoteSnapshotCreator(
             config=self.config,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
-            status=WebSocketStatusService(),
+            status=WebSocketStatusService(Clock(), self._global_config),
         )

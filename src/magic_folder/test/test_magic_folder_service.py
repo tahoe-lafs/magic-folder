@@ -97,7 +97,7 @@ class MagicFolderServiceTests(SyncTestCase):
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
-            status_service=WebSocketStatusService(),
+            status_service=WebSocketStatusService(reactor, None),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,
@@ -125,8 +125,8 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.asBytesMode("utf-8").setContent(content)
 
         local_snapshot_creator = MemorySnapshotCreator()
-        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService())
         clock = object()
+        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService(clock, object()))
 
         tahoe_client = object()
         name = u"local-snapshot-service-test"
@@ -138,7 +138,7 @@ class MagicFolderServiceTests(SyncTestCase):
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
-            status_service=WebSocketStatusService(),
+            status_service=WebSocketStatusService(None, None),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,
@@ -169,7 +169,7 @@ class MagicFolderServiceTests(SyncTestCase):
         magic_path.asBytesMode("utf-8").makedirs()
 
         local_snapshot_creator = MemorySnapshotCreator()
-        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService())
+        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService(None, None))
         clock = task.Clock()
 
         # create RemoteSnapshotCreator and UploaderService
@@ -185,7 +185,7 @@ class MagicFolderServiceTests(SyncTestCase):
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=uploader_service,
-            status_service=WebSocketStatusService(),
+            status_service=WebSocketStatusService(None, None),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,
@@ -281,7 +281,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             tahoe_client,
             name,
             global_config,
-            WebSocketStatusService(),
+            WebSocketStatusService(reactor, global_config),
         )
 
         magic_folder.startService()

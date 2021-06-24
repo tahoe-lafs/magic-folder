@@ -135,7 +135,7 @@ class ListMagicFolder(AsyncTestCase):
             # for these tests, we never contact Tahoe so we can get
             # away with an "empty" Tahoe WebUI
             create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
-            WebSocketStatusService(),
+            WebSocketStatusService(reactor, self.config),
         )
 
     @inline_callbacks
