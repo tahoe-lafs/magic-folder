@@ -65,7 +65,7 @@ from .strategies import (
     local_snapshots,
     folder_names
 )
-from ..common import InvalidMagicFolderName
+from ..common import InvalidMagicFolderName, APIError
 from ..config import (
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -273,7 +273,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
         )
-        with ExpectedException(ValueError, "Already have a magic-folder named 'foo'"):
+        with ExpectedException(APIError, "Already have a magic-folder named 'foo'"):
             config.create_magic_folder(
                 u"foo",
                 magic,
@@ -325,7 +325,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         alice = create_local_author(u"alice")
         magic = self.temp.child("magic")
-        with ExpectedException(ValueError, ".*{}.*".format(escape(magic.path))):
+        with ExpectedException(APIError, ".*{}.*".format(escape(magic.path))):
             config.create_magic_folder(
                 u"foo",
                 magic,
@@ -343,7 +343,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         state = config._get_state_path(name)
         magic.makedirs()
         state.makedirs()  # shouldn't pre-exist, though
-        with ExpectedException(ValueError, ".*{}.*".format(escape(state.path))):
+        with ExpectedException(APIError, ".*{}.*".format(escape(state.path))):
             config.create_magic_folder(
                 name,
                 state,

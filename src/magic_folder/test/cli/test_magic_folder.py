@@ -32,7 +32,6 @@ from treq.testing import (
     StubTreq,
 )
 
-from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.python import usage
 from twisted.python.filepath import (
@@ -78,12 +77,12 @@ from ..common import (
     SyncTestCase,
 )
 from ..fixtures import (
-    SelfConnectedClient,
     NodeDirectory,
 )
 from .common import (
     cli,
 )
+from ...testing.web import create_tahoe_treq_client, create_fake_tahoe_root
 
 
 class ListMagicFolder(AsyncTestCase):
@@ -220,33 +219,44 @@ class ListMagicFolder(AsyncTestCase):
 class CreateMagicFolder(AsyncTestCase):
 
     def cli(self, argv):
-        return cli(argv, self.config)
+        return cli(argv, self.config, self.http_client)
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def setUp(self):
         """
         Create a Tahoe-LAFS node which can contain some magic folder configuration
         and run it.
         """
         yield super(CreateMagicFolder, self).setUp()
-        self.client_fixture = SelfConnectedClient(reactor)
-        yield self.client_fixture.use_on(self)
 
-        self.tempdir = self.client_fixture.tempdir
+        self.magic_folders = {}
+
+        class GlobalService(object):
+            def get_folder_service(s, name):
+                return self.magic_folders[name]
+
+        self.root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(self.root),
+        )
+
         self.config_dir = FilePath(self.mktemp())
         self.config = create_testing_configuration(
             self.config_dir,
-            self.client_fixture.node_directory,
+            FilePath(u"/non-tahoe-directory"),
         )
+        global_service = GlobalService()
+        self.http_client = create_testing_http_client(reactor, self.config, global_service, lambda: self.config.api_token, tahoe_client, WebSocketStatusService())
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_add_magic_folder(self):
         """
         Create a new magic folder with a nickname and local directory so
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -262,7 +272,7 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_create_duplicate_name(self):
         """
         Create a magic folder and if that succeeds, then create another
@@ -270,7 +280,7 @@ class CreateMagicFolder(AsyncTestCase):
         error.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -305,13 +315,13 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_create_invalid_name(self):
         """
         `magic-folder add` reports invalid folder names.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -333,14 +343,14 @@ class CreateMagicFolder(AsyncTestCase):
         )
 
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_add_leave_folder(self):
         """
         Create a magic folder and then leave the folder and check
         whether it was successful.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -370,7 +380,7 @@ class CreateMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_leave_wrong_folder(self):
         """
         Create a magic folder with a specified name and then invoke
@@ -378,7 +388,7 @@ class CreateMagicFolder(AsyncTestCase):
         result in a failure.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -411,14 +421,14 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_leave_no_folder(self):
         """
         Create a magic folder and then leave the folder. Leaving it again
         should result in an error.
         """
         # Get a magic folder.
-        magic_folder = self.tempdir.child(u"magic-folder")
+        magic_folder = FilePath(self.mktemp())
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -464,7 +474,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.stderr
         )
 
-    @defer.inlineCallbacks
+    @inline_callbacks
     def test_leave_no_folders_at_all(self):
         """
         Leave a non-existant magic folder. This should result in
