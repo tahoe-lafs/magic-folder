@@ -911,6 +911,5 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", parent),
             ])
         )
