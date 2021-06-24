@@ -708,19 +708,8 @@ class CreateSnapshotTests(SyncTestCase):
             # our request to receive a response.
             start_folder_services=True,
         )
-        self.assertThat(
-            authorized_request(
-                treq,
-                AUTH_TOKEN,
-                b"POST",
-                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
-            ),
-            succeeded(
-                matches_response(
-                    code_matcher=Equals(CREATED),
-                ),
-            ),
-        )
+        # because we are starting services, the scanner will run and
+        # discover 'some_file', creating a snapshot
 
         self.assertThat(
             authorized_request(

@@ -37,6 +37,7 @@ from hypothesis.strategies import (
     integers,
     fixed_dictionaries,
     dictionaries,
+    integers,
 )
 
 from twisted.python.filepath import (
@@ -406,7 +407,9 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         RemoteSnapshot,
         name=names,
         author=authors,
-        metadata=dictionaries(text(), text()),
+        metadata=fixed_dictionaries({
+            "modification_time": integers(min_value=0, max_value=2**32),
+        }),
         capability=tahoe_lafs_immutable_dir_capabilities(),
         parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
         content_cap=tahoe_lafs_chk_capabilities(),

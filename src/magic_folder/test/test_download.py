@@ -690,7 +690,7 @@ class ConflictTests(AsyncTestCase):
         remote0 = RemoteSnapshot(
             name="foo",
             author=self.carol,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -735,7 +735,7 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -748,7 +748,7 @@ class ConflictTests(AsyncTestCase):
         remote0 = RemoteSnapshot(
             name="foo",
             author=self.carol,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -786,7 +786,7 @@ class ConflictTests(AsyncTestCase):
             parent = RemoteSnapshot(
                 name="foo",
                 author=self.alice,
-                metadata=b"URI:CHK:",
+                metadata={"modification_time": 0},
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
@@ -823,7 +823,7 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -834,7 +834,7 @@ class ConflictTests(AsyncTestCase):
         child = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -845,7 +845,7 @@ class ConflictTests(AsyncTestCase):
         other = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=other_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -878,7 +878,7 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -889,7 +889,7 @@ class ConflictTests(AsyncTestCase):
         child = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",

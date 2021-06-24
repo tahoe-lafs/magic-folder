@@ -131,6 +131,7 @@ class MagicFolder(service.MultiService):
                 reactor,
                 mf_config,
                 local_snapshot_service,
+                status_service,
             ),
             initial_participants=initial_participants,
             clock=reactor,

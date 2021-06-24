@@ -25,6 +25,9 @@ from twisted.application.internet import (
 from twisted.application.service import (
     IService,
 )
+from eliot import (
+    start_action,
+)
 
 from .magicpath import (
     path2magic,
