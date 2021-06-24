@@ -102,14 +102,14 @@ class ListMagicFolder(AsyncTestCase):
         """
         yield super(ListMagicFolder, self).setUp()
 
-        # for these tests, we never contact Tahoe so we can get
+        # for these tests we never contact Tahoe so we can get
         # away with an "empty" Tahoe WebUI
         tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             FilePath(u"/no/tahoe/node-directory"),
         )
-        status_service = WebSocketStatusService()
+        status_service = WebSocketStatusService(reactor, self.config)
         global_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )

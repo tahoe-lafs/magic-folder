@@ -418,7 +418,7 @@ class UpdateTests(AsyncTestCase):
             DecodedURL.from_text("http://invalid./"),
             self.http_client,
         )
-        self.status_service = WebSocketStatusService()
+        self.status_service = WebSocketStatusService(reactor, self._global_config)
         self.service = MagicFolder.from_config(
             reactor,
             self.tahoe_client,
@@ -697,7 +697,8 @@ class ConflictTests(AsyncTestCase):
             tahoe_client=create_tahoe_client(
                 DecodedURL.from_text(u"http://invalid./"),
                 StubTreq(StringStubbingResource(get_resource_for)),
-            )
+            ),
+            status=WebSocketStatusService(reactor, self._global_config),
         )
 
     @inline_callbacks
