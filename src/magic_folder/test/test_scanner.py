@@ -166,9 +166,9 @@ class FindUpdatesTests(AsyncTestCase):
             Equals([])
         )
 
-    def test_scan_something(self):
+    def test_scan_something_remote(self):
         """
-        We can a file for an update to a file we already know about.
+        We scan an update to a file we already know about.
         """
         local = self.magic_path.child("existing-file")
         local.setContent(b"dummy\n")
@@ -184,6 +184,35 @@ class FindUpdatesTests(AsyncTestCase):
             content_cap="URI:CHK:",
         )
         self.config.store_remotesnapshot("existing-file", snap)
+
+        files = []
+        self.assertThat(
+            find_updated_files(reactor, self.config, files.append),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            files,
+            Equals([local])
+        )
+
+    @inlineCallbacks
+    def test_scan_something_local(self):
+        """
+        We scan an update to a file we already know about (but only locally).
+        """
+        local = self.magic_path.child("existing-file")
+        local.setContent(b"dummy\n")
+        stash_dir = FilePath(self.mktemp())
+        stash_dir.makedirs()
+
+        snap = yield create_snapshot(
+            "existing-file",
+            self.author,
+            local.open("r"),
+            stash_dir,
+            modified_time=local.getModificationTime() - 120,
+        )
+        self.config.store_local_snapshot(snap)
 
         files = []
         self.assertThat(
