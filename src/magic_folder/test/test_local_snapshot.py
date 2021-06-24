@@ -20,7 +20,10 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from twisted.internet import defer
+from twisted.internet import (
+    defer,
+    reactor,
+)
 
 from testtools.matchers import (
     Equals,
@@ -52,6 +55,7 @@ from ..magicpath import (
 )
 from ..config import (
     create_global_configuration,
+    create_testing_configuration,
 )
 from ..status import (
     WebSocketStatusService,
@@ -92,13 +96,19 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
+        self._node_dir = FilePath(self.mktemp())
+        self._node_dir.makedirs()
+        self._global_config = create_testing_configuration(
+            FilePath(self.mktemp()),
+            self._node_dir,
+        )
         self.magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         self.magic_path.asBytesMode("utf-8").makedirs()
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
             magic_path=self.magic_path,
             snapshot_creator=self.snapshot_creator,
-            status=WebSocketStatusService(),
+            status=WebSocketStatusService(reactor, self._global_config),
         )
 
 

@@ -30,6 +30,9 @@ from hyperlink import (
     DecodedURL,
 )
 
+from twisted.internet.task import (
+    Clock,
+)
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
@@ -47,6 +50,7 @@ from ..status import (
 from ..config import (
     SQLite3DatabaseLocation,
     MagicFolderConfig,
+    create_testing_configuration,
 )
 
 @attr.s
@@ -173,10 +177,14 @@ class RemoteSnapshotCreatorFixture(Fixture):
             0,
         )
 
+        self._global_config = create_testing_configuration(
+            self.temp.child(b"config"),
+            self.temp.child(b"tahoe-node"),
+        )
         self.remote_snapshot_creator = RemoteSnapshotCreator(
             config=self.config,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
-            status=WebSocketStatusService(),
+            status=WebSocketStatusService(Clock(), self._global_config),
         )
