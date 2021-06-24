@@ -9,6 +9,7 @@ from __future__ import (
     unicode_literals,
 )
 
+import os
 from collections import deque
 from functools import wraps
 
@@ -446,8 +447,13 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
         tmp = None
         if local_path.exists():
-            tmp = local_path.temporarySibling(b".snap")
+            # Note that the scanner won't discover this brief temp-file
+            # because Twisted only runs one thing at a time (and we don't
+            # yield between creation and deletion)
+            tmp = local_path.temporarySibling(b".snaptmp")
             local_path.moveTo(tmp)
+        mtime = remote_snapshot.metadata["modification_time"]
+        os.utime(staged_content.path, (mtime, mtime))
         staged_content.moveTo(local_path)
         if tmp is not None:
             tmp.remove()
