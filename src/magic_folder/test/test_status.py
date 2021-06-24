@@ -11,6 +11,12 @@ from testtools.matchers import (
     Equals,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
+from twisted.internet.task import (
+    Clock,
+)
 from autobahn.twisted.testing import (
     create_memory_agent,
     MemoryReactorClockResolver,
@@ -28,6 +34,9 @@ from ..status import (
     StatusFactory,
     WebSocketStatusService,
 )
+from ..config import (
+    create_testing_configuration,
+)
 
 
 class StatusServiceTests(SyncTestCase):
@@ -37,7 +46,19 @@ class StatusServiceTests(SyncTestCase):
 
     def setUp(self):
         super(StatusServiceTests, self).setUp()
-        self.service = WebSocketStatusService()
+        self.clock = Clock()
+        self.basedir = FilePath(self.mktemp())
+        self.tahoe_node_dir = FilePath(self.mktemp())
+        self.tahoe_node_dir.makedirs()
+
+        self.global_config = create_testing_configuration(
+            self.basedir,
+            self.tahoe_node_dir,
+        )
+        self.service = WebSocketStatusService(
+            self.clock,
+            self.global_config,
+        )
 
     def test_single_client(self):
         """
@@ -50,22 +71,26 @@ class StatusServiceTests(SyncTestCase):
                 messages.append(json.loads(payload))
 
         self.service.client_connected(ClientProtocol())
-        self.service.upload_started("foo")
-        self.service.upload_stopped("foo")
+        self.service.upload_queued("foo", "foo")
+        self.service.upload_started("foo", "foo")
+        self.service.upload_finished("foo", "foo")
 
         self.assertThat(
             messages,
             Equals([{
                 "state": {
                     "synchronizing": False,
+                    "folders": {},
                 }
             }, {
                 "state": {
                     "synchronizing": True,
+                    "folders": {},
                 }
             }, {
                 "state": {
                     "synchronizing": False,
+                    "folders": {},
                 }
             }])
         )
@@ -80,7 +105,8 @@ class StatusServiceTests(SyncTestCase):
             def sendMessage(self, payload):
                 messages.append(json.loads(payload))
 
-        self.service.upload_started("foo")
+        self.service.upload_queued("foo", "foo")
+        self.service.upload_started("foo", "foo")
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the proper state
@@ -91,6 +117,7 @@ class StatusServiceTests(SyncTestCase):
             Equals([{
                 "state": {
                     "synchronizing": True,
+                    "folders": {},
                 }
             }])
         )
@@ -113,12 +140,13 @@ class StatusServiceTests(SyncTestCase):
             Equals([{
                 "state": {
                     "synchronizing": False,
+                    "folders": {},
                 }
             }])
         )
 
         # change our state
-        self.service.upload_started("foo")
+        self.service.upload_queued("foo", "foo")
 
         # re-connect the client; it should get the (latest) state as
         # well as the initial state it got on the first connect
@@ -128,10 +156,12 @@ class StatusServiceTests(SyncTestCase):
             Equals([{
                 "state": {
                     "synchronizing": False,
+                    "folders": {},
                 }
             }, {
                 "state": {
                     "synchronizing": True,
+                    "folders": {},
                 }
             }])
         )
@@ -147,7 +177,17 @@ class WebSocketTests(AsyncTestCase):
         super(WebSocketTests, self).setUp()
         self.reactor = MemoryReactorClockResolver()
         self.pumper = create_pumper()
-        self.service = WebSocketStatusService()
+        self.tahoe_node_dir = FilePath(self.mktemp())
+        self.tahoe_node_dir.makedirs()
+        self.global_config = create_testing_configuration(
+            FilePath(self.mktemp()),
+            self.tahoe_node_dir,
+        )
+
+        self.service = WebSocketStatusService(
+            self.reactor,
+            self.global_config,
+        )
         self.factory = StatusFactory(self.service)
         self.agent = create_memory_agent(
             self.reactor,
@@ -180,13 +220,14 @@ class WebSocketTests(AsyncTestCase):
                 {
                     "state": {
                         "synchronizing": False,
+                        "folders": {},
                     }
                 }
             ])
         )
 
         # if we change the state, we should receive an update
-        self.service.upload_started("foo")
+        self.service.upload_queued("foo", "foo")
         self.pumper._flush()
         self.assertThat(
             messages,
@@ -194,11 +235,13 @@ class WebSocketTests(AsyncTestCase):
                 {
                     "state": {
                         "synchronizing": False,
+                        "folders": {},
                     }
                 },
                 {
                     "state": {
                         "synchronizing": True,
+                        "folders": {},
                     }
                 }
             ])
