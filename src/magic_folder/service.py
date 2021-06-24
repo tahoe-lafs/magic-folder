@@ -1,12 +1,7 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from configparser import ConfigParser
 
@@ -17,11 +12,15 @@ from twisted.application.service import MultiService
 from twisted.internet.defer import Deferred, gatherResults, returnValue
 from twisted.internet.endpoints import serverFromString
 from twisted.internet.task import deferLater
+from twisted.web import http
 from twisted.web.client import Agent
 
+from .common import APIError
 from .magic_folder import MagicFolder
+from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
+from .util.capabilities import tahoe_uri_from_string
 from .web import magic_folder_web_service
 
 
@@ -57,6 +56,7 @@ class MagicFolderService(MultiService):
 
     :ivar GlobalConfigDatabase config: our system configuration
     """
+
     reactor = attr.ib()
     config = attr.ib()
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
@@ -86,22 +86,22 @@ class MagicFolderService(MultiService):
         # We can create the services for all configured folders right now.
         # They won't do anything until they are started which won't happen
         # until this service is started.
-        self._create_magic_folder_services()
-
-    def _create_magic_folder_services(self):
-        """
-        Create all of the child magic folder services and attach them to this
-        service.
-        """
         for name in self.config.list_magic_folders():
-            mf = MagicFolder.from_config(
-                self.reactor,
-                self.tahoe_client,
-                name,
-                self.config,
-                self.status_service,
-            )
-            mf.setServiceParent(self)
+            self._add_service_for_folder(name)
+
+    def _add_service_for_folder(self, name):
+        """
+        Create and attach the child service for the given magic folder.
+        """
+        mf = MagicFolder.from_config(
+            self.reactor,
+            self.tahoe_client,
+            name,
+            self.config,
+            self.status_service,
+        )
+        mf.setServiceParent(self)
+        return mf
 
     def _iter_magic_folder_services(self):
         """
@@ -156,7 +156,7 @@ class MagicFolderService(MultiService):
             except Exception:
                 returnValue((False, "Failed to get welcome page"))
 
-            servers = welcome_body[u"servers"]
+            servers = welcome_body["servers"]
             connected_servers = [
                 server
                 for server in servers
@@ -172,6 +172,7 @@ class MagicFolderService(MultiService):
             if len(connected_servers) < threshold:
                 returnValue((False, message))
             returnValue((True, message))
+
         return poll("connected enough", enough, self.reactor)
 
     def run(self):
@@ -195,3 +196,58 @@ class MagicFolderService(MultiService):
         self._starting.cancel()
         MultiService.stopService(self)
         return self._starting
+
+    @inline_callbacks
+    def create_folder(self, name, author_name, local_dir, poll_interval):
+        """
+        Create a magic-folder with the specified ``name`` and
+        ``local_dir``.
+
+        :param unicode name: The name of the magic-folder.
+
+        :param unicode author_name: The name for our author
+
+        :param FilePath local_dir: The directory on the filesystem that the user wants
+            to sync between different computers.
+
+        :param integer poll_interval: Periodic time interval after which the
+            client polls for updates.
+
+        :return Deferred: ``None`` or an appropriate exception is raised.
+        """
+        if name in self.config.list_magic_folders():
+            raise APIError(
+                code=http.CONFLICT,
+                reason="Already have a magic-folder named '{}'".format(name),
+            )
+
+        # create our author
+        author = create_local_author(author_name)
+
+        # create an unlinked directory and get the collective write-cap
+        collective_write_cap = yield self.tahoe_client.create_mutable_directory()
+
+        # create the personal dmd write-cap
+        personal_write_cap = yield self.tahoe_client.create_mutable_directory()
+
+        # 'attenuate' our personal dmd write-cap to a read-cap
+        personal_readonly_cap = tahoe_uri_from_string(personal_write_cap).get_readonly().to_string().encode("ascii")
+
+        # add ourselves to the collective
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap=collective_write_cap,
+            path_name=author_name,
+            entry_cap=personal_readonly_cap,
+        )
+
+        self.config.create_magic_folder(
+            name,
+            local_dir,
+            author,
+            collective_write_cap,
+            personal_write_cap,
+            poll_interval,
+        )
+
+        mf = self._add_service_for_folder(name)
+        yield mf.ready()

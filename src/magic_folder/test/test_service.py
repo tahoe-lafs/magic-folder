@@ -19,6 +19,7 @@ from hyperlink import (
     DecodedURL,
 )
 
+from twisted.internet.task import Clock
 from twisted.python.filepath import (
     FilePath,
 )
@@ -30,12 +31,11 @@ from magic_folder.testing.web import (
     create_tahoe_treq_client,
 )
 
-from ..create import (
-    magic_folder_create,
-)
 from ..config import (
     create_global_configuration,
 )
+from ..service import MagicFolderService
+from ..status import WebSocketStatusService
 from .fixtures import (
     NodeDirectory,
 )
@@ -72,15 +72,16 @@ class TestAdd(SyncTestCase):
             self.node.path,
             u"tcp:localhost:5555",
         )
+        self.service = MagicFolderService(
+            Clock(), self.config, WebSocketStatusService(), self.tahoe_client,
+        )
 
     def test_add_folder(self):
-        d = magic_folder_create(
-            self.config,
+        d = self.service.create_folder(
             u"test",
             u"alice",
             self.magic_dir,
             60,
-            self.tahoe_client,
         )
         self.assertThat(d, succeeded(Always()))
 

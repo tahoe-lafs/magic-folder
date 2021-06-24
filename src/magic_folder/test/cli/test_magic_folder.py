@@ -59,6 +59,7 @@ from ...status import (
 from ...endpoints import (
     CannotConvertEndpointError,
 )
+from ...service import MagicFolderService
 from ...snapshot import (
     create_local_author,
 )
@@ -101,37 +102,24 @@ class ListMagicFolder(AsyncTestCase):
         """
         yield super(ListMagicFolder, self).setUp()
 
-        # the Web APIs need a reference to a "global_service" .. which
-        # is service.MagicFolderService (a MultiService in fact). It
-        # doesn't declare an interface, but only uses
-        # "get_folder_service(folder_name)" .. so we'll duck-type it
-        # instead
-
-        # inside create_testing_configuration, the GlobalService is
-        # hooked up to an in-process HTTP API root which is
-        # interrogated for information. So, we want to control which
-        # magic-folders it sees
-
-        self.magic_folders = {}
-
-        class GlobalService(object):
-            def get_folder_service(s, name):
-                return self.magic_folders[name]
-
-        self.service = GlobalService()
+        # for these tests, we never contact Tahoe so we can get
+        # away with an "empty" Tahoe WebUI
+        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             FilePath(u"/no/tahoe/node-directory"),
         )
+        status_service = WebSocketStatusService()
+        global_service = MagicFolderService(
+            reactor, self.config, status_service, tahoe_client,
+        )
         self.http_client = create_testing_http_client(
             reactor,
             self.config,
-            self.service,
+            global_service,
             lambda: self.config.api_token,
-            # for these tests, we never contact Tahoe so we can get
-            # away with an "empty" Tahoe WebUI
-            create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
-            WebSocketStatusService(),
+            tahoe_client,
+            status_service,
         )
 
     @inline_callbacks
@@ -229,12 +217,6 @@ class CreateMagicFolder(AsyncTestCase):
         """
         yield super(CreateMagicFolder, self).setUp()
 
-        self.magic_folders = {}
-
-        class GlobalService(object):
-            def get_folder_service(s, name):
-                return self.magic_folders[name]
-
         self.root = create_fake_tahoe_root()
         tahoe_client = create_tahoe_client(
             DecodedURL.from_text(u"http://invalid./"),
@@ -246,8 +228,18 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
         )
-        global_service = GlobalService()
-        self.http_client = create_testing_http_client(reactor, self.config, global_service, lambda: self.config.api_token, tahoe_client, WebSocketStatusService())
+        status_service = WebSocketStatusService()
+        global_service = MagicFolderService(
+            reactor, self.config, status_service, tahoe_client,
+        )
+        self.http_client = create_testing_http_client(
+            reactor,
+            self.config,
+            global_service,
+            lambda: self.config.api_token,
+            tahoe_client,
+            status_service,
+        )
 
     @inline_callbacks
     def test_add_magic_folder(self):

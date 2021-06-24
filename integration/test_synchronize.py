@@ -38,7 +38,6 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
 
     # add our magic-folder and re-start
     yield alice.add("local", magic.path)
-    yield alice.restart_magic_folder()
     local_cfg = alice.global_config().get_magic_folder("local")
 
     def cleanup():
@@ -136,7 +135,6 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
     # add our magic-folder and re-start
     yield alice.add("original", original_folder.path)
-    yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     def cleanup_original():
@@ -156,7 +154,6 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
-    yield bob.restart_magic_folder()
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("recovery"))
@@ -200,7 +197,6 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
 
     # add our magic-folder and re-start
     yield alice.add("internal", original_folder.path)
-    yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     def cleanup_original():
@@ -215,7 +211,6 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
 
     # create the 'rec' magic-folder
     yield bob.add("rec", recover_folder.path)
-    yield bob.restart_magic_folder()
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("rec"))
@@ -265,7 +260,6 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
 
     # add our magic-folder and re-start
     yield alice.add("ancestor0", original_folder.path)
-    yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     def cleanup_original():
@@ -280,7 +274,6 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
 
     # create the 'ancestor1' magic-folder
     yield bob.add("ancestor1", recover_folder.path)
-    yield bob.restart_magic_folder()
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("ancestor1"))
@@ -340,7 +333,6 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
 
     # add our magic-folder and re-start
     yield alice.add("original", original_folder.path)
-    yield alice.restart_magic_folder()
     alice_folders = yield alice.list_(True)
 
     def cleanup_original():
@@ -358,7 +350,6 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
-    yield bob.restart_magic_folder()
     bob_folders = yield bob.list_(True)
 
     def cleanup_recovery():
@@ -396,11 +387,9 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
 
     # create the second 'recovery' magic-folder
     yield edmond.add("recovery-2", recover2_folder.path)
-    yield edmond.restart_magic_folder()
 
     def cleanup_recovery():
         pytest_twisted.blockon(edmond.leave("recovery-2"))
-        pytest_twisted.blockon(edmond.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'recovery' magic-folder as a participant in the
