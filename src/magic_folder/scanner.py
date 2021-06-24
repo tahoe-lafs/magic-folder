@@ -71,6 +71,7 @@ class ScannerService(TimerService):
         d = self._local_snapshot_service.add_file(path)
 
         def bad(f):
+            # might want to expose some errors to users / status
             print(f)
         d.addErrback(bad)
 
@@ -81,6 +82,7 @@ def _is_newer_than_current(folder_config, name, local_mtime):
     `name`. If there is no existing Snapshot for the name then True is
     returned.
 
+    :param folder_config: our configuration
     :param unicode name: the mangled name of the Snapshot
     :param int local_mtime: timestamp of the current local file, in seconds.
     """
@@ -140,13 +142,3 @@ def find_updated_files(reactor, folder_config, on_new_file, _yield_interval=0.10
             last_yield = reactor.seconds()
     duration = reactor.seconds() - started
     returnValue(duration)
-
-
-if __name__ == "__main__":
-    from magic_folder.config import load_global_configuration
-    cfg = load_global_configuration(FilePath("./carol"))
-
-    @react
-    @inlineCallbacks
-    def main(reactor):
-        yield find_updated_files(reactor, cfg.get_magic_folder("default"), lambda _: None)
