@@ -5,6 +5,9 @@ from __future__ import (
 )
 
 import attr
+from zope.interface import (
+    implementer,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -16,10 +19,60 @@ from twisted.internet.task import (
     deferLater,
     react,
 )
+from twisted.application.internet import (
+    TimerService,
+)
+from twisted.application.service import (
+    IService,
+)
 
 from .magicpath import (
     path2magic,
 )
+
+
+@attr.s
+@implementer(IService)
+class ScannerService(TimerService):
+    """
+    Periodically scan a local Magic Folder for new or updated files
+    """
+    _reactor = attr.ib()
+    _config = attr.ib()
+    _local_snapshot_service = attr.ib()
+    _status = attr.ib()
+
+    def __attrs_post_init__(self):
+        # XXX do we want a "scan interval" too?
+        TimerService.__init__(
+            self,
+            self._config.poll_interval,
+            self._scan,
+        )
+
+    @inlineCallbacks
+    def _scan(self):
+        """
+        Perform a scan for new files.
+        """
+        # XXX probably want a lock ("or something") so we don't do
+        # overlapping scans (i.e. if a scan takes longer than the
+        # poll_interval we should not start a second one)
+        with start_action(action_type="scanner:find-updates") as action:
+            duration = yield find_updated_files(self._reactor, self._config, self._modified_file)
+            action.add_success_fields(scan_duration=duration)
+        # XXX update/use IStatus to report scan start/end
+
+    def _modified_file(self, path):
+        """
+        Internal helper.
+        Called when we find a new or modified file.
+        """
+        d = self._local_snapshot_service.add_file(path)
+
+        def bad(f):
+            print(f)
+        d.addErrback(bad)
 
 
 def _is_newer_than_current(folder_config, name, local_mtime):
@@ -60,9 +113,9 @@ def find_updated_files(reactor, folder_config, on_new_file, _yield_interval=0.10
     :param MagicFolderConfig folder_config: the folder for which we
         are scanning
 
-    :param callable on_new_file: a 1-argument callable taking a single
-        FilePath instance. This function will be invoked for each updated
-        / new file we find.
+    :param callable on_new_file: a 1-argument callable. This function
+        will be invoked for each updated / new file we find. The
+        argument will be a FilePath of the updated/new file.
 
     :param float _yield_interval: how often to return control to the
         reactor in seconds
@@ -71,7 +124,6 @@ def find_updated_files(reactor, folder_config, on_new_file, _yield_interval=0.10
     """
 
     started = last_yield = reactor.seconds()
-    yield_interval = 0.100  # back to reactor every 100ms
 
     # XXX we don't handle deletes
 
@@ -83,7 +135,7 @@ def find_updated_files(reactor, folder_config, on_new_file, _yield_interval=0.10
         if _is_newer_than_current(folder_config, name, int(path.getModificationTime())):
             on_new_file(path)
 
-        if reactor.seconds() - last_yield > yield_interval:
+        if reactor.seconds() - last_yield > _yield_interval:
             yield deferLater(reactor, 0.0, lambda: None)
             last_yield = reactor.seconds()
     duration = reactor.seconds() - started
