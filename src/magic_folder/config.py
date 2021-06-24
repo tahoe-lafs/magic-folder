@@ -216,9 +216,10 @@ _magicfolder_config_schema = Schema([
         )
         """,
 
-        # 'timestamp' here comes from the (tahoe) metadata['mtime'] of
-        # the 'content' pointer of the RemoteSnapshot .. in turn, this
-        # came from the LocalSnapshot which was the mtime of the file
+        # 'timestamp' here comes from the Snapshot metadata's
+        # "modification_time" which in turn originally came from the
+        # LocalSnapshot -- which was the mtime of the file. We compare
+        # these when scanning for new files.
     ]),
 ])
 
