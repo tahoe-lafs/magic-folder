@@ -98,17 +98,6 @@ def run_command(main):
 
     match = make_matcher(config)
 
-    def ignore_deprecation(line):
-        """
-        Sometimes we want to ignore a deprecation warning.
-
-        - the Eliot "inline_callbacks" wrapper causes confusion with
-          the Twisted "inlineCallbacks" checks, so we ignore those.
-        """
-        if "returnValue should only be invoked by functions decorated with inlineCallbacks" in line:
-            return True
-        return False
-
     # maintain ordering, but ignore duplicates (for some reason, either the
     # 'warnings' module or twisted.python.deprecate isn't quashing them)
     already = set()
@@ -121,12 +110,12 @@ def run_command(main):
 
     pp.stdout.seek(0)
     for line in pp.stdout.readlines():
-        if match(line) and not ignore_deprecation(line):
+        if match(line):
             add(line) # includes newline
 
     pp.stderr.seek(0)
     for line in pp.stderr.readlines():
-        if match(line) and not ignore_deprecation(line):
+        if match(line):
             add(line)
 
     if warnings:
