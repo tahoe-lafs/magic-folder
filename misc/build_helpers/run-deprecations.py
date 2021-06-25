@@ -24,7 +24,7 @@ class Options(usage.Options):
         self["args"] = list(args)
 
     description = """Run as:
-PYTHONWARNINGS=default::DeprecationWarning python run-deprecations.py [--warnings=STDERRFILE] [--package=PYTHONPACKAGE ] COMMAND ARGS..
+python run-deprecations.py [--warnings=STDERRFILE] [--package=PYTHONPACKAGE ] COMMAND ARGS..
 """
 
 class RunPP(protocol.ProcessProtocol):
@@ -83,17 +83,14 @@ def run_command(main):
                              (command, os.environ.get("PATH")))
         exe = executables[0]
 
-    pw = os.environ.get("PYTHONWARNINGS")
-    DDW = "default::DeprecationWarning"
-    if pw != DDW:
-        print("note: $PYTHONWARNINGS is '%s', not the expected %s" % (pw, DDW))
-        sys.stdout.flush()
+    env = os.environ.copy()
+    env["PYTHONWARNINGS"] = "default::DeprecationWarning"
 
     pp = RunPP()
     pp.d = defer.Deferred()
     pp.stdout = io.BytesIO()
     pp.stderr = io.BytesIO()
-    reactor.spawnProcess(pp, exe, [exe] + config["args"], env=None)
+    reactor.spawnProcess(pp, exe, [exe] + config["args"], env=env)
     (signal, rc) = yield pp.d
 
     match = make_matcher(config)
