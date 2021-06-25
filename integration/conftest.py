@@ -66,7 +66,7 @@ def pytest_addoption(parser):
 
 @pytest.fixture(autouse=True, scope='session')
 def eliot_logging():
-    with open("integration.eliot.json", "w") as f:
+    with open("eliot.log", "w") as f:
         to_file(f)
         yield
 
