@@ -2,6 +2,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 from io import (
@@ -76,6 +77,7 @@ from ..config import (
 from ..snapshot import (
     create_local_author,
     create_snapshot,
+    RemoteSnapshot,
 )
 
 
@@ -606,4 +608,55 @@ class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
         self.assertThat(
             snapshots[1].capability,
             Equals(loaded),
+        )
+
+
+class RemoteSnapshotTimeTests(SyncTestCase):
+    """
+    Test RemoteSnapshot timestamps
+    """
+    def setUp(self):
+        super(RemoteSnapshotTimeTests, self).setUp()
+        self.author = create_local_author(u"alice")
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+            0,
+        )
+
+    def test_limit(self):
+        """
+        Add 35 RemoteSnapshots and ensure we only get 30 back from
+        'recent' list.
+        """
+        for x in range(35):
+            name = "foo_{}".format(x)
+            remote = RemoteSnapshot(
+                name,
+                self.author,
+                {"modification_time": x},
+                "URI:DIR2-CHK:",
+                [],
+                "URI:DIR2-CHK:",
+            )
+            self.db.store_remotesnapshot(name, remote)
+
+        self.assertThat(
+            self.db.get_recent_remotesnapshot_paths(20),
+            Equals([
+                ("foo_{}".format(x), x)
+                for x in range(34, 4, -1)  # newest to oldest
+            ])
         )
