@@ -24,6 +24,9 @@ from twisted.internet import reactor
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    succeed,
+)
 
 from ..config import (
     create_testing_configuration,
@@ -39,6 +42,7 @@ from .common import (
 )
 from ..scanner import (
     find_updated_files,
+    ScannerService,
 )
 
 
@@ -170,3 +174,27 @@ class FindUpdatesTests(AsyncTestCase):
             files,
             Equals([local])
         )
+
+    @inline_callbacks
+    def test_scan_service(self):
+        """
+        The scanner service iteself discovers a_file
+        """
+        local = self.magic_path.child("a_file")
+        local.setContent(b"dummy\n")
+
+        files = []
+
+        class SnapshotService(object):
+            def add_file(self, f):
+                files.append(f)
+                return succeed(None)
+
+        service = ScannerService(
+            reactor,
+            self.config,
+            SnapshotService(),
+            object(),
+        )
+        service.startService()
+        yield service.stopService()
