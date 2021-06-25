@@ -143,7 +143,7 @@ class LocalSnapshotCreator(object):
                     snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                     raw_remote_parents=raw_remote,
-                    modified_time=int(path.getModificationTime()),
+                    modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )
 
                 # store the local snapshot to the disk
