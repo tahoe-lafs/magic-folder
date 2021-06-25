@@ -26,6 +26,7 @@ from twisted.python.filepath import (
 )
 from twisted.python import usage
 from twisted.internet.defer import (
+    Deferred,
     maybeDeferred,
     inlineCallbacks,
 )
