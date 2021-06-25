@@ -17,7 +17,6 @@ from functools import partial
 import attr
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
     Deferred,
     succeed,
@@ -45,6 +44,7 @@ from eliot import (
 )
 from eliot.twisted import (
     DeferredContext,
+    inline_callbacks,
 )
 
 from allmydata.util.configutil import (
@@ -101,7 +101,7 @@ class MagicFolderEnabledNode(object):
         return join(self.temp_dir, "magic-{}".format(self.name))
 
     @classmethod
-    @inlineCallbacks
+    @inline_callbacks
     def create(
             cls,
             reactor,
@@ -183,7 +183,7 @@ class MagicFolderEnabledNode(object):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def stop_magic_folder(self):
         if self.magic_folder is None:
             return
@@ -194,12 +194,12 @@ class MagicFolderEnabledNode(object):
         except ProcessExitedAlready:
             pass
 
-    @inlineCallbacks
+    @inline_callbacks
     def restart_magic_folder(self):
         yield self.stop_magic_folder()
         yield self.start_magic_folder()
 
-    @inlineCallbacks
+    @inline_callbacks
     def start_magic_folder(self):
         with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
             self.magic_folder = yield _run_magic_folder(
@@ -217,7 +217,7 @@ class MagicFolderEnabledNode(object):
 
     # magic-folder CLI API helpers
 
-    @inlineCallbacks
+    @inline_callbacks
     def add(self, folder_name, magic_directory, author=None, poll_interval=5):
         """
         magic-folder add
@@ -237,7 +237,7 @@ class MagicFolderEnabledNode(object):
         yield proto.done
         returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
+    @inline_callbacks
     def leave(self, folder_name):
         """
         magic-folder add
@@ -255,7 +255,7 @@ class MagicFolderEnabledNode(object):
         yield proto.done
         returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
+    @inline_callbacks
     def show_config(self):
         """
         magic-folder show-config
@@ -272,7 +272,7 @@ class MagicFolderEnabledNode(object):
         config = json.loads(output)
         returnValue(config)
 
-    @inlineCallbacks
+    @inline_callbacks
     def list_(self, include_secret_information=None):
         """
         magic-folder list
@@ -294,7 +294,7 @@ class MagicFolderEnabledNode(object):
         config = json.loads(output)
         returnValue(config)
 
-    @inlineCallbacks
+    @inline_callbacks
     def add_snapshot(self, folder_name, relpath):
         """
         magic-folder-api add-snapshot
@@ -312,7 +312,7 @@ class MagicFolderEnabledNode(object):
         yield proto.done
         returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
+    @inline_callbacks
     def add_participant(self, folder_name, author_name, personal_dmd):
         """
         magic-folder-api add-participant
@@ -331,7 +331,7 @@ class MagicFolderEnabledNode(object):
         yield proto.done
         returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
+    @inline_callbacks
     def dump_state(self, folder_name):
         """
         magic-folder-api dump-state
@@ -772,7 +772,7 @@ def _check_status(response):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def web_get(tahoe, uri_fragment, **kwargs):
     """
     Make a GET request to the webport of `tahoe` (a `TahoeProcess`,
@@ -791,7 +791,7 @@ def twisted_sleep(reactor, timeout):
     return deferLater(reactor, timeout, lambda: None)
 
 
-@inlineCallbacks
+@inline_callbacks
 def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     """
     Uses the status API to wait for a client-type node (in `tahoe`, a
@@ -955,7 +955,7 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         return ctx.addActionFinish()
 
 
-@inlineCallbacks
+@inline_callbacks
 def _pair_magic_folder(reactor, alice_invite, alice, bob):
     print("Joining bob to magic-folder")
     yield _command(
@@ -974,7 +974,7 @@ def _pair_magic_folder(reactor, alice_invite, alice, bob):
     returnValue((alice.magic_directory, bob.magic_directory))
 
 
-@inlineCallbacks
+@inline_callbacks
 def _generate_invite(reactor, inviter, invitee_name):
     """
     Create a new magic-folder invite.
@@ -1009,7 +1009,7 @@ def _generate_invite(reactor, inviter, invitee_name):
 
 
 
-@inlineCallbacks
+@inline_callbacks
 def _command(*args):
     """
     Runs a single magic-folder command with the given arguments as CLI
