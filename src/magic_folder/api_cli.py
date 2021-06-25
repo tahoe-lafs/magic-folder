@@ -12,9 +12,6 @@ from collections import deque
 from twisted.internet.task import (
     react,
 )
-from twisted.internet.defer import (
-    Deferred,
-)
 from twisted.internet.endpoints import (
     clientFromString,
 )

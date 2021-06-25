@@ -15,7 +15,6 @@ import json
 import time
 import base64
 from tempfile import mkstemp
-from datetime import datetime
 from uuid import (
     UUID,
     uuid4,

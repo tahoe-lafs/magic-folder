@@ -9,87 +9,33 @@ from __future__ import (
 Tests relating generally to magic_folder.scanner
 """
 
-import io
-import base64
-from mock import Mock
-
-from json import (
-    dumps,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
 from eliot.twisted import (
     inline_callbacks,
 )
 
 from testtools.matchers import (
-    MatchesStructure,
     Always,
     Equals,
-    ContainsDict,
-    AfterPreprocessing,
 )
 from testtools.twistedsupport import (
     succeeded,
-    failed,
-)
-from hypothesis import (
-    given,
 )
 from twisted.internet import reactor
-from twisted.internet.task import (
-    deferLater,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
 from twisted.python.filepath import (
     FilePath,
-)
-from treq.testing import (
-    StubTreq,
-    StringStubbingResource,
 )
 
 from ..config import (
     create_testing_configuration,
 )
-from ..downloader import (
-    RemoteSnapshotCacheService,
-    MagicFolderUpdater,
-    InMemoryMagicFolderFilesystem,
-)
-from ..magic_folder import (
-    MagicFolder,
-)
 from ..snapshot import (
     create_local_author,
     RemoteSnapshot,
-    sign_snapshot,
-    format_filenode,
     create_snapshot,
-    write_snapshot_to_tahoe,
-)
-from ..status import (
-    WebSocketStatusService,
-)
-from ..tahoe_client import (
-    create_tahoe_client,
-)
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
 )
 
 from .common import (
-    SyncTestCase,
     AsyncTestCase,
-)
-from .strategies import (
-    tahoe_lafs_immutable_dir_capabilities,
 )
 from ..scanner import (
     find_updated_files,
@@ -195,7 +141,7 @@ class FindUpdatesTests(AsyncTestCase):
             Equals([local])
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_scan_something_local(self):
         """
         We scan an update to a file we already know about (but only locally).

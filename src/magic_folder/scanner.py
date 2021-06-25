@@ -9,16 +9,12 @@ import attr
 from zope.interface import (
     implementer,
 )
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
 )
 from twisted.internet.task import (
     deferLater,
-    react,
 )
 from twisted.application.internet import (
     TimerService,
