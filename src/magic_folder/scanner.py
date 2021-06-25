@@ -104,7 +104,7 @@ def _is_newer_than_current(folder_config, name, local_mtime):
     if existing_mtime is None:
         # we have no record of this file; it must be new.
         return True
-    return local_mtime > existing_mtime
+    return local_mtime != existing_mtime
 
 
 @inlineCallbacks
