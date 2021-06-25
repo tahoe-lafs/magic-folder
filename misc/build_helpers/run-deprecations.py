@@ -56,7 +56,7 @@ def make_matcher(options):
         ``True`` if it contains an interesting warning and ``False``
         otherwise.
     """
-    pattern = r".*\.py[oc]?:\d+:" # (Pending)?DeprecationWarning: .*"
+    pattern = r".*\.py[oc]?:\d+: (Pending)?DeprecationWarning: .*"
     if options["package"]:
         pattern = r".*/{}/".format(
             re.escape(options["package"]),
