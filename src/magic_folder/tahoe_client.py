@@ -18,9 +18,6 @@ from twisted.web.http import (
     OK,
     CREATED,
 )
-from twisted.web.client import (
-    readBody,
-)
 
 from hyperlink import (
     DecodedURL,
@@ -167,8 +164,7 @@ class TahoeClient(object):
         resp = yield self.http_client.get(
             self.url.add(u"t", u"json").to_uri().to_text().encode("ascii"),
         )
-        js = yield resp.content()
-        returnValue(json.loads(js.decode("utf8")))
+        returnValue((yield resp.json()))
 
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
@@ -269,8 +265,7 @@ class TahoeClient(object):
                 content = yield response.content()
                 raise TahoeAPIError(response.code, content)
 
-            raw_data = yield readBody(response)
-            kind, dirinfo = json.loads(raw_data)
+            kind, dirinfo = yield response.json()
 
             if kind != u"dirnode":
                 raise ValueError("Capability is a '{}' not a 'dirnode'".format(kind))
@@ -317,8 +312,7 @@ class TahoeClient(object):
             content = yield response.content()
             raise TahoeAPIError(response.code, content)
 
-        raw_data = yield readBody(response)
-        _, dirinfo = json.loads(raw_data)
+        _, dirinfo = yield response.json()
         returnValue(dirinfo)
 
     @inlineCallbacks
