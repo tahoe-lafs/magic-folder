@@ -190,7 +190,6 @@ class StatusProtocol(WebSocketClientProtocol):
         print(payload, file=self.factory._output)
 
 
-@inlineCallbacks
 def monitor(options):
     """
     Print out updates from the WebSocket status API
@@ -209,9 +208,8 @@ def monitor(options):
     )
     factory._output = options.parent.stdout
     factory.protocol = StatusProtocol
-    protocol = yield endpoint.connect(factory)
-    yield protocol.is_closed
-    raise SystemExit(6)
+    endpoint.connect(factory)
+    return Deferred()
 
 
 class MagicFolderApiCommand(usage.Options):
