@@ -23,6 +23,7 @@ from foolscap.furl import (
 from eliot import (
     to_file,
     log_call,
+    start_task,
 )
 
 from twisted.python.procutils import which
@@ -68,6 +69,12 @@ def pytest_addoption(parser):
 def eliot_logging():
     with open("eliot.log", "w") as f:
         to_file(f)
+        yield
+
+
+@pytest.fixture(autouse=True, scope='function')
+def eliot_log_test(request):
+    with start_task(action_type="integration:pytest", test=str(request.node.nodeid)):
         yield
 
 
