@@ -435,6 +435,7 @@ class MagicFolderTests(SyncTestCase):
                 'author_name': self.author.name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': 0,
             })),
             succeeded(
                 matches_response(
@@ -482,6 +483,7 @@ class MagicFolderTests(SyncTestCase):
                 'author_name': self.author.name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': 0,
             })),
             succeeded(
                 matches_response(
@@ -588,6 +590,7 @@ class MagicFolderTests(SyncTestCase):
                                 u"magic_path": config.magic_path.path,
                                 u"stash_path": config.stash_path.path,
                                 u"poll_interval": config.poll_interval,
+                                u"scan_interval": config.scan_interval,
                                 u"is_admin": config.is_admin(),
                             }
                             for name, config
