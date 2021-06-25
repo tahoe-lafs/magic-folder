@@ -36,6 +36,14 @@ jobs:
       run: |
         tox -e py27-coverage
 
+    - name: Upload eliot.log in case of failure
+      uses: "actions/upload-artifact@v2"
+      if: ${{ always() }}
+      with:
+        if-no-files-found: "warn"
+        name: "unit-test"
+        path: "eliot.log"
+
     - uses: codecov/codecov-action@v1
       with:
         token: "322d708d-8283-4827-b605-ccf02bfecf70"
@@ -65,6 +73,14 @@ jobs:
     - name: Test with tox
       run: |
         tox -e integration
+
+    - name: Upload eliot.log in case of failure
+      uses: "actions/upload-artifact@v2"
+      if: ${{ always() }}
+      with:
+        if-no-files-found: "warn"
+        name: "integration"
+        path: "eliot.log"
 
     - uses: codecov/codecov-action@v1
       with:
