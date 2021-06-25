@@ -228,14 +228,14 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
         )
-        status_service = WebSocketStatusService()
-        global_service = MagicFolderService(
+        status_service = WebSocketStatusService(reactor, self.config)
+        folder_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )
         self.http_client = create_testing_http_client(
             reactor,
             self.config,
-            global_service,
+            folder_service,
             lambda: self.config.api_token,
             tahoe_client,
             status_service,
