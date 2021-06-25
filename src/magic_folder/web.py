@@ -254,6 +254,7 @@ class APIv1(object):
             data['author_name'],
             FilePath(data['local_path']),
             data['poll_interval'],
+            data['scan_interval'],
             self._tahoe_client,
         )
 

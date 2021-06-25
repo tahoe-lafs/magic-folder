@@ -93,6 +93,15 @@ class MagicFolder(service.MultiService):
             ),
             status=status_service,
         )
+        scanner_service = None
+        if mf_config.scan_interval > 0:
+            scanner_service = ScannerService(
+                reactor,
+                mf_config,
+                local_snapshot_service,
+                status_service,
+            )
+
         return cls(
             client=tahoe_client,
             config=mf_config,
@@ -127,12 +136,7 @@ class MagicFolder(service.MultiService):
                 tahoe_client=tahoe_client,
             ),
             status_service=status_service,
-            scanner_service=ScannerService(
-                reactor,
-                mf_config,
-                local_snapshot_service,
-                status_service,
-            ),
+            scanner_service=scanner_service,
             initial_participants=initial_participants,
             clock=reactor,
         )
@@ -161,7 +165,8 @@ class MagicFolder(service.MultiService):
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
         status_service.setServiceParent(self)
-        scanner_service.setServiceParent(self)
+        if scanner_service is not None:
+            scanner_service.setServiceParent(self)
 
     def ready(self):
         """

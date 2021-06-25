@@ -142,7 +142,8 @@ _magicfolder_config_schema = Schema([
             collective_dircap    TEXT,              -- read-capability-string
             upload_dircap        TEXT,              -- write-capability-string
             magic_directory      TEXT,              -- local path of sync'd directory
-            poll_interval        INTEGER            -- seconds
+            poll_interval        INTEGER,           -- seconds
+            scan_interval        INTEGER            -- seconds
         )
         """,
         """
@@ -727,6 +728,7 @@ class MagicFolderConfig(object):
             upload_dircap,
             magic_path,
             poll_interval,
+            scan_interval,
     ):
         """
         Create the database state for a new Magic Folder and return a
@@ -754,7 +756,10 @@ class MagicFolderConfig(object):
             folder will read and write files belonging to this folder.
 
         :param int poll_interval: The interval, in seconds, on which to poll
-            for changes (for download?).
+            for remote changes (for download).
+
+        :param int scan_interval: The interval, in seconds, on which to poll
+            for local changes (for upload).
 
         :return: A new ``cls`` instance populated with the given
             configuration.
@@ -777,9 +782,10 @@ class MagicFolderConfig(object):
                     , upload_dircap
                     , magic_directory
                     , poll_interval
+                    , scan_interval
                     )
                 VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     author.name,
@@ -789,6 +795,7 @@ class MagicFolderConfig(object):
                     upload_dircap,
                     magic_path.path,
                     poll_interval,
+                    scan_interval,
                 ),
             )
         return cls(name, connection)
@@ -1064,6 +1071,12 @@ class MagicFolderConfig(object):
     @with_cursor
     def poll_interval(self, cursor):
         cursor.execute("SELECT poll_interval FROM config")
+        return int(cursor.fetchone()[0])
+
+    @property
+    @with_cursor
+    def scan_interval(self, cursor):
+        cursor.execute("SELECT scan_interval FROM config")
         return int(cursor.fetchone()[0])
 
     def is_admin(self):
@@ -1343,7 +1356,8 @@ class GlobalConfigDatabase(object):
         return failed_cleanups
 
     def create_magic_folder(self, name, magic_path, author,
-                            collective_dircap, upload_dircap, poll_interval):
+                            collective_dircap, upload_dircap, poll_interval,
+                            scan_interval):
         """
         Add a new Magic Folder configuration.
 
@@ -1360,6 +1374,12 @@ class GlobalConfigDatabase(object):
 
         :param unicode upload_dircap: the write-capability of the
             directory we upload data into.
+
+        :param int poll_interval: how often to scan for remote changes
+            (in seconds).
+
+        :param int scan_interval: how often to scan for local changes
+            (in seconds).
 
         :returns: a MagicFolderConfig instance
         """
@@ -1396,6 +1416,7 @@ class GlobalConfigDatabase(object):
                 upload_dircap,
                 magic_path.asTextMode("utf-8"),
                 poll_interval,
+                scan_interval,
             )
             # add to the global config
             with self.database:

@@ -47,10 +47,10 @@ class ScannerService(TimerService):
     _status = attr.ib()
 
     def __attrs_post_init__(self):
-        # XXX do we want a "scan interval" too?
+        assert self._config.scan_interval > 0, "Illegal scan_interval"
         TimerService.__init__(
             self,
-            self._config.poll_interval,
+            self._config.scan_interval,
             self._scan,
         )
 
@@ -61,7 +61,7 @@ class ScannerService(TimerService):
         """
         # XXX probably want a lock ("or something") so we don't do
         # overlapping scans (i.e. if a scan takes longer than the
-        # poll_interval we should not start a second one)
+        # scan_interval we should not start a second one)
         with start_action(action_type="scanner:find-updates") as action:
             duration = yield find_updated_files(self._reactor, self._config, self._modified_file)
             action.add_success_fields(scan_duration=duration)

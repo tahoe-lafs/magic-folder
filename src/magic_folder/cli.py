@@ -240,6 +240,7 @@ class AddOptions(usage.Options):
     synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
+        ("scan-interval", "s", "60", "Seconds between scans of local changes (0 for no scans)"),
         ("name", "n", None, "The name of this magic-folder", to_unicode),
         ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
     ]
@@ -261,7 +262,6 @@ class AddOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-
 
     def postOptions(self):
         super(AddOptions, self).postOptions()
@@ -294,6 +294,7 @@ def add(options):
         options["author"],
         options.local_dir,
         options["poll-interval"],
+        options["scan-interval"],
     )
     print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 

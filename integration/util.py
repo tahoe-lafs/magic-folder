@@ -218,7 +218,7 @@ class MagicFolderEnabledNode(object):
     # magic-folder CLI API helpers
 
     @inlineCallbacks
-    def add(self, folder_name, magic_directory, author=None, poll_interval=5):
+    def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=0):
         """
         magic-folder add
         """
@@ -231,6 +231,7 @@ class MagicFolderEnabledNode(object):
                 "--name", folder_name,
                 "--author", author or self.name,
                 "--poll-interval", str(int(poll_interval)),
+                "--scan-interval", str(int(scan_interval)),
                 magic_directory,
             ],
         )

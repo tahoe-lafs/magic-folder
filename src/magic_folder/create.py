@@ -28,7 +28,7 @@ from .snapshot import (
 
 
 @inlineCallbacks
-def magic_folder_create(config, name, author_name, local_dir, poll_interval, tahoe_client):
+def magic_folder_create(config, name, author_name, local_dir, poll_interval, scan_interval, tahoe_client):
     """
     Create a magic-folder with the specified ``name`` and
     ``local_dir``.
@@ -45,6 +45,9 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tah
     :param integer poll_interval: Periodic time interval after which the
         client polls for updates.
 
+    :param integer scan_interval: Every 'scan_interval' seconds the
+        local directory will be scanned for changes.
+
     :param TahoeClient tahoe_client: The client we use to make queries
 
     :return Deferred: ``None`` or an appropriate exception is raised.
@@ -54,6 +57,12 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tah
         raise APIError(
             code=http.CONFLICT,
             reason="Already have a magic-folder named '{}'".format(name),
+        )
+
+    if scan_interval < 0:
+        raise APIError(
+            code=http.NOT_ACCEPTABLE,
+            reason="scan_interval must be >= 0",
         )
 
     # create our author
@@ -82,4 +91,5 @@ def magic_folder_create(config, name, author_name, local_dir, poll_interval, tah
         collective_write_cap,
         personal_write_cap,
         poll_interval,
+        scan_interval,
     )
