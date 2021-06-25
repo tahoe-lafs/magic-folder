@@ -217,14 +217,12 @@ class MagicFolderEnabledNode(object):
 
     # magic-folder CLI API helpers
 
-    @inline_callbacks
     def add(self, folder_name, magic_directory, author=None, poll_interval=5):
         """
         magic-folder add
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add",
@@ -234,17 +232,13 @@ class MagicFolderEnabledNode(object):
                 magic_directory,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inline_callbacks
     def leave(self, folder_name):
         """
         magic-folder add
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "leave",
@@ -252,32 +246,23 @@ class MagicFolderEnabledNode(object):
                 "--really-delete-write-capability",
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inline_callbacks
     def show_config(self):
         """
         magic-folder show-config
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "show-config",
             ],
-        )
-        output = yield proto.done
-        config = json.loads(output)
-        returnValue(config)
+        ).addCallback(json.loads)
 
-    @inline_callbacks
     def list_(self, include_secret_information=None):
         """
         magic-folder list
         """
-        proto = _CollectOutputProtocol()
         args = [
             "--config", self.magic_config_directory,
             "list",
@@ -286,22 +271,17 @@ class MagicFolderEnabledNode(object):
         if include_secret_information:
             args.append("--include-secret-information")
 
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             args,
-        )
-        output = yield proto.done
-        config = json.loads(output)
-        returnValue(config)
+        ).addCallback(json.loads)
 
-    @inline_callbacks
     def add_snapshot(self, folder_name, relpath):
         """
         magic-folder-api add-snapshot
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add-snapshot",
@@ -309,17 +289,13 @@ class MagicFolderEnabledNode(object):
                 "--file", relpath,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inline_callbacks
     def add_participant(self, folder_name, author_name, personal_dmd):
         """
         magic-folder-api add-participant
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add-participant",
@@ -328,25 +304,19 @@ class MagicFolderEnabledNode(object):
                 "--personal-dmd", personal_dmd,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inline_callbacks
     def dump_state(self, folder_name):
         """
         magic-folder-api dump-state
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "dump-state",
                 "--folder", folder_name,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
 
 class _ProcessExitedProtocol(ProcessProtocol):
@@ -371,6 +341,8 @@ class _CollectOutputProtocol(ProcessProtocol):
     def __init__(self):
         self.done = Deferred()
         self.output = StringIO()
+        self._action = current_action()
+        assert self._action is not None
 
     def processEnded(self, reason):
         if not self.done.called:
@@ -385,6 +357,8 @@ class _CollectOutputProtocol(ProcessProtocol):
 
     def errReceived(self, data):
         print("ERR: {}".format(data))
+        with self._action.context():
+            Message.log(message_type=u"err-received", data=data)
         self.output.write(data)
 
 
@@ -464,36 +438,67 @@ def _cleanup_tahoe_process(tahoe_transport, exited):
     except ProcessExitedAlready:
         pass
 
-
-def _magic_folder_runner(proto, reactor, request, other_args):
+@inline_callbacks
+def _package_runner(reactor, request, action_fields, package, other_args):
     """
-    Launch a ``magic_folder run`` child process and return it.
-    """
-    if request.config.getoption('coverage'):
-        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
-    else:
-        prelude = [sys.executable, "-m", "magic_folder"]
+    Launch a python package and return the output.
 
-    return reactor.spawnProcess(
-        proto,
-        sys.executable,
-        prelude + other_args,
+    Gathers coverage of the command, if requested for pytest.
+    """
+    with start_action(
+        args=other_args,
+        **action_fields
+    ) as action:
+        proto = _CollectOutputProtocol()
+
+        if request.config.getoption('coverage'):
+            prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
+        else:
+            prelude = [sys.executable, "-m", package]
+
+        reactor.spawnProcess(
+            proto,
+            sys.executable,
+            prelude + other_args,
+        )
+        output = yield proto.done
+
+        action.add_success_fields(output=output)
+
+    returnValue(output)
+
+
+def _magic_folder_runner(reactor, request, name, other_args):
+    """
+    Launch a ``magic_folder`` sub-command and return the output.
+    """
+    action_fields = {
+            "action_type": "integration:magic-folder:run-cli",
+            "node": name,
+    }
+    return _package_runner(
+        reactor,
+        request,
+        action_fields,
+        "magic_folder",
+        other_args,
     )
 
 
-def _magic_folder_api_runner(proto, reactor, request, other_args):
+def _magic_folder_api_runner(reactor, request, name, other_args):
     """
-    Launch a ``magic-folder-api`` child process and return it.
+    Launch a ``magic-folder-api`` command and return the output.
     """
-    if request.config.getoption('coverage'):
-        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder.api_cli"]
-    else:
-        prelude = [sys.executable, "-m", "magic_folder.api_cli"]
-
-    return reactor.spawnProcess(
-        proto,
-        sys.executable,
-        prelude + other_args,
+    action_fields = {
+        "action_type": "integration:magic-folder:run-cli-api",
+        "node": name,
+    }
+    return _package_runner(
+        reactor,
+        request,
+        action_fields,
+        "magic_folder.api_cli",
+        other_args,
     )
 
 
@@ -856,48 +861,14 @@ def _init_magic_folder(reactor, request, temp_dir, name, web_port):
     """
     node_dir = join(temp_dir, name)
     config_dir = join(temp_dir, "magic-daemon-{}".format(name))
-    # proto = _ProcessExitedProtocol()
-    proto = _CollectOutputProtocol()
-
-    coverage = request.config.getoption('coverage')
-    def optional(flag, elements):
-        if flag:
-            return elements
-        return []
 
     args = [
-        sys.executable,
-        "-m",
-    ] + optional(coverage, [
-        "coverage",
-        "run",
-        "-m",
-    ]) + [
-        "magic_folder",
-    ] + optional(coverage, [
-        "--coverage",
-    ]) + [
         "--config", config_dir,
         "init",
         "--node-directory", node_dir,
         "--listen-endpoint", web_port,
     ]
-    Message.log(
-        message_type=u"integration:init-magic-folder",
-        coverage=coverage,
-        args=args,
-    )
-    transport = reactor.spawnProcess(
-        proto,
-        sys.executable,
-        args,
-    )
-
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
-    with start_action(action_type=u"integration:init-magic-folder").context():
-        ctx = DeferredContext(proto.done)
-        ctx.addCallback(lambda ignored: transport)
-        return ctx.addActionFinish()
+    return _magic_folder_runner(reactor, request, name, args)
 
 
 def _run_magic_folder(reactor, request, temp_dir, name):
