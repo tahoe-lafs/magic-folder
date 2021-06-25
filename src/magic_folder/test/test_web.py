@@ -32,6 +32,7 @@ from hypothesis.strategies import (
     lists,
     text,
     binary,
+    integers,
     dictionaries,
     sampled_from,
 )
@@ -41,6 +42,7 @@ from testtools.matchers import (
     AllMatch,
     ContainsDict,
     Equals,
+    Contains,
     IsInstance,
     MatchesAny,
     MatchesDict,
@@ -366,23 +368,22 @@ def magic_folder_config(author, local_directory):
     }
 
 
-class ListMagicFolderTests(SyncTestCase):
+class MagicFolderTests(SyncTestCase):
     """
-    Tests for listing Magic Folders using **GET /v1/magic-folder** and
-    ``V1MagicFolderAPI``.
+    Tests for ``/v1/magic-folder``.
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
     def setUp(self):
-        super(ListMagicFolderTests, self).setUp()
+        super(MagicFolderTests, self).setUp()
         self.author = create_local_author(u"alice")
 
     @given(
-        sampled_from([b"PUT", b"POST", b"PATCH", b"DELETE", b"OPTIONS"]),
+        sampled_from([b"PUT", b"PATCH", b"DELETE", b"OPTIONS"]),
     )
     def test_method_not_allowed(self, method):
         """
-        A request to **/v1/magic-folder** with a method other than **GET**
+        A request to **/v1/magic-folder** with a method other than **GET** or **POST**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
         treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
@@ -397,6 +398,130 @@ class ListMagicFolderTests(SyncTestCase):
                 ),
             ),
         )
+
+    @given(
+        folder_names(),
+        # We need absolute paths but at least we can make them beneath the
+        # test working directory.
+        relative_paths().map(FilePath),
+        integers(min_value=1),
+    )
+    def test_add_folder(self, folder_name, folder_path, poll_interval):
+        """
+        A request for **POST /v1/magic-folder** receives a response.
+        """
+        folder_path.asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+
+        basedir = FilePath(self.mktemp())
+        treq = treq_for_folders(
+            object(),
+            basedir,
+            AUTH_TOKEN,
+            {},
+            False,
+            tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
+                'name': folder_name,
+                'author_name': self.author.name,
+                'local_path': folder_path.path,
+                'poll_interval': 60,
+            })),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    headers_matcher=header_contains({
+                        u"Content-Type": Equals([u"application/json"]),
+                    }),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_add_folder_not_existing(self, folder_name):
+        """
+        A request for **POST /v1/magic-folder** with a path that does not exist
+        fails with BAD REQUEST.
+        """
+        folder_path = FilePath(self.mktemp())
+
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+
+        basedir = FilePath(self.mktemp())
+        treq = treq_for_folders(
+            object(),
+            basedir,
+            AUTH_TOKEN,
+            {},
+            False,
+            tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
+                'name': folder_name,
+                'author_name': self.author.name,
+                'local_path': folder_path.path,
+                'poll_interval': 60,
+            })),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Contains("does not exist"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    def test_add_folder_invalid_json(self):
+        """
+        A request for **POST /v1/magic-folder** that does not have a JSON body
+        fails with BAD REQUEST.
+        """
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, "not-json".encode("utf-8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("Could not load JSON: "),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
 
     @given(
         dictionaries(

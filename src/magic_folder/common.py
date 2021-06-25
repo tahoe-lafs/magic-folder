@@ -16,6 +16,8 @@ import unicodedata
 
 import attr
 
+from twisted.web import http
+
 
 class BadResponseCode(Exception):
     """
@@ -45,11 +47,10 @@ class APIError(Exception):
     :ivar code int: The HTTP status code to use for this error.
     """
 
-    reason = attr.ib(validator=attr.validators.instance_of(unicode))
     code = attr.ib(
-        default=None,
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
+    reason = attr.ib(validator=attr.validators.instance_of(unicode))
 
     @classmethod
     def from_exception(cls, code, exception, prefix=None):
@@ -92,7 +93,8 @@ def atomic_makedirs(path):
         raise
 
 
-class InvalidMagicFolderName(Exception):
+@attr.s(auto_exc=True, frozen=True)
+class InvalidMagicFolderName(APIError):
     """
     The given magic folder name contains an invalid character.
 
@@ -104,8 +106,12 @@ class InvalidMagicFolderName(Exception):
         u"control characters or unassigned characters."
     )
 
-    def __str__(self):
-        return self.message
+    name = attr.ib(validator=attr.validators.instance_of(unicode))
+    code = attr.ib(
+        default=http.BAD_REQUEST,
+        validator=attr.validators.optional(attr.validators.instance_of(int)),
+    )
+    reason = attr.ib(init=False, default=message)
 
 
 def valid_magic_folder_name(name):

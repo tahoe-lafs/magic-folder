@@ -25,7 +25,7 @@ from autobahn.twisted.resource import (
 from eliot import write_failure
 
 from twisted.python.filepath import (
-    InsecurePath,
+    InsecurePath, FilePath,
 )
 from twisted.internet.defer import (
     inlineCallbacks,
@@ -62,6 +62,7 @@ from allmydata.interfaces import (
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
+from .create import magic_folder_create
 from .status import (
     StatusFactory,
     IStatus,
@@ -237,6 +238,28 @@ class APIv1(object):
     @app.route("/status")
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
+
+    @app.route("/magic-folder", methods=["POST"])
+    @inlineCallbacks
+    def add_magic_folder(self, request):
+        """
+        Add a new magic folder.
+        """
+        body = request.content.read()
+        data = _load_json(body)
+
+        yield magic_folder_create(
+            self._global_config,
+            data['name'],
+            data['author_name'],
+            FilePath(data['local_path']),
+            data['poll_interval'],
+            self._tahoe_client,
+        )
+
+        _application_json(request)
+        returnValue(b"{}")
+
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inlineCallbacks
