@@ -525,6 +525,36 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+    def test_add_folder_illegal_scan_interval(self):
+        """
+        A request for **POST /v1/magic-folder** that has a negative
+        scan_interval fails with NOT ACCEPTABLE.
+        """
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, dumps({
+                    'name': 'valid',
+                    'author_name': 'author',
+                    'local_path': 'foo',
+                    'poll_interval': 60,
+                    'scan_interval': -123,
+                })
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_ACCEPTABLE),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("scan_interval must be >= 0"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     @given(
         dictionaries(
