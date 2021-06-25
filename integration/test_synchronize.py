@@ -192,6 +192,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
 @pytest_twisted.inlineCallbacks
 def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
+    # FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
