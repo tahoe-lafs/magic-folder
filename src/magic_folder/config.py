@@ -1461,7 +1461,7 @@ def _validate_listen_endpoint_str(ep_string):
     # XXX so, having the reactor here sucks...but not a lot of options
     # since serverFromString is the only way to validate an
     # endpoint-string
-    serverFromString(reactor, ep_string)
+    serverFromString(reactor, nativeString(ep_string))
 
 
 def _validate_connect_endpoint_str(ep_string):
@@ -1472,4 +1472,4 @@ def _validate_connect_endpoint_str(ep_string):
     # XXX so, having the reactor here sucks...but not a lot of options
     # since serverFromString is the only way to validate an
     # endpoint-string
-    clientFromString(reactor, ep_string)
+    clientFromString(reactor, nativeString(ep_string))
