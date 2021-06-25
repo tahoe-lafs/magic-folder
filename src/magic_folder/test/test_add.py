@@ -80,6 +80,7 @@ class TestAdd(SyncTestCase):
             u"alice",
             self.magic_dir,
             60,
+            0,
             self.tahoe_client,
         )
         self.assertThat(d, succeeded(Always()))

@@ -170,6 +170,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
             u"URI:DIR2:ccc:ddd",
             self.magic_path,
             self.poll_interval,
+            0,
         )
 
         self.remote_snapshot_creator = RemoteSnapshotCreator(

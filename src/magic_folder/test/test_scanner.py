@@ -66,6 +66,7 @@ class FindUpdatesTests(AsyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            1,
         )
 
     def test_scan_new(self):

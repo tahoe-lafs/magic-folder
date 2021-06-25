@@ -277,6 +277,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             collective_dircap,
             upload_dircap,
             poll_interval,
+            0,
         )
 
         magic_folder = MagicFolder.from_config(

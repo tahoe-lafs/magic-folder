@@ -254,6 +254,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
         self.assertThat(
             magic_folder.author,
@@ -272,6 +273,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
         with ExpectedException(APIError, "Already have a magic-folder named 'foo'"):
             config.create_magic_folder(
@@ -281,6 +283,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
+                0,
             )
 
     def test_create_folder_trailing_dot_space(self):
@@ -302,6 +305,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
         config.create_magic_folder(
             u"foo.",
@@ -310,6 +314,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
         config.create_magic_folder(
             u"foo ",
@@ -318,6 +323,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
 
 
@@ -333,6 +339,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
+                0,
             )
 
     def test_folder_state_already_exists(self):
@@ -351,6 +358,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
+                0,
             )
 
     def test_folder_get_path(self):
@@ -369,6 +377,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             60,
+            0,
         )
         self.assertThat(config.list_magic_folders(), Contains(u"foo"))
         mf_config = config.get_magic_folder(u"foo")
@@ -410,6 +419,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
                 u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
                 60,
+                0,
             )
 
 
@@ -438,6 +448,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             u"URI:DIR2:ccc:ddd",
             self.magic,
             60,
+            0,
         )
 
     @given(
@@ -543,6 +554,7 @@ class MagicFolderConfigRemoteSnapshotTests(SyncTestCase):
             u"URI:DIR2:ccc:ddd",
             self.magic,
             60,
+            0,
         )
 
     @given(

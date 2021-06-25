@@ -328,6 +328,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
             config[u"collective-dircap"],
             config[u"upload-dircap"],
             config[u"poll-interval"],
+            config.get(u"scan-interval", 0),
         )
 
     if tahoe_client is None:

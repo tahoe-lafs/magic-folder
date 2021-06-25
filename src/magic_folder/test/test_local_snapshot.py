@@ -265,6 +265,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
             60,
+            0,
         )
         self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,
