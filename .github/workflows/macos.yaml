@@ -29,12 +29,17 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install wheel tox
+        pip install wheel tox eliot-tree
     - name: Test with tox
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
         tox -e py27-coverage
+
+    - name: Generate eliot-tree.
+      if: ${{ always() }}
+      run: |
+        eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v2"
@@ -42,7 +47,7 @@ jobs:
       with:
         if-no-files-found: "warn"
         name: "unit-test"
-        path: "eliot.log"
+        path: "eliot*"
 
     - uses: codecov/codecov-action@v1
       with:
@@ -69,10 +74,15 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install wheel tox
+        pip install wheel tox eliot-tree
     - name: Test with tox
       run: |
         tox -e integration
+
+    - name: Generate eliot-tree.
+      if: ${{ always() }}
+      run: |
+        eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v2"
@@ -80,7 +90,7 @@ jobs:
       with:
         if-no-files-found: "warn"
         name: "integration"
-        path: "eliot.log"
+        path: "eliot*"
 
     - uses: codecov/codecov-action@v1
       with:

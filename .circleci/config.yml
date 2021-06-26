@@ -276,8 +276,6 @@ jobs:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-junit"
-      # Disable artifact collection because py.test can't produce any.
-      ARTIFACTS_OUTPUT_PATH: ""
 
     steps:
       - "checkout"
@@ -294,8 +292,6 @@ jobs:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-1_14-junit"
-      # Disable artifact collection because py.test can't produce any.
-      ARTIFACTS_OUTPUT_PATH: ""
 
   integration-master:
     <<: *INTEGRATION
@@ -304,8 +300,6 @@ jobs:
       <<: *UTF_8_ENVIRONMENT
       # Select the integration tests tox environments.
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master-junit"
-      # Disable artifact collection because py.test can't produce any.
-      ARTIFACTS_OUTPUT_PATH: ""
 
 
   ubuntu-18.04:
