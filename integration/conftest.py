@@ -64,6 +64,11 @@ def pytest_addoption(parser):
         help="A tox env to run tahoe from.",
         default="tahoe1_15",
     )
+    parser.addoption(
+        "--gather-foolscap-logs", action="store_true", dest="gather_foolscap_logs",
+        help="Gather foolscap logs from tahoe processes.",
+        default=False,
+    )
 
 @pytest.fixture(autouse=True, scope='session')
 def eliot_logging():
@@ -158,68 +163,70 @@ def tahoe_venv(request, reactor):
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:flog_binary", include_args=[])
 def flog_binary(tahoe_venv):
     return str(tahoe_venv.joinpath("bin", "flogtool"))
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:flog_gatherer", include_args=[])
 def flog_gatherer(reactor, temp_dir, flog_binary, request):
-    out_protocol = _CollectOutputProtocol()
-    gather_dir = join(temp_dir, 'flog_gather')
-    reactor.spawnProcess(
-        out_protocol,
-        flog_binary,
-        (
-            u'flogtool', u'create-gatherer',
-            u'--location', u'tcp:localhost:3117',
-            u'--port', u'3117',
-            gather_dir,
-        )
-    )
-    pytest_twisted.blockon(out_protocol.done)
+    if not request.config.getoption("gather_foolscap_logs"):
+        return ""
 
-    twistd_protocol = _MagicTextProtocol("Gatherer waiting at")
-    twistd_process = reactor.spawnProcess(
-        twistd_protocol,
-        which('twistd')[0],
-        (
-            'twistd', '--nodaemon', '--python',
-            join(gather_dir, 'gatherer.tac'),
-        ),
-        path=gather_dir,
-    )
-    pytest_twisted.blockon(twistd_protocol.magic_seen)
-
-    def cleanup():
-        _cleanup_tahoe_process(twistd_process, twistd_protocol.exited)
-
-        flog_file = mktemp('.flog_dump')
-        flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
-        flog_dir = join(temp_dir, 'flog_gather')
-        flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
-
-        print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
+    with start_task(action_type=u"integration:flog_gatherer"):
+        out_protocol = _CollectOutputProtocol()
+        gather_dir = join(temp_dir, 'flog_gather')
         reactor.spawnProcess(
-            flog_protocol,
+            out_protocol,
             flog_binary,
             (
-                'flogtool', 'dump', join(temp_dir, 'flog_gather', flogs[0])
-            ),
+                u'flogtool', u'create-gatherer',
+                u'--location', u'tcp:localhost:3117',
+                u'--port', u'3117',
+                gather_dir,
+            )
         )
-        print("Waiting for flogtool to complete")
-        try:
-            pytest_twisted.blockon(flog_protocol.done)
-        except ProcessTerminated as e:
-            print("flogtool exited unexpectedly: {}".format(str(e)))
-        print("Flogtool completed")
+        pytest_twisted.blockon(out_protocol.done)
 
-    request.addfinalizer(cleanup)
+        twistd_protocol = _MagicTextProtocol("Gatherer waiting at")
+        twistd_process = reactor.spawnProcess(
+            twistd_protocol,
+            which('twistd')[0],
+            (
+                'twistd', '--nodaemon', '--python',
+                join(gather_dir, 'gatherer.tac'),
+            ),
+            path=gather_dir,
+        )
+        pytest_twisted.blockon(twistd_protocol.magic_seen)
 
-    with open(join(gather_dir, 'log_gatherer.furl'), 'r') as f:
-        furl = f.read().strip()
-    return furl
+        def cleanup():
+            _cleanup_tahoe_process(twistd_process, twistd_protocol.exited)
+
+            flog_file = mktemp('.flog_dump')
+            flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
+            flog_dir = join(temp_dir, 'flog_gather')
+            flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
+
+            print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
+            reactor.spawnProcess(
+                flog_protocol,
+                flog_binary,
+                (
+                    'flogtool', 'dump', join(temp_dir, 'flog_gather', flogs[0])
+                ),
+            )
+            print("Waiting for flogtool to complete")
+            try:
+                pytest_twisted.blockon(flog_protocol.done)
+            except ProcessTerminated as e:
+                print("flogtool exited unexpectedly: {}".format(str(e)))
+            print("Flogtool completed")
+
+        request.addfinalizer(cleanup)
+
+        with open(join(gather_dir, 'log_gatherer.furl'), 'r') as f:
+            furl = f.read().strip()
+        return furl
 
 
 @pytest.fixture(scope='session')
