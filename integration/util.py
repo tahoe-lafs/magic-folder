@@ -39,8 +39,9 @@ import treq
 
 from eliot import (
     Message,
-    start_action,
     current_action,
+    start_action,
+    start_task
 )
 from eliot.twisted import (
     DeferredContext,
@@ -72,13 +73,21 @@ class MagicFolderEnabledNode(object):
     magic-folder child process.
 
     :ivar IProcessTransport tahoe: The Tahoe-LAFS node child process.
-
     :ivar IProcessTransport magic_folder: The magic-folder child process.
+
+    :ivar eliot.Action action: This is the top-level action for this node.
+       It is used for capturing all the in-test-process logs for the services
+       related to the node. In particular, when restarting a servie during a
+       test, we want to capture logs from that processes output in *this*
+       action, rather than the test action, since the process likely continues
+       until after the test ends.
     """
     reactor = attr.ib()
     request = attr.ib()
     temp_dir = attr.ib()
     name = attr.ib()
+
+    action = attr.ib()
 
     tahoe = attr.ib()
     magic_folder = attr.ib()
@@ -138,45 +147,53 @@ class MagicFolderEnabledNode(object):
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
-        # Make the Tahoe-LAFS node process
-        tahoe = yield _create_node(
-            reactor,
-            tahoe_venv,
-            request,
-            temp_dir,
-            introducer_furl,
-            flog_gatherer,
-            name,
-            tahoe_web_port,
-            storage,
-            needed=1,
-            happy=1,
-            total=1,
-        )
-        yield await_client_ready(reactor, tahoe)
+        with start_task(action_type=u"integration:magic-folder-node", node=name).context() as action:
+            # We want to last until the session fixture using it ends (so we
+            # can capture output from every process associated to this node).
+            # Thus we use `.context()` above so this with-block doesn't finish
+            # the action, and add a finalizer to finish it (first, since
+            # finalizers are a stack).
+            request.addfinalizer(action.finish)
+            # Make the Tahoe-LAFS node process
+            tahoe = yield _create_node(
+                reactor,
+                tahoe_venv,
+                request,
+                temp_dir,
+                introducer_furl,
+                flog_gatherer,
+                name,
+                tahoe_web_port,
+                storage,
+                needed=1,
+                happy=1,
+                total=1,
+            )
+            yield await_client_ready(reactor, tahoe)
 
-        # Create the magic-folder daemon config
-        yield _init_magic_folder(
-            reactor,
-            request,
-            temp_dir,
-            name,
-            magic_folder_web_port,
-        )
+            # Create the magic-folder daemon config
+            yield _init_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                name,
+                magic_folder_web_port,
+            )
 
-        # Run the magic-folder daemon
-        magic_folder = yield _run_magic_folder(
-            reactor,
-            request,
-            temp_dir,
-            name,
-        )
+            # Run the magic-folder daemon
+            magic_folder = yield _run_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                name,
+            )
         returnValue(
             cls(
                 reactor,
                 request,
                 temp_dir,
                 name,
+                action,
                 tahoe,
                 magic_folder,
                 magic_folder_web_port,
@@ -185,6 +202,7 @@ class MagicFolderEnabledNode(object):
 
     @inline_callbacks
     def stop_magic_folder(self):
+        Message.log(message_type=u"integation:magic-folder:stop", node=self.name)
         if self.magic_folder is None:
             return
         try:
@@ -201,7 +219,10 @@ class MagicFolderEnabledNode(object):
 
     @inline_callbacks
     def start_magic_folder(self):
-        with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
+        # We log a notice that we are starting the service in the context of the test
+        # but the logs of the service are in the context of the fixture.
+        Message.log(message_type=u"integation:magic-folder:start", node=self.name)
+        with self.action.context():
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
                 self.request,
@@ -210,9 +231,11 @@ class MagicFolderEnabledNode(object):
             )
 
     def pause_tahoe(self):
+        Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
         self.tahoe.transport.signalProcess(signal.SIGSTOP)
 
     def resume_tahoe(self):
+        Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
         self.tahoe.transport.signalProcess(signal.SIGCONT)
 
     # magic-folder CLI API helpers
@@ -402,7 +425,7 @@ class _MagicTextProtocol(ProcessProtocol):
     def processEnded(self, reason):
         with self._action.context():
             Message.log(message_type=u"process-ended")
-            self.exited.callback(None)
+        self.exited.callback(None)
 
     def outReceived(self, data):
         with self._action.context():

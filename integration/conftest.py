@@ -290,7 +290,6 @@ tub.location = tcp:localhost:9321
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:introducer:furl", include_args=["temp_dir"])
 def introducer_furl(introducer, temp_dir):
     furl_fname = join(temp_dir, 'introducer', 'private', 'introducer.furl')
     while not exists(furl_fname):
@@ -305,7 +304,6 @@ def introducer_furl(introducer, temp_dir):
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:alice", include_args=[], include_result=False)
 def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-alice'))
@@ -330,7 +328,6 @@ def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:bob", include_args=[], include_result=False)
 def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:
         mkdir(join(temp_dir, 'magic-bob'))
@@ -353,7 +350,6 @@ def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     )
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:edmond", include_args=[], include_result=False)
 def edmond(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
