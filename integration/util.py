@@ -409,9 +409,9 @@ class _MagicTextProtocol(ProcessProtocol):
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
             self._output.write(data)
-            if not self.magic_seen.called and self._magic_text in self._output.getvalue():
-                print("Saw '{}' in the logs".format(self._magic_text))
-                self.magic_seen.callback(self)
+        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+            print("Saw '{}' in the logs".format(self._magic_text))
+            self.magic_seen.callback(self)
 
     def errReceived(self, data):
         with self._action.context():
