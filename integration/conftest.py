@@ -11,7 +11,7 @@ from pathlib2 import Path
 from time import sleep
 from os import mkdir, listdir, environ
 from os.path import join, exists
-from tempfile import mkdtemp, mktemp
+from tempfile import mkdtemp
 from functools import partial
 
 from configparser import ConfigParser
@@ -202,7 +202,7 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         def cleanup():
             _cleanup_tahoe_process(twistd_process, twistd_protocol.exited)
 
-            flog_file = mktemp('.flog_dump')
+            flog_file = 'integration.flog_dump'
             flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
             flog_dir = join(temp_dir, 'flog_gather')
             flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
