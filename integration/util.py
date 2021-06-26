@@ -19,7 +19,6 @@ import attr
 from twisted.internet.defer import (
     returnValue,
     Deferred,
-    succeed,
 )
 from twisted.internet.task import (
     deferLater,
@@ -41,10 +40,9 @@ from eliot import (
     Message,
     current_action,
     start_action,
-    start_task
+    start_task,
 )
 from eliot.twisted import (
-    DeferredContext,
     inline_callbacks,
 )
 
@@ -408,6 +406,83 @@ class _DumpOutputProtocol(ProcessProtocol):
         self._out.write(data)
 
 
+def run_service(
+    reactor,
+    request,
+    action_fields,
+    magic_text,
+    executable,
+    args,
+    cwd=None
+):
+    """
+    Start a service, and capture the output from the service in an eliot
+    action.
+
+    This will start the service, and the returned deferred will fire with
+    the process, once the given magic text is seeen.
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param dict action_fields: Additional fields to include in the action.
+    :param magic_text: Text to look for in the logs, that indicate the service
+        is ready to accept requests.
+    :param executable: The executable to run.
+    :param args: The arguments to pass to the process.
+    :param cwd: The working directory of the process.
+
+    :return Deferred[IProcessTransport]: The started process.
+    """
+    with start_action(args=args, executable=executable, **action_fields).context():
+        protocol = _MagicTextProtocol(magic_text)
+        process = reactor.spawnProcess(
+            protocol,
+            executable,
+            args,
+            path=cwd
+        )
+        request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited))
+        return protocol.magic_seen.addCallback(lambda ignored: process)
+
+def run_tahoe_service(
+    reactor,
+    request,
+    action_fields,
+    magic_text,
+    tahoe_venv,
+    node_dir,
+    cwd=None,
+):
+    """
+    Start a tahoe node, and capture the output from the service in an eliot
+    action.
+
+    This will start the service, and the returned deferred will fire with
+    the process, once the given magic text is seeen.
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param dict action_fields: Additional fields to include in the action.
+    :param magic_text: Text to look for in the logs, that indicate the service
+        is ready to accept requests.
+    :param tahoe_venv: The path to the tahoe virtualenv to use.
+    :param node_dir: The node directory
+    :param cwd: The working directory of the process.
+
+    :return Deferred[TahoeProcess]: The started process.
+    """
+    # on windows, "tahoe start" means: run forever in the foreground,
+    # but on linux it means daemonize. "tahoe run" is consistent
+    # between platforms.
+    executable, args = _tahoe_runner_args(tahoe_venv, [
+        '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
+        'run',
+        node_dir,
+    ])
+    d = run_service(reactor, request, action_fields, magic_text, executable, args, cwd=cwd)
+    return d.addCallback(TahoeProcess, node_dir=node_dir)
+
+
 class _MagicTextProtocol(ProcessProtocol):
     """
     Internal helper. Monitors all stdout looking for a magic string,
@@ -423,7 +498,7 @@ class _MagicTextProtocol(ProcessProtocol):
         assert self._action is not None
 
     def processEnded(self, reason):
-        with self._action.context():
+        with self._action:
             Message.log(message_type=u"process-ended")
         self.exited.callback(None)
 
@@ -442,19 +517,19 @@ class _MagicTextProtocol(ProcessProtocol):
             sys.stdout.write(data)
 
 
-def _cleanup_tahoe_process(tahoe_transport, exited):
+def _cleanup_service_process(process, exited):
     """
     Terminate the given process with a kill signal (SIGKILL on POSIX,
     TerminateProcess on Windows).
 
-    :param tahoe_transport: The `IProcessTransport` representing the process.
+    :param process: The `IProcessTransport` representing the process.
     :param exited: A `Deferred` which fires when the process has exited.
 
     :return: After the process has exited.
     """
     try:
-        print("signaling {} with TERM".format(tahoe_transport.pid))
-        tahoe_transport.signalProcess('TERM')
+        print("signaling {} with TERM".format(process.pid))
+        process.signalProcess('TERM')
         print("signaled, blocking on exit")
         pytest_twisted.blockon(exited)
         print("exited, goodbye")
@@ -524,17 +599,22 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
         other_args,
     )
 
+def _tahoe_runner_args(tahoe_venv, other_args):
+    tahoe_python = str(tahoe_venv.joinpath('bin', 'python'))
+    args = [tahoe_python, '-m', 'allmydata.scripts.runner']
+    args.extend(other_args)
+    return tahoe_python, args
+
 
 def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
     """
     Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
     `other_args`.
     """
-    args = [str(tahoe_venv.joinpath('bin', 'python')), '-m', 'allmydata.scripts.runner']
-    args += other_args
+    executable, args = _tahoe_runner_args(tahoe_venv, other_args)
     return reactor.spawnProcess(
         proto,
-        sys.executable,
+        executable,
         args,
     )
 
@@ -566,47 +646,7 @@ class TahoeProcess(object):
         return "<TahoeProcess in '{}'>".format(self._node_dir)
 
 
-def _run_node(reactor, tahoe_venv, node_dir, request, magic_text):
-    """
-    Run a tahoe process from its node_dir.
-
-    :returns: a TahoeProcess for this node
-    """
-    if magic_text is None:
-        magic_text = "client running"
-    protocol = _MagicTextProtocol(magic_text)
-
-    # on windows, "tahoe start" means: run forever in the foreground,
-    # but on linux it means daemonize. "tahoe run" is consistent
-    # between platforms.
-
-    transport = _tahoe_runner(
-        protocol,
-        reactor,
-        tahoe_venv,
-        request,
-        [
-            '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
-            'run',
-            node_dir,
-        ],
-    )
-    transport.exited = protocol.exited
-
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, protocol.exited))
-
-    # XXX abusing the Deferred; should use .when_magic_seen() pattern
-
-    def got_proto(proto):
-        transport._protocol = proto
-        return TahoeProcess(
-            transport,
-            node_dir,
-        )
-    protocol.magic_seen.addCallback(got_proto)
-    return protocol.magic_seen
-
-
+@inline_callbacks
 def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
                  storage=True,
                  magic_text=None,
@@ -620,9 +660,7 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
     node_dir = join(temp_dir, name)
     if web_port is None:
         web_port = ''
-    if exists(node_dir):
-        created_d = succeed(None)
-    else:
+    if not exists(node_dir):
         print("creating", node_dir)
         mkdir(node_dir)
         done_proto = _ProcessExitedProtocol()
@@ -643,20 +681,22 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
         args.append(node_dir)
 
         _tahoe_runner(done_proto, reactor, tahoe_venv, request, args)
-        created_d = done_proto.done
+        yield done_proto.done
 
-        def created(_):
+        if flog_gatherer:
             config_path = join(node_dir, 'tahoe.cfg')
             config = get_config(config_path)
             set_config(config, 'node', 'log_gatherer.furl', flog_gatherer)
             write_config(config_path, config)
-        created_d.addCallback(created)
 
-    d = Deferred()
-    d.callback(None)
-    d.addCallback(lambda _: created_d)
-    d.addCallback(lambda _: _run_node(reactor, tahoe_venv, node_dir, request, magic_text))
-    return d
+    magic_text = "client running"
+    action_fields = {
+        "action_type": u"integration:tahoe-node:service",
+        "node": name,
+    }
+    process = yield run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, node_dir)
+    returnValue(process)
+
 
 
 class UnwantedFileException(Exception):
@@ -908,7 +948,6 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
-    proto = _MagicTextProtocol(magic_text)
 
     coverage = request.config.getoption('coverage')
     def optional(flag, elements):
@@ -932,21 +971,18 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         config_dir,
         "run",
     ]
-    Message.log(
-        message_type=u"integration:run-magic-folder",
-        coverage=coverage,
-        args=args,
-    )
-    transport = reactor.spawnProcess(
-        proto,
+    action_fields = {
+        "action_type": u"integration:magic-folder:service",
+        "node": name,
+    }
+    return run_service(
+        reactor,
+        request,
+        action_fields,
+        magic_text,
         sys.executable,
         args,
     )
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.exited))
-    with start_action(action_type=u"integration:run-magic-folder").context():
-        ctx = DeferredContext(proto.magic_seen)
-        ctx.addCallback(lambda ignored: transport)
-        return ctx.addActionFinish()
 
 
 @inline_callbacks

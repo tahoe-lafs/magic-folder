@@ -12,8 +12,6 @@ from time import sleep
 from os import mkdir, listdir, environ
 from os.path import join, exists
 from tempfile import mkdtemp
-from functools import partial
-
 from configparser import ConfigParser
 
 from foolscap.furl import (
@@ -26,7 +24,6 @@ from eliot import (
     start_task,
 )
 
-from twisted.python.procutils import which
 from twisted.internet.error import (
     ProcessTerminated,
 )
@@ -36,15 +33,14 @@ import pytest_twisted
 
 from .util import (
     _CollectOutputProtocol,
-    _MagicTextProtocol,
     _DumpOutputProtocol,
     _ProcessExitedProtocol,
-    _cleanup_tahoe_process,
     _tahoe_runner,
-    TahoeProcess,
     _pair_magic_folder,
     _generate_invite,
     MagicFolderEnabledNode,
+    run_service,
+    run_tahoe_service,
 )
 
 
@@ -168,7 +164,7 @@ def flog_binary(tahoe_venv):
 
 
 @pytest.fixture(scope='session')
-def flog_gatherer(reactor, temp_dir, flog_binary, request):
+def flog_gatherer(reactor, temp_dir, tahoe_venv, flog_binary, request):
     if not request.config.getoption("gather_foolscap_logs"):
         return ""
 
@@ -187,32 +183,30 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
         )
         pytest_twisted.blockon(out_protocol.done)
 
-        twistd_protocol = _MagicTextProtocol("Gatherer waiting at")
-        twistd_process = reactor.spawnProcess(
-            twistd_protocol,
-            which('twistd')[0],
-            (
-                'twistd', '--nodaemon', '--python',
-                join(gather_dir, 'gatherer.tac'),
-            ),
-            path=gather_dir,
+        magic_text = "Gatherer waiting at"
+        executable = str(tahoe_venv.joinpath('bin', 'twistd'))
+        args = (
+            'twistd', '--nodaemon', '--python',
+            join(gather_dir, 'gatherer.tac'),
         )
-        pytest_twisted.blockon(twistd_protocol.magic_seen)
+        action_fields = {
+            "action_type": u"integration:flog-gatherer:service",
+        }
+        pytest_twisted.blockon(
+            run_service(reactor, request, action_fields, magic_text, executable, args, cwd=gather_dir)
+        )
 
         def cleanup():
-            _cleanup_tahoe_process(twistd_process, twistd_protocol.exited)
-
             flog_file = 'integration.flog_dump'
             flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
-            flog_dir = join(temp_dir, 'flog_gather')
-            flogs = [x for x in listdir(flog_dir) if x.endswith('.flog')]
+            flogs = [x for x in listdir(gather_dir) if x.endswith('.flog')]
 
             print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
             reactor.spawnProcess(
                 flog_protocol,
                 flog_binary,
                 (
-                    'flogtool', 'dump', join(temp_dir, 'flog_gather', flogs[0])
+                    'flogtool', 'dump', join(gather_dir, flogs[0])
                 ),
             )
             print("Waiting for flogtool to complete")
@@ -230,13 +224,9 @@ def flog_gatherer(reactor, temp_dir, flog_binary, request):
 
 
 @pytest.fixture(scope='session')
-@log_call(
-    action_type=u"integration:introducer",
-    include_args=["temp_dir", "flog_gatherer"],
-    include_result=False,
-)
 def introducer(reactor, tahoe_venv, temp_dir, flog_gatherer, request):
-    config = '''
+    with start_task(action_type=u"integration:introducer").context():
+        config = '''
 [node]
 nickname = introducer0
 web.port = 4560
@@ -245,48 +235,37 @@ tub.port = tcp:9321
 tub.location = tcp:localhost:9321
 '''.format(log_furl=flog_gatherer)
 
-    intro_dir = join(temp_dir, 'introducer')
-    print("making introducer", intro_dir)
+        intro_dir = join(temp_dir, 'introducer')
+        print("making introducer", intro_dir)
 
-    if not exists(intro_dir):
-        mkdir(intro_dir)
-        done_proto = _ProcessExitedProtocol()
-        _tahoe_runner(
-            done_proto,
-            reactor,
-            tahoe_venv,
-            request,
-            (
-                'create-introducer',
-                '--listen=tcp',
-                '--hostname=localhost',
-                intro_dir,
-            ),
+        if not exists(intro_dir):
+            mkdir(intro_dir)
+            done_proto = _ProcessExitedProtocol()
+            _tahoe_runner(
+                done_proto,
+                reactor,
+                tahoe_venv,
+                request,
+                (
+                    'create-introducer',
+                    '--listen=tcp',
+                    '--hostname=localhost',
+                    intro_dir,
+                ),
+            )
+            pytest_twisted.blockon(done_proto.done)
+
+        # over-write the config file with our stuff
+        with open(join(intro_dir, 'tahoe.cfg'), 'w') as f:
+            f.write(config)
+
+        magic_text = 'introducer running'
+        action_fields = {
+            "action_type": u"integration:introducer:service",
+        }
+        return pytest_twisted.blockon(
+            run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, intro_dir)
         )
-        pytest_twisted.blockon(done_proto.done)
-
-    # over-write the config file with our stuff
-    with open(join(intro_dir, 'tahoe.cfg'), 'w') as f:
-        f.write(config)
-
-    # on windows, "tahoe start" means: run forever in the foreground,
-    # but on linux it means daemonize. "tahoe run" is consistent
-    # between platforms.
-    protocol = _MagicTextProtocol('introducer running')
-    transport = _tahoe_runner(
-        protocol,
-        reactor,
-        tahoe_venv,
-        request,
-        (
-            'run',
-            intro_dir,
-        ),
-    )
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, protocol.exited))
-
-    pytest_twisted.blockon(protocol.magic_seen)
-    return TahoeProcess(transport, intro_dir)
 
 
 @pytest.fixture(scope='session')
