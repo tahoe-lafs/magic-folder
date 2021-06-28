@@ -212,10 +212,13 @@ _magicfolder_config_schema = Schema([
         )
         """,
         """
-        CREATE TABLE remote_snapshots
+        -- This table represents the current of the file on disk, as last known to us
+        CREATE TABLE [current_snapshots]
         (
             name          TEXT PRIMARY KEY, -- mangled name in UTF-8
-            snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the remote snapshot
+            snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the most recent remote snapshot
+                                              -- associated with this file, either as downloaded from a peer
+                                              -- or uploaded from local changes
         )
         """,
     ]),
@@ -232,7 +235,7 @@ DELETE_SNAPSHOTS = ActionType(
     u"Delete the row corresponding to the given path from the local snapshot table.",
 )
 
-FETCH_REMOTE_SNAPSHOTS_FROM_DB = ActionType(
+FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
     u"config:state-db:get-remote-snapshot-entry",
     [RELPATH],
     [],
@@ -969,11 +972,11 @@ class MagicFolderConfig(object):
         )
         with action:
             try:
-                cursor.execute("INSERT INTO remote_snapshots VALUES (?,?)",
+                cursor.execute("INSERT INTO current_snapshots VALUES (?,?)",
                                (name, snapshot_cap))
                 action.add_success_fields(insert_or_update=u"insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
-                cursor.execute("UPDATE remote_snapshots"
+                cursor.execute("UPDATE current_snapshots"
                                " SET snapshot_cap=?"
                                " WHERE [name]=?",
                                (snapshot_cap, name))
@@ -985,7 +988,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [remote_snapshots]")
+        cursor.execute("SELECT [name] FROM [current_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -1001,11 +1004,11 @@ class MagicFolderConfig(object):
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
-        action = FETCH_REMOTE_SNAPSHOTS_FROM_DB(
+        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
             relpath=name,
         )
         with action:
-            cursor.execute("SELECT snapshot_cap FROM remote_snapshots"
+            cursor.execute("SELECT snapshot_cap FROM current_snapshots"
                            " WHERE [name]=?",
                            (name,))
             row = cursor.fetchone()
