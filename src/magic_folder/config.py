@@ -110,6 +110,7 @@ from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
 )
+from .util.file import PathState
 
 _global_config_schema = Schema([
     SchemaUpgrade([
@@ -215,10 +216,13 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            name          TEXT PRIMARY KEY, -- mangled name in UTF-8
-            snapshot_cap  TEXT              -- Tahoe-LAFS URI that represents the most recent remote snapshot
+            [name]          TEXT PRIMARY KEY, -- mangled name in UTF-8
+            [snapshot_cap]  TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                               -- associated with this file, either as downloaded from a peer
                                               -- or uploaded from local changes
+            [mtime_ns]      INTEGER NOT NULL, -- ctime of current snapshot
+            [ctime_ns]      INTEGER NOT NULL, -- mtime of current snapshot
+            [size]          INTEGER NOT NULL  -- size of current snapshot
         )
         """,
     ]),
@@ -262,6 +266,17 @@ class LocalSnapshotCollision(Exception):
     snapshot's identifier was already associated with a snapshot in the
     database.
     """
+
+
+@attr.s(auto_exc=True, frozen=True)
+class RemoteSnapshotWithoutPathState(Exception):
+    """
+    An attempt was made to insert a remote snapshot into the database without
+    corresponding path state (either provided, or already in the database).
+    """
+
+    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
+    snapshot_name = attr.ib(validator=attr.validators.instance_of(unicode))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -957,13 +972,46 @@ class MagicFolderConfig(object):
                            " WHERE [name]=?",
                            (name,))
 
+
     @with_cursor
-    def store_remotesnapshot(self, cursor, name, remote_snapshot):
+    def store_uploaded_snapshot(self, cursor, name, remote_snapshot):
         """
-        Store or update the given remote snapshot cap for the given name.
+        Store the remote snapshot cap of a snapshot that we uploaded.
+
+        This assumes that the path state was already recoreded when we stored
+        the corresponding local snapshot.
 
         :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param RemoteSnapshot remote_snapshot: The snapshot to store.
 
+        :raises RemoteSnapshotWithoutPathState:
+            if there is not already path state in the database for the given
+            name.
+        """
+        # TODO: We should consider merging this with delete_localsnapshot
+        snapshot_cap = remote_snapshot.capability
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=name,
+        )
+        with action:
+            cursor.execute(
+                "UPDATE current_snapshots" " SET snapshot_cap=?" " WHERE [name]=?",
+                (snapshot_cap, name),
+            )
+            if cursor.rowcount != 1:
+                raise RemoteSnapshotWithoutPathState(
+                    folder_name=self.name, snapshot_name=name
+                )
+            action.add_success_fields(insert_or_update="update")
+
+    @with_cursor
+    def store_downloaded_snapshot(self, cursor, name, remote_snapshot, path_state):
+        """
+        Store the remote snapshot cap for a file that we downloaded, and
+        the corresponding path state of the written file.
+
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param PathState path_state: The state of the path to record.
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
@@ -972,18 +1020,51 @@ class MagicFolderConfig(object):
         )
         with action:
             try:
-                cursor.execute("INSERT INTO current_snapshots VALUES (?,?)",
-                               (name, snapshot_cap))
-                action.add_success_fields(insert_or_update=u"insert")
+                cursor.execute(
+                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size)"
+                    " VALUES (?,?,?,?,?)",
+                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+                )
+                action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
-                cursor.execute("UPDATE current_snapshots"
-                               " SET snapshot_cap=?"
-                               " WHERE [name]=?",
-                               (snapshot_cap, name))
-                action.add_success_fields(insert_or_update=u"update")
+                cursor.execute(
+                    "UPDATE current_snapshots"
+                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?"
+                    " WHERE [name]=?",
+                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+                )
+                action.add_success_fields(insert_or_update="update")
 
     @with_cursor
-    def get_all_remotesnapshot_paths(self, cursor):
+    def store_currentsnapshot_state(self, cursor, name, path_state):
+        """
+        Store or update the path state of the given name.
+
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param PathState path_state: The path state to store.
+        """
+        action = STORE_OR_UPDATE_SNAPSHOTS(
+            relpath=name,
+        )
+        with action:
+            try:
+                cursor.execute(
+                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size)"
+                    " VALUES (?,?,?,?)",
+                    (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+                )
+                action.add_success_fields(insert_or_update="insert")
+            except (sqlite3.IntegrityError, sqlite3.OperationalError):
+                cursor.execute(
+                    "UPDATE current_snapshots"
+                    " SET mtime_ns=?, ctime_ns=?, size=?"
+                    " WHERE [name]=?",
+                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+                )
+                action.add_success_fields(insert_or_update="update")
+
+    @with_cursor
+    def get_all_snapshot_paths(self, cursor):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
@@ -1012,8 +1093,34 @@ class MagicFolderConfig(object):
                            " WHERE [name]=?",
                            (name,))
             row = cursor.fetchone()
-            if row:
+            if row and row[0] is not None:
                 return row[0].encode("utf-8")
+            raise KeyError(name)
+
+    @with_cursor
+    def get_currentsnapshot_pathstate(self, cursor, name):
+        """
+        return the timestamp of the latest remote snapshot that the client
+        has recorded in the db.
+
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+        :raise KeyError: If no snapshot exists for the given name.
+
+        :returns int: the timestamp of the remotesnapshot
+        """
+        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
+            relpath=name,
+        )
+        with action:
+            cursor.execute(
+                "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
+                " WHERE [name]=?",
+                (name,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
             raise KeyError(name)
 
     @property

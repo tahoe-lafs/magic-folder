@@ -62,6 +62,7 @@ from ..snapshot import (
     RemoteSnapshot,
     LocalSnapshot,
 )
+from ..util.file import PathState
 
 if platformType == "win32":
     INVALID_FILENAME_CHARACTERS = (u"\x00", u"/", u"\\", ":", "\"", "?", "<", ">", "|", "*")
@@ -406,7 +407,9 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         RemoteSnapshot,
         name=names,
         author=authors,
-        metadata=dictionaries(text(), text()),
+        metadata=fixed_dictionaries({
+            "modification_time": integers(min_value=0, max_value=2**32),
+        }),
         capability=tahoe_lafs_immutable_dir_capabilities(),
         parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
         content_cap=tahoe_lafs_chk_capabilities(),
@@ -438,4 +441,15 @@ def local_snapshots():
         parents_local=just([]),
         parents_remote=lists(tahoe_lafs_immutable_dir_capabilities()),
         identifier=uuids(),
+    )
+
+def path_states():
+    """
+    Build ``PathState`` instances.
+    """
+    return builds(
+        PathState,
+        mtime_ns=integers(min_value=0, max_value=2 ** 31 - 1),
+        ctime_ns=integers(min_value=0, max_value=2 ** 31 - 1),
+        size=integers(min_value=0, max_value=2 ** 31 - 1),
     )

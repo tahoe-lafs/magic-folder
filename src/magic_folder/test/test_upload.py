@@ -2,6 +2,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 import io
@@ -56,6 +57,7 @@ from ..snapshot import (
 from ..magicpath import (
     path2magic,
 )
+from ..util.file import PathState
 from twisted.internet import task
 
 from .common import (
@@ -137,6 +139,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         config.store_local_snapshot(snapshots[0])
+        config.store_currentsnapshot_state(mangled_name, PathState(0, 0, 0))
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(

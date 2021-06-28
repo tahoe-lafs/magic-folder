@@ -452,7 +452,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 @inline_callbacks
 def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
-                    raw_remote_parents=None):
+                    raw_remote_parents=None, modified_time=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -472,6 +472,9 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
 
     :param parents: a list of LocalSnapshot instances (may be empty,
         which is the default if not specified).
+
+    :param int modified_time: timestamp to use as last-modified time
+        (or None for "now")
     """
     if parents is None:
         parents = []
@@ -525,14 +528,17 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     finally:
         os.close(temp_file_fd)
 
-    now = time.time()
+    now = int(time.time())
+    if modified_time is None:
+        modified_time = now
+
     returnValue(
         LocalSnapshot(
             name=name,
             author=author,
             metadata={
+                "mtime": modified_time,
                 "ctime": now,
-                "mtime": now,
             },
             content_path=FilePath(temp_file_name),
             parents_local=parents_local,
@@ -617,6 +623,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "snapshot_version": SNAPSHOT_VERSION,
         "name": snapshot.name,
         "author": snapshot.author.to_remote_author().to_json(),
+        "modification_time": snapshot.metadata["mtime"],
         "parents": [
             parent_cap.encode("utf8")
             for parent_cap in parents_raw
@@ -637,7 +644,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # - "metadata" -> RO cap (json)
 
     data = {
-        u"content": format_filenode(content_cap),
+        u"content": format_filenode(content_cap, snapshot.metadata),
         u"metadata": format_filenode(
             metadata_cap, {
                 u"magic_folder": {

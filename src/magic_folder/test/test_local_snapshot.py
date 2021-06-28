@@ -2,6 +2,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 import attr
@@ -55,6 +56,9 @@ from ..config import (
 )
 from ..status import (
     WebSocketStatusService,
+)
+from ..util.file import (
+    seconds_to_ns,
 )
 from .common import (
     SyncTestCase,
@@ -301,8 +305,16 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             mangled_filename = path2magic(filename)
             stored_snapshot = self.db.get_local_snapshot(mangled_filename)
             stored_content = stored_snapshot.content_path.getContent()
+            path_state = self.db.get_currentsnapshot_pathstate(mangled_filename)
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
+            self.assertThat(
+                path_state,
+                MatchesStructure(
+                    size=Equals(len(content)),
+                    mtime_ns=Equals(seconds_to_ns(file.asBytesMode("utf-8").getModificationTime())),
+                )
+            )
 
     @given(content1=binary(min_size=1),
            content2=binary(min_size=1),

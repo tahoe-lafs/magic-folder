@@ -54,6 +54,7 @@ from .config import (
 from . import (
     magicpath,
 )
+from .util.file import get_pathinfo
 
 
 SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
@@ -136,6 +137,8 @@ class LocalSnapshotCreator(object):
 
             action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)
             with action:
+                path_info = get_pathinfo(path)
+
                 snapshot = yield create_snapshot(
                     name=mangled_name,
                     author=self._author,
@@ -143,11 +146,14 @@ class LocalSnapshotCreator(object):
                     snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                     raw_remote_parents=raw_remote,
+                    #FIXME from path_info
+                    modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )
 
                 # store the local snapshot to the disk
+                # FIXME: should be in a transaction
                 self._db.store_local_snapshot(snapshot)
-
+                self._db.store_currentsnapshot_state(mangled_name, path_info.state)
 
 @attr.s
 @implementer(service.IService)
@@ -323,7 +329,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_remotesnapshot(name, remote_snapshot)
+        yield self._config.store_uploaded_snapshot(name, remote_snapshot)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but

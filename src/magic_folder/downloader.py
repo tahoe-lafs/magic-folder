@@ -9,6 +9,7 @@ from __future__ import (
     unicode_literals,
 )
 
+import os
 from collections import deque
 from functools import wraps
 
@@ -41,6 +42,7 @@ from twisted.python.filepath import (
 from twisted.internet.defer import (
     DeferredLock,
     returnValue,
+    succeed,
 )
 from twisted.web.error import (
     SchemeNotSupported,
@@ -55,6 +57,7 @@ from .magicpath import (
 from .snapshot import (
     create_snapshot_from_capability,
 )
+from .util.file import PathState, get_pathinfo, seconds_to_ns
 
 def _exclusively(f):
     @wraps(f)
@@ -221,6 +224,8 @@ class IMagicFolderFilesystem(Interface):
 
         :param FilePath staged_content: a local path to the downloaded
             content.
+
+        :return PathState: The path state of the file that was written.
         """
 
     def mark_conflict(remote_snapshot, staged_content):
@@ -388,7 +393,9 @@ class MagicFolderUpdater(object):
                     self._magic_fs.mark_conflict(snapshot, staged)
                     # FIXME note conflict internally
                 else:
-                    self._magic_fs.mark_overwrite(snapshot, staged)
+                    # FIXME: This should take the path and mtime as arguments,
+                    # instead of the snapshot argument
+                    path_state = self._magic_fs.mark_overwrite(snapshot, staged)
 
                     # Note, if we crash here (after moving the file into place
                     # but before noting that in our database) then we could
@@ -398,7 +405,9 @@ class MagicFolderUpdater(object):
 
 
                     # remember the last remote we've downloaded
-                    self._config.store_remotesnapshot(snapshot.name, snapshot)
+                    self._config.store_downloaded_snapshot(
+                        snapshot.name, snapshot, path_state
+                    )
 
                     # XXX careful here, we still need something that makes
                     # sure mismatches between remotesnapshots in our db and
@@ -443,15 +452,29 @@ class LocalMagicFolderFilesystem(object):
 
         :param FilePath staged_content: a local path to the downloaded
             content.
+
+        :return PathState: The path state of the file that was written.
         """
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
         tmp = None
         if local_path.exists():
-            tmp = local_path.temporarySibling(b".snap")
+            # As long as the scanner is running in-process, in the reactor,
+            # it won't see this temporary file.
+            # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
+            tmp = local_path.temporarySibling(b".snaptmp")
             local_path.moveTo(tmp)
+        mtime = remote_snapshot.metadata["modification_time"]
+        os.utime(staged_content.path, (mtime, mtime))
+        path_state = get_pathinfo(staged_content).state
         staged_content.moveTo(local_path)
         if tmp is not None:
+            # FIXME: We should verify that this moved file has
+            # the same (except ctime) state as the the previous snapshot
+            # before we remove it.
+            # https://github.com/LeastAuthority/magic-folder/issues/454
+            # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
             tmp.remove()
+        return path_state
 
     def mark_conflict(self, remote_snapshot, staged_content):
         """
@@ -490,18 +513,29 @@ class InMemoryMagicFolderFilesystem(object):
 
     def __init__(self):
         self.actions = []
+        self._staged_content = {}
 
     def download_content_to_staging(self, remote_snapshot, tahoe_client):
         self.actions.append(
             ("download", remote_snapshot)
         )
+        self._staged_content[id(remote_snapshot)] = marker = object()
+        return succeed(marker)
 
     def mark_overwrite(self, remote_snapshot, staged_content):
+        assert self._staged_content[id(remote_snapshot)] is staged_content
         self.actions.append(
             ("overwrite", remote_snapshot)
         )
+        mtime_ns = seconds_to_ns(remote_snapshot.metadata["modification_time"])
+        return PathState(
+            mtime_ns=mtime_ns,
+            ctime_ns=mtime_ns,
+            size=0,
+        )
 
     def mark_conflict(self, remote_snapshot, staged_content):
+        assert self._staged_content[id(remote_snapshot)] is staged_content
         self.actions.append(
             ("conflict", remote_snapshot)
         )
