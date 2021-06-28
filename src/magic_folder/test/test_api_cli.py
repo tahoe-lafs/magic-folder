@@ -610,6 +610,7 @@ class TestDumpState(AsyncTestCase):
                 "foo: {}".format(local_uuid),
                 "remote snapshots:",
                 "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+                repr(PathState(0, 0, 0))
             ])
         )
 
