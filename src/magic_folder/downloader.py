@@ -390,26 +390,27 @@ class MagicFolderUpdater(object):
                 else:
                     self._magic_fs.mark_overwrite(snapshot, staged)
 
-                # Note, if we crash here (after moving the file into place
-                # but before noting that in our database) then we could
-                # produce LocalSnapshots referencing the wrong parent. We
-                # will no longer produce snapshots with the wrong parent
-                # once we re-run and get past this point.
+                    # Note, if we crash here (after moving the file into place
+                    # but before noting that in our database) then we could
+                    # produce LocalSnapshots referencing the wrong parent. We
+                    # will no longer produce snapshots with the wrong parent
+                    # once we re-run and get past this point.
 
-                # remember the last remote we've downloaded
-                self._config.store_remotesnapshot(snapshot.name, snapshot)
 
-                # XXX careful here, we still need something that makes
-                # sure mismatches between remotesnapshots in our db and
-                # the Personal DMD are reconciled .. that is, if we crash
-                # here and/or can't update our Personal DMD we need to
-                # retry later.
-                yield self.tahoe_client.add_entry_to_mutable_directory(
-                    self._config.upload_dircap,
-                    snapshot.name,
-                    snapshot.capability.encode("ascii"),
-                    replace=True,
-                )
+                    # remember the last remote we've downloaded
+                    self._config.store_remotesnapshot(snapshot.name, snapshot)
+
+                    # XXX careful here, we still need something that makes
+                    # sure mismatches between remotesnapshots in our db and
+                    # the Personal DMD are reconciled .. that is, if we crash
+                    # here and/or can't update our Personal DMD we need to
+                    # retry later.
+                    yield self.tahoe_client.add_entry_to_mutable_directory(
+                        self._config.upload_dircap,
+                        snapshot.name,
+                        snapshot.capability.encode("ascii"),
+                        replace=True,
+                    )
 
 
 @implementer(IMagicFolderFilesystem)
