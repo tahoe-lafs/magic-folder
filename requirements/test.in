@@ -12,6 +12,9 @@ coverage ~= 4.5
 tox
 mock
 pytest
+# pytest depends on colorama on windows include it here so
+# pip-compile records its hashes
+colorama
 pytest-twisted
 hypothesis >= 3.6.1
 towncrier >= 21.3.0
