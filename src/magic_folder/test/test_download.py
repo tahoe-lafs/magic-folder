@@ -11,6 +11,7 @@ Tests relating generally to magic_folder.downloader
 
 import io
 import base64
+import time
 from mock import Mock
 
 from json import (
@@ -26,6 +27,7 @@ from eliot.twisted import (
 )
 
 from testtools.matchers import (
+    MatchesAll,
     MatchesStructure,
     Always,
     Equals,
@@ -83,7 +85,7 @@ from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
-
+from ..util.file import PathState, get_pathinfo, seconds_to_ns
 from .common import (
     SyncTestCase,
     AsyncTestCase,
@@ -505,6 +507,9 @@ class UpdateTests(AsyncTestCase):
         """
         Create a snapshot in zara's Personal DMD, then update it.
         """
+        # Use a time slightly in the past so that it we can
+        # test that it is written to the filesystem
+        modified_time = int(time.time()) - 60
 
         content0 = b"foo" * 1000
         content1 = b"bar" * 1000
@@ -529,6 +534,7 @@ class UpdateTests(AsyncTestCase):
             io.BytesIO(content1),
             self.state_path,
             parents=[local_snap0],
+            modified_time=modified_time,
         )
         remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
         yield self.tahoe_client.add_entry_to_mutable_directory(
@@ -547,6 +553,20 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0, lambda: None)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+        self.assertThat(
+            self.config.get_currentsnapshot_pathstate("foo"),
+            MatchesAll(
+                Equals(
+                    get_pathinfo(self.magic_path.child("foo")).state,
+                ),
+                MatchesStructure.byEquality(
+                    # We don't check the ctime here, since we can't control it.
+                    mtime_ns=seconds_to_ns(modified_time),
+                    size=len(content1),
+                ),
+            )
+        )
+
 
     @inlineCallbacks
     def test_multi_update(self):
@@ -690,7 +710,7 @@ class ConflictTests(AsyncTestCase):
         remote0 = RemoteSnapshot(
             name="foo",
             author=self.carol,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -735,20 +755,22 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
-        self.alice_config.store_remotesnapshot("foo", parent)
+        self.alice_config.store_downloaded_snapshot("foo", parent, PathState(
+            mtime_ns=0, ctime_ns=0, size=len(parent_content),
+        ))
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             name="foo",
             author=self.carol,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -786,7 +808,7 @@ class ConflictTests(AsyncTestCase):
             parent = RemoteSnapshot(
                 name="foo",
                 author=self.alice,
-                metadata=b"URI:CHK:",
+                metadata={"modification_time": 0},
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
@@ -795,7 +817,9 @@ class ConflictTests(AsyncTestCase):
             remotes.append(parent)
 
         # set "our" parent to the oldest one
-        self.alice_config.store_remotesnapshot("foo", remotes[0])
+        self.alice_config.store_downloaded_snapshot("foo", remotes[0], PathState(
+            mtime_ns=0, ctime_ns=0, size=len("dummy"),
+        ))
 
         # we've 'seen' this file before so we must have the path locally
         self.alice_magic_path.child("foo").setContent(b"dummy")
@@ -823,7 +847,7 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -834,7 +858,7 @@ class ConflictTests(AsyncTestCase):
         child = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -845,7 +869,7 @@ class ConflictTests(AsyncTestCase):
         other = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=other_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -854,7 +878,9 @@ class ConflictTests(AsyncTestCase):
 
         # so "alice" has "other" already
         self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_remotesnapshot("foo", other)
+        self.alice_config.store_downloaded_snapshot("foo", other, PathState(
+            mtime_ns=0, ctime_ns=0, size=len("whatever"),
+        ))
 
         # ...child->parent aren't related to "other"
         yield self.updater.add_remote_snapshot(child)
@@ -878,7 +904,7 @@ class ConflictTests(AsyncTestCase):
         parent = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -889,7 +915,7 @@ class ConflictTests(AsyncTestCase):
         child = RemoteSnapshot(
             name="foo",
             author=self.alice,
-            metadata=b"URI:CHK:",
+            metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -898,7 +924,9 @@ class ConflictTests(AsyncTestCase):
 
         # so "alice" has "child" already
         self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_remotesnapshot("foo", child)
+        self.alice_config.store_downloaded_snapshot("foo", child, PathState(
+            mtime_ns=0, ctime_ns=0, size=len("whatever"),
+        ))
 
         # we update with the parent (so, it's old)
         yield self.updater.add_remote_snapshot(parent)

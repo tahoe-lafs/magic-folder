@@ -116,9 +116,14 @@ def dump_state(options):
             q.extend(s.parents_local)
         print("    {}: {}".format(snap_name, parents[:-4]), file=options.stdout)
     print("  remote snapshots:", file=options.stdout)
-    for snap_name in config.get_all_remotesnapshot_paths():
-        snap = config.get_remotesnapshot(snap_name)
-        print("    {}: {}".format(snap_name, snap), file=options.stdout)
+    for snap_name in config.get_all_snapshot_paths():
+        try:
+            cap = config.get_remotesnapshot(snap_name)
+        except KeyError:
+            cap = None
+        path_state = config.get_currentsnapshot_pathstate(snap_name)
+        print("    {}: {}".format(snap_name, cap), file=options.stdout)
+        print("    {}  {}".format(" "*len(snap_name), path_state), file=options.stdout)
 
 
 class AddParticipantOptions(usage.Options):

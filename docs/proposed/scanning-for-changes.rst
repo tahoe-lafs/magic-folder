@@ -109,6 +109,25 @@ Alternatives considered
 Detailed design
 ---------------
 
+Version control systems usual use some values from ``stat(2)`` to detect when a
+file has changed on-disk. For example, mercurial uses size and mtime, and old
+magic-folder uses size, mtime and ctime.
+
+For the scanner (see below) to be able to check against those values, we need
+to store those values when we notice an update to a file. There are currently
+two places we need to do that:
+
+* When we take a local snapshot, we need to record that information.
+* When we overwrite a file with a remote snapshot, we need to record the
+  information of the file that got written. In this case, we want to record the
+  information from the staged file, before we move it into place, to ensure
+  that writes that happen after we move the file into place are detected.
+* We *dont'* need to capture the information when we turn a local snapshot into
+  a remote snapshot, since we will have already recorded that information.
+
+Scanner
+.......
+
 When triggered, the scanning system walks the entire tree of files below
 the Magic Folder.
 
@@ -124,13 +143,11 @@ For each file found:
 
 * Check if we already have a Snapshot for this name:
 
-   * As a LocalSnapshot
+   * If we have a snapshot, we'll have recorded (mtime, ctime, size) of the
+     file when it was snapshotted. 
 
-      * We can compare directly the stashed contents to the file
-        contents
-
-      * If different, produce a new LocalSnapshot as a child of this
-        one
+      * If the values match, we don't create a snapshot.
+      * If the values don't match, we request a snapshot be created of the file.
 
    * ..or a RemoteSnashot
 
