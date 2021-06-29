@@ -465,8 +465,24 @@ class LocalMagicFolderFilesystem(object):
             local_path.moveTo(tmp)
         mtime = remote_snapshot.metadata["modification_time"]
         os.utime(staged_content.path, (mtime, mtime))
-        path_state = get_pathinfo(staged_content).state
+
+        # We want to get the path state of the file we are about to write.
+        # Ideally, we would get this from the staged file. However, depending
+        # on the operating system, the ctime can change when we rename.
+        # Instead, we get the path state before and after the move, and use
+        # the later if the mtime and size match.
+        staged_path_state = get_pathinfo(staged_content).state
         staged_content.moveTo(local_path)
+        path_state = get_pathinfo(local_path).state
+        if (
+            staged_path_state.mtime_ns != path_state.mtime_ns
+            or staged_path_state.size != path_state.size
+            or staged_path_state.ctime_ns > path_state.ctime_ns
+        ):
+            # The path got changed after we moved it, return the staged
+            # path_state so it is detected as a change.
+            path_state = staged_path_state
+
         if tmp is not None:
             # FIXME: We should verify that this moved file has
             # the same (except ctime) state as the the previous snapshot
