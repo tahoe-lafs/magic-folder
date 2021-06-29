@@ -17,10 +17,8 @@ from functools import partial
 import attr
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
     Deferred,
-    succeed,
 )
 from twisted.internet.task import (
     deferLater,
@@ -40,11 +38,12 @@ import treq
 
 from eliot import (
     Message,
-    start_action,
     current_action,
+    start_action,
+    start_task,
 )
 from eliot.twisted import (
-    DeferredContext,
+    inline_callbacks,
 )
 
 from allmydata.util.configutil import (
@@ -72,13 +71,21 @@ class MagicFolderEnabledNode(object):
     magic-folder child process.
 
     :ivar IProcessTransport tahoe: The Tahoe-LAFS node child process.
-
     :ivar IProcessTransport magic_folder: The magic-folder child process.
+
+    :ivar eliot.Action action: This is the top-level action for this node.
+       It is used for capturing all the in-test-process logs for the services
+       related to the node. In particular, when restarting a servie during a
+       test, we want to capture logs from that processes output in *this*
+       action, rather than the test action, since the process likely continues
+       until after the test ends.
     """
     reactor = attr.ib()
     request = attr.ib()
     temp_dir = attr.ib()
     name = attr.ib()
+
+    action = attr.ib()
 
     tahoe = attr.ib()
     magic_folder = attr.ib()
@@ -101,7 +108,7 @@ class MagicFolderEnabledNode(object):
         return join(self.temp_dir, "magic-{}".format(self.name))
 
     @classmethod
-    @inlineCallbacks
+    @inline_callbacks
     def create(
             cls,
             reactor,
@@ -138,53 +145,62 @@ class MagicFolderEnabledNode(object):
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
-        # Make the Tahoe-LAFS node process
-        tahoe = yield _create_node(
-            reactor,
-            tahoe_venv,
-            request,
-            temp_dir,
-            introducer_furl,
-            flog_gatherer,
-            name,
-            tahoe_web_port,
-            storage,
-            needed=1,
-            happy=1,
-            total=1,
-        )
-        yield await_client_ready(reactor, tahoe)
+        with start_task(action_type=u"integration:magic-folder-node", node=name).context() as action:
+            # We want to last until the session fixture using it ends (so we
+            # can capture output from every process associated to this node).
+            # Thus we use `.context()` above so this with-block doesn't finish
+            # the action, and add a finalizer to finish it (first, since
+            # finalizers are a stack).
+            request.addfinalizer(action.finish)
+            # Make the Tahoe-LAFS node process
+            tahoe = yield _create_node(
+                reactor,
+                tahoe_venv,
+                request,
+                temp_dir,
+                introducer_furl,
+                flog_gatherer,
+                name,
+                tahoe_web_port,
+                storage,
+                needed=1,
+                happy=1,
+                total=1,
+            )
+            yield await_client_ready(reactor, tahoe)
 
-        # Create the magic-folder daemon config
-        yield _init_magic_folder(
-            reactor,
-            request,
-            temp_dir,
-            name,
-            magic_folder_web_port,
-        )
+            # Create the magic-folder daemon config
+            yield _init_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                name,
+                magic_folder_web_port,
+            )
 
-        # Run the magic-folder daemon
-        magic_folder = yield _run_magic_folder(
-            reactor,
-            request,
-            temp_dir,
-            name,
-        )
+            # Run the magic-folder daemon
+            magic_folder = yield _run_magic_folder(
+                reactor,
+                request,
+                temp_dir,
+                name,
+            )
         returnValue(
             cls(
                 reactor,
                 request,
                 temp_dir,
                 name,
+                action,
                 tahoe,
                 magic_folder,
                 magic_folder_web_port,
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def stop_magic_folder(self):
+        Message.log(message_type=u"integation:magic-folder:stop", node=self.name)
         if self.magic_folder is None:
             return
         try:
@@ -194,14 +210,17 @@ class MagicFolderEnabledNode(object):
         except ProcessExitedAlready:
             pass
 
-    @inlineCallbacks
+    @inline_callbacks
     def restart_magic_folder(self):
         yield self.stop_magic_folder()
         yield self.start_magic_folder()
 
-    @inlineCallbacks
+    @inline_callbacks
     def start_magic_folder(self):
-        with start_action(action_type=u"integration:alice:magic_folder:magic-text"):
+        # We log a notice that we are starting the service in the context of the test
+        # but the logs of the service are in the context of the fixture.
+        Message.log(message_type=u"integation:magic-folder:start", node=self.name)
+        with self.action.context():
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
                 self.request,
@@ -210,21 +229,21 @@ class MagicFolderEnabledNode(object):
             )
 
     def pause_tahoe(self):
+        Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
         self.tahoe.transport.signalProcess(signal.SIGSTOP)
 
     def resume_tahoe(self):
+        Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
         self.tahoe.transport.signalProcess(signal.SIGCONT)
 
     # magic-folder CLI API helpers
 
-    @inlineCallbacks
     def add(self, folder_name, magic_directory, author=None, poll_interval=5):
         """
         magic-folder add
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add",
@@ -234,17 +253,13 @@ class MagicFolderEnabledNode(object):
                 magic_directory,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
     def leave(self, folder_name):
         """
         magic-folder add
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "leave",
@@ -252,32 +267,23 @@ class MagicFolderEnabledNode(object):
                 "--really-delete-write-capability",
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
     def show_config(self):
         """
         magic-folder show-config
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "show-config",
             ],
-        )
-        output = yield proto.done
-        config = json.loads(output)
-        returnValue(config)
+        ).addCallback(json.loads)
 
-    @inlineCallbacks
     def list_(self, include_secret_information=None):
         """
         magic-folder list
         """
-        proto = _CollectOutputProtocol()
         args = [
             "--config", self.magic_config_directory,
             "list",
@@ -286,22 +292,17 @@ class MagicFolderEnabledNode(object):
         if include_secret_information:
             args.append("--include-secret-information")
 
-        _magic_folder_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
             args,
-        )
-        output = yield proto.done
-        config = json.loads(output)
-        returnValue(config)
+        ).addCallback(json.loads)
 
-    @inlineCallbacks
     def add_snapshot(self, folder_name, relpath):
         """
         magic-folder-api add-snapshot
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add-snapshot",
@@ -309,17 +310,13 @@ class MagicFolderEnabledNode(object):
                 "--file", relpath,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
     def add_participant(self, folder_name, author_name, personal_dmd):
         """
         magic-folder-api add-participant
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "add-participant",
@@ -328,25 +325,19 @@ class MagicFolderEnabledNode(object):
                 "--personal-dmd", personal_dmd,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
-    @inlineCallbacks
     def dump_state(self, folder_name):
         """
         magic-folder-api dump-state
         """
-        proto = _CollectOutputProtocol()
-        _magic_folder_api_runner(
-            proto, self.reactor, self.request,
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
                 "dump-state",
                 "--folder", folder_name,
             ],
         )
-        yield proto.done
-        returnValue(proto.output.getvalue())
 
 
 class _ProcessExitedProtocol(ProcessProtocol):
@@ -371,6 +362,8 @@ class _CollectOutputProtocol(ProcessProtocol):
     def __init__(self):
         self.done = Deferred()
         self.output = StringIO()
+        self._action = current_action()
+        assert self._action is not None
 
     def processEnded(self, reason):
         if not self.done.called:
@@ -385,6 +378,8 @@ class _CollectOutputProtocol(ProcessProtocol):
 
     def errReceived(self, data):
         print("ERR: {}".format(data))
+        with self._action.context():
+            Message.log(message_type=u"err-received", data=data)
         self.output.write(data)
 
 
@@ -411,6 +406,83 @@ class _DumpOutputProtocol(ProcessProtocol):
         self._out.write(data)
 
 
+def run_service(
+    reactor,
+    request,
+    action_fields,
+    magic_text,
+    executable,
+    args,
+    cwd=None
+):
+    """
+    Start a service, and capture the output from the service in an eliot
+    action.
+
+    This will start the service, and the returned deferred will fire with
+    the process, once the given magic text is seeen.
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param dict action_fields: Additional fields to include in the action.
+    :param magic_text: Text to look for in the logs, that indicate the service
+        is ready to accept requests.
+    :param executable: The executable to run.
+    :param args: The arguments to pass to the process.
+    :param cwd: The working directory of the process.
+
+    :return Deferred[IProcessTransport]: The started process.
+    """
+    with start_action(args=args, executable=executable, **action_fields).context():
+        protocol = _MagicTextProtocol(magic_text)
+        process = reactor.spawnProcess(
+            protocol,
+            executable,
+            args,
+            path=cwd
+        )
+        request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited))
+        return protocol.magic_seen.addCallback(lambda ignored: process)
+
+def run_tahoe_service(
+    reactor,
+    request,
+    action_fields,
+    magic_text,
+    tahoe_venv,
+    node_dir,
+    cwd=None,
+):
+    """
+    Start a tahoe node, and capture the output from the service in an eliot
+    action.
+
+    This will start the service, and the returned deferred will fire with
+    the process, once the given magic text is seeen.
+
+    :param reactor: The reactor to use to launch the process.
+    :param request: The pytest request object to use for cleanup.
+    :param dict action_fields: Additional fields to include in the action.
+    :param magic_text: Text to look for in the logs, that indicate the service
+        is ready to accept requests.
+    :param tahoe_venv: The path to the tahoe virtualenv to use.
+    :param node_dir: The node directory
+    :param cwd: The working directory of the process.
+
+    :return Deferred[TahoeProcess]: The started process.
+    """
+    # on windows, "tahoe start" means: run forever in the foreground,
+    # but on linux it means daemonize. "tahoe run" is consistent
+    # between platforms.
+    executable, args = _tahoe_runner_args(tahoe_venv, [
+        '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
+        'run',
+        node_dir,
+    ])
+    d = run_service(reactor, request, action_fields, magic_text, executable, args, cwd=cwd)
+    return d.addCallback(TahoeProcess, node_dir=node_dir)
+
+
 class _MagicTextProtocol(ProcessProtocol):
     """
     Internal helper. Monitors all stdout looking for a magic string,
@@ -426,18 +498,18 @@ class _MagicTextProtocol(ProcessProtocol):
         assert self._action is not None
 
     def processEnded(self, reason):
-        with self._action.context():
+        with self._action:
             Message.log(message_type=u"process-ended")
-            self.exited.callback(None)
+        self.exited.callback(None)
 
     def outReceived(self, data):
         with self._action.context():
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
             self._output.write(data)
-            if not self.magic_seen.called and self._magic_text in self._output.getvalue():
-                print("Saw '{}' in the logs".format(self._magic_text))
-                self.magic_seen.callback(self)
+        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+            print("Saw '{}' in the logs".format(self._magic_text))
+            self.magic_seen.callback(self)
 
     def errReceived(self, data):
         with self._action.context():
@@ -445,56 +517,93 @@ class _MagicTextProtocol(ProcessProtocol):
             sys.stdout.write(data)
 
 
-def _cleanup_tahoe_process(tahoe_transport, exited):
+def _cleanup_service_process(process, exited):
     """
     Terminate the given process with a kill signal (SIGKILL on POSIX,
     TerminateProcess on Windows).
 
-    :param tahoe_transport: The `IProcessTransport` representing the process.
+    :param process: The `IProcessTransport` representing the process.
     :param exited: A `Deferred` which fires when the process has exited.
 
     :return: After the process has exited.
     """
     try:
-        print("signaling {} with TERM".format(tahoe_transport.pid))
-        tahoe_transport.signalProcess('TERM')
+        print("signaling {} with TERM".format(process.pid))
+        process.signalProcess('TERM')
         print("signaled, blocking on exit")
         pytest_twisted.blockon(exited)
         print("exited, goodbye")
     except ProcessExitedAlready:
         pass
 
-
-def _magic_folder_runner(proto, reactor, request, other_args):
+@inline_callbacks
+def _package_runner(reactor, request, action_fields, package, other_args):
     """
-    Launch a ``magic_folder run`` child process and return it.
-    """
-    if request.config.getoption('coverage'):
-        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder"]
-    else:
-        prelude = [sys.executable, "-m", "magic_folder"]
+    Launch a python package and return the output.
 
-    return reactor.spawnProcess(
-        proto,
-        sys.executable,
-        prelude + other_args,
+    Gathers coverage of the command, if requested for pytest.
+    """
+    with start_action(
+        args=other_args,
+        **action_fields
+    ) as action:
+        proto = _CollectOutputProtocol()
+
+        if request.config.getoption('coverage'):
+            prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
+        else:
+            prelude = [sys.executable, "-m", package]
+
+        reactor.spawnProcess(
+            proto,
+            sys.executable,
+            prelude + other_args,
+        )
+        output = yield proto.done
+
+        action.add_success_fields(output=output)
+
+    returnValue(output)
+
+
+def _magic_folder_runner(reactor, request, name, other_args):
+    """
+    Launch a ``magic_folder`` sub-command and return the output.
+    """
+    action_fields = {
+            "action_type": "integration:magic-folder:run-cli",
+            "node": name,
+    }
+    return _package_runner(
+        reactor,
+        request,
+        action_fields,
+        "magic_folder",
+        other_args,
     )
 
 
-def _magic_folder_api_runner(proto, reactor, request, other_args):
+def _magic_folder_api_runner(reactor, request, name, other_args):
     """
-    Launch a ``magic-folder-api`` child process and return it.
+    Launch a ``magic-folder-api`` command and return the output.
     """
-    if request.config.getoption('coverage'):
-        prelude = [sys.executable, "-m", "coverage", "run", "-m", "magic_folder.api_cli"]
-    else:
-        prelude = [sys.executable, "-m", "magic_folder.api_cli"]
-
-    return reactor.spawnProcess(
-        proto,
-        sys.executable,
-        prelude + other_args,
+    action_fields = {
+        "action_type": "integration:magic-folder:run-cli-api",
+        "node": name,
+    }
+    return _package_runner(
+        reactor,
+        request,
+        action_fields,
+        "magic_folder.api_cli",
+        other_args,
     )
+
+def _tahoe_runner_args(tahoe_venv, other_args):
+    tahoe_python = str(tahoe_venv.joinpath('bin', 'python'))
+    args = [tahoe_python, '-m', 'allmydata.scripts.runner']
+    args.extend(other_args)
+    return tahoe_python, args
 
 
 def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
@@ -502,11 +611,10 @@ def _tahoe_runner(proto, reactor, tahoe_venv, request, other_args):
     Internal helper. Calls spawnProcess with `-m allmydata.scripts.runner` and
     `other_args`.
     """
-    args = [str(tahoe_venv.joinpath('bin', 'python')), '-m', 'allmydata.scripts.runner']
-    args += other_args
+    executable, args = _tahoe_runner_args(tahoe_venv, other_args)
     return reactor.spawnProcess(
         proto,
-        sys.executable,
+        executable,
         args,
     )
 
@@ -538,47 +646,7 @@ class TahoeProcess(object):
         return "<TahoeProcess in '{}'>".format(self._node_dir)
 
 
-def _run_node(reactor, tahoe_venv, node_dir, request, magic_text):
-    """
-    Run a tahoe process from its node_dir.
-
-    :returns: a TahoeProcess for this node
-    """
-    if magic_text is None:
-        magic_text = "client running"
-    protocol = _MagicTextProtocol(magic_text)
-
-    # on windows, "tahoe start" means: run forever in the foreground,
-    # but on linux it means daemonize. "tahoe run" is consistent
-    # between platforms.
-
-    transport = _tahoe_runner(
-        protocol,
-        reactor,
-        tahoe_venv,
-        request,
-        [
-            '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
-            'run',
-            node_dir,
-        ],
-    )
-    transport.exited = protocol.exited
-
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, protocol.exited))
-
-    # XXX abusing the Deferred; should use .when_magic_seen() pattern
-
-    def got_proto(proto):
-        transport._protocol = proto
-        return TahoeProcess(
-            transport,
-            node_dir,
-        )
-    protocol.magic_seen.addCallback(got_proto)
-    return protocol.magic_seen
-
-
+@inline_callbacks
 def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
                  storage=True,
                  magic_text=None,
@@ -592,9 +660,7 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
     node_dir = join(temp_dir, name)
     if web_port is None:
         web_port = ''
-    if exists(node_dir):
-        created_d = succeed(None)
-    else:
+    if not exists(node_dir):
         print("creating", node_dir)
         mkdir(node_dir)
         done_proto = _ProcessExitedProtocol()
@@ -615,20 +681,22 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
         args.append(node_dir)
 
         _tahoe_runner(done_proto, reactor, tahoe_venv, request, args)
-        created_d = done_proto.done
+        yield done_proto.done
 
-        def created(_):
+        if flog_gatherer:
             config_path = join(node_dir, 'tahoe.cfg')
             config = get_config(config_path)
             set_config(config, 'node', 'log_gatherer.furl', flog_gatherer)
             write_config(config_path, config)
-        created_d.addCallback(created)
 
-    d = Deferred()
-    d.callback(None)
-    d.addCallback(lambda _: created_d)
-    d.addCallback(lambda _: _run_node(reactor, tahoe_venv, node_dir, request, magic_text))
-    return d
+    magic_text = "client running"
+    action_fields = {
+        "action_type": u"integration:tahoe-node:service",
+        "node": name,
+    }
+    process = yield run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, node_dir)
+    returnValue(process)
+
 
 
 class UnwantedFileException(Exception):
@@ -772,7 +840,7 @@ def _check_status(response):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def web_get(tahoe, uri_fragment, **kwargs):
     """
     Make a GET request to the webport of `tahoe` (a `TahoeProcess`,
@@ -791,7 +859,7 @@ def twisted_sleep(reactor, timeout):
     return deferLater(reactor, timeout, lambda: None)
 
 
-@inlineCallbacks
+@inline_callbacks
 def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     """
     Uses the status API to wait for a client-type node (in `tahoe`, a
@@ -856,48 +924,14 @@ def _init_magic_folder(reactor, request, temp_dir, name, web_port):
     """
     node_dir = join(temp_dir, name)
     config_dir = join(temp_dir, "magic-daemon-{}".format(name))
-    # proto = _ProcessExitedProtocol()
-    proto = _CollectOutputProtocol()
-
-    coverage = request.config.getoption('coverage')
-    def optional(flag, elements):
-        if flag:
-            return elements
-        return []
 
     args = [
-        sys.executable,
-        "-m",
-    ] + optional(coverage, [
-        "coverage",
-        "run",
-        "-m",
-    ]) + [
-        "magic_folder",
-    ] + optional(coverage, [
-        "--coverage",
-    ]) + [
         "--config", config_dir,
         "init",
         "--node-directory", node_dir,
         "--listen-endpoint", web_port,
     ]
-    Message.log(
-        message_type=u"integration:init-magic-folder",
-        coverage=coverage,
-        args=args,
-    )
-    transport = reactor.spawnProcess(
-        proto,
-        sys.executable,
-        args,
-    )
-
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.done))
-    with start_action(action_type=u"integration:init-magic-folder").context():
-        ctx = DeferredContext(proto.done)
-        ctx.addCallback(lambda ignored: transport)
-        return ctx.addActionFinish()
+    return _magic_folder_runner(reactor, request, name, args)
 
 
 def _run_magic_folder(reactor, request, temp_dir, name):
@@ -914,7 +948,6 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     config_dir = join(temp_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
-    proto = _MagicTextProtocol(magic_text)
 
     coverage = request.config.getoption('coverage')
     def optional(flag, elements):
@@ -938,24 +971,21 @@ def _run_magic_folder(reactor, request, temp_dir, name):
         config_dir,
         "run",
     ]
-    Message.log(
-        message_type=u"integration:run-magic-folder",
-        coverage=coverage,
-        args=args,
-    )
-    transport = reactor.spawnProcess(
-        proto,
+    action_fields = {
+        "action_type": u"integration:magic-folder:service",
+        "node": name,
+    }
+    return run_service(
+        reactor,
+        request,
+        action_fields,
+        magic_text,
         sys.executable,
         args,
     )
-    request.addfinalizer(partial(_cleanup_tahoe_process, transport, proto.exited))
-    with start_action(action_type=u"integration:run-magic-folder").context():
-        ctx = DeferredContext(proto.magic_seen)
-        ctx.addCallback(lambda ignored: transport)
-        return ctx.addActionFinish()
 
 
-@inlineCallbacks
+@inline_callbacks
 def _pair_magic_folder(reactor, alice_invite, alice, bob):
     print("Joining bob to magic-folder")
     yield _command(
@@ -974,7 +1004,7 @@ def _pair_magic_folder(reactor, alice_invite, alice, bob):
     returnValue((alice.magic_directory, bob.magic_directory))
 
 
-@inlineCallbacks
+@inline_callbacks
 def _generate_invite(reactor, inviter, invitee_name):
     """
     Create a new magic-folder invite.
@@ -1009,7 +1039,7 @@ def _generate_invite(reactor, inviter, invitee_name):
 
 
 
-@inlineCallbacks
+@inline_callbacks
 def _command(*args):
     """
     Runs a single magic-folder command with the given arguments as CLI

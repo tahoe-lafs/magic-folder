@@ -32,9 +32,8 @@ def test_daemon_inititialize(request, reactor, temp_dir):
     with open(join(tahoe_dir, "node.url"), "w") as f:
         f.write('http://localhost:1234/')
 
-    proto = util._CollectOutputProtocol()
-    util._magic_folder_runner(
-        proto, reactor, request,
+    yield util._magic_folder_runner(
+        reactor, request, "daemon",
         [
             "--config", node_dir,
             "init",
@@ -42,17 +41,14 @@ def test_daemon_inititialize(request, reactor, temp_dir):
             "--node-directory", tahoe_dir,
         ],
     )
-    yield proto.done
 
-    proto = util._CollectOutputProtocol()
-    util._magic_folder_runner(
-        proto, reactor, request,
+    output = yield util._magic_folder_runner(
+        reactor, request, "daemon",
         [
             "--config", node_dir,
             "show-config",
         ],
     )
-    output = yield proto.done
     config = loads(output)
 
     assert config["api_endpoint"] == "tcp:1234"
@@ -76,9 +72,8 @@ def test_daemon_migrate(request, reactor, alice, temp_dir):
     with open(join(alice.node_directory, "private", "magic_folders.yaml"), "w") as f:
         f.write("magic-folders: {}\n")
 
-    proto = util._DumpOutputProtocol(None)
-    util._magic_folder_runner(
-        proto, reactor, request,
+    yield util._magic_folder_runner(
+        reactor, request, "migrate",
         [
             "--config", node_dir,
             "migrate",
@@ -87,17 +82,14 @@ def test_daemon_migrate(request, reactor, alice, temp_dir):
             "--author", "test",
         ],
     )
-    yield proto.done
 
-    proto = util._CollectOutputProtocol()
-    util._magic_folder_runner(
-        proto, reactor, request,
+    output = yield util._magic_folder_runner(
+        reactor, request, "migrate",
         [
             "--config", node_dir,
             "show-config",
         ],
     )
-    output = yield proto.done
     config = loads(output)
 
     assert config["api_endpoint"] == "tcp:1234"

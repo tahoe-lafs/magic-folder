@@ -4,15 +4,7 @@ from __future__ import (
     print_function,
 )
 
-from json import (
-    loads,
-)
-
 import pytest_twisted
-
-from . import util
-
-# see "conftest.py" for the fixtures (e.g. "magic_folder")
 
 
 @pytest_twisted.inlineCallbacks
@@ -21,29 +13,13 @@ def test_add(request, reactor, temp_dir, alice):
     'magic-folder add' happy-path works
     """
 
-    proto = util._CollectOutputProtocol()
-    util._magic_folder_runner(
-        proto, reactor, request,
-        [
-            "--config", alice.magic_config_directory,
-            "add",
-            "--name", "test",
-            "--author", "laptop",
-            alice.magic_directory,
-        ],
+    yield alice.add(
+        "test",
+        alice.magic_directory,
+        author="laptop",
     )
-    yield proto.done
 
-    proto = util._CollectOutputProtocol()
-    util._magic_folder_runner(
-        proto, reactor, request,
-        [
-            "--config", alice.magic_config_directory,
-            "show-config",
-        ],
-    )
-    output = yield proto.done
-    config = loads(output)
+    config = yield alice.show_config()
 
     assert "test" in config["magic_folders"]
     mf_config = config["magic_folders"]["test"]
