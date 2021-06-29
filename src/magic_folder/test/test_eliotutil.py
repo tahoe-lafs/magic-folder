@@ -127,7 +127,7 @@ class EliotLoggingTests(TestCase):
         destination.
         """
         collected = []
-        service = _EliotLogging([collected.append])
+        service = _EliotLogging([collected.append], capture_logs=True)
         service.startService()
         self.addCleanup(service.stopService)
 
@@ -151,7 +151,7 @@ class EliotLoggingTests(TestCase):
         destination.
         """
         collected = []
-        service = _EliotLogging([collected.append])
+        service = _EliotLogging([collected.append], capture_logs=True)
         service.startService()
         self.addCleanup(service.stopService)
 

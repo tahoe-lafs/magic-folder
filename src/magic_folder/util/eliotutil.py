@@ -11,16 +11,21 @@ from __future__ import (
     print_function,
 )
 
+import json
+import os
+
 from eliot import (
+    Action,
     Field,
-    ValidationError,
-    start_action,
     FileDestination,
+    ILogger,
     Message,
-    write_traceback,
+    ValidationError,
     add_destinations,
     remove_destination,
-    ILogger,
+    start_action,
+    start_task,
+    write_traceback,
 )
 
 from logging import (
@@ -41,6 +46,7 @@ from twisted.logger import (
 from twisted.internet.defer import (
     maybeDeferred,
 )
+from twisted.python import usage
 
 from functools import wraps
 from twisted.python.filepath import (
@@ -117,31 +123,102 @@ def validateSetMembership(s):
     return validator
 
 
+def opt_eliot_fd(self, fd):
+    """
+    File descriptor to send log eliot to.
+    """
+    try:
+        fd = int(fd)
+    except Exception as e:
+        raise usage.UsageError(str(e))
+
+    def to_fd(reactor):
+        return FileDestination(os.fdopen(fd, "w"))
+
+    self.setdefault("eliot-destinations", []).append(to_fd)
+
+
+def opt_eliot_task_fields(self, task_fields):
+    """
+    Wrap all logs in a task with given (JSON) fields. (for testing)
+    """
+    # JSON of fields to use for a top-level eliot task. If this is specified, a
+    # global eliot task will be created, and all eliot logs will be children of
+    # the that task. This is intened to help provide context to eliot logs,
+    # when they are captured in the test's eliot logs.
+    try:
+        task_fields = json.loads(task_fields)
+    except Exception as e:
+        raise usage.UsageError(str(e))
+    self.setdefault("eliot-task-fields", {}).update(task_fields)
+
+
+def with_eliot_options(cls):
+    cls.opt_eliot_fd = opt_eliot_fd
+    cls.opt_eliot_task_fields = opt_eliot_task_fields
+    return cls
+
+
+def maybe_enable_eliot_logging(options):
+    destinations = options.get("eliot-destinations")
+    task_fields = options.get("eliot-task-fields")
+    if not destinations:
+        return
+    from twisted.internet import reactor
+
+    destinations = [destination(reactor) for destination in destinations]
+    service = _EliotLogging(destinations, task_fields)
+    service.startService()
+    reactor.addSystemEventTrigger("after", "shutdown", service.stopService)
+
+
+@attr.s
 class _EliotLogging(Service):
     """
     A service which adds stdout as an Eliot destination while it is running.
-    """
-    def __init__(self, destinations):
-        """
-        :param list destinations: The Eliot destinations which will is added by this
-            service.
-        """
-        self.destinations = destinations
 
+    :ivar list[Callable[[IReactorCore], eliot.IDestination] destinations:
+       The Eliot destinations which will is added by this service.
+    """
+
+    destinations = attr.ib(
+        validator=attr.validators.deep_iterable(attr.validators.is_callable())
+    )
+    task_fields = attr.ib(
+        default=None,
+        validator=attr.validators.optional(attr.validators.instance_of(dict))
+    )
+    task = attr.ib(
+        init=False,
+        default=None,
+        validator=attr.validators.optional(attr.validators.instance_of(Action)),
+    )
+
+    # Currently, a major use of eliot logging is for integration testing.
+    # The twisted logs captured this way are *very* verbose, so they are disabled.
+    # We should revisit the format and renable them.
+    # https://github.com/LeastAuthority/magic-folder/issues/453
+    capture_logs = attr.ib(default=False, validator=attr.validators.instance_of(bool))
 
     def startService(self):
-        self.stdlib_cleanup = _stdlib_logging_to_eliot_configuration(getLogger())
-        self.twisted_observer = _TwistedLoggerToEliotObserver()
-        globalLogPublisher.addObserver(self.twisted_observer)
+        if self.task_fields:
+            self.task = start_task(**self.task_fields)
+            self.task.__enter__()
+        if self.capture_logs:
+            self.stdlib_cleanup = _stdlib_logging_to_eliot_configuration(getLogger())
+            self.twisted_observer = _TwistedLoggerToEliotObserver()
+            globalLogPublisher.addObserver(self.twisted_observer)
         add_destinations(*self.destinations)
         return Service.startService(self)
 
-
     def stopService(self):
+        if self.capture_logs:
+            globalLogPublisher.removeObserver(self.twisted_observer)
+            self.stdlib_cleanup()
+        if self.task is not None:
+            self.task.finish()
         for dest in self.destinations:
             remove_destination(dest)
-        globalLogPublisher.removeObserver(self.twisted_observer)
-        self.stdlib_cleanup()
         return Service.stopService(self)
 
 @implementer(ILogObserver)

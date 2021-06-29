@@ -43,6 +43,7 @@ from .client import (
     create_http_client,
     create_magic_folder_client,
 )
+from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
 
 class AddSnapshotOptions(usage.Options):
@@ -220,6 +221,7 @@ def monitor(options):
     return Deferred()
 
 
+@with_eliot_options
 class MagicFolderApiCommand(usage.Options):
     """
     top-level command (entry-point is "magic-folder-api")
@@ -379,6 +381,8 @@ def run_magic_folder_api_options(options):
         "list-participants": list_participants,
         "monitor": monitor,
     }[options.subCommand]
+
+    maybe_enable_eliot_logging(options)
 
     # we want to let exceptions out to the top level if --debug is on
     # because this gives better stack-traces
