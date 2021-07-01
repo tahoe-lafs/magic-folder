@@ -18,9 +18,6 @@ from autobahn.twisted.websocket import (
     create_client_agent,
 )
 
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.python import usage
 from twisted.internet.defer import (
     maybeDeferred,
@@ -28,15 +25,12 @@ from twisted.internet.defer import (
 )
 
 from .cli import (
-    _default_config_path,
-    load_global_configuration,
+    BaseOptions,
     to_unicode,
 )
 from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
-    create_http_client,
-    create_magic_folder_client,
 )
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
@@ -61,7 +55,7 @@ def add_snapshot(options):
     Add one new Snapshot of a particular file in a particular
     magic-folder.
     """
-    res = yield options.parent.get_client().add_snapshot(
+    res = yield options.parent.client.add_snapshot(
         options['folder'].decode("utf8"),
         options['file'].decode("utf8"),
     )
@@ -147,7 +141,7 @@ def add_participant(options):
     """
     Add one new participant to an existing magic-folder
     """
-    res = yield options.parent.get_client().add_participant(
+    res = yield options.parent.client.add_participant(
         options['folder'].decode("utf8"),
         options['author-name'].decode("utf8"),
         options['personal-dmd'].decode("utf8"),
@@ -174,7 +168,7 @@ def list_participants(options):
     """
     List all participants in a magic-folder
     """
-    res = yield options.parent.get_client().list_participants(
+    res = yield options.parent.client.list_participants(
         options['folder'].decode("utf8"),
     )
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
@@ -229,57 +223,11 @@ def monitor(options):
 
 
 @with_eliot_options
-class MagicFolderApiCommand(usage.Options):
+class MagicFolderApiCommand(BaseOptions):
     """
     top-level command (entry-point is "magic-folder-api")
     """
-    stdin = sys.stdin
-    stdout = sys.stdout
-    stderr = sys.stderr
-    _client = None  # initialized (at most once) in get_client()
     _websocket_agent = None  # initialized (at most once) in get_websocket_agent()
-
-    optFlags = [
-        ["version", "V", "Display version numbers."],
-    ]
-    optParameters = [
-        ("config", "c", _default_config_path,
-         "The directory containing configuration"),
-    ]
-
-    _config = None  # lazy-instantiated by .config @property
-
-    @property
-    def _config_path(self):
-        """
-        The FilePath where our config is located
-        """
-        return FilePath(self['config'])
-
-    @property
-    def config(self):
-        """
-        a GlobalConfigDatabase instance representing the current
-        configuration location.
-        """
-        if self._config is None:
-            try:
-                self._config = load_global_configuration(self._config_path)
-            except Exception as e:
-                raise usage.UsageError(
-                    u"Unable to load '{}': {}".format(self._config_path.path, e)
-                )
-        return self._config
-
-    def get_client(self):
-        if self._client is None:
-            from twisted.internet import reactor
-            self._client = create_magic_folder_client(
-                reactor,
-                self.config,
-                create_http_client(reactor, self.config.api_client_endpoint),
-            )
-        return self._client
 
     def get_websocket_agent(self):
         if self._websocket_agent is None:
