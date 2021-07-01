@@ -282,6 +282,16 @@ def introducer_furl(introducer, temp_dir):
     return furl
 
 
+@pytest.fixture(scope='function', autouse=True)
+def magic_folder_nodes(request):
+    nodes = {
+        name: fixture
+        for name, fixture in request.node.funcargs.items()
+        if isinstance(fixture, MagicFolderEnabledNode)
+    }
+    return nodes
+
+
 @pytest.fixture(scope='session')
 def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     try:

@@ -134,8 +134,10 @@ configparser==4.0.2 ; python_version < "3.0" --hash=sha256:254c1d9c79f60c45dfde8
 #   eliot
 #   tahoe-lafs
 # via -r test.in
+# via -r test.in
 # via
 #   -r test.in
+#   pytest-lazy-fixture
 #   pytest-twisted
 # via testtools
 python-subunit==1.4.0 \

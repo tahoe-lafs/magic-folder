@@ -16,6 +16,8 @@ pytest
 # pip-compile records its hashes
 colorama
 pytest-twisted
+# https://github.com/pytest-dev/pytest/issues/349
+pytest-lazy-fixture
 hypothesis >= 3.6.1
 towncrier >= 21.3.0
 testtools
