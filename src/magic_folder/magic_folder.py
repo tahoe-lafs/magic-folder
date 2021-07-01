@@ -38,6 +38,9 @@ from .downloader import (
 from .participants import (
     participants_from_collective,
 )
+from .scanner import (
+    ScannerService,
+)
 
 if six.PY3:
     long = int
@@ -79,21 +82,29 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             tahoe_client=tahoe_client,
         )
+        local_snapshot_service = LocalSnapshotService(
+            mf_config.magic_path,
+            LocalSnapshotCreator(
+                mf_config,
+                mf_config.author,
+                mf_config.stash_path,
+                mf_config.magic_path,
+                tahoe_client,
+            ),
+            status=status_service,
+        )
+        scanner_service = ScannerService.from_config(
+            reactor,
+            mf_config,
+            local_snapshot_service,
+            status_service,
+        )
+
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
-            local_snapshot_service=LocalSnapshotService(
-                mf_config.magic_path,
-                LocalSnapshotCreator(
-                    mf_config,
-                    mf_config.author,
-                    mf_config.stash_path,
-                    mf_config.magic_path,
-                    tahoe_client,
-                ),
-                status=status_service,
-            ),
+            local_snapshot_service=local_snapshot_service,
             uploader_service=UploaderService.from_config(
                 clock=reactor,
                 config=mf_config,
@@ -123,6 +134,7 @@ class MagicFolder(service.MultiService):
                 tahoe_client=tahoe_client,
             ),
             status_service=status_service,
+            scanner_service=scanner_service,
             initial_participants=initial_participants,
             clock=reactor,
         )
@@ -132,7 +144,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, status_service, remote_snapshot_cache, downloader, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, status_service, scanner_service, remote_snapshot_cache, downloader, initial_participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -142,6 +154,7 @@ class MagicFolder(service.MultiService):
         self.uploader_service = uploader_service
         self.downloader_service = downloader
         self.status_service = status_service
+        self.scanner_service = scanner_service
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
@@ -150,6 +163,7 @@ class MagicFolder(service.MultiService):
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
         status_service.setServiceParent(self)
+        scanner_service.setServiceParent(self)
 
     def ready(self):
         """
