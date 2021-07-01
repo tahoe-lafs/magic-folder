@@ -7,7 +7,7 @@ Scan a Magic Folder for changes.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
-from eliot import start_action, write_failure
+from eliot import current_action, start_action, write_failure
 from eliot.twisted import inline_callbacks
 from twisted.application.service import MultiService
 from twisted.application.internet import TimerService
@@ -127,26 +127,37 @@ def find_updated_files(cooperator, folder_config, on_new_file):
 
     :returns Deferred[None]: Deferred that fires once the scan is complete.
     """
-    # XXX we don't handle deletes
-    def _process():
-        for path in folder_config.magic_path.asBytesMode("utf-8").walk():
-            if path.isdir():
-                continue
-            path = path.asTextMode("utf-8")
-            relpath = "/".join(path.segmentsFrom(folder_config.magic_path))
-            name = path2magic(relpath)
-            try:
-                snapshot_state = folder_config.get_currentsnapshot_pathstate(name)
-            except KeyError:
-                snapshot_state = None
-            path_state = get_pathinfo(path).state
-            # NOTE: Make sure that we get both these states without yielding
-            # to the reactor. Otherwise, we may detect a changed made by us
-            # as a new change.
-            if path_state != snapshot_state:
-                # TODO: We may also want to compare checksums here,
-                # to avoid `touch(1)` creating a new snapshot.
-                on_new_file(path)
-            yield
+    action = current_action()
+    magic_path = folder_config.magic_path
+    bytes_path = magic_path.asBytesMode("utf-8")
 
-    return cooperator.coiterate(_process())
+    # XXX we don't handle deletes
+    def process_file(path):
+        with action.context():
+            if path.asBytesMode("utf-8").isdir():
+                return
+            relpath = "/".join(path.segmentsFrom(magic_path))
+            mangled_name = path2magic(relpath)
+            with start_action(action_type="scanner:find-updates:file", relpath=relpath):
+                # NOTE: Make sure that we get both these states without yielding
+                # to the reactor. Otherwise, we may detect a changed made by us
+                # as a new change.
+                try:
+                    snapshot_state = folder_config.get_currentsnapshot_pathstate(
+                        mangled_name
+                    )
+                except KeyError:
+                    snapshot_state = None
+                path_state = get_pathinfo(path).state
+                if path_state != snapshot_state:
+                    # TODO: We may also want to compare checksums here,
+                    # to avoid `touch(1)` creating a new snapshot.
+                    on_new_file(path)
+
+    return cooperator.coiterate(
+        (
+            process_file(path.asTextMode("utf-8"))
+            for path in bytes_path.walk()
+            if path != bytes_path
+        )
+    )
