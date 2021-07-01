@@ -11,7 +11,6 @@ from __future__ import (
 
 import os
 from collections import deque
-from functools import wraps
 
 import attr
 from attr.validators import (
@@ -58,13 +57,7 @@ from .snapshot import (
     create_snapshot_from_capability,
 )
 from .util.file import PathState, get_pathinfo, seconds_to_ns
-
-def _exclusively(f):
-    @wraps(f)
-    def wrapper(self, *args, **kwargs):
-        return self._lock.run(f, self, *args, **kwargs)
-
-    return wrapper
+from .util.twisted import exclusively
 
 
 @attr.s
@@ -105,7 +98,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         return cls(config, tahoe_client)
 
-    @_exclusively
+    @exclusively
     @inline_callbacks
     def get_snapshot_from_capability(self, snapshot_cap):
         """
@@ -271,7 +264,7 @@ class MagicFolderUpdater(object):
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
     _lock = attr.ib(init=False, factory=DeferredLock)
 
-    @_exclusively
+    @exclusively
     @inline_callbacks
     def add_remote_snapshot(self, snapshot):
         """
