@@ -106,6 +106,11 @@ class LocalSnapshotCreator(object):
 
         :param FilePath path: a single file inside our magic-folder dir
         """
+        # TODO: We may to have logic similar to (shared with?) the scanner,
+        # to see if we need to snapshot the file. This is probably most useful
+        # when we get here via API, rather than the scanner, but may also avoid
+        # duplicate snapshots if scanning doesn't wait for snapshotting to
+        # complete.
 
         with path.asBytesMode("utf-8").open('rb') as input_stream:
             # Query the db to check if there is an existing local
