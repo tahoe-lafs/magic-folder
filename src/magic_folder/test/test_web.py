@@ -121,6 +121,7 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..magicpath import path2magic
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,

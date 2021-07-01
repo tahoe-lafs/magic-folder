@@ -330,6 +330,19 @@ class MagicFolderEnabledNode(object):
             ],
         )
 
+    def scan_folder(self, folder_name):
+        """
+        magic-folder-api scan-folder
+        """
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "scan-folder",
+                "--folder", folder_name,
+            ],
+        )
+
     def add_participant(self, folder_name, author_name, personal_dmd):
         """
         magic-folder-api add-participant

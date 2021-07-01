@@ -35,9 +35,19 @@ def add_snapshot(node, folder_name, path):
     """
     Take a snapshot of the given path in the given magic folder.
 
-    :param MagigFolderEnabledNode node: The node on which to take the snapshot.
+    :param MagicFolderEnabledNode node: The node on which to take the snapshot.
     """
     return node.add_snapshot(folder_name, path)
+
+
+def scan_folder(node, folder_name, path):
+    """
+    Scan the given magic folder. This should cause the given path to be
+    snapshotted.
+
+    :param MagicFolderEnabledNode node: The node on which to do the scan.
+    """
+    return node.scan_folder(folder_name)
 
 
 def periodic_scan(node, folder_name, path):
@@ -46,7 +56,7 @@ def periodic_scan(node, folder_name, path):
     This should cause the given path to be
     snapshotted.
 
-    :param MagigFolderEnabledNode node: The node on which to do the scan.
+    :param MagicFolderEnabledNode node: The node on which to do the scan.
     """
     Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
     time.sleep(1)
@@ -66,6 +76,7 @@ def enable_periodic_scans(magic_folder_nodes, monkeypatch):
 @pytest.fixture(
     params=[
         add_snapshot,
+        scan_folder,
         pytest.lazy_fixture('periodic_scan'),
     ]
 )
