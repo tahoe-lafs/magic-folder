@@ -662,7 +662,7 @@ def dispatch_magic_folder_command(args):
 
 # If `--eliot-task-fields` is passed, then `maybe_enable_eliot_logging` will
 # start an action that is meant to be a parent of *all* logs this process
-# generatres. Since we call that function in this generator, if we used
+# generates. Since we call that function in this generator, if we used
 # `eliot.inline_callbacks` here, eliot would remove that action context from
 # it stack when when we yield to reactor.
 @defer.inlineCallbacks
