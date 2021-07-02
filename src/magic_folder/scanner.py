@@ -134,22 +134,23 @@ def find_updated_files(cooperator, folder_config, on_new_file):
     # XXX we don't handle deletes
     def process_file(path):
         with action.context():
-            if path.asBytesMode("utf-8").isdir():
-                return
             relpath = "/".join(path.segmentsFrom(magic_path))
             mangled_name = path2magic(relpath)
             with start_action(action_type="scanner:find-updates:file", relpath=relpath):
                 # NOTE: Make sure that we get both these states without yielding
                 # to the reactor. Otherwise, we may detect a changed made by us
                 # as a new change.
+                path_info = get_pathinfo(path)
                 try:
                     snapshot_state = folder_config.get_currentsnapshot_pathstate(
                         mangled_name
                     )
                 except KeyError:
                     snapshot_state = None
-                path_state = get_pathinfo(path).state
-                if path_state != snapshot_state:
+
+                if not path_info.is_file:
+                    return
+                if path_info.state != snapshot_state:
                     # TODO: We may also want to compare checksums here,
                     # to avoid `touch(1)` creating a new snapshot.
                     on_new_file(path)
