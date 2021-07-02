@@ -140,6 +140,9 @@ def find_updated_files(cooperator, folder_config, on_new_file):
             except KeyError:
                 snapshot_state = None
             path_state = get_pathinfo(path).state
+            # NOTE: Make sure that we get both these states without yielding
+            # to the reactor. Otherwise, we may detect a changed made by us
+            # as a new change.
             if path_state != snapshot_state:
                 # TODO: We may also want to compare checksums here,
                 # to avoid `touch(1)` creating a new snapshot.
