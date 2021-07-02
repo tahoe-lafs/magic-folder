@@ -174,6 +174,25 @@ def list_participants(options):
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
+class ScanFolderOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder participants to scan", to_unicode),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+def scan_folder(options):
+    return options.parent.client.scan_folder(
+        options['folder'],
+    )
+
+
 class MonitorOptions(usage.Options):
     optFlags = [
         ["once", "", "Exit after receiving a single status message"],
@@ -240,6 +259,7 @@ class MagicFolderApiCommand(BaseOptions):
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
+        ["scan-folder", None, ScanFolderOptions, "Scan for local changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [
@@ -352,6 +372,7 @@ def run_magic_folder_api_options(options):
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
+        "scan-folder": scan_folder,
         "monitor": monitor,
     }[options.subCommand]
 
