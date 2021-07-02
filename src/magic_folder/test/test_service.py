@@ -86,6 +86,7 @@ class TestAdd(SyncTestCase):
             u"alice",
             self.magic_dir,
             60,
+            60,
         )
         self.assertThat(d, succeeded(Always()))
 

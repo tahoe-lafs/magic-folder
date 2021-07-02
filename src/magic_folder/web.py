@@ -256,6 +256,7 @@ class APIv1(object):
             data['author_name'],
             FilePath(data['local_path']),
             data['poll_interval'],
+            data['scan_interval'],
         )
 
         _application_json(request)
@@ -414,6 +415,7 @@ class APIv1(object):
                 u"stash_path": mf.stash_path.path,
                 u"magic_path": mf.magic_path.path,
                 u"poll_interval": mf.poll_interval,
+                u"scan_interval": mf.scan_interval,
                 u"is_admin": mf.is_admin(),
             }
             if include_secret_information:

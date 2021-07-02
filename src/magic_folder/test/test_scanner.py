@@ -48,6 +48,7 @@ class FindUpdatesTests(SyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         # Use a cooperator that does not cooperate.
         self.cooperator = Cooperator(
