@@ -19,6 +19,7 @@ from appdirs import (
 )
 
 
+from twisted.internet import defer
 from twisted.internet.task import (
     react,
 )
@@ -38,9 +39,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
-from twisted.internet.defer import (
-    maybeDeferred,
-)
 
 from treq.client import (
     HTTPClient,
@@ -87,6 +85,7 @@ from .join import (
 from .service import (
     MagicFolderService,
 )
+from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
 if six.PY2:
     def to_unicode(s):
@@ -514,8 +513,7 @@ def run(options):
     return service.run()
 
 
-
-
+@with_eliot_options
 class BaseOptions(usage.Options):
     optFlags = [
         ["version", "V", "Display version numbers."],
@@ -640,7 +638,6 @@ subDispatch = {
 }
 
 
-@inline_callbacks
 def dispatch_magic_folder_command(args):
     """
     Run a magic-folder command with the given args
@@ -660,10 +657,15 @@ def dispatch_magic_folder_command(args):
             print(options)
         raise SystemExit(1)
 
-    yield run_magic_folder_options(options)
+    return run_magic_folder_options(options)
 
 
-@inline_callbacks
+# If `--eliot-task-fields` is passed, then `maybe_enable_eliot_logging` will
+# start an action that is meant to be a parent of *all* logs this process
+# generatres. Since we call that function in this generator, if we used
+# `eliot.inline_callbacks` here, eliot would remove that action context from
+# it stack when when we yield to reactor.
+@defer.inlineCallbacks
 def run_magic_folder_options(options):
     """
     Runs a magic-folder subcommand with the provided options.
@@ -676,16 +678,19 @@ def run_magic_folder_options(options):
     so = options.subOptions
     so.stdout = options.stdout
     so.stderr = options.stderr
+
+    maybe_enable_eliot_logging(options)
+
     f = subDispatch[options.subCommand]
 
     # we want to let exceptions out to the top level if --debug is on
     # because this gives better stack-traces
     if options['debug']:
-        yield maybeDeferred(f, so)
+        yield f(so)
 
     else:
         try:
-            yield maybeDeferred(f, so)
+            yield f(so)
 
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
@@ -704,10 +709,6 @@ def _entry():
 
     :return: ``None``
     """
-    from eliot import to_file
-    from os import getpid
-    to_file(open("magic-folder-cli.{}.eliot".format(getpid()), "w"))
-
     def main(reactor):
         return dispatch_magic_folder_command(sys.argv[1:])
     return react(main)

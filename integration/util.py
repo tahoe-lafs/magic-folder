@@ -406,6 +406,27 @@ class _DumpOutputProtocol(ProcessProtocol):
         self._out.write(data)
 
 
+@attr.s
+class EliotLogStream(object):
+    """
+    Capture a stream of eliot logs and feed it to the eliot logger.
+
+    This is intended to capture eliot log output from a subprocess, and include
+    them in the logs for this process.
+    """
+    _eliot_buffer = attr.ib(init=False, default=b"")
+
+    def data_received(self, data):
+        # We write directly to the logger, as we don't want
+        # eliot.Message to add its default fields.
+        from eliot._output import _DEFAULT_LOGGER as logger
+
+        lines = (self._eliot_buffer + data).split(b'\n')
+        self._eliot_buffer = lines.pop(-1)
+        for line in lines:
+            logger.write(json.loads(line))
+
+
 def run_service(
     reactor,
     request,
@@ -421,6 +442,8 @@ def run_service(
 
     This will start the service, and the returned deferred will fire with
     the process, once the given magic text is seeen.
+
+    This will capture eliot logs from file descriptor 3 of the process.
 
     :param reactor: The reactor to use to launch the process.
     :param request: The pytest request object to use for cleanup.
@@ -439,7 +462,8 @@ def run_service(
             protocol,
             executable,
             args,
-            path=cwd
+            path=cwd,
+            childFDs={1: 'r', 2: 'r', 3: 'r'},
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited))
         return protocol.magic_seen.addCallback(lambda ignored: process)
@@ -487,6 +511,8 @@ class _MagicTextProtocol(ProcessProtocol):
     """
     Internal helper. Monitors all stdout looking for a magic string,
     and then .callback()s on self.done and .errback's if the process exits
+
+    Also capture eliot logs from file descriptor 3, and logs them.
     """
 
     def __init__(self, magic_text):
@@ -494,6 +520,7 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
+        self._eliot_stream = EliotLogStream()
         self._action = current_action()
         assert self._action is not None
 
@@ -501,6 +528,11 @@ class _MagicTextProtocol(ProcessProtocol):
         with self._action:
             Message.log(message_type=u"process-ended")
         self.exited.callback(None)
+
+    def childDataReceived(self, childFD, data):
+        ProcessProtocol.childDataReceived(self, childFD, data)
+        if childFD == 3:
+            self._eliot_stream.data_received(data)
 
     def outReceived(self, data):
         with self._action.context():
@@ -969,6 +1001,14 @@ def _run_magic_folder(reactor, request, temp_dir, name):
     ]) + [
         "--config",
         config_dir,
+        "--eliot-fd",
+        "3",
+        "--debug",
+        "--eliot-task-fields",
+        json.dumps({
+            "action_type": "magic-folder:service",
+            "node": name,
+        }),
         "run",
     ]
     action_fields = {
