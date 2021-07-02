@@ -95,6 +95,7 @@ from .common import (
     skipIf,
     SyncTestCase,
 )
+from .fixtures import MagicFolderNode
 from .matchers import (
     matches_response,
     header_contains,
@@ -114,19 +115,11 @@ from ..snapshot import (
     create_local_author,
     format_filenode,
 )
-from ..service import (
-    MagicFolderService,
-)
 from ..web import (
     magic_folder_resource,
     APIv1,
 )
-from ..config import (
-    create_global_configuration,
-    load_global_configuration,
-)
 from ..client import (
-    create_testing_http_client,
     authorized_request,
     url_to_bytes,
 )
@@ -136,9 +129,6 @@ from ..testing.web import (
 )
 from ..tahoe_client import (
     create_tahoe_client,
-)
-from ..status import (
-    WebSocketStatusService,
 )
 from .strategies import (
     local_authors,
@@ -277,84 +267,20 @@ class AuthorizationTests(SyncTestCase):
             ),
         )
 
-
-def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services,
-                     tahoe_client=None):
+def treq_for_folders(
+    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
+):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
 
-    :param reactor: A reactor to give to the ``MagicFolderService`` which will
-        back the HTTP interface.
-
-    :param FilePath basedir: A non-existant directory to create and populate
-        with a new Magic Folder service configuration.
-
-    :param unicode auth_token: The authorization token accepted by the
-        service.
-
-    :param folders: A mapping from Magic Folder names to their configurations.
-        These are the folders which will appear to exist.
-
-    :param bool start_folder_services: If ``True``, start the Magic Folder
-        service objects.  Otherwise, don't.
-
-    :param TahoeClient tahoe_client: if provided, used as the
-        tahoe-client. If it is not provided, an 'empty' Tahoe client is
-        provided (which is likely to cause errors if any Tahoe endpoitns
-        are called via this test).
+    See :py:`MagicFolderNode.create` for a description of the arguments.
 
     :return: An object like the ``treq`` module.
     """
-    global_config = create_global_configuration(
-        basedir,
-        # Make this endpoint string and the one below parse but make them
-        # invalid, too, because we don't want anything to start listening on
-        # these during this set of tests.
-        #
-        # https://github.com/LeastAuthority/magic-folder/issues/276
-        u"tcp:-1",
-        # It wants to know where the Tahoe-LAFS node directory is but we don't
-        # have one and we don't want to invoke any functionality that requires
-        # one.  Give it something bogus.
-        FilePath(u"/non-tahoe-directory"),
-        u"tcp:127.0.0.1:-1",
-    )
-    for name, config in folders.items():
-        global_config.create_magic_folder(
-            name,
-            config[u"magic-path"],
-            config[u"author"],
-            config[u"collective-dircap"],
-            config[u"upload-dircap"],
-            config[u"poll-interval"],
-        )
-
-    if tahoe_client is None:
-        # the caller must provide a properly-set-up Tahoe client if
-        # they care about Tahoe responses. Since they didn't, an
-        # "empty" one is sufficient.
-        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource()))
-    global_service = MagicFolderService(
-        reactor,
-        global_config,
-        WebSocketStatusService(reactor, global_config),
-        # Provide a TahoeClient so MagicFolderService doesn't try to look up a
-        # Tahoe-LAFS node URL in the non-existent directory we supplied above
-        # in its efforts to create one itself.
-        tahoe_client,
-    )
-
-    if start_folder_services:
-        # Reach in and start the individual service for the folder we're going
-        # to interact with.  This is required for certain functionality, eg
-        # snapshot creation.  We avoid starting the whole global_service
-        # because it wants to do error-prone things like bind ports.
-        for name in folders:
-            global_service.get_folder_service(name).startService()
-
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService(reactor, global_config))
-
+    return MagicFolderNode.create(
+        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
+    ).http_client
 
 def magic_folder_config(author, local_directory):
     # see also treq_for_folders() where these dicts are turned into
@@ -548,7 +474,7 @@ class MagicFolderTests(SyncTestCase):
             path_b.makedirs(ignoreExistingDirectory=True)
 
         basedir = FilePath(self.mktemp())
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             object(),
             basedir,
             AUTH_TOKEN,
@@ -560,15 +486,13 @@ class MagicFolderTests(SyncTestCase):
             False,
         )
 
-        # note that treq_for_folders() will end up creating a configuration here
-        config = load_global_configuration(basedir)
         expected_folders = {
-            name: config.get_magic_folder(name)
-            for name in config.list_magic_folders()
+            name: node.global_config.get_magic_folder(name)
+            for name in node.global_config.list_magic_folders()
         }
 
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, b"GET", self.url),
+            authorized_request(node.http_client, AUTH_TOKEN, b"GET", self.url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
