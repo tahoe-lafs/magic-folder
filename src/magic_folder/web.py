@@ -62,7 +62,6 @@ from allmydata.interfaces import (
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
-from .create import magic_folder_create
 from .status import (
     StatusFactory,
     IStatus,
@@ -248,13 +247,11 @@ class APIv1(object):
         body = request.content.read()
         data = _load_json(body)
 
-        yield magic_folder_create(
-            self._global_config,
+        yield self._global_service.create_folder(
             data['name'],
             data['author_name'],
             FilePath(data['local_path']),
             data['poll_interval'],
-            self._tahoe_client,
         )
 
         _application_json(request)
