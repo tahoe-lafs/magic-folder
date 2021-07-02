@@ -4,6 +4,7 @@ from __future__ import (
     print_function,
 )
 
+from contextlib import contextmanager
 
 from six.moves import (
     StringIO as MixedIO,
@@ -15,6 +16,7 @@ from twisted.python.usage import (
 from twisted.internet.defer import (
     returnValue,
 )
+from twisted.internet.task import Cooperator
 
 import attr
 
@@ -31,6 +33,34 @@ from ...api_cli import (
     MagicFolderApiCommand,
     run_magic_folder_api_options,
 )
+
+
+
+@contextmanager
+def _pump_client(http_client):
+    """
+    Periodically flush all data in the HTTP client while this context manager
+    is active.
+
+    py:`treq.testing.RequestTraversalAgent` doesn't automatically pass data
+    between a client and server, if a response isn't generated synchronously,
+    so if we want requests to complete, we need to call ``.flush`` on it.
+
+    :param treq.client.HTTPClient http_client:
+        An HTTP Client wrapping a :py:`treq.testing.RequestTraversalAgent`.
+    """
+    def pump():
+        while True:
+            http_client._agent.flush()
+            yield
+
+    coop = Cooperator()
+    task = coop.cooperate(pump())
+    try:
+        yield
+    finally:
+        task.stop()
+        coop.stop()
 
 def _subclass_of(base):
     """
@@ -114,7 +144,8 @@ def _run_cli(command, argv, global_config=None, http_client=None):
                 print(e, file=options.stderr)
                 result = 1
             else:
-                result = yield command.entry_point(options)
+                with _pump_client(http_client):
+                    result = yield command.entry_point(options)
                 if result is None:
                     result = 0
         except SystemExit as e:
