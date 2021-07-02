@@ -907,6 +907,197 @@ class RedirectTests(SyncTestCase):
 
 
 
+class ScanFolderTests(SyncTestCase):
+    """
+    Tests for scanning an existing Magic Folder.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def setUp(self):
+        super(ScanFolderTests, self).setUp()
+        # TODO: Rather than using this fake, MagicFolderService should
+        # take a cooperator that is used by all the child services.
+        # We use this fake IReactorTime instead, which causes ScannerService
+        # to create a cooperator that runs it's tasks to completion immediately.
+        class ImmediateClock(Clock, object):
+            def callLater(self, delay, f, *args, **kwargs):
+                if delay == 0:
+                    f(*args, **kwargs)
+                else:
+                    super(Clock, self).callLater(delay, f, *args, **kwargs)
+
+        self.clock = ImmediateClock()
+
+    @given(
+        author_names(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_wait_for_completion(self, author_name, folder_name, path_in_folder, some_content):
+        """
+        A **PUT** request to **/v1/magic-folder/:folder-name/scan** does not receive a
+        response before the snapshot has been created in the local database.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        node = MagicFolderNode.create(
+            self.clock,
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author_name, local_path)},
+            # The interesting behavior of this test hinges on this flag.  We
+            # decline to start the folder services here.  Therefore, no local
+            # snapshots will ever be created.  This lets us observe the
+            # request in a state where it is waiting to receive its response.
+            # This demonstrates that the response is not delivered before the
+            # local snapshot is created.  See test_create_snapshot for the
+            # alternative case.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child(folder_name, "scan"),
+                dumps({'wait-for-snapshots': True})
+            ),
+            has_no_result(),
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_scan_folder(self, author_name, folder_name, path_in_folder, some_content):
+        """
+        A **PUT** to **/v1/magic-folder/:folder-name/scan** creates a new local
+        snapshot for a file in the named folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        node = MagicFolderNode.create(
+            self.clock,
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author_name, local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child(folder_name, "scan"),
+                dumps({'wait-for-snapshots': True})
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            ),
+        )
+
+        folder_config = node.global_config.get_magic_folder(folder_name)
+        snapshot_paths = folder_config.get_all_localsnapshot_paths()
+        self.assertThat(
+            snapshot_paths,
+            Equals({path2magic(path_in_folder)}),
+        )
+
+    def test_snapshot_no_folder(self):
+        """
+        An error results from using /v1/magic-folder/<folder-name>/scan API on
+        non-existent folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child("a-folder-that-doesnt-exist").child('scan'),
+                dumps({'wait-for-snapshots': True})
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
+                ),
+            )
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_scan_invalid_option(self, author_name, folder_name, path_in_folder, some_content):
+        """
+        An error results using /v1/magic-folder/<folder-name>/scan API without the required option.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author_name, local_path)},
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child(folder_name).child('scan'),
+                b"{}"
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                ),
+            )
+        )
+
+
 class CreateSnapshotTests(SyncTestCase):
     """
     Tests for creating a new snapshot in an existing Magic Folder using a
