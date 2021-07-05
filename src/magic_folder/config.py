@@ -34,7 +34,6 @@ from hyperlink import (
 
 from functools import (
     partial,
-    wraps,
 )
 from itertools import (
     chain,
@@ -106,6 +105,7 @@ from eliot import (
     Field,
 )
 
+from .util.database import with_cursor, LockableDatabase
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -437,24 +437,6 @@ def load_global_configuration(basedir):
     )
 
 
-# XXX: with_cursor lacks unit tests, see:
-#      https://github.com/LeastAuthority/magic-folder/issues/173
-def with_cursor(f):
-    """
-    Decorate a function so it is automatically passed a cursor with an active
-    transaction as the first positional argument.  If the function returns
-    normally then the transaction will be committed.  Otherwise, the
-    transaction will be rolled back.
-    """
-    @wraps(f)
-    def with_cursor(self, *a, **kw):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            return f(self, cursor, *a, **kw)
-    return with_cursor
-
-
 def _upgraded(schema, connection):
     """
     Return ``connection`` fully upgraded according to ``schema``.
@@ -729,7 +711,7 @@ class MagicFolderConfig(object):
     Low-level access to a single magic-folder's configuration
     """
     name = attr.ib()
-    database = attr.ib()  # sqlite3 Connection
+    _database = attr.ib(converter=LockableDatabase)  # sqlite3 Connection
 
     @classmethod
     def initialize(
@@ -1269,13 +1251,14 @@ class GlobalConfigDatabase(object):
         return self._token_provider.rotate()
 
     @property
-    @with_cursor
-    def api_endpoint(self, cursor):
+    def api_endpoint(self):
         """
         The twisted server-string describing our API listener
         """
-        cursor.execute("SELECT api_endpoint FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT api_endpoint FROM config")
+            return cursor.fetchone()[0].encode("utf8")
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -1285,13 +1268,14 @@ class GlobalConfigDatabase(object):
             cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
 
     @property
-    @with_cursor
-    def api_client_endpoint(self, cursor):
+    def api_client_endpoint(self):
         """
         The twisted client-string describing our API listener
         """
-        cursor.execute("SELECT api_client_endpoint FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT api_client_endpoint FROM config")
+            return cursor.fetchone()[0].encode("utf8")
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
