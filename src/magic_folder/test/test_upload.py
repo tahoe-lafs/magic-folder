@@ -218,10 +218,10 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 d,
                 succeeded(Always()),
             )
+            config.store_local_snapshot(snapshots[-1])
             parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]
-        config.store_local_snapshot(snapshots[-1])
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
