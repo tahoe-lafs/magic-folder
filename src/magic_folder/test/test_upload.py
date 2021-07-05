@@ -139,6 +139,8 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         config.store_local_snapshot(mangled_name, snapshots[0], PathState(0, 0, 0))
+        with config._database.transaction() as cursor:
+            cursor.execute("select * from current_snapshots")
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(

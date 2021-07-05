@@ -9,9 +9,6 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.application import (
     service,
 )
@@ -134,6 +131,7 @@ class LocalSnapshotCreator(object):
                     #FIXME from path_info
                     modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )
+                Message.log(message_type="snapshot", identifier=unicode(snapshot.identifier))
 
                 self._db.store_local_snapshot(mangled_name, snapshot, path_info.state)
 
@@ -260,46 +258,50 @@ class RemoteSnapshotCreator(object):
         """
 
         # get the mangled paths for the LocalSnapshot objects in the db
-        localsnapshot_names = self._config.get_all_localsnapshot_paths()
+        while True:
+            uploadable_snapshots = self._config.get_uploadable_snapshots()
 
-        # update our status if we have nothing to do
-        if len(localsnapshot_names):
-            self._status.upload_started(self._config.name)
-        else:
-            self._status.upload_stopped(self._config.name)
+            # update our status if we have nothing to do
+            if len(uploadable_snapshots):
+                self._status.upload_started(self._config.name)
+            else:
+                self._status.upload_stopped(self._config.name)
+                return
 
-        # XXX: processing this table should be atomic. i.e. While the upload is
-        # in progress, a new snapshot can be created on a file we already uploaded
-        # but not removed from the db and if it gets removed from the table later,
-        # the new snapshot gets lost.
+            # XXX: processing this table should be atomic. i.e. While the upload is
+            # in progress, a new snapshot can be created on a file we already uploaded
+            # but not removed from the db and if it gets removed from the table later,
+            # the new snapshot gets lost.
 
-        for name in localsnapshot_names:
-            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
-            try:
-                with action:
-                    yield self._upload_some_snapshots(name)
-            except Exception:
-                # XXX this existing comment is wrong; there are many
-                # reasons we could receive an Exception here not just
-                # "Tahoe is gone" ...
-                # Unable to reach Tahoe storage nodes because of network
-                # errors or because the tahoe storage nodes are
-                # offline. Retry?
-                print(Failure())
+            for snapshot in uploadable_snapshots:
+                action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=snapshot.name)
+                try:
+                    with action:
+                        yield self._upload_snapshot(snapshot)
+                except Exception:
+                    # XXX this existing comment is wrong; there are many
+                    # reasons we could receive an Exception here not just
+                    # "Tahoe is gone" ...
+                    # Unable to reach Tahoe storage nodes because of network
+                    # errors or because the tahoe storage nodes are
+                    # offline. Retry?
+                    write_traceback()
+                    # We encountered an error, stop trying for now.
+                    return
 
     @inline_callbacks
-    def _upload_some_snapshots(self, name):
+    def _upload_snapshot(self, snapshot):
         """
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._config.get_local_snapshot(name)
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,
             self._tahoe_client,
         )
         Message.log(message_type="snapshot:metadata",
+                    local_identifier=unicode(snapshot.identifier),
                     metadata=remote_snapshot.metadata,
                     name=remote_snapshot.name,
                     capability=remote_snapshot.capability)
@@ -311,7 +313,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(name, remote_snapshot)
+        yield self._config.store_uploaded_snapshot(snapshot, remote_snapshot)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
@@ -328,7 +330,7 @@ class RemoteSnapshotCreator(object):
         # update the entry in the DMD
         yield self._tahoe_client.add_entry_to_mutable_directory(
             self._upload_dircap.encode("utf-8"),
-            name,
+            snapshot.name,
             remote_snapshot.capability.encode('utf-8'),
             replace=True,
         )
@@ -347,9 +349,6 @@ class RemoteSnapshotCreator(object):
                     str(e),
                 )
             )
-
-        # Remove the LocalSnapshot from the db.
-        yield self._config.delete_localsnapshot(name)
 
 
 @implementer(service.IService)

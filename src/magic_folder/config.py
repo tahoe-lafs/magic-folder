@@ -103,6 +103,7 @@ from ._endpoint_parser import (
 from eliot import (
     ActionType,
     Field,
+    log_call
 )
 
 from .util.database import with_cursor, LockableDatabase
@@ -216,13 +217,18 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]          TEXT PRIMARY KEY, -- mangled name in UTF-8
-            [snapshot_cap]  TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
-                                              -- associated with this file, either as downloaded from a peer
-                                              -- or uploaded from local changes
-            [mtime_ns]      INTEGER NOT NULL, -- ctime of current snapshot
-            [ctime_ns]      INTEGER NOT NULL, -- mtime of current snapshot
-            [size]          INTEGER NOT NULL  -- size of current snapshot
+            [name]            TEXT PRIMARY KEY, -- mangled name in UTF-8
+            [snapshot_cap]    TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
+                                                -- associated with this file, either as downloaded from a peer
+                                                -- or uploaded from local changes
+            [local_snapshot]  TEXT,             -- Local snapshot identifier that represents
+                                                -- the most recent snapshot
+            [mtime_ns]        INTEGER NOT NULL, -- ctime of current snapshot
+            [ctime_ns]        INTEGER NOT NULL, -- mtime of current snapshot
+            [size]            INTEGER NOT NULL, -- size of current snapshot
+
+            -- The referenced local snapshot must exist.
+            FOREIGN KEY([local_snapshot]) REFERENCES [local_snapshots]([identifier])
         )
         """,
     ]),
@@ -624,6 +630,7 @@ def _find_leaf_snapshot(leaf_candidates, parents):
     [leaf_identifier] = remaining
     return leaf_identifier
 
+@log_call(include_args=['name'])
 def _find_current_parent(cursor, name):
     """
     Find the snapshot that should be the parent of a new local snapshot.
@@ -632,49 +639,21 @@ def _find_current_parent(cursor, name):
         If ``None`, there is no parent. A pair of a bool indicating
         if the parent is local, and the parent identifier.
     """
-    # Check for local parent
-    # This finds all snapshots with the given name
-    # that don't have children.
     cursor.execute(
         """
-        SELECT
-            [identifier]
-        FROM
-            [local_snapshots]
-        LEFT JOIN
-            [local_snapshot_parent] as [parent]
-        ON
-            [local_snapshots].[identifier] = [parent].[parent_identifier]
-        AND
-            [parent].[local_only] = TRUE
-        WHERE
-            [name]=?
-        GROUP BY
-            [identifier]
-        HAVING
-            COUNT([parent].[snapshot_identifier]) = 0
-        """,
-        (name,),
-    )
-    rows = cursor.fetchall()
-    if len(rows) > 1:
-        raise
-    elif len(rows) == 1:
-
-        return (True, rows[0][0])
-
-    # Check for remote parent
-    cursor.execute(
-        """
-        SELECT [snapshot_cap]
+        SELECT [snapshot_cap], [local_snapshot]
         FROM [current_snapshots]
         WHERE [name]=?
         """,
         (name,)
     )
     row = cursor.fetchone()
-    if row and row[0] is not None:
-        return (False, row[0])
+    if row:
+        remote_snapshot, local_snapshot = row
+        if local_snapshot is not None:
+            return (True, local_snapshot)
+        elif remote_snapshot is not None:
+            return (False, remote_snapshot)
 
     # No parent:
     return None
@@ -724,6 +703,8 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
+
+@log_call(include_args=["identifier", "name", "content_paths", "metadata", "parents"], include_result=False)
 def _construct_local_snapshot(identifier, name, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
@@ -872,6 +853,92 @@ class MagicFolderConfig(object):
         return FilePath(path_raw)
 
     @with_cursor
+    def get_uploadable_snapshots(self, cursor):
+        cursor.execute(
+            """
+            SELECT
+                [local_snapshots].[identifier], [name], [content_path]
+            FROM
+                [local_snapshots]
+            LEFT JOIN
+                [local_snapshot_parent] as [parents]
+            ON
+                [parents].[snapshot_identifier] = [local_snapshots].[identifier]
+            AND
+                [parents].[local_only] = true
+            GROUP BY
+                [local_snapshots].[identifier]
+            HAVING
+                count([parents].[parent_identifier]) = 0
+            """)
+        snapshots = cursor.fetchall()
+
+        cursor.execute(
+            """
+            SELECT
+                [metadata].[snapshot_identifier], [key], [value]
+            FROM
+                [local_snapshot_metadata] as [metadata]
+            LEFT JOIN
+                [local_snapshot_parent] as [parents]
+            ON
+                [parents].[snapshot_identifier] = [metadata].[snapshot_identifier]
+            AND
+                [parents].[local_only] = true
+            GROUP BY
+                [metadata].[snapshot_identifier], [key]
+            HAVING
+                count([parents].[parent_identifier]) = 0
+            """)
+        metadata_rows = cursor.fetchall()
+        metadata = {}
+        for (snapshot_identifier, key, value) in metadata_rows:
+            metadata.setdefault(snapshot_identifier, {})[key] = value
+
+        cursor.execute(
+            """
+            SELECT
+                [snapshot].[snapshot_identifier], [snapshot].[parent_identifier]
+            FROM
+                [local_snapshot_parent] as [snapshot]
+            LEFT JOIN
+                [local_snapshot_parent] as [parents]
+            ON
+                [parents].[snapshot_identifier] = [snapshot].[snapshot_identifier]
+            AND
+                [parents].[local_only] = true
+            WHERE
+                [snapshot].[local_only] = false
+            GROUP BY
+                [snapshot].[snapshot_identifier], [snapshot].[parent_identifier]
+            HAVING
+                count([parents].[parent_identifier]) = 0
+            ORDER BY
+                [snapshot].[index]
+            """)
+        parent_rows = cursor.fetchall()
+        parents = {}
+        for (snapshot_identifier, parent_identifier) in parent_rows:
+            parents.setdefault(snapshot_identifier, []).append(parent_identifier
+            )
+
+        result = []
+        for (identifier, name, content_path) in snapshots:
+            result.append(
+                LocalSnapshot(
+                    name=name,
+                    identifier=UUID(hex=identifier),
+                    author=self._get_author.__wrapped__(self, cursor),
+                    content_path=FilePath(content_path),
+                    metadata=metadata.get(identifier, {}),
+                    parents_remote=parents.get(identifier, []),
+                    parents_local=[],
+                )
+            )
+        return result
+
+
+    @with_cursor
     def get_local_snapshot(self, cursor, name):
         """
         return an instance of LocalSnapshot corresponding to
@@ -962,25 +1029,27 @@ class MagicFolderConfig(object):
             )
 
         try:
-            # TODO: insert local_snapshot identifier
             cursor.execute(
                 """
                 INSERT INTO [current_snapshots]
-                    ([name], [mtime_ns], [ctime_ns], [size])
-                VALUES (?,?,?,?)
+                    ([name], [local_snapshot], [mtime_ns], [ctime_ns], [size])
+                VALUES (?,?,?,?,?)
                 """,
-                (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+                (name, unicode(snapshot.identifier), path_state.mtime_ns, path_state.ctime_ns, path_state.size),
             )
         except (sqlite3.IntegrityError, sqlite3.OperationalError):
             cursor.execute(
                 """
                 UPDATE [current_snapshots]
-                SET [mtime_ns]=?, [ctime_ns]=?, [size]=?
+                SET [local_snapshot]=?, [mtime_ns]=?, [ctime_ns]=?, [size]=?
                 WHERE [name]=?
                 """,
-                (path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+                (unicode(snapshot.identifier), path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
             )
             if cursor.rowcount != 1:
+                # If we can't insert a new row, and can't update an existing row
+                # the error inserting is unlike to be due to a conflict insert,
+                # so re-raise it here.
                 raise
 
     @with_cursor
@@ -1010,7 +1079,7 @@ class MagicFolderConfig(object):
 
 
     @with_cursor
-    def store_uploaded_snapshot(self, cursor, name, remote_snapshot):
+    def store_uploaded_snapshot(self, cursor, local_snapshot, remote_snapshot):
         """
         Store the remote snapshot cap of a snapshot that we uploaded.
 
@@ -1027,17 +1096,89 @@ class MagicFolderConfig(object):
         # TODO: We should consider merging this with delete_localsnapshot
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=name,
+            relpath=local_snapshot.name,
         )
         with action:
             cursor.execute(
-                "UPDATE current_snapshots" " SET snapshot_cap=?" " WHERE [name]=?",
-                (snapshot_cap, name),
+                """
+                SELECT
+                    [local_snapshot]
+                FROM
+                    [current_snapshots]
+                WHERE
+                    [name]=?
+                """,
+                (local_snapshot.name,),
             )
-            if cursor.rowcount != 1:
-                raise RemoteSnapshotWithoutPathState(
-                    folder_name=self.name, snapshot_name=name
+
+            current_local_snapshot = cursor.fetchone()
+            if current_local_snapshot and UUID(current_local_snapshot[0]) == local_snapshot.identifier:
+                cursor.execute(
+                    """
+                    UPDATE
+                        [current_snapshots]
+                    SET
+                        [local_snapshot]=NULL,
+                        [snapshot_cap]=?
+                    WHERE [name]=?
+                    """,
+                    (snapshot_cap, local_snapshot.name),
                 )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE current_snapshots
+                    SET snapshot_cap=?
+                    WHERE [name]=?
+                    """,
+                    (snapshot_cap, local_snapshot.name),
+                )
+                if cursor.rowcount != 1:
+                    raise RemoteSnapshotWithoutPathState(
+                        folder_name=self.name, snapshot_name=local_snapshot.name
+                    )
+            cursor.execute(
+                """
+                UPDATE
+                    [local_snapshot_parent]
+                SET
+                    [local_only]=false,
+                    [parent_identifier]=?
+                WHERE
+                    [local_only]
+                AND
+                    [parent_identifier]=?
+                """,
+                (snapshot_cap, unicode(local_snapshot.identifier))
+            )
+            cursor.execute(
+                """
+                DELETE FROM
+                    [local_snapshot_metadata]
+                WHERE
+                    [snapshot_identifier]=?
+                """,
+                (unicode(local_snapshot.identifier),),
+            )
+            cursor.execute(
+                """
+                DELETE FROM
+                    [local_snapshot_parent]
+                WHERE
+                    [snapshot_identifier]=?
+                """,
+                (unicode(local_snapshot.identifier),),
+            )
+            cursor.execute(
+                """
+                DELETE FROM
+                    [local_snapshots]
+                WHERE
+                    [identifier]=?
+                """,
+                (unicode(local_snapshot.identifier),),
+            )
+            assert cursor.rowcount == 1
             action.add_success_fields(insert_or_update="update")
 
     @with_cursor

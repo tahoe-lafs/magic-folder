@@ -589,14 +589,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # must be uploaded first .. we do this up front so we're also
     # uploading the actual content of the parents first.
     if len(snapshot.parents_local):
-        # if parent is a RemoteSnapshot, we are sure that its parents
-        # are themselves RemoteSnapshot. Recursively upload local parents
-        # first.
-        to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
-        for parent in to_upload:
-            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
-            parents_raw.append(parent_remote_snapshot.capability)
-            snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
+        raise Exception("Can't upload snapshot with local parents.")
 
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
@@ -609,7 +602,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "modification_time": snapshot.metadata["mtime"],
         "parents": [
             parent_cap.encode("utf8")
-            for parent_cap in parents_raw
+            for parent_cap in snapshot.parents_remote
         ]
     }
     metadata_cap = yield tahoe_client.create_immutable(
@@ -646,7 +639,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             name=snapshot.name,
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
-            parents_raw=parents_raw,
+            parents_raw=snapshot.parents_remote,
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
         )
