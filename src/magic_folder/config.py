@@ -850,7 +850,7 @@ class MagicFolderConfig(object):
         )
 
     @with_cursor
-    def store_local_snapshot(self, cursor, snapshot):
+    def store_local_snapshot(self, cursor, name, snapshot, path_state):
         """
         Store or update the given local snapshot.
 
@@ -863,9 +863,11 @@ class MagicFolderConfig(object):
                 SELECT
                     count(*) from [local_snapshots]
                 WHERE
-                    identifier= ?
+                    name=?
+                AND
+                    identifier=?
                 """,
-                (unicode(parent.identifier),),
+                (name, unicode(parent.identifier)),
             )
             count = cursor.fetchone()
             if count[0] != 1:
@@ -880,7 +882,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.asTextMode("utf-8").path),
+                (unicode(snapshot.identifier), name, snapshot.content_path.asTextMode("utf-8").path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -937,6 +939,26 @@ class MagicFolderConfig(object):
                 )
             ],
         )
+
+        try:
+            # TODO: insert local_snapshot identifier
+            cursor.execute(
+                """
+                INSERT INTO [current_snapshots]
+                    ([name], [mtime_ns], [ctime_ns], [size])
+                VALUES (?,?,?,?,?)
+                """,
+                (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+            )
+        except (sqlite3.IntegrityError, sqlite3.OperationalError):
+            cursor.execute(
+                """
+                UPDATE [current_snapshots]
+                SET [mtime_ns]=?, [ctime_ns]=?, [size]=?
+                WHERE [name]=?
+                """,
+                (path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+            )
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):

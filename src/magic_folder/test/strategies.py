@@ -399,7 +399,7 @@ def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
     )
 
 
-def remote_snapshots(names=path_segments(), authors=remote_authors()):
+def remote_snapshots(names=relative_paths(), authors=remote_authors()):
     """
     Build ``RemoteSnapshot`` instances.
     """
@@ -426,7 +426,7 @@ def uuids():
     ).map(lambda bs: UUID(bytes=bs))
 
 
-def local_snapshots():
+def local_snapshots(names=relative_paths()):
     """
     Build ``LocalSnapshot`` instances.
 
@@ -434,7 +434,7 @@ def local_snapshots():
     """
     return builds(
         LocalSnapshot,
-        name=relative_paths(),
+        name=names,
         author=local_authors(),
         metadata=dictionaries(text(), text()),
         content_path=absolute_paths().map(FilePath),

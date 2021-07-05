@@ -138,8 +138,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # push LocalSnapshot object into the SnapshotStore.
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
-        config.store_local_snapshot(snapshots[0])
-        config.store_currentsnapshot_state(mangled_name, PathState(0, 0, 0))
+        config.store_local_snapshot(mangled_name, snapshots[0], PathState(0, 0, 0))
 
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
@@ -218,7 +217,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 d,
                 succeeded(Always()),
             )
-            config.store_local_snapshot(snapshots[-1])
+            config.store_local_snapshot(name, snapshots[-1], PathState(0, 0, 0))
             parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]

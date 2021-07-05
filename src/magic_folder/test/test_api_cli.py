@@ -547,6 +547,7 @@ class TestDumpState(AsyncTestCase):
             poll_interval=1,
         )
         config.store_local_snapshot(
+            "foo",
             LocalSnapshot(
                 "foo",
                 author,
@@ -554,7 +555,12 @@ class TestDumpState(AsyncTestCase):
                 config.magic_path.child("foo"),
                 parents_local=[],
                 parents_remote=[],
-            )
+            ),
+            PathState(
+                0,
+                0,
+                0,
+            ),
         )
         config.store_downloaded_snapshot(
             "bar",
@@ -609,8 +615,10 @@ class TestDumpState(AsyncTestCase):
                 "local snapshots:",
                 "foo: {}".format(local_uuid),
                 "remote snapshots:",
+                "foo: None",
+                repr(PathState(0, 0, 0)),
                 "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
-                repr(PathState(0, 0, 0))
+                repr(PathState(0, 0, 0)),
             ])
         )
 

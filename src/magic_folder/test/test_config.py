@@ -448,8 +448,9 @@ class StoreLocalSnapshotTests(SyncTestCase):
         content2=binary(min_size=1),
         filename=magic_folder_filenames(),
         stash_subdir=path_segments(),
+        path_states=lists(path_states(), min_size=2, max_size=2, unique=True),
     )
-    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, stash_subdir):
+    def test_serialize_store_deserialize_snapshot(self, content1, content2, filename, stash_subdir, path_states):
         """
         create a new snapshot (this will have no parent snapshots).
         """
@@ -471,7 +472,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        self.db.store_local_snapshot(snapshots[0])
+        self.db.store_local_snapshot(filename, snapshots[0], path_states[0])
 
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
@@ -486,10 +487,11 @@ class StoreLocalSnapshotTests(SyncTestCase):
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        self.db.store_local_snapshot(snapshots[1])
+        self.db.store_local_snapshot(filename, snapshots[1], path_states[1])
 
         # now read back the serialized snapshot from db
         reconstructed_local_snapshot = self.db.get_local_snapshot(filename)
+        current_path_state = self.db.get_currentsnapshot_pathstate(filename)
 
         self.assertThat(
             reconstructed_local_snapshot,
@@ -507,13 +509,19 @@ class StoreLocalSnapshotTests(SyncTestCase):
             )
         )
 
+        self.assertThat(
+            current_path_state,
+            Equals(path_states[1]),
+        )
+
     @given(
         content1=binary(min_size=1),
         content2=binary(min_size=1),
         filename=magic_folder_filenames(),
         stash_subdir=path_segments(),
+        path_state=path_states(),
     )
-    def test_store_snapshot_missing_parents(self, content1, content2, filename, stash_subdir):
+    def test_store_snapshot_missing_parents(self, content1, content2, filename, stash_subdir, path_state):
         """
         Storing a snapshot whose parents are not in the database will raise an
         error.
@@ -545,18 +553,19 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
         with ExpectedException(LocalSnapshotMissingParent):
-            self.db.store_local_snapshot(snapshots[1])
+            self.db.store_local_snapshot(filename, snapshots[1], path_state)
 
     @given(
         local_snapshots(),
+        path_states(),
     )
-    def test_delete_localsnapshot(self, snapshot):
+    def test_delete_localsnapshot(self, snapshot, path_state):
         """
         After a local snapshot is deleted from the database,
         ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
         snapshot's path.
         """
-        self.db.store_local_snapshot(snapshot)
+        self.db.store_local_snapshot(snapshot.name, snapshot, path_state)
         self.db.delete_localsnapshot(snapshot.name)
         with ExpectedException(KeyError, escape(repr(snapshot.name))):
             self.db.get_local_snapshot(snapshot.name)

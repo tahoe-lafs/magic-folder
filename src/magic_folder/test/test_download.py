@@ -728,7 +728,7 @@ class ConflictTests(AsyncTestCase):
         )
         # if we have a local, we must have the path locally
         self.alice_magic_path.child("foo").setContent(local0_content)
-        self.alice_config.store_local_snapshot(local0)
+        self.alice_config.store_local_snapshot("foo", local0, PathState(0, 0, 0))
 
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot(remote0)

@@ -155,10 +155,7 @@ class LocalSnapshotCreator(object):
                     modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )
 
-                # store the local snapshot to the disk
-                # FIXME: should be in a transaction
-                self._db.store_local_snapshot(snapshot)
-                self._db.store_currentsnapshot_state(mangled_name, path_info.state)
+                self._db.store_local_snapshot(mangled_name, snapshot, path_info.state)
 
 @attr.s
 @implementer(service.IService)
