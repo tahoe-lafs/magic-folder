@@ -799,8 +799,11 @@ class MagicFolderConfig(object):
         return cls(name, connection)
 
     @property
+    def author(self):
+        return self._get_author()
+
     @with_cursor
-    def author(self, cursor):
+    def _get_author(self, cursor):
         cursor.execute("SELECT author_name, author_private_key FROM config")
         name, keydata = cursor.fetchone()
         return LocalAuthor(
@@ -839,7 +842,7 @@ class MagicFolderConfig(object):
         return _construct_local_snapshot(
             leaf_identifier,
             name,
-            self.author,
+            self._get_author.__wrapped__(self, cursor),
             snapshots,
             metadata,
             parents,
