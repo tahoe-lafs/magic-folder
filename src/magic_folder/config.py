@@ -273,6 +273,14 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
+@attr.s(auto_exc=True, frozen=True)
+class LocalSnapshotMissingParent(Exception):
+    """
+    An attempt was made to store a local snapshot whose parents aren't in
+    the local database.
+    """
+    parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
+
 
 @attr.s(auto_exc=True, frozen=True)
 class RemoteSnapshotWithoutPathState(Exception):
@@ -858,6 +866,21 @@ class MagicFolderConfig(object):
 
         :param LocalSnapshot snapshot: The snapshot to store.
         """
+        # Ensure that the local parent snapshots are already in the database.
+        for parent in snapshot.parents_local:
+            cursor.execute(
+                """
+                SELECT
+                    count(*) from [local_snapshots]
+                WHERE
+                    identifier= ?
+                """,
+                (unicode(parent.identifier),),
+            )
+            count = cursor.fetchone()
+            if count[0] != 1:
+                raise LocalSnapshotMissingParent(parent.identifier)
+
         try:
             # Create the primary row.
             cursor.execute(
@@ -906,41 +929,23 @@ class MagicFolderConfig(object):
                     [parent_identifier]
                 )
             VALUES
-                (?, ?, 0, ?)
+                (?, ?, ?, ?)
             """,
-            list(
-                (unicode(snapshot.identifier), index, parent_identifier)
-                for (index, parent_identifier)
-                in enumerate(snapshot.parents_remote)
-            ),
-        )
-
-        # Create any implied local parents that don't exist already.
-        for local_parent in snapshot.parents_local:
-            try:
-                self.store_local_snapshot(local_parent)
-            except LocalSnapshotCollision:
-                # If it exists already, fine.
-                pass
-
-        # Now insert references to them.
-        cursor.executemany(
-            """
-            INSERT INTO
-                [local_snapshot_parent] (
-                    [snapshot_identifier],
-                    [index],
-                    [local_only],
-                    [parent_identifier]
+            [
+                (unicode(snapshot.identifier), index, local_only, parent_identifier)
+                for (index, (local_only, parent_identifier)) in enumerate(
+                    chain(
+                        (
+                            (False, parent_identifier)
+                            for parent_identifier in snapshot.parents_remote
+                        ),
+                        (
+                            (True, unicode(parent.identifier))
+                            for parent in snapshot.parents_local
+                        ),
+                    )
                 )
-            VALUES
-                (?, ?, 1, ?)
-            """,
-            list(
-                (unicode(snapshot.identifier), index, unicode(parent.identifier))
-                for (index, parent)
-                in enumerate(snapshot.parents_local, len(snapshot.parents_remote))
-            ),
+            ],
         )
 
     @with_cursor
