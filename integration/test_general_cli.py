@@ -19,13 +19,13 @@ from . import util
 
 
 @pytest_twisted.inlineCallbacks
-def test_daemon_inititialize(request, reactor, temp_dir):
+def test_daemon_inititialize(request, reactor, base_dir):
     """
     'magic-folder init' happy-path works
     """
 
-    node_dir = join(temp_dir, "daemon")
-    tahoe_dir = join(temp_dir, "tahoe")
+    node_dir = join(base_dir, "daemon")
+    tahoe_dir = join(base_dir, "tahoe")
     mkdir(tahoe_dir)
     with open(join(tahoe_dir, "tahoe.cfg"), "w") as f:
         f.write("# a fake config\n")
@@ -59,12 +59,12 @@ def test_daemon_inititialize(request, reactor, temp_dir):
 
 
 @pytest_twisted.inlineCallbacks
-def test_daemon_migrate(request, reactor, alice, temp_dir):
+def test_daemon_migrate(request, reactor, alice, base_dir):
     """
     'magic-folder migrate' happy-path works
     """
 
-    node_dir = join(temp_dir, "test-daemon-migrate")
+    node_dir = join(base_dir, "test-daemon-migrate")
 
     # if we're depending on a "new" tahoe (which we should) then
     # there's no "tahoe magic-folder" to create "legacy" config for us

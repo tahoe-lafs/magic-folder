@@ -96,8 +96,8 @@ def reactor():
 
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:temp_dir", include_args=[])
-def temp_dir(request):
+@log_call(action_type=u"integration:base_dir", include_args=[])
+def base_dir(request):
     """
     Invoke like 'py.test --keep-tempdir ...' to avoid deleting the temp-dir
     """
@@ -164,13 +164,13 @@ def flog_binary(tahoe_venv):
 
 
 @pytest.fixture(scope='session')
-def flog_gatherer(reactor, temp_dir, tahoe_venv, flog_binary, request):
+def flog_gatherer(reactor, base_dir, tahoe_venv, flog_binary, request):
     if not request.config.getoption("gather_foolscap_logs"):
         return ""
 
     with start_task(action_type=u"integration:flog_gatherer"):
         out_protocol = _CollectOutputProtocol()
-        gather_dir = join(temp_dir, 'flog_gather')
+        gather_dir = join(base_dir, 'flog_gather')
         reactor.spawnProcess(
             out_protocol,
             flog_binary,
@@ -224,7 +224,7 @@ def flog_gatherer(reactor, temp_dir, tahoe_venv, flog_binary, request):
 
 
 @pytest.fixture(scope='session')
-def introducer(reactor, tahoe_venv, temp_dir, flog_gatherer, request):
+def introducer(reactor, tahoe_venv, base_dir, flog_gatherer, request):
     with start_task(action_type=u"integration:introducer").context():
         config = '''
 [node]
@@ -235,7 +235,7 @@ tub.port = tcp:9321
 tub.location = tcp:localhost:9321
 '''.format(log_furl=flog_gatherer)
 
-        intro_dir = join(temp_dir, 'introducer')
+        intro_dir = join(base_dir, 'introducer')
         print("making introducer", intro_dir)
 
         if not exists(intro_dir):
@@ -269,8 +269,8 @@ tub.location = tcp:localhost:9321
 
 
 @pytest.fixture(scope='session')
-def introducer_furl(introducer, temp_dir):
-    furl_fname = join(temp_dir, 'introducer', 'private', 'introducer.furl')
+def introducer_furl(introducer, base_dir):
+    furl_fname = join(base_dir, 'introducer', 'private', 'introducer.furl')
     while not exists(furl_fname):
         print("Don't see {} yet".format(furl_fname))
         sleep(.1)
@@ -293,9 +293,9 @@ def magic_folder_nodes(request):
 
 
 @pytest.fixture(scope='session')
-def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
+def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     try:
-        mkdir(join(temp_dir, 'magic-alice'))
+        mkdir(join(base_dir, 'magic-alice'))
     except OSError:
         pass
 
@@ -304,7 +304,7 @@ def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request
             reactor,
             tahoe_venv,
             request,
-            temp_dir,
+            base_dir,
             introducer_furl,
             flog_gatherer,
             name=u"alice",
@@ -317,9 +317,9 @@ def alice(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request
 
 
 @pytest.fixture(scope='session')
-def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
+def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     try:
-        mkdir(join(temp_dir, 'magic-bob'))
+        mkdir(join(base_dir, 'magic-bob'))
     except OSError:
         pass
 
@@ -328,7 +328,7 @@ def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
             reactor,
             tahoe_venv,
             request,
-            temp_dir,
+            base_dir,
             introducer_furl,
             flog_gatherer,
             name=u"bob",
@@ -339,13 +339,13 @@ def bob(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
     )
 
 @pytest.fixture(scope='session')
-def edmond(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, request):
+def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
             reactor,
             tahoe_venv,
             request,
-            temp_dir,
+            base_dir,
             introducer_furl,
             flog_gatherer,
             u"edmond",
@@ -356,8 +356,8 @@ def edmond(reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer, reques
     )
 
 @pytest.fixture(scope='session')
-@log_call(action_type=u"integration:alice:invite", include_args=["temp_dir"])
-def alice_invite(reactor, alice, temp_dir):
+@log_call(action_type=u"integration:alice:invite", include_args=["base_dir"])
+def alice_invite(reactor, alice, base_dir):
     invite = pytest_twisted.blockon(
         _generate_invite(reactor, alice, "bob")
     )

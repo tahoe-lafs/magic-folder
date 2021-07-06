@@ -98,7 +98,7 @@ def take_snapshot(request, magic_folder_nodes):
 
 
 @pytest_twisted.inlineCallbacks
-def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_local_snapshots(request, reactor, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
     """
@@ -173,7 +173,7 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
 
 
 @pytest_twisted.inlineCallbacks
-def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_create_then_recover(request, reactor, alice, bob, take_snapshot):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -254,7 +254,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
 
 
 @pytest_twisted.inlineCallbacks
-def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_internal_inconsistency(request, reactor, alice, bob, take_snapshot):
     # FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
@@ -316,7 +316,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
 
 
 @pytest_twisted.inlineCallbacks
-def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_ancestors(request, reactor, alice, bob, take_snapshot):
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -385,7 +385,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
     )
 
 @pytest_twisted.inlineCallbacks
-def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snapshot):
+def test_recover_twice(request, reactor, alice, bob, edmond, take_snapshot):
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")

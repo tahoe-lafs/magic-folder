@@ -12,7 +12,7 @@ from .util import await_file_contents, ensure_file_not_created
 
 
 @pytest_twisted.inlineCallbacks
-def test_add(request, reactor, temp_dir, alice):
+def test_add(request, reactor, alice):
     """
     'magic-folder add' happy-path works
     """
@@ -42,7 +42,7 @@ def test_add(request, reactor, temp_dir, alice):
 
 
 @pytest_twisted.inlineCallbacks
-def test_leave(request, reactor, temp_dir, alice, bob):
+def test_leave(request, reactor, alice, bob):
     """
     After leaving a magic folder, its contents are no longer
     synced.
