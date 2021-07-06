@@ -13,6 +13,7 @@ __all__ = [
     "flush_logged_errors",
     "skip",
     "skipIf",
+    "success_result_of",
 ]
 
 import os
@@ -56,6 +57,7 @@ from twisted.internet.interfaces import (
 )
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
 from twisted.python import log
+from twisted.trial.unittest import SynchronousTestCase as _TwistedSynchronousTestCase
 
 from allmydata import uri
 
@@ -365,3 +367,13 @@ class AsyncBrokenTestCase(_TestCaseMixin, TestCase):
     run_tests_with = EliotLoggedRunTest.make_factory(
         AsynchronousDeferredRunTestForBrokenTwisted.make_factory(timeout=60.0),
     )
+
+
+# Twisted provides the useful function `successResultOf`, for getting
+# the result of an already fired deferred. Unfortunately, it is only
+# available as a method on trial's TestCase. Since we don't use that,
+# we expose it as a free function here. While it only makes sense to
+# use it in test code, that includes test fixtures, which may not have
+# access to any test case.
+_TWISTED_TEST_CASE = _TwistedSynchronousTestCase()
+success_result_of = _TWISTED_TEST_CASE.successResultOf
