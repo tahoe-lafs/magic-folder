@@ -48,6 +48,7 @@ from twisted.internet import reactor
 
 from ..util.eliotutil import (
     log_call_deferred,
+    log_inline_callbacks,
     _parse_destination_description,
     _EliotLogging,
 )
@@ -181,6 +182,54 @@ class LogCallDeferredTests(TestCase):
         def f():
             return result
         self.assertThat(f(), succeeded(Is(result)))
+
+    @capture_logging(
+        lambda self, logger: assertHasAction(
+            self, logger, "the-action", succeeded=True, startFields={"thing": "value"}
+        ),
+    )
+    def test_args_logged(self, logger):
+        """
+        The decorated function's arguments are logged.
+        """
+
+        @log_call_deferred(action_type="the-action", include_args=True)
+        def f(self, reactor, thing):
+            pass
+
+        f(object(), object(), "value")
+
+    @capture_logging(
+        lambda self, logger: assertHasAction(
+            self, logger, "the-action", succeeded=True, startFields={"thing": "value"}
+        ),
+    )
+    def test_args_logged_explicit(self, logger):
+        """
+        The decorated function's arguments are logged.
+        """
+
+        @log_call_deferred(action_type="the-action", include_args=["thing"])
+        def f(thing, other):
+            pass
+
+        f("value", object())
+
+    @capture_logging(
+        lambda self, logger: assertHasAction(
+            self, logger, "the-action", succeeded=True, startFields={"thing": "value"}
+        ),
+    )
+    def test_args_logged_inline_callbacks(self, logger):
+        """
+        The decorated function's arguments are logged.
+        """
+
+        @log_inline_callbacks(action_type="the-action", include_args=["thing"])
+        def f(thing, other):
+            yield
+
+        f("value", object())
 
     @capture_logging(
         lambda self, logger:

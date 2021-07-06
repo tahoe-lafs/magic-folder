@@ -11,6 +11,7 @@ from __future__ import (
     print_function,
 )
 
+import inspect
 import json
 import os
 
@@ -27,6 +28,7 @@ from eliot import (
     start_task,
     write_traceback,
 )
+from eliot.twisted import inline_callbacks
 
 from logging import (
     INFO,
@@ -71,6 +73,17 @@ from attr.validators import (
 )
 
 from json import loads
+
+try:
+    # unwrap was introduced in python 3.4
+    from inspect import unwrap
+except ImportError:
+
+    def unwrap(f):
+        while hasattr(f, "__wrapped__"):
+            f = f.__wrapped__
+        return f
+
 
 def validateInstanceOf(t):
     """
@@ -358,19 +371,56 @@ class _DestinationParser(object):
 _parse_destination_description = _DestinationParser().parse
 
 
-def log_call_deferred(action_type):
+def log_call_deferred(action_type, include_args=False):
     """
     Like ``eliot.log_call`` but for functions which return ``Deferred``.
     """
+
+    if include_args:
+        if include_args is True:
+            arg_filter = lambda k: k not in {"self", "reactor"}
+        else:
+            include_args = set(include_args)
+            arg_filter = lambda k: k in include_args
+
     def decorate_log_call_deferred(f):
+        wrapped_f = unwrap(f)
+
         @wraps(f)
         def logged_f(*a, **kw):
+            if include_args:
+                callargs = {
+                    k: v
+                    for k, v in inspect.getcallargs(wrapped_f, *a, **kw).items()
+                    if arg_filter(k)
+                }
+            else:
+                callargs = {}
+
             # Use the action's context method to avoid ending the action when
             # the `with` block ends.
-            with start_action(action_type=action_type).context():
+            with start_action(action_type=action_type, **callargs).context():
                 # Use addActionFinish so that the action finishes when the
                 # Deferred fires.
                 d = maybeDeferred(f, *a, **kw)
                 return DeferredContext(d).addActionFinish()
+
         return logged_f
+
     return decorate_log_call_deferred
+
+
+def log_inline_callbacks(action_type, include_args=False):
+    """
+    Like py:`log_call_deferred` but decorates the function with :py:`inline_callbacks`.
+
+    This is needed so that py:`log_call_deferred` can access the right argument names.
+    """
+
+    def wrap(f):
+        wrapper = inline_callbacks(f)
+        # __wrapped__ is introduced in python 3.2
+        wrapper.__wrapped__ = f
+        return log_call_deferred(action_type, include_args=include_args)(wrapper)
+
+    return wrap
