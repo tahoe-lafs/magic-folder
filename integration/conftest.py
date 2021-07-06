@@ -5,13 +5,11 @@ from __future__ import (
 )
 
 import sys
-import shutil
 import subprocess
 from pathlib2 import Path
 from time import sleep
 from os import mkdir, listdir, environ
 from os.path import join, exists
-from tempfile import mkdtemp
 from configparser import ConfigParser
 
 from foolscap.furl import (
@@ -47,10 +45,6 @@ from .util import (
 # pytest customization hooks
 
 def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-tempdir", action="store_true", dest="keep",
-        help="Keep the tmpdir with the client directories (introducer, etc)",
-    )
     parser.addoption(
         "--coverage", action="store_true", dest="coverage",
         help="Collect coverage statistics",
@@ -97,27 +91,16 @@ def reactor():
 
 @pytest.fixture(scope='session')
 @log_call(action_type=u"integration:base_dir", include_args=[])
-def base_dir(request):
+def base_dir(tmp_path_factory):
     """
-    Invoke like 'py.test --keep-tempdir ...' to avoid deleting the temp-dir
+    Base temporary directory, used by several session scoped fixtures.
+
+    :param _pytest.tmpdir.TempPathFactory tmp_path_factory:
+        A session-scoped pytest fixture that allows creating temporary
+        directories.
     """
-    tmp = mkdtemp(prefix="tahoe")
-    if request.config.getoption('keep'):
-        print("\nWill retain tempdir '{}'".format(tmp))
-
-    # I'm leaving this in and always calling it so that the tempdir
-    # path is (also) printed out near the end of the run
-    def cleanup():
-        if request.config.getoption('keep'):
-            print("Keeping tempdir '{}'".format(tmp))
-        else:
-            try:
-                shutil.rmtree(tmp, ignore_errors=True)
-            except Exception as e:
-                print("Failed to remove tmpdir: {}".format(e))
-    request.addfinalizer(cleanup)
-
-    return tmp
+    base = tmp_path_factory.mktemp("magic-folder")
+    return str(base)
 
 
 # NB: conceptually, it kind of makes sense to parametrize this fixture
