@@ -168,6 +168,20 @@ class MagicFolderClient(object):
             'scan_interval': scan_interval,
         }, ensure_ascii=False).encode('utf-8'))
 
+    def leave_folder(self, magic_folder, really_delete_write_capability):
+        # type: (unicode, bool) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder)
+        return self._authorized_request(
+            "DELETE",
+            api_url,
+            body=json.dumps(
+                {
+                    "really-delete-write-capability": really_delete_write_capability,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
     @inlineCallbacks
     def _authorized_request(self, method, url, body=b""):
         """

@@ -39,6 +39,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
+from twisted.web import http
 
 from treq.client import (
     HTTPClient,
@@ -55,6 +56,7 @@ from .common import (
 
 from .client import (
     CannotAccessAPIError,
+    MagicFolderApiError,
     create_magic_folder_client,
     create_http_client,
 )
@@ -459,38 +461,25 @@ class LeaveOptions(usage.Options):
             )
 
 
+@inline_callbacks
 def leave(options):
+    client = options.parent.client
     try:
-        folder_config = options.parent.config.get_magic_folder(options["name"])
-    except ValueError:
-        raise usage.UsageError(
-            "No such magic-folder '{}'".format(options["name"])
+        yield client.leave_folder(
+            options["name"],
+            really_delete_write_capability=options["really-delete-write-capability"],
         )
-
-    if folder_config.is_admin():
-        if not options["really-delete-write-capability"]:
-            print(
-                "ERROR: magic folder '{}' holds a write capability"
-                ", not deleting.".format(options["name"]),
-                file=options.stderr,
-            )
+    except MagicFolderApiError as e:
+        print("Error: {}".format(e), file=options.stderr)
+        if e.code == http.CONFLICT:
             print(
                 "If you really want to delete it, pass --really-delete-write-capability",
                 file=options.stderr,
             )
-            return 1
-
-    fails = options.parent.config.remove_magic_folder(options["name"])
-    if fails:
-        print(
-            "ERROR: Problems while removing state directories:",
-            file=options.stderr,
-        )
-        for path, error in fails:
-            print("{}: {}".format(path, error), file=options.stderr)
-        return 1
-
-    return 0
+        if "details" in e.body:
+            for path, error in e.body["details"]:
+                print("{}: {}".format(path, error), file=options.stderr)
+        raise SystemExit(1)
 
 
 class RunOptions(usage.Options):
