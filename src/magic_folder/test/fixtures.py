@@ -5,6 +5,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 """
@@ -21,6 +22,7 @@ from errno import (
 
 from allmydata.util.base32 import b2a
 from ..util.encoding import load_yaml, dump_yaml
+from ..util.capabilities import to_readonly_capability
 
 import attr
 
@@ -266,7 +268,12 @@ class MagicFolderNode(object):
                         name,
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
-                        u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
+                        "URI:DIR2{}:{}:{}".format(
+                            "" if config["admin"] else "-RO",
+                            b2a("\0" * 16),
+                            b2a("\1" * 32),
+                        ),
+
                         u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
                         config[u"poll-interval"],
                         config[u"scan-interval"],
@@ -300,6 +307,11 @@ class MagicFolderNode(object):
                         config[u"scan-interval"],
                     )
                 )
+                if not config[u"admin"]:
+                    folder_config = global_config.get_magic_folder(name)
+                    folder_config.collective_dircap = to_readonly_capability(folder_config.collective_dircap)
+
+
 
         # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
         # See https://github.com/LeastAuthority/magic-folder/issues/334

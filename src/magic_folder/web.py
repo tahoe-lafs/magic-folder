@@ -23,6 +23,7 @@ from autobahn.twisted.resource import (
 )
 
 from eliot import write_failure
+from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
     InsecurePath, FilePath,
@@ -254,6 +255,24 @@ class APIv1(object):
         _application_json(request)
         returnValue(b"{}")
 
+    @app.route("/magic-folder/<string:folder_name>", methods=["DELETE"])
+    @inline_callbacks
+    def leave_magic_folder(self, request, folder_name):
+        """
+        Leave a new magic folder.
+        """
+        body = request.content.read()
+        data = _load_json(body)
+
+        yield self._global_service.leave_folder(
+            folder_name,
+            really_delete_write_capability=data.get(
+                "really-delete-write-capability", False
+            ),
+        )
+
+        _application_json(request)
+        returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inlineCallbacks

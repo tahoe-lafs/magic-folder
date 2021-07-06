@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from configparser import ConfigParser
 
 import attr
+from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
 from twisted.application.service import MultiService
@@ -262,3 +263,31 @@ class MagicFolderService(MultiService):
 
         mf = self._add_service_for_folder(name)
         yield mf.ready()
+
+    @inline_callbacks
+    def leave_folder(self, name, really_delete_write_capability):
+        with start_action(
+            action_type="service:leave-folder",
+            name=name,
+            really_delete_write_capability=really_delete_write_capability,
+        ):
+            folder = self.get_folder_service(name)
+
+            if folder.config.is_admin():
+                if not really_delete_write_capability:
+                    raise APIError(
+                        code=http.CONFLICT,
+                        reason="magic folder '{}' holds a write capability"
+                        ", not deleting.".format(name),
+                    )
+
+            yield folder.disownServiceParent()
+            fails = self.config.remove_magic_folder(name)
+            if fails:
+                raise APIError(
+                    code=http.INTERNAL_SERVER_ERROR,
+                    reason="Problems while removing state directories:",
+                    extra_fields={
+                        "details": {path: str(error) for (path, error) in fails}
+                    },
+                )

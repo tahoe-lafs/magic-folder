@@ -103,7 +103,7 @@ from eliot import (
     Field,
 )
 
-from .util.capabilities import is_readonly_directory_cap
+from .util.capabilities import is_readonly_directory_cap, is_directory_cap
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -1196,6 +1196,17 @@ class MagicFolderConfig(object):
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
         return cursor.fetchone()[0].encode("utf8")
+
+    @collective_dircap.setter
+    @with_cursor
+    def collective_dircap(self, cursor, dircap):
+        if not is_directory_cap(dircap):
+            raise AssertionError(
+                "Collective dirnode was {!r}, must be a directory node.".format(
+                    dircap,
+                )
+            )
+        cursor.execute("UPDATE [config] SET collective_dircap=?", (dircap,))
 
     @property
     @with_cursor
