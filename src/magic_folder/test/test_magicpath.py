@@ -25,6 +25,7 @@ from hypothesis.strategies import (
     randoms,
 )
 
+from testtools import ExpectedException
 from testtools.matchers import (
     AfterPreprocessing,
     Equals,
@@ -42,6 +43,7 @@ from .strategies import (
 )
 
 from ..magicpath import (
+    InvalidMangledPath,
     path2magic,
     magic2path,
     should_ignore_file,
@@ -61,6 +63,10 @@ class MagicPath(SyncTestCase):
             magic2path(path2magic(path)),
             Equals(path),
         )
+
+    def test_invalid(self):
+        with ExpectedException(InvalidMangledPath):
+            magic2path("@version")
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))
     def test_ignore_known_suffixes(self, path, suffix):

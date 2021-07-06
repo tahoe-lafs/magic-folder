@@ -9,6 +9,7 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
+import json
 import time
 from tempfile import (
     mkdtemp,
@@ -400,5 +401,73 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     await_file_contents(
         recover2_folder.child("sylvester").path,
         content1,
+        timeout=25,
+    )
+
+@pytest_twisted.inlineCallbacks
+def test_version(request, reactor, temp_dir, alice, bob):
+    # "alice" contains the 'original' magic-folder
+    # "bob" contains the 'recovery' magic-folder
+    magic = FilePath(mkdtemp())
+    original_folder = magic.child("cats")
+    recover_folder = magic.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    alice_folders = yield alice.list_(True)
+
+    def cleanup_original():
+        pytest_twisted.blockon(alice.leave("original"))
+        pytest_twisted.blockon(alice.restart_magic_folder())
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = "zero\n" * 1000
+    original_folder.child("00sylvester").setContent(content0)
+    yield alice.add_snapshot("original", "00sylvester")
+
+    # wait until we've definitely uploaded it
+    local_cfg = alice.global_config().get_magic_folder("original")
+    for _ in range(10):
+        time.sleep(1)
+        try:
+            local_cfg.get_remotesnapshot("00sylvester")
+            break
+        except KeyError:
+            pass
+
+    yield alice.stop_magic_folder()
+    def cleanup():
+        pytest_twisted.blockon(alice.start_magic_folder())
+    request.addfinalizer(cleanup)
+
+    alice_cap = alice_folders["original"]["upload_dircap"]
+
+    tahoe_client = alice.tahoe_client()
+    yield tahoe_client.add_entry_to_mutable_directory(
+        alice_cap,
+        "@version",
+        (yield tahoe_client.create_immutable(json.dumps({"version": 0}))),
+    )
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+
+    def cleanup_recovery():
+        pytest_twisted.blockon(bob.leave("recovery"))
+        pytest_twisted.blockon(bob.restart_magic_folder())
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    yield bob.add_participant("recovery", "alice", to_readonly_capability(alice_cap))
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    await_file_contents(
+        recover_folder.child("00sylvester").path,
+        content0,
         timeout=25,
     )

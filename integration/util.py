@@ -16,6 +16,7 @@ from functools import partial
 
 import attr
 
+from treq.client import HTTPClient
 from twisted.internet.defer import (
     returnValue,
     Deferred,
@@ -33,6 +34,7 @@ from twisted.internet.error import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.web.client import Agent
 
 import treq
 
@@ -62,6 +64,7 @@ from magic_folder.cli import (
 from magic_folder.config import (
     load_global_configuration,
 )
+from magic_folder.tahoe_client import create_tahoe_client
 
 
 @attr.s
@@ -102,6 +105,13 @@ class MagicFolderEnabledNode(object):
 
     def global_config(self):
         return load_global_configuration(FilePath(self.magic_config_directory))
+
+    def tahoe_client(self):
+        config = self.global_config()
+        return create_tahoe_client(
+            config.tahoe_client_url,
+            HTTPClient(Agent(self.reactor)),
+        )
 
     @property
     def magic_directory(self):
