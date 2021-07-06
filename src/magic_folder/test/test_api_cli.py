@@ -590,9 +590,9 @@ class TestDumpState(AsyncTestCase):
         options.stdout = StringIO()
         options.stderr = StringIO()
         options.parseOptions([
-            "--config", self.magic_config.path,
-            "dump-state",
-            "--folder", "test",
+            b"--config", self.magic_config.path,
+            b"dump-state",
+            b"--folder", b"test",
         ])
         options._config = self.global_config
         yield run_magic_folder_api_options(options)

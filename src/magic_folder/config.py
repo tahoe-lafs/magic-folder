@@ -84,6 +84,7 @@ from .snapshot import (
 )
 from .common import (
     APIError,
+    NoSuchMagicFolder,
     atomic_makedirs,
     valid_magic_folder_name,
 )
@@ -1408,16 +1409,14 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
 
-        :raises ValueError: if there is no such Magic Folder
+        :raises NoSuchMagicFolder: if there is no such Magic Folder
         """
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name, location FROM magic_folders WHERE name=?", (name, ))
             data = cursor.fetchone()
             if data is None:
-                raise ValueError(
-                    "No Magic Folder named '{}'".format(name)
-                )
+                raise NoSuchMagicFolder(name)
             name, location = data
             connection = _upgraded(
                 _magicfolder_config_schema,

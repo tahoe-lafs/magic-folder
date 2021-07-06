@@ -448,7 +448,7 @@ class LeaveOptions(usage.Options):
         ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
     ]
     optParameters = [
-        ("name", "n", None, "Name of magic-folder to leave"),
+        ("name", "n", None, "Name of magic-folder to leave", to_unicode),
     ]
 
     def postOptions(self):

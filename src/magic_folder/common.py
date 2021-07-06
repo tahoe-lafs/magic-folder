@@ -74,6 +74,26 @@ class APIError(Exception):
         return self.reason
 
 
+@attr.s(auto_exc=True, frozen=True)
+class NoSuchMagicFolder(APIError):
+    """
+    There is not a magic folder of the given name.
+    """
+
+    name = attr.ib(validator=attr.validators.instance_of(unicode))
+    code = attr.ib(
+        init=False,
+        default=http.NOT_FOUND,
+    )
+    reason = attr.ib(
+        init=False,
+        default=attr.Factory(
+            lambda self: u"No such magic-folder '{}'".format(self.name),
+            takes_self=True,
+        ),
+    )
+
+
 @contextmanager
 def atomic_makedirs(path):
     """

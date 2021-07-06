@@ -15,7 +15,7 @@ from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
 
-from .common import APIError
+from .common import APIError, NoSuchMagicFolder
 from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
@@ -118,14 +118,14 @@ class MagicFolderService(MultiService):
 
         :param unicode folder_name: The name of the magic-folder to retrieve.
 
-        :raise KeyError: If no magic-folder with a matching name is found.
+        :raise NoSuchMagicFolder: If no magic-folder with a matching name is found.
 
         :return MagicFolder: The service for the matching magic-folder.
         """
         for service in self._iter_magic_folder_services():
             if service.folder_name == folder_name:
                 return service
-        raise KeyError(folder_name)
+        raise NoSuchMagicFolder(folder_name)
 
     def _get_auth_token(self):
         return self.config.api_token

@@ -68,7 +68,7 @@ from .strategies import (
     folder_names,
     path_states,
 )
-from ..common import InvalidMagicFolderName, APIError
+from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
 from ..config import (
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
@@ -400,7 +400,7 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         an error to retrieve a non-existent folder
         """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        with ExpectedException(ValueError):
+        with ExpectedException(NoSuchMagicFolder):
             config.get_magic_folder(u"non-existent")
 
     @given(

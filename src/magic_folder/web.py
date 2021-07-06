@@ -34,9 +34,6 @@ from twisted.internet.defer import (
 from twisted.application.internet import (
     StreamServerEndpointService,
 )
-from twisted.web.resource import (
-    NoResource,
-)
 from twisted.web.server import (
     Site,
 )
@@ -264,10 +261,7 @@ class APIv1(object):
         """
         List all participants of this folder
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_config = self._global_config.get_magic_folder(folder_name)
 
         collective = participants_from_collective(
             folder_config.collective_dircap,
@@ -294,10 +288,7 @@ class APIv1(object):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_config = self._global_config.get_magic_folder(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -357,11 +348,8 @@ class APIv1(object):
         """
         Create a new Snapshot
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-            folder_service = self._global_service.get_folder_service(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_config = folder_service.config
 
         path_u = request.args[b"path"][0].decode("utf-8")
 
