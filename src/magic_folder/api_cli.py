@@ -426,7 +426,7 @@ def run_magic_folder_api_options(options):
 
         except MagicFolderApiError as e:
             # these kinds of errors should report via JSON from the endpoints
-            print(u"{}".format(e.body), file=options.stderr)
+            print(json.dumps(e.body), file=options.stderr)
             raise SystemExit(2)
 
         except Exception as e:
