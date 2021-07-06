@@ -37,6 +37,20 @@ class BadMetadataResponse(Exception):
     cannot be interpreted as that metadata.
     """
 
+
+def does_not_have_keys(*keys):
+    def validator(inst, attr, value):
+        invalid_keys = [key for key in keys if key in value]
+        if invalid_keys:
+            raise ValueError(
+                "'{name}' must not have {invalid_keys} keys.".format(
+                    name=attr.name,
+                    invalid_keys=invalid_keys,
+                )
+            )
+    return validator
+
+
 @attr.s(auto_exc=True, frozen=True)
 class APIError(Exception):
     """
@@ -51,6 +65,15 @@ class APIError(Exception):
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
     reason = attr.ib(validator=attr.validators.instance_of(unicode))
+    extra_fields = attr.ib(
+        default=None,
+        validator=attr.validators.optional(
+            attr.validators.and_(
+                attr.validators.instance_of(dict),
+                does_not_have_keys("reason"),
+            ),
+        )
+    )
 
     @classmethod
     def from_exception(cls, code, exception, prefix=None):
@@ -69,6 +92,15 @@ class APIError(Exception):
         else:
             reason = u"{}".format(exception)
         return cls(code=code, reason=reason)
+
+    def to_json(self):
+        """
+        :return: a representation of this error suitable for JSON encoding.
+        """
+        result = {"reason": self.reason}
+        if self.extra_fields:
+            result.update(self.extra_fields)
+        return result
 
     def __str__(self):
         return self.reason
@@ -92,6 +124,7 @@ class NoSuchMagicFolder(APIError):
             takes_self=True,
         ),
     )
+    extra_fields = attr.ib(init=False, default=None)
 
 
 @contextmanager
@@ -132,6 +165,7 @@ class InvalidMagicFolderName(APIError):
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
     reason = attr.ib(init=False, default=message)
+    extra_fields = attr.ib(init=False, default=None)
 
 
 def valid_magic_folder_name(name):

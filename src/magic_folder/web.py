@@ -178,7 +178,7 @@ class APIv1(object):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
-        return json.dumps({"reason": exc.reason})
+        return json.dumps(exc.to_json())
 
     @app.handle_errors(RequestRedirect)
     def handle_redirect(self, request, failure):
