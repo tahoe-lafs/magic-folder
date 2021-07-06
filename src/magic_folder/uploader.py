@@ -118,24 +118,6 @@ class LocalSnapshotCreator(object):
             # If so, we use that as the parent.
             relpath = u"/".join(path.segmentsFrom(self._magic_dir))
             mangled_name = magicpath.path2magic(relpath)
-            try:
-                parent_snapshot = self._db.get_local_snapshot(mangled_name)
-            except KeyError:
-                parents = []
-            else:
-                parents = [parent_snapshot]
-
-            # if we already have a parent here, it's a LocalSnapshot
-            # .. which means that any remote snapshot by definition
-            # must be "not our parent" (it should be the parent .. or
-            # grandparent etc .. of our localsnapshot)
-            raw_remote = []
-            if not parents:
-                try:
-                    parent_remote = self._db.get_remotesnapshot(mangled_name)
-                    raw_remote = [parent_remote]
-                except KeyError:
-                    pass
 
             # when we handle conflicts we will have to handle multiple
             # parents here (or, somewhere)
@@ -149,8 +131,6 @@ class LocalSnapshotCreator(object):
                     author=self._author,
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
-                    parents=parents,
-                    raw_remote_parents=raw_remote,
                     #FIXME from path_info
                     modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )

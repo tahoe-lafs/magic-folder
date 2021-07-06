@@ -249,6 +249,12 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
 @attr.s
 class LocalSnapshot(object):
     """
+    .. note::
+
+       If both ``parents_local`` and ``parents_remote`` are ``None``, then
+       the parents are unspecified, and it is expected that they will
+       determined when this snapshot is writtend to the database.
+
     :ivar FilePath content_path: The filesystem path to our stashed contents.
 
     :ivar [LocalSnapshot] parents_local: The parents of this snapshot that are
@@ -261,10 +267,12 @@ class LocalSnapshot(object):
     author = attr.ib()
     metadata = attr.ib()
     content_path = attr.ib(validator=attr.validators.instance_of(FilePath))
-    parents_local = attr.ib(validator=attr.validators.instance_of(list))
+    parents_local = attr.ib(
+        validator=attr.validators.optional(attr.validators.instance_of(list)),
+    )
     parents_remote = attr.ib(
         default=attr.Factory(list),
-        validator=attr.validators.instance_of(list),
+        validator=attr.validators.optional(attr.validators.instance_of(list)),
     )
     identifier = attr.ib(
         validator=attr.validators.instance_of(UUID),
@@ -451,8 +459,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 
 @inline_callbacks
-def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
-                    raw_remote_parents=None, modified_time=None):
+def create_snapshot(name, author, data_producer, snapshot_stash_dir, modified_time=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -470,39 +477,13 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     :param FilePath snapshot_stash_dir: the directory where Snapshot contents
         are to be stashed.
 
-    :param parents: a list of LocalSnapshot instances (may be empty,
-        which is the default if not specified).
-
     :param int modified_time: timestamp to use as last-modified time
         (or None for "now")
     """
-    if parents is None:
-        parents = []
-
     if not isinstance(author, LocalAuthor):
         raise ValueError(
             "create_snapshot 'author' must be a LocalAuthor instance"
         )
-
-    # separate the two kinds of parents we can have (LocalSnapshot or
-    # RemoteSnapshot)
-    parents_local = []
-    parents_remote = []
-
-    for idx, parent in enumerate(parents):
-        if isinstance(parent, LocalSnapshot):
-            parents_local.append(parent)
-        elif isinstance(parent, RemoteSnapshot):
-            parents_remote.append(parent.capability)
-        else:
-            raise ValueError(
-                "Parent {} is type {} not LocalSnapshot or RemoteSnapshot".format(
-                    idx,
-                    type(parent),
-                )
-            )
-    if raw_remote_parents:
-        parents_remote.extend(raw_remote_parents)
 
     chunk_size = 1024*1024  # 1 MiB
     chunks_per_yield = 100
@@ -541,8 +522,8 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
                 "ctime": now,
             },
             content_path=FilePath(temp_file_name),
-            parents_local=parents_local,
-            parents_remote=parents_remote,
+            parents_local=None,
+            parents_remote=None,
         )
     )
 
@@ -595,6 +576,8 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # high-level one that just queues up the upload .. a low level one
     # "actually does it", including re-tries etc. Currently, this
     # function is both of those.
+    if snapshot.parents_local is None or snapshot.parents_remote is None:
+        raise Exception("Can't upload snapshot with indeterminte parents.")
 
     parents_raw = [] # raw capability strings
 

@@ -23,9 +23,10 @@ from zope.interface import (
 )
 
 from testtools.matchers import (
-    MatchesPredicate,
     Always,
     Equals,
+    MatchesPredicate,
+    MatchesStructure,
 )
 from testtools import (
     ExpectedException,
@@ -124,7 +125,6 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             author=self.author,
             data_producer=data,
             snapshot_stash_dir=config.stash_path,
-            parents=[],
         )
 
         snapshots = []
@@ -202,7 +202,6 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         remote_snapshot_creator = f.remote_snapshot_creator
 
         snapshots = []
-        parents = []
         for content in contents:
             data = io.BytesIO(content)
             d = create_snapshot(
@@ -210,7 +209,6 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 author=self.author,
                 data_producer=data,
                 snapshot_stash_dir=config.stash_path,
-                parents=parents,
             )
             d.addCallback(snapshots.append)
             self.assertThat(
@@ -218,7 +216,6 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 succeeded(Always()),
             )
             config.store_local_snapshot(name, snapshots[-1], PathState(0, 0, 0))
-            parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]
 
@@ -230,9 +227,12 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         self.eliot_logger.flushTracebacks(TahoeAPIError)
 
-        self.assertEqual(
-            local_snapshot,
+        self.assertThat(
             config.get_local_snapshot(name),
+            MatchesStructure.fromExample(local_snapshot).update(
+                parents_local=Equals([]),
+                parents_remote=Equals([]),
+            )
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),

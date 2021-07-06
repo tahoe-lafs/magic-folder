@@ -712,7 +712,6 @@ class ConflictTests(AsyncTestCase):
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
-            parents_raw=[],
             content_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
@@ -723,8 +722,6 @@ class ConflictTests(AsyncTestCase):
             author=self.alice,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
-            parents=None,
-            raw_remote_parents=None,
         )
         # if we have a local, we must have the path locally
         self.alice_magic_path.child("foo").setContent(local0_content)

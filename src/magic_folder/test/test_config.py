@@ -68,7 +68,7 @@ from .strategies import (
 )
 from ..common import InvalidMagicFolderName, APIError
 from ..config import (
-    LocalSnapshotMissingParent,
+    LocalSnapshotWithExplicitParents,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -463,7 +463,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
-            parents=[],
         )
         d.addCallback(snapshots.append)
 
@@ -481,7 +480,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
-            parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
 
@@ -535,7 +533,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
-            parents=[],
         )
         d.addCallback(snapshots.append)
 
@@ -546,13 +543,13 @@ class StoreLocalSnapshotTests(SyncTestCase):
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
-            parents=[snapshots[0]],
         )
         d.addCallback(snapshots.append)
+        snapshots[1].parents_local = [snapshots[0]]
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        with ExpectedException(LocalSnapshotMissingParent):
+        with ExpectedException(LocalSnapshotWithExplicitParents):
             self.db.store_local_snapshot(filename, snapshots[1], path_state)
 
     @given(

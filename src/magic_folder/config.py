@@ -267,14 +267,11 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
-@attr.s(auto_exc=True, frozen=True)
-class LocalSnapshotMissingParent(Exception):
+class LocalSnapshotWithExplicitParents(Exception):
     """
-    An attempt was made to store a local snapshot whose parents aren't in
-    the local database.
+    An attempt was made to insert a local snapshot into the database with
+    explicitly specified parents.
     """
-    parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
-
 
 @attr.s(auto_exc=True, frozen=True)
 class RemoteSnapshotWithoutPathState(Exception):
@@ -627,6 +624,61 @@ def _find_leaf_snapshot(leaf_candidates, parents):
     [leaf_identifier] = remaining
     return leaf_identifier
 
+def _find_current_parent(cursor, name):
+    """
+    Find the snapshot that should be the parent of a new local snapshot.
+
+    :return Optional[tuple[bool, unicode]]:
+        If ``None`, there is no parent. A pair of a bool indicating
+        if the parent is local, and the parent identifier.
+    """
+    # Check for local parent
+    # This finds all snapshots with the given name
+    # that don't have children.
+    cursor.execute(
+        """
+        SELECT
+            [identifier]
+        FROM
+            [local_snapshots]
+        LEFT JOIN
+            [local_snapshot_parent] as [parent]
+        ON
+            [local_snapshots].[identifier] = [parent].[parent_identifier]
+        AND
+            [parent].[local_only] = TRUE
+        WHERE
+            [name]=?
+        GROUP BY
+            [identifier]
+        HAVING
+            COUNT([parent].[snapshot_identifier]) = 0
+        """,
+        (name,),
+    )
+    rows = cursor.fetchall()
+    if len(rows) > 1:
+        raise
+    elif len(rows) == 1:
+
+        return (True, rows[0][0])
+
+    # Check for remote parent
+    cursor.execute(
+        """
+        SELECT [snapshot_cap]
+        FROM [current_snapshots]
+        WHERE [name]=?
+        """,
+        (name,)
+    )
+    row = cursor.fetchone()
+    if row and row[0] is not None:
+        return (False, row[0])
+
+    # No parent:
+    return None
+
 
 def _get_remote_parents(identifier, parents):
     """
@@ -856,22 +908,11 @@ class MagicFolderConfig(object):
 
         :param LocalSnapshot snapshot: The snapshot to store.
         """
-        # Ensure that the local parent snapshots are already in the database.
-        for parent in snapshot.parents_local:
-            cursor.execute(
-                """
-                SELECT
-                    count(*) from [local_snapshots]
-                WHERE
-                    name=?
-                AND
-                    identifier=?
-                """,
-                (name, unicode(parent.identifier)),
-            )
-            count = cursor.fetchone()
-            if count[0] != 1:
-                raise LocalSnapshotMissingParent(parent.identifier)
+        if snapshot.parents_local is not None or snapshot.parents_remote is not None:
+            raise LocalSnapshotWithExplicitParents()
+
+        # Find the current parent snapshot
+        parent = _find_current_parent(cursor, name)
 
         try:
             # Create the primary row.
@@ -903,17 +944,11 @@ class MagicFolderConfig(object):
                 in snapshot.metadata.items()
             ),
         )
-        # Associate all of the parents with it.  First remote, then local.
-        #
-        # XXX What is the relative ordering of parents_local and
-        # parents_remote?  It's not preserved in `LocalSnapshot`.  Since local
-        # parents turn into remote parents I guess I'll put remote parents
-        # first here.  That way as local snapshots disappear they'll disappear
-        # from the middle and appear at the end of the remote snapshots list,
-        # also in the middle?
-        cursor.executemany(
-            """
-            INSERT INTO
+
+        if parent is not None:
+            cursor.execute(
+                """
+                INSERT INTO
                 [local_snapshot_parent] (
                     [snapshot_identifier],
                     [index],
@@ -922,23 +957,9 @@ class MagicFolderConfig(object):
                 )
             VALUES
                 (?, ?, ?, ?)
-            """,
-            [
-                (unicode(snapshot.identifier), index, local_only, parent_identifier)
-                for (index, (local_only, parent_identifier)) in enumerate(
-                    chain(
-                        (
-                            (False, parent_identifier)
-                            for parent_identifier in snapshot.parents_remote
-                        ),
-                        (
-                            (True, unicode(parent.identifier))
-                            for parent in snapshot.parents_local
-                        ),
-                    )
-                )
-            ],
-        )
+                """,
+                (unicode(snapshot.identifier), 0, parent[0], parent[1]),
+            )
 
         try:
             # TODO: insert local_snapshot identifier
@@ -946,7 +967,7 @@ class MagicFolderConfig(object):
                 """
                 INSERT INTO [current_snapshots]
                     ([name], [mtime_ns], [ctime_ns], [size])
-                VALUES (?,?,?,?,?)
+                VALUES (?,?,?,?)
                 """,
                 (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
             )
@@ -959,6 +980,8 @@ class MagicFolderConfig(object):
                 """,
                 (path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
             )
+            if cursor.rowcount != 1:
+                raise
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
