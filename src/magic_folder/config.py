@@ -174,7 +174,7 @@ _magicfolder_config_schema = Schema([
             [value]                 BLOB NOT NULL,
 
             -- The referenced local snapshot must exist.
-            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
+            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshots]([identifier])
         )
         """,
         """
@@ -209,7 +209,7 @@ _magicfolder_config_schema = Schema([
             [parent_identifier]     TEXT NOT NULL,
 
             -- The referenced local snapshot must exist.
-            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
+            FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshots]([identifier])
         )
         """,
         """
@@ -458,6 +458,7 @@ def _upgraded(schema, connection):
     """
     with connection:
         cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
         cursor.execute("BEGIN IMMEDIATE TRANSACTION")
         schema.run_upgrades(cursor)
     return connection
