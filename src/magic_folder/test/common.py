@@ -56,6 +56,7 @@ from twisted.internet.interfaces import (
 )
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
 from twisted.python import log
+from twisted.trial.unittest import SynchronousTestCase as _TwistedSynchronousTestCase
 
 from allmydata import uri
 
@@ -365,3 +366,6 @@ class AsyncBrokenTestCase(_TestCaseMixin, TestCase):
     run_tests_with = EliotLoggedRunTest.make_factory(
         AsynchronousDeferredRunTestForBrokenTwisted.make_factory(timeout=60.0),
     )
+
+_TWISTED_TEST_CASE = _TwistedSynchronousTestCase()
+success_result_of = _TWISTED_TEST_CASE.successResultOf
