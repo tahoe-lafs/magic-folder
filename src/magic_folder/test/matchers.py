@@ -182,3 +182,16 @@ def matches_flushed_traceback(exception, value_re=None):
     return AfterPreprocessing(
         as_exc_info_tuple, MatchesException(exception, value_re=value_re)
     )
+
+def matches_failure(exception, value_re=None):
+    """
+    Matches an twisted :py:`Failure` with the given exception.
+
+    See :py:`testtools.matches.MatchesException`.
+    """
+    def as_exc_info_tuple(failure):
+        return failure.type, failure.value, failure.tb
+
+    return AfterPreprocessing(
+        as_exc_info_tuple, MatchesException(exception, value_re=value_re)
+    )
