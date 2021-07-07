@@ -440,7 +440,6 @@ class APIv1(object):
         _application_json(request)  # set reply headers
         try:
             folder_config = self._global_config.get_magic_folder(folder_name)
-            folder_service = self._global_service.get_folder_service(folder_name)
         except ValueError:
             returnValue(NoResource(b"{}"))
 
