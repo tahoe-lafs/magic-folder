@@ -26,7 +26,7 @@ from eliot import write_failure
 from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
-    InsecurePath, FilePath,
+    FilePath,
 )
 from twisted.internet.defer import (
     inlineCallbacks,
@@ -63,9 +63,6 @@ from .magicpath import (
 )
 from .snapshot import (
     create_author,
-)
-from .participants import (
-    participants_from_collective,
 )
 from .util.capabilities import is_readonly_directory_cap
 from .util.file import (
@@ -280,14 +277,9 @@ class APIv1(object):
         """
         List all participants of this folder
         """
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_service = self._global_service.get_folder_service(folder_name)
 
-        collective = participants_from_collective(
-            folder_config.collective_dircap,
-            folder_config.upload_dircap,
-            self._tahoe_client,
-        )
-        participants = yield collective.list()
+        participants = yield folder_service.participants()
 
         reply = {
             part.name: {
@@ -307,7 +299,7 @@ class APIv1(object):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_service = self._global_service.get_folder_service(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -341,12 +333,7 @@ class APIv1(object):
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
 
-        collective = participants_from_collective(
-            folder_config.collective_dircap,
-            folder_config.upload_dircap,
-            self._tahoe_client,
-        )
-        yield collective.add(author, personal_dmd_cap)
+        yield folder_service.add_participant(author, personal_dmd_cap)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
@@ -382,25 +369,10 @@ class APIv1(object):
         Create a new Snapshot
         """
         folder_service = self._global_service.get_folder_service(folder_name)
-        folder_config = folder_service.config
 
-        path_u = request.args[b"path"][0].decode("utf-8")
+        path = request.args[b"path"][0].decode("utf-8")
 
-        # preauthChild allows path-separators in the "path" (i.e. not
-        # just a single path-segment). That is precisely what we want
-        # here, though. It sill does not allow the path to "jump out"
-        # of the base magic_path -- that is, an InsecurePath error
-        # will result if you pass an absolute path outside the folder
-        # or a relative path that reaches up too far.
-
-        try:
-            path = folder_config.magic_path.preauthChild(path_u)
-        except InsecurePath as e:
-            request.setResponseCode(http.NOT_ACCEPTABLE)
-            _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
-
-        yield folder_service.local_snapshot_service.add_file(path)
+        yield folder_service.add_snapshot(path)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
