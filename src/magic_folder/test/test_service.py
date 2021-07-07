@@ -72,8 +72,12 @@ class TestAdd(SyncTestCase):
             self.node.path,
             u"tcp:localhost:5555",
         )
+        clock = Clock()
         self.service = MagicFolderService(
-            Clock(), self.config, WebSocketStatusService(), self.tahoe_client,
+            clock,
+            self.config,
+            WebSocketStatusService(clock, self.config),
+            self.tahoe_client,
         )
 
     def test_add_folder(self):
