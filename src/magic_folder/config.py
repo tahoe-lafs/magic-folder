@@ -1084,17 +1084,17 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, timestamp
+                name, mtime_ns
             FROM
-                [remote_snapshots]
+                [current_snapshots]
             ORDER BY
-                timestamp DESC
+                mtime_ns DESC
             LIMIT
                 30
             """
         )
         rows = cursor.fetchall()
-        return [(r[0], r[1]) for r in rows]
+        return [(r[0], int(r[1] // 1000)) for r in rows]
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
