@@ -81,6 +81,9 @@ from ..snapshot import (
     create_snapshot,
     RemoteSnapshot,
 )
+from ..util.file import (
+    PathState,
+)
 
 
 class TestGlobalConfig(SyncTestCase):
@@ -716,7 +719,6 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             u"URI:DIR2:ccc:ddd",
             self.magic,
             60,
-            0,
         )
 
     def test_limit(self):
@@ -734,7 +736,10 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 [],
                 "URI:DIR2-CHK:",
             )
-            self.db.store_remotesnapshot(name, remote)
+            # XXX this seems fraught; have to remember to call two
+            # APIs or we get exceptions / inconsistent state...
+            self.db.store_currentsnapshot_state(name, PathState(0, x * 1000, x * 1000))
+            self.db.store_uploaded_snapshot(name, remote)
 
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),
