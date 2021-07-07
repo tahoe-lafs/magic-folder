@@ -325,7 +325,7 @@ class MagicFolderNode(object):
             for name in folders:
                 global_service.get_folder_service(name).startService()
 
-        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, status_service)
+        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, status_service)
 
         return cls(
             tahoe_root=tahoe_root,

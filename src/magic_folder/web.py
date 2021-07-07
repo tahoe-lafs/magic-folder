@@ -167,7 +167,6 @@ class APIv1(object):
     _global_config = attr.ib()
     _global_service = attr.ib()
     _status_service = attr.ib(validator=attr.validators.provides(IStatus))
-    _tahoe_client = attr.ib()
 
     app = Klein()
 
@@ -558,7 +557,7 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, tahoe_client, status_service):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, status_service):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -567,13 +566,11 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :param get_auth_token: a callable that returns the current authentication token
 
-    :param TahoeClient tahoe_client: a way to access Tahoe-LAFS
-
     :param IStatus status_service: our status reporting service
 
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service, status_service, tahoe_client).app.resource()
+    v1_resource = APIv1(global_config, global_service, status_service).app.resource()
     root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,
