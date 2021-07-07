@@ -46,6 +46,10 @@ def seconds_to_ns(t):
     return int(t * 1000000000)
 
 
+def ns_to_seconds(t):
+    return int(t // 1000000000)
+
+
 def get_pathinfo(path):
     # type: (FilePath) -> PathInfo
     try:

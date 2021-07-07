@@ -723,6 +723,7 @@ def _construct_local_snapshot(identifier, name, author, content_paths, metadata,
         ),
     )
 
+
 @attr.s
 class MagicFolderConfig(object):
     """
@@ -1122,6 +1123,32 @@ class MagicFolderConfig(object):
             if row:
                 return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
             raise KeyError(name)
+
+    @with_cursor
+    def get_all_current_snapshot_pathstates(self, cursor):
+        """
+        Return the PathState for every file we have in our
+        'current_snapshot' table.
+
+        :returns Iterable[(unicode, PathState)]: an iterable of
+            2-tuples of (name, PathState instance), one for each file
+        """
+        cursor.execute(
+            """
+            SELECT
+                name, mtime_ns, ctime_ns, size
+            FROM
+                current_snapshots
+            ORDER BY
+                mtime_ns DESC
+            """,
+        )
+
+        for row in cursor.fetchall():
+            yield (
+                row[0],  # name
+                PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
+            )
 
     @property
     @with_cursor

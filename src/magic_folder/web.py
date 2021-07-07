@@ -75,6 +75,10 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+from .util.file import (
+    ns_to_seconds,
+)
+
 
 def _ensure_utf8_bytes(value):
     if isinstance(value, unicode):
@@ -427,6 +431,28 @@ class APIv1(object):
             for name, config
             in all_folder_configs()
         })
+
+    @app.route("/magic-folder/<string:folder_name>/file-status", methods=['GET'])
+    def folder_file_status(self, request, folder_name):
+        """
+        Render status information for every file in a given folder
+        """
+        _application_json(request)  # set reply headers
+        try:
+            folder_config = self._global_config.get_magic_folder(folder_name)
+            folder_service = self._global_service.get_folder_service(folder_name)
+        except ValueError:
+            returnValue(NoResource(b"{}"))
+
+        return json.dumps([
+            {
+                "name": name,
+                "mtime": ns_to_seconds(ps.mtime_ns),
+                "size": ps.size,
+            }
+            for name, ps
+            in folder_config.get_all_current_snapshot_pathstates()
+        ])
 
 
 class _InputError(APIError):
