@@ -21,6 +21,7 @@ from twisted.internet.defer import (
 from twisted.internet.task import (
     LoopingCall,
 )
+from twisted.web import http
 from zope.interface import (
     Interface,
     implementer,
@@ -34,6 +35,7 @@ from eliot import (
 from eliot.twisted import (
     inline_callbacks,
 )
+from .common import APIError
 from .util.eliotutil import (
     RELPATH,
     log_call_deferred,
@@ -228,19 +230,21 @@ class LocalSnapshotService(service.Service):
             self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
-            raise ValueError(
-                "The path being added '{!r}' is not within '{!r}'".format(
+            raise APIError(
+                reason=u"The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
                     self._config.magic_path.path,
-                )
+                ),
+                code=http.NOT_ACCEPTABLE,
             )
 
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
         if path.asBytesMode('utf-8').isdir():
-            raise ValueError(
-                "expected a regular file, {!r} is a directory".format(path.path),
+            raise APIError(
+                reason=u"expected a regular file, {!r} is a directory".format(path.path),
+                code=http.NOT_ACCEPTABLE,
             )
 
         # add file into the queue

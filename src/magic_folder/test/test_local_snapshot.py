@@ -27,13 +27,11 @@ from twisted.internet import (
 )
 
 from testtools.matchers import (
-    Equals,
+    AfterPreprocessing,
     Always,
+    Equals,
     HasLength,
     MatchesStructure,
-    AfterPreprocessing,
-    MatchesListwise,
-    MatchesPredicate,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -44,6 +42,7 @@ from eliot import (
     Message,
 )
 
+from ..common import APIError
 from ..magic_folder import (
     LocalSnapshotService,
     LocalSnapshotCreator,
@@ -68,6 +67,7 @@ from ..util.file import (
 from .common import (
     SyncTestCase,
 )
+from .matchers import matches_failure
 from .strategies import (
     path_segments,
     relative_paths,
@@ -222,16 +222,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.add_file(to_add),
             failed(
-                AfterPreprocessing(
-                    lambda f: (f.type, f.value.args),
-                    MatchesListwise([
-                        Equals(ValueError),
-                        Equals((
-                            "expected a regular file, {!r} is a directory".format(
-                                to_add.path,
-                            ),
-                        )),
-                    ]),
+                matches_failure(
+                    APIError,
+                    "expected a regular file, .* is a directory"
                 ),
             ),
         )
@@ -247,15 +240,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.add_file(FilePath(to_add)),
             failed(
-                AfterPreprocessing(
-                    lambda f: (f.type, f.value.args),
-                    MatchesListwise([
-                        Equals(ValueError),
-                        MatchesPredicate(
-                            lambda args: args[0].startswith("The path being added "),
-                            "%r does not start with 'The path being added '.",
-                        ),
-                    ]),
+                matches_failure(
+                    APIError,
+                    "The path being added .*",
                 ),
             ),
         )

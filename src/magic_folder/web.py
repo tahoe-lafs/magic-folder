@@ -400,12 +400,7 @@ class APIv1(object):
             _application_json(request)
             returnValue(json.dumps({u"reason": str(e)}))
 
-        try:
-            yield folder_service.local_snapshot_service.add_file(path)
-        except Exception as e:
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
+        yield folder_service.local_snapshot_service.add_file(path)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
