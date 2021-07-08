@@ -706,7 +706,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             self.db.get_all_current_snapshot_pathstates(),
             AfterPreprocessing(
-                lambda statuses: sorted(name for name, ps in statuses),
-                Equals(sorted(paths)),
+                lambda statuses: set(name for name, ps in statuses),
+                Equals(set(paths)),
             )
         )
