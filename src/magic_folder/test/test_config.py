@@ -39,6 +39,7 @@ from testtools.matchers import (
     MatchesStructure,
     Always,
     HasLength,
+    AfterPreprocessing,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -689,4 +690,23 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             db_path_state,
             Equals(path_states[1])
+        )
+
+    @given(
+        lists(path_segments(), min_size=1),
+        lists(path_states(), min_size=1),
+    )
+    def test_all_path_status(self, paths, path_states):
+        """
+        We can recover all path-statuses
+        """
+        for p, ps in zip(paths, path_states):
+            self.db.store_currentsnapshot_state(p, ps)
+
+        self.assertThat(
+            self.db.get_all_current_snapshot_pathstates(),
+            AfterPreprocessing(
+                lambda statuses: sorted(name for name, ps in statuses),
+                Equals(sorted(paths)),
+            )
         )
