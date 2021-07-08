@@ -727,7 +727,7 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.setContent(some_content)
 
         treq = treq_for_folders(
-            object(),
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},

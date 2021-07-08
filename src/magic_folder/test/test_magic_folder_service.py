@@ -51,9 +51,13 @@ from ..magicpath import (
 )
 from ..config import (
     create_global_configuration,
+    create_testing_configuration,
 )
 from ..status import (
     WebSocketStatusService,
+)
+from ..snapshot import (
+    create_local_author,
 )
 from ..tahoe_client import (
     create_tahoe_client,
@@ -118,24 +122,39 @@ class MagicFolderServiceTests(SyncTestCase):
         ``MagicFolder.local_snapshot_service`` can be used to create a new local
         snapshot for a file in the folder.
         """
+        global_config = create_testing_configuration(
+            FilePath(self.mktemp()),
+            FilePath(self.mktemp()),
+        )
         magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         magic_path.asBytesMode("utf-8").makedirs()
+        mf_config = global_config.create_magic_folder(
+            u"foldername",
+            magic_path,
+            create_local_author(u"zara"),
+            b"URI:DIR2:",
+            b"URI:DIR2:",
+            60,
+        )
 
         target_path = magic_path.preauthChild(relative_target_path)
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.asBytesMode("utf-8").setContent(content)
 
         local_snapshot_creator = MemorySnapshotCreator()
-        clock = object()
-        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService(clock, object()))
+        clock = task.Clock()
+        local_snapshot_service = LocalSnapshotService(
+            mf_config,
+            local_snapshot_creator,
+            WebSocketStatusService(clock, global_config),
+        )
 
         tahoe_client = object()
         name = u"local-snapshot-service-test"
-        config = object()
         participants = object()
         magic_folder = MagicFolder(
             client=tahoe_client,
-            config=config,
+            config=mf_config,
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
@@ -167,19 +186,34 @@ class MagicFolderServiceTests(SyncTestCase):
         When the ``MagicFolder`` service is started the given uploader service is
         also started.
         """
+        global_config = create_testing_configuration(
+            FilePath(self.mktemp()),
+            FilePath(self.mktemp()),
+        )
         magic_path = FilePath(self.mktemp())
         magic_path.asBytesMode("utf-8").makedirs()
+        config = global_config.create_magic_folder(
+            u"foldername",
+            magic_path,
+            create_local_author(u"zara"),
+            b"URI:DIR2:",
+            b"URI:DIR2:",
+            60,
+        )
 
-        local_snapshot_creator = MemorySnapshotCreator()
-        local_snapshot_service = LocalSnapshotService(magic_path, local_snapshot_creator, WebSocketStatusService(None, None))
         clock = task.Clock()
+        local_snapshot_creator = MemorySnapshotCreator()
+        local_snapshot_service = LocalSnapshotService(
+            config,
+            local_snapshot_creator,
+            WebSocketStatusService(clock, config),
+        )
 
         # create RemoteSnapshotCreator and UploaderService
         uploader_service = Service()
 
         tahoe_client = object()
         name = u"local-snapshot-service-test"
-        config = object()
         participants = object()
         magic_folder = MagicFolder(
             client=tahoe_client,
