@@ -168,10 +168,7 @@ class LocalSnapshotService(service.Service):
     When told about local files (that must exist in `.magic_path` or below) we
     deliver it to the snapshot creator.
     """
-    _magic_path = attr.ib(
-        converter=lambda fp: fp.asTextMode("utf-8"),
-        validator=attr.validators.instance_of(FilePath),
-    )
+    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.provides(IStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
@@ -229,13 +226,14 @@ class LocalSnapshotService(service.Service):
 
         try:
             # check that "path" is a descendant of magic_path
-            path.segmentsFrom(self._magic_path)
+            relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
+            self._status.upload_queued(self._config.name, relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
                 "The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
-                    self._magic_path.path,
+                    self._config.magic_path.path,
                 )
             )
 
@@ -285,9 +283,6 @@ class RemoteSnapshotCreator(object):
 
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
-
-        for name in localsnapshot_names:
-            self._status.upload_queued(self._config.name, magic2path(name))
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded

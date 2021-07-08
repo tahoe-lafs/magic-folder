@@ -83,7 +83,7 @@ class MagicFolder(service.MultiService):
             tahoe_client=tahoe_client,
         )
         local_snapshot_service = LocalSnapshotService(
-            mf_config.magic_path,
+            mf_config,
             LocalSnapshotCreator(
                 mf_config,
                 mf_config.author,

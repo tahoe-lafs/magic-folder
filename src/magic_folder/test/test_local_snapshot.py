@@ -108,9 +108,18 @@ class LocalSnapshotServiceTests(SyncTestCase):
         )
         self.magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         self.magic_path.asBytesMode("utf-8").makedirs()
+        self.magic_config = self._global_config.create_magic_folder(
+            "name",
+            self.magic_path,
+            create_local_author("author"),
+            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            60,
+        )
+
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
-            magic_path=self.magic_path,
+            config=self.magic_config,
             snapshot_creator=self.snapshot_creator,
             status=WebSocketStatusService(reactor, self._global_config),
         )
