@@ -351,6 +351,17 @@ class RemoteSnapshotCreator(object):
         # store the remote snapshot capability in the db.
         yield self._config.store_uploaded_snapshot(snapshot, remote_snapshot)
 
+        raise AssertionError(
+            #FIXME
+            """
+            The comment below is no longer true, now that we remove the local
+            snapshot in the above call. We could fix this by periodically checking
+            to ensure that our current remote snapshot is the snapshot that is
+            published in our DMD. (Which we need to do for the similiar failure
+            between when the downloader writes to `current_snapshots` and when it
+            publishes.
+            """
+        )
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
         # other participants see X<-ancestor-Y (that is, version Y
