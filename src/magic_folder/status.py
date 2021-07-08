@@ -263,10 +263,7 @@ class WebSocketStatusService(service.Service):
         """
         IStatus API
         """
-        try:
-            del self._folders[folder]["uploads"][relpath]
-        except KeyError:
-            pass
+        del self._folders[folder]["uploads"][relpath]
         self._maybe_update_clients()
 
     def download_started(self, folder, relpath):
