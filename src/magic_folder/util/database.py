@@ -8,6 +8,7 @@ Utilties for dealing with sqlite.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import contextlib
+import inspect
 import sqlite3
 
 import attr
@@ -17,8 +18,30 @@ from twisted.python.compat import currentframe
 __all__ = [
     "LockableDatabase",
     "RecusiveTransaction",
+    "WithCursorGenerator",
     "with_cursor",
 ]
+
+
+@attr.s(auto_exc=True, frozen=True)
+class WithCursorGenerator(TypeError):
+    """
+    :py:`with_cursor` cannot be used on a generator.
+
+    As it is currently implemented, the transaction would be commited before
+    any code in the decorated generator ran. Even if we special cased generators,
+    having the transaction stay open until the generator completes, that loses
+    the proprerty of `with_cursor` being transparent and atomic from the point
+    of view of the calller.
+    """
+
+    function = attr.ib()
+
+    def __str__(self):
+        return "'with_cursor' cannot decorate a generator function: {!r}".format(
+            self.function
+        )
+
 
 
 @attr.s(auto_exc=True, frozen=True)
@@ -93,6 +116,9 @@ def with_cursor(f):
     transactions.
     """
     function_name = f.__name__
+
+    if inspect.isgeneratorfunction(f):
+        raise WithCursorGenerator(function_name)
 
     @wraps(f)
     def with_cursor(self, *a, **kw):

@@ -13,7 +13,12 @@ import attr
 from testtools import ExpectedException
 from testtools.matchers import Equals
 
-from ..util.database import LockableDatabase, RecusiveTransaction, with_cursor
+from ..util.database import (
+    LockableDatabase,
+    RecusiveTransaction,
+    WithCursorGenerator,
+    with_cursor,
+)
 from .common import SyncTestCase
 
 
@@ -65,3 +70,13 @@ class WithCursorTests(SyncTestCase):
             database.execute("SELECT * FROM [table]").fetchall(),
             Equals([]),
         )
+
+    def test_generator_function(self):
+        """
+        Decorating a generator function with :py:`with_cursor` fails.
+        """
+        with self.assertRaises(WithCursorGenerator):
+
+            @with_cursor
+            def f():
+                yield
