@@ -1110,8 +1110,11 @@ class MagicFolderConfig(object):
                 """,
                 (local_snapshot.name,),
             )
-
             current_local_snapshot = cursor.fetchone()
+            # FIXME: Should we check that the current remote snapshot
+            # is the parent of our new snapshot, before overwriting it?
+            # This could happen if dowloading a snapshot from a peer
+            # races with a local snapshot created via the API.
             if current_local_snapshot and UUID(current_local_snapshot[0]) == local_snapshot.identifier:
                 cursor.execute(
                     """

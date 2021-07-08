@@ -133,6 +133,42 @@ class LocalSnapshotCreator(object):
                 )
                 Message.log(message_type="snapshot", identifier=unicode(snapshot.identifier))
 
+                raise AssertionError(
+                    # FIXME
+                    """
+                    Can we let the database find the parent for us here, or do we need to
+                    find it before we start writing the file? My thought was,
+                    RemoteSnapshotCreator might upload our parent (turning it
+                    from local to remote) while we are stashing the file for
+                    our snapshot, rendering the identifier we have invalid.
+
+                    However, there is a possiblity that instead the dowloader
+                    is the thing that causes the calculated parent to change.
+                    That is unlikely to happen if we get here from the
+                    scanner[1], but is quite possible if we get here via the
+                    add-snapshot API, and the file is-unchanged from a remote
+                    snapshot.
+
+                    I think we may instead need to keep a local-identifier
+                    to snapshot capability record (at least in-memory), to
+                    deal with the issue instead. The `store_local_snapshot`
+                    would need to check that the parent we think we should
+                    have is still the current parent.
+
+                    Also, what do we do if the parents no longer match? That
+                    would leave us with current remote snapshot that is not an
+                    ancestor of the current local snapshot, but with a file on
+                    disk that matches the current remote snapshot, not the
+                    current local snapshot (assuming no outside changes).
+
+                    [1] It would require (after https://github.com/LeastAuthority/magic-folder/issues/455)
+                        that the path state on-disk got reverted to exactly match
+                        that of the most recent remote snapshot. This would like require
+                        the machine clock to rewind, in-order for ctime (last
+                        inode change on unix, file creation time on windows) to be
+                        reverted.
+                    """
+                )
                 self._db.store_local_snapshot(mangled_name, snapshot, path_info.state)
 
 @attr.s
