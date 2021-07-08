@@ -40,7 +40,6 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     DeferredLock,
-    DeferredList,
     returnValue,
     succeed,
 )
@@ -622,7 +621,6 @@ class DownloaderService(service.MultiService):
     def _scan_collective(self):
         action = start_action(action_type="downloader:scan-collective")
 
-        pending_work = []
         with action:
             try:
                 people = yield self._participants.list()
@@ -647,16 +645,7 @@ class DownloaderService(service.MultiService):
                         abspath=fpath.path,
                         relpath=relpath,
                     )
-
-                    d = self._process_snapshot(snapshot_cap, relpath)
-                    pending_work.append(d)
-
-                    def error(f):
-                        # probably want to surface somewhere
-                        # (depending on what the error is)
-                        print(f)
-                    d.addErrback(error)
-        yield DeferredList(pending_work)
+                    yield self._process_snapshot(snapshot_cap, relpath)
 
     @inline_callbacks
     def _process_snapshot(self, snapshot_cap, relpath):
