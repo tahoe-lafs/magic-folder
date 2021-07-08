@@ -290,6 +290,12 @@ class RemoteSnapshotCreator(object):
         # the new snapshot gets lost.
 
         for name in localsnapshot_names:
+            # if we re-started with LocalSnapshots already in our database
+            # locally, we won't have done a .upload_queued() yet _in this
+            # process_ (that is, a previous daemon did that resulting in
+            # the database entries)
+            self._status.upload_queued(self._config.name, magic2path(name))
+
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:

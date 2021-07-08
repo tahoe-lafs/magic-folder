@@ -243,11 +243,13 @@ class WebSocketStatusService(service.Service):
         """
         IStatus API
         """
-        data = {
-            "name": relpath,
-            "queued_at": self._clock.seconds(),
-        }
-        self._folders[folder]["uploads"][relpath] = data
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["uploads"]:
+            self._folders[folder]["uploads"][relpath] = {
+                "name": relpath,
+                "queued_at": self._clock.seconds(),
+            }
         self._maybe_update_clients()
 
     def upload_started(self, folder, relpath):
