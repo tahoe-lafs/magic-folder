@@ -83,6 +83,7 @@ from ..snapshot import (
 )
 from ..util.file import (
     PathState,
+    seconds_to_ns,
 )
 
 
@@ -738,7 +739,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
-            self.db.store_currentsnapshot_state(name, PathState(0, x * 1000, x * 1000))
+            self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
             self.db.store_uploaded_snapshot(name, remote)
 
         self.assertThat(

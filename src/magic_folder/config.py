@@ -110,7 +110,10 @@ from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
 )
-from .util.file import PathState
+from .util.file import (
+    PathState,
+    ns_to_seconds,
+)
 
 _global_config_schema = Schema([
     SchemaUpgrade([
@@ -1079,7 +1082,7 @@ class MagicFolderConfig(object):
         Retrieve a set of the ``n`` most-recent relpaths of files that
         have a remote representation.
 
-        :returns: a list of 2-tuples (relpath, timestamp)
+        :returns: a list of 2-tuples (relpath, unix-timestamp)
         """
         cursor.execute(
             """
@@ -1094,7 +1097,7 @@ class MagicFolderConfig(object):
             """
         )
         rows = cursor.fetchall()
-        return [(r[0], int(r[1] // 1000)) for r in rows]
+        return [(r[0], ns_to_seconds(r[1])) for r in rows]
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
