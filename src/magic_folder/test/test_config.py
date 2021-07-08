@@ -700,6 +700,11 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         """
         We can recover all path-statuses
         """
+        # maybe there's a way to make hypothesis make same-sized lists?
+        size = min(len(paths), len(path_states))
+        paths = paths[:size]
+        path_states = path_states[:size]
+
         for p, ps in zip(paths, path_states):
             self.db.store_currentsnapshot_state(p, ps)
 
