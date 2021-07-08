@@ -1,1 +1,1 @@
-More status information emitted
+More status information emitted.
