@@ -47,7 +47,7 @@ def seconds_to_ns(t):
 
 
 def ns_to_seconds(t):
-    return int(t // 1000000000)
+    return int(t) // 1000000000
 
 
 def get_pathinfo(path):

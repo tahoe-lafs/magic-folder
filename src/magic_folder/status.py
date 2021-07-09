@@ -7,6 +7,9 @@ from __future__ import (
 
 import json
 import attr
+from collections import (
+    defaultdict,
+)
 
 from zope.interface import (
     Interface,
@@ -30,18 +33,44 @@ class IStatus(Interface):
     messages from the status API.
     """
 
-    def upload_started(name):
+    def upload_queued(folder, relpath):
         """
-        One or more items are now in our upload queue.
+        An item is added to our upload queue
 
-        :param unicode name: the name of the folder that started upload
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
         """
 
-    def upload_stopped(name):
+    def upload_started(folder, relpath):
         """
-        No items are in the upload queue.
+        Started sending a Snapshot to Tahoe
 
-        :param unicode name: the name of the folder that stopped uploading
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def upload_finished(folder, relpath):
+        """
+        Sending of a Snapshot to Tahoe has completed
+
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def download_started(folder, relpath):
+        """
+        Started downloading a Snapshot + content from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def download_finished(folder, relpath):
+        """
+        Completed downloading and synchronizing a Snapshot from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
         """
 
 
@@ -119,6 +148,12 @@ class WebSocketStatusService(service.Service):
     tree).
     """
 
+    # reactor
+    _clock = attr.ib()
+
+    # global configuration
+    _config = attr.ib()
+
     # tracks currently-connected clients
     _clients = attr.ib(default=attr.Factory(set))
 
@@ -127,7 +162,7 @@ class WebSocketStatusService(service.Service):
     _last_state = attr.ib(default=None)
 
     # current live state
-    _uploading = attr.ib(default=attr.Factory(dict))
+    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(lambda: defaultdict(dict))))
 
     def client_connected(self, protocol):
         """
@@ -156,12 +191,32 @@ class WebSocketStatusService(service.Service):
         state.
         """
         upload_activity = any(
-            value is True
-            for value in self._uploading.values()
+            len(folder["uploads"])
+            for folder in self._folders.values()
         )
+        download_activity = any(
+            len(folder["downloads"])
+            for folder in self._folders.values()
+        )
+
+        def folder_data_for(name):
+            most_recent = [
+                {relpath: {"updated": timestamp}}
+                for relpath, timestamp in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+            ]
+            return {
+                "uploads": self._folders.get(name, {}).get("uploads", {}),
+                "downloads": self._folders.get(name, {}).get("downloads", {}),
+                "recent": most_recent,
+            }
+
         return json.dumps({
             "state": {
-                "synchronizing": upload_activity,
+                "synchronizing": upload_activity or download_activity,
+                "folders": {
+                    name: folder_data_for(name)
+                    for name in self._config.list_magic_folders()
+                }
             }
         }).encode("utf8")
 
@@ -184,16 +239,47 @@ class WebSocketStatusService(service.Service):
 
     # IStatus API
 
-    def upload_started(self, name):
+    def upload_queued(self, folder, relpath):
         """
         IStatus API
         """
-        self._uploading[name] = True
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["uploads"]:
+            self._folders[folder]["uploads"][relpath] = {
+                "name": relpath,
+                "queued_at": self._clock.seconds(),
+            }
         self._maybe_update_clients()
 
-    def upload_stopped(self, name):
+    def upload_started(self, folder, relpath):
         """
         IStatus API
         """
-        self._uploading[name] = False
+        self._folders[folder]["uploads"][relpath]["started_at"] = self._clock.seconds()
+        self._maybe_update_clients()
+
+    def upload_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["uploads"][relpath]
+        self._maybe_update_clients()
+
+    def download_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        data = {
+            "name": relpath,
+            "started_at": self._clock.seconds(),
+        }
+        self._folders[folder]["downloads"][relpath] = data
+        self._maybe_update_clients()
+
+    def download_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["downloads"][relpath]
         self._maybe_update_clients()
