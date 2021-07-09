@@ -1498,7 +1498,7 @@ class GlobalConfigDatabase(object):
         # Close the per-folder state database. Since `get_magic_folder` caches
         # its return value, this should be the only instance. We need to close
         # it explicitly since otherwise we can't delete it below on windows.
-        folder_config.database.close()
+        folder_config._database.close()
         # we remove things from the database first and then give
         # best-effort attempt to remove stuff from the
         # filesystem. First confirm we have this folder and its

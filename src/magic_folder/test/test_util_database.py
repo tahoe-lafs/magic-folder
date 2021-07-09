@@ -14,6 +14,7 @@ from testtools import ExpectedException
 from testtools.matchers import Equals
 
 from ..util.database import (
+    ClosedDatabase,
     LockableDatabase,
     RecusiveTransaction,
     WithCursorGenerator,
@@ -25,6 +26,20 @@ from .common import SyncTestCase
 @attr.s
 class WithDatabase(object):
     _database = attr.ib(converter=LockableDatabase)
+
+
+class LockableDatabaseTests(SyncTestCase):
+    def test_transaction_when_closed(self):
+        """
+        Trying to call :py:`LockableDatabase.transaction` after the database has
+        been closed raises py:`ClosedDatabase`.
+        """
+        database = LockableDatabase(sqlite3.connect(":memory:"))
+        database.close()
+
+        with self.assertRaises(ClosedDatabase):
+            with database.transaction():
+                pass
 
 
 class WithCursorTests(SyncTestCase):
@@ -45,7 +60,9 @@ class WithCursorTests(SyncTestCase):
 
         config = Config(sqlite3.connect(":memory:"))
 
-        with ExpectedException(RecusiveTransaction, ".*when calling 'inner'.*"):
+        with ExpectedException(
+            RecusiveTransaction, ".*when calling 'inner'.*from 'outer'.*"
+        ):
             config.outer()
 
     def test_excption_rollback(self):
