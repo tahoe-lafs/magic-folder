@@ -10,7 +10,7 @@ The address of the HTTP server is part of the `daemon configuration`_.
 Authorization
 ~~~~~~~~~~~~~
 
-The HTTP API is protected by Bearer token-style authorization scheme.
+The HTTP API is protected by a Bearer token-style authorization scheme.
 Only requests which include the correct token will receive successful responses.
 Other requests will receive **401 Unauthorized** responses which omit the requested resource.
 The token value should be included with the **Bearer** scheme in the **Authorization** header element.
@@ -28,18 +28,14 @@ the client should re-read the token from the filesystem to determine if the valu
 ``GET /v1/magic-folder``
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-This endpoint returns a dict of all individual magic-folders managed
-by this daemon. The keys of the dict are the folder name and the
-values are themselves dicts.
+This endpoint returns a dict of all individual magic-folders managed by this daemon.
+The keys of the dict are the folder name and the values are themselves dicts.
 
-You may include the query argument ``?include_secret_information=1`` to
-include values for each folder which should be kept hidden (and are
-not shown by default). These are: ``upload_dircap``,
-``collective_dircap``, and the ``signing_key`` inside ``author``.
+You may include the query argument ``?include_secret_information=1`` to include values for each folder which should be kept hidden (and are not shown by default).
+These are: ``upload_dircap``, ``collective_dircap``, and the ``signing_key`` inside ``author``.
 
 The response code **OK** and the **Content-Type** is ``application/json``.
-The response body follows the form of this example (containing a single
-magic-folder named "documents")::
+The response body follows the form of this example (containing a single magic-folder named "documents")::
 
     {
         "documents": {
@@ -108,11 +104,13 @@ The value is a Tahoe-LAFS capability string for a stored object representing the
 Not yet implemented.
 Get all snapshots for one folder.
 
+
 ``GET /v1/snapshot/<folder-name>?path=<some-path>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Not yet implemented.
 Get all snapshots for one folder beneath a certain path.
+
 
 ``POST /v1/snapshot/<folder-name>?path=<some-path>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
