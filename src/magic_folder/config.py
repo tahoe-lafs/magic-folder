@@ -1144,11 +1144,13 @@ class MagicFolderConfig(object):
             """,
         )
 
-        for row in cursor.fetchall():
-            yield (
+        return [
+            (
                 row[0],  # name
                 PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
             )
+            for row in cursor.fetchall()
+        ]
 
     @property
     @with_cursor
