@@ -112,7 +112,7 @@ Not yet implemented.
 Get all snapshots for one folder beneath a certain path.
 
 
-``POST /v1/snapshot/<folder-name>?path=<some-path>``
+``POST /v1/magic-folder/<folder-name>/snapshot?path=<some-path>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new snapshot for a certain file in a certain magic-folder.
@@ -127,6 +127,69 @@ The response code **CREATED** and the **Content-Type** is ``application/json``.
 The response body follows the form of this example::
 
   {}
+
+
+``GET /v1/magic-folder/<folder-name>/participants``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List all participants in a certain magic-folder.
+
+The response is **OK** with an ``application/json`` **Content-Type**::
+
+    {
+        "participant name": {
+            "personal_dmd": "URI:DIR2-RO:..."
+        }
+    }
+
+There will be one entry per participant.
+``personal_dmd`` is a Tahoe read-only directory capability-string.
+
+
+``POST /v1/magic-folder/<folder-name>/participants``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add a new participant to a certain magic-folder.
+Accepts a JSON body listing the details of the participant to add::
+
+    {
+        "author": {
+            "name": "arbitrary string"
+        },
+        "personal_dmd": "URI:DIR2:..."
+    }
+
+The response is delayed until the participant is correctly added to the Collective DMD.
+``personal_dmd`` is a Tahoe writable directory capability-string.
+A response code of **CREATED** is sent upon success with response body::
+
+    {}
+
+
+``GET /v1/magic-folder/<folder-name>/file-status``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Retrieve the file-status of every file in a given magic-folder.
+The response is **OK** with an ``application/json`` **Content-Type**::
+
+    [
+        {
+            "relpath": "rel/path/foo",
+            "mtime": 12345,
+            "size": 321
+        },
+        {
+            "relpath": "rel/path/bar",
+            "mtime": 12346,
+            "size": 111
+        }
+    ]
+
+There will be one entry in the list for every file.
+The list is ordered from most-recent to least-recent timestamp.
+``relpath`` is the relative path in the magic-folder.
+``mtime`` is in seconds.
+``size`` is in bytes.
 
 
 Status API
