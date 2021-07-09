@@ -27,6 +27,7 @@ from base64 import (
     urlsafe_b64encode,
 )
 import hashlib
+from weakref import WeakValueDictionary
 
 from hyperlink import (
     DecodedURL,
@@ -1324,11 +1325,17 @@ class MemoryTokenProvider(object):
 class GlobalConfigDatabase(object):
     """
     Low-level access to the global configuration database
+
+    :attr WeakValueDictionary[unicode, MagicFolderConfig] _folder_config_cache:
+        This is a cache of `MagicFolderConfig` instances keyed by the folder name.
+        We do this so we have only a single :py:`sqlite3.Connection` to the
+        underlying state db.
     """
     # where magic-folder state goes
     basedir = attr.ib(validator=instance_of(FilePath))
     database = attr.ib(validator=instance_of(sqlite3.Connection))
     _token_provider = attr.ib(validator=provides(ITokenProvider))
+    _folder_config_cache = attr.ib(init=False, factory=WeakValueDictionary)
 
     @property
     def api_token(self):
@@ -1422,6 +1429,14 @@ class GlobalConfigDatabase(object):
 
         :raises NoSuchMagicFolder: if there is no such Magic Folder
         """
+        # We can't use `if name in cache: return cache[name]` here
+        # as the cache is a WeakValueDictionary, and the value might
+        # die between the check and the return.
+        try:
+            return self._folder_config_cache[name]
+        except KeyError:
+            # Not in the cache, continue with creating a new MagicFolderConfig instance.
+            pass
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name, location FROM magic_folders WHERE name=?", (name, ))
@@ -1438,6 +1453,7 @@ class GlobalConfigDatabase(object):
                 name=name,
                 database=connection,
             )
+            self._folder_config_cache[name] = config
             return config
 
     def _get_state_path(self, name):
@@ -1469,6 +1485,10 @@ class GlobalConfigDatabase(object):
         cleanup_dirs = [
             folder_config.stash_path,
         ]
+        # Close the per-folder state database. Since `get_magic_folder` caches
+        # its return value, this should be the only instance. We need to close
+        # it explicitly since otherwise we can't delete it below on windows.
+        folder_config.database.close()
         # we remove things from the database first and then give
         # best-effort attempt to remove stuff from the
         # filesystem. First confirm we have this folder and its
@@ -1487,6 +1507,14 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("DELETE FROM magic_folders WHERE name=?", (name, ))
+
+        # Now that we have removed the entry for the folder from the database,
+        # we remove the `MagicFolderConfig` instance from the cache. Since it
+        # isn't in the database, a call to `get_magic_folder` can't cause a
+        # second connection to open.
+        # We can't depend on this being cleared automatically, since `MagicFolder`
+        # has circular references.
+        self._folder_config_cache.pop(name)
 
         # clean-up directories, in order
         failed_cleanups = []
