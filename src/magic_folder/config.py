@@ -1132,6 +1132,7 @@ class MagicFolderConfig(object):
 
         :returns Iterable[(unicode, PathState)]: an iterable of
             2-tuples of (name, PathState instance), one for each file
+            (ordered by timestamp)
         """
         cursor.execute(
             """
