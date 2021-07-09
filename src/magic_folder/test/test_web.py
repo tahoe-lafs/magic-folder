@@ -338,7 +338,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
     global_service = MagicFolderService(
         reactor,
         global_config,
-        WebSocketStatusService(),
+        WebSocketStatusService(reactor, global_config),
         # Provide a TahoeClient so MagicFolderService doesn't try to look up a
         # Tahoe-LAFS node URL in the non-existent directory we supplied above
         # in its efforts to create one itself.
@@ -353,7 +353,7 @@ def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_service
         for name in folders:
             global_service.get_folder_service(name).startService()
 
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
+    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService(reactor, global_config))
 
 
 def magic_folder_config(author, local_directory):
@@ -727,7 +727,7 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.setContent(some_content)
 
         treq = treq_for_folders(
-            object(),
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},

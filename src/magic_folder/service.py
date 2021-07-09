@@ -140,7 +140,7 @@ class MagicFolderService(MultiService):
         return cls(
             reactor,
             config,
-            WebSocketStatusService(),
+            WebSocketStatusService(reactor, config),
         )
 
     def _when_connected_enough(self):

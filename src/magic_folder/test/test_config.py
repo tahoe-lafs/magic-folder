@@ -2,6 +2,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 from io import (
@@ -78,6 +79,11 @@ from ..config import (
 from ..snapshot import (
     create_local_author,
     create_snapshot,
+    RemoteSnapshot,
+)
+from ..util.file import (
+    PathState,
+    seconds_to_ns,
 )
 
 
@@ -689,4 +695,57 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             db_path_state,
             Equals(path_states[1])
+        )
+
+
+class RemoteSnapshotTimeTests(SyncTestCase):
+    """
+    Test RemoteSnapshot timestamps
+    """
+    def setUp(self):
+        super(RemoteSnapshotTimeTests, self).setUp()
+        self.author = create_local_author(u"alice")
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+        )
+
+    def test_limit(self):
+        """
+        Add 35 RemoteSnapshots and ensure we only get 30 back from
+        'recent' list.
+        """
+        for x in range(35):
+            name = "foo_{}".format(x)
+            remote = RemoteSnapshot(
+                name,
+                self.author,
+                {"modification_time": x},
+                "URI:DIR2-CHK:",
+                [],
+                "URI:DIR2-CHK:",
+            )
+            # XXX this seems fraught; have to remember to call two
+            # APIs or we get exceptions / inconsistent state...
+            self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
+            self.db.store_uploaded_snapshot(name, remote)
+
+        self.assertThat(
+            self.db.get_recent_remotesnapshot_paths(20),
+            Equals([
+                ("foo_{}".format(x), x)
+                for x in range(34, 4, -1)  # newest to oldest
+            ])
         )

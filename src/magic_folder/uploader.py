@@ -51,8 +51,9 @@ from .status import (
 from .config import (
     MagicFolderConfig,
 )
-from . import (
-    magicpath,
+from .magicpath import (
+    magic2path,
+    path2magic,
 )
 from .util.file import get_pathinfo
 
@@ -117,7 +118,7 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             relpath = u"/".join(path.segmentsFrom(self._magic_dir))
-            mangled_name = magicpath.path2magic(relpath)
+            mangled_name = path2magic(relpath)
             try:
                 parent_snapshot = self._db.get_local_snapshot(mangled_name)
             except KeyError:
@@ -167,10 +168,7 @@ class LocalSnapshotService(service.Service):
     When told about local files (that must exist in `.magic_path` or below) we
     deliver it to the snapshot creator.
     """
-    _magic_path = attr.ib(
-        converter=lambda fp: fp.asTextMode("utf-8"),
-        validator=attr.validators.instance_of(FilePath),
-    )
+    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.provides(IStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
@@ -228,13 +226,14 @@ class LocalSnapshotService(service.Service):
 
         try:
             # check that "path" is a descendant of magic_path
-            path.segmentsFrom(self._magic_path)
+            relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
+            self._status.upload_queued(self._config.name, relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
                 "The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
-                    self._magic_path.path,
+                    self._config.magic_path.path,
                 )
             )
 
@@ -285,21 +284,22 @@ class RemoteSnapshotCreator(object):
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
-        # update our status if we have nothing to do
-        if len(localsnapshot_names):
-            self._status.upload_started(self._config.name)
-        else:
-            self._status.upload_stopped(self._config.name)
-
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
         # the new snapshot gets lost.
 
         for name in localsnapshot_names:
+            # if we re-started with LocalSnapshots already in our database
+            # locally, we won't have done a .upload_queued() yet _in this
+            # process_ (that is, a previous daemon did that resulting in
+            # the database entries)
+            self._status.upload_queued(self._config.name, magic2path(name))
+
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
+                    self._status.upload_started(self._config.name, magic2path(name))
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # XXX this existing comment is wrong; there are many
@@ -309,6 +309,9 @@ class RemoteSnapshotCreator(object):
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
                 print(Failure())
+            finally:
+                self._status.upload_finished(self._config.name, magic2path(name))
+
 
     @inline_callbacks
     def _upload_some_snapshots(self, name):
