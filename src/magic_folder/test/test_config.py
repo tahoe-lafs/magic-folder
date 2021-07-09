@@ -720,6 +720,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
                 lambda statuses: set(name for name, ps in statuses),
                 Equals(set(paths)),
             )
+        )
 
 
 class RemoteSnapshotTimeTests(SyncTestCase):
