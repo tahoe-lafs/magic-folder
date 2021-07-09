@@ -1552,3 +1552,59 @@ class ParticipantsTests(SyncTestCase):
                 matches_flushed_traceback(Exception, "an unexpected error")
             ]),
         )
+
+
+class FileStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/file-status` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        We return empty information for an empty magic-folder
+        """
+        # XXX can do a better test once the better-test-utilities are
+        # merged (treq_for_folders() doesn't give access to the config)
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            create_local_author("louise"),
+            local_path,
+        )
+
+        root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(root),
+        )
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+            tahoe_client=tahoe_client,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "file-status"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                        ]),
+                    )
+                ),
+            )
+        )
