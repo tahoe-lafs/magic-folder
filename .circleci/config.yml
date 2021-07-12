@@ -284,6 +284,8 @@ jobs:
       - run: *RUN_TESTS
       - store_test_results:
           path: "junit/"
+      - store_artifacts: *STORE_ELIOT_LOG
+      - store_artifacts: *STORE_OTHER_ARTIFACTS
       - run:
           name: "Submit coverage results"
           command: |
