@@ -228,7 +228,7 @@ jobs:
       - run: &SUBMIT_COVERAGE
           name: "Submit coverage results"
           command: |
-            /tmp/venv/bin/codecov
+            /tmp/venv/bin/codecov --flags unit-test
 
 
   debian-9:
@@ -284,6 +284,10 @@ jobs:
       - run: *RUN_TESTS
       - store_test_results:
           path: "junit/"
+      - run:
+          name: "Submit coverage results"
+          command: |
+            /tmp/venv/bin/codecov --flags integration
 
   integration-1.14:
     <<: *INTEGRATION
