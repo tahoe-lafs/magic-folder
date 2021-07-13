@@ -467,6 +467,15 @@ class LocalMagicFolderFilesystem(object):
 
         :return PathState: The path state of the file that was written.
         """
+        # Could be items associated with the action but then we have to define
+        # an action type to teach Eliot how to serialize the remote snapshot
+        # and the FilePath.  Probably *should* do that but just doing this for
+        # now...  Maybe it should be /easier/ to do that?
+        Message.log(
+            message_type=u"downloader:filesystem:mark-overwrite",
+            content_relpath=magic2path(remote_snapshot.name),
+            staged_content_path=staged_content.path,
+        )
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
         tmp = None
         if local_path.exists():
