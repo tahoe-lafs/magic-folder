@@ -88,6 +88,19 @@ class IParticipants(Interface):
         :returns IParticipant: the new participant
         """
 
+class IWriteableParticipant(Interface):
+    """
+    An ``IWriteableParticipant`` provider represents a participant
+    in a particular magic-folder that we have write-access to.
+    """
+
+    @inlineCallbacks
+    def update_snapshot(name, capability):
+        """
+        Update the snapshot with the given name.
+        """
+
+
 
 def participant_from_dmd(name, dirnode, is_self, tahoe_client):
     """
@@ -134,6 +147,13 @@ class _CollectiveDirnodeParticipants(object):
     _collective_cap = attr.ib()
     _upload_cap = attr.ib()
     _tahoe_client = attr.ib(hash=None)
+    writer = attr.ib(
+        init=False,
+        default=attr.Factory(
+            lambda self: _WriteableParticipant(self._upload_cap, self._tahoe_client),
+            takes_self=True,
+        ),
+    )
 
     @_collective_cap.validator
     def _any_dirnode(self, attribute, value):
@@ -260,6 +280,45 @@ class _CollectiveDirnodeParticipant(object):
             for (encoded_relpath_u, (child, metadata))
             in result.items()
         })
+
+
+@implementer(IWriteableParticipant)
+@attr.s(frozen=True, order=False)
+class _WriteableParticipant(object):
+    """
+    An ``IWriteableParticipant`` implementation backed by a Tahoe-LAFS directory node
+    (a DMD).
+
+    :ivar bytes upload_cap: Read-write directory-capability containing this
+        participant's files.
+    """
+    upload_cap = attr.ib(validator=attr.validators.instance_of(bytes))
+    _tahoe_client = attr.ib(eq=False)
+
+    @upload_cap.validator
+    def _mutable_dirnode(self, attribute, value):
+        """
+        The Upload DMD must be a writable directory capability
+        """
+        if is_mutable_directory_cap(value):
+            return
+        raise TypeError(
+            "Upload dirnode was {!r}, must be a read-write directory node.".format(
+                value,
+            ),
+        )
+
+    def update_snapshot(self, name, capability):
+        """
+        Update the snapshot with the given name.
+        """
+        return self._tahoe_client.add_entry_to_mutable_directory(
+            self.upload_cap.encode("ascii"),
+            name,
+            capability.encode("ascii"),
+            replace=True,
+        )
+
 
 
 @attr.s

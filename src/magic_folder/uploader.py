@@ -53,6 +53,7 @@ from .magicpath import (
     magic2path,
     path2magic,
 )
+from .participants import IWriteableParticipant
 from .util.file import get_pathinfo
 
 
@@ -275,7 +276,7 @@ class RemoteSnapshotCreator(object):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
-    _upload_dircap = attr.ib()
+    _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
     def initialize_upload_status(self):
@@ -365,11 +366,9 @@ class RemoteSnapshotCreator(object):
         # detect the conflict but any diff migh be weird.
 
         # update the entry in the DMD
-        yield self._tahoe_client.add_entry_to_mutable_directory(
-            self._upload_dircap.encode("utf-8"),
+        yield self._write_participant.update_snapshot(
             name,
-            remote_snapshot.capability.encode('utf-8'),
-            replace=True,
+            remote_snapshot.capability,
         )
 
         # if removing the stashed content fails here, we MUST move on

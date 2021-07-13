@@ -55,6 +55,7 @@ from .config import (
 from .magicpath import (
     path2magic,
 )
+from .participants import IWriteableParticipant
 from .snapshot import (
     create_snapshot_from_capability,
 )
@@ -275,6 +276,7 @@ class MagicFolderUpdater(object):
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+    _write_participant = attr.ib(validator=provides(IWriteableParticipant))
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @exclusively
@@ -440,11 +442,9 @@ class MagicFolderUpdater(object):
                     # the Personal DMD are reconciled .. that is, if we crash
                     # here and/or can't update our Personal DMD we need to
                     # retry later.
-                    yield self.tahoe_client.add_entry_to_mutable_directory(
-                        self._config.upload_dircap,
+                    yield self._write_participant.update_snapshot(
                         relpath,
                         snapshot.capability.encode("ascii"),
-                        replace=True,
                     )
 
 

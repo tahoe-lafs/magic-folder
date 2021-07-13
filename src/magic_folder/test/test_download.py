@@ -677,8 +677,8 @@ class ConflictTests(AsyncTestCase):
             FilePath("dummy"),
         )
 
-        self.alice_collective = "URI:DIR2:"
-        self.alice_personal = "URI:DIR2:"
+        self.alice_collective = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        self.alice_personal = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
 
         self.alice_config = self._global_config.create_magic_folder(
             "default",
@@ -702,17 +702,22 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            StubTreq(StringStubbingResource(get_resource_for)),
+        )
+        particiapnts = participants_from_collective(
+            self.alice_collective, self.alice_personal, tahoe_client
+        )
         self.status = WebSocketStatusService(reactor, self._global_config)
         self.updater = MagicFolderUpdater(
             clock=Clock(),
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
-            tahoe_client=create_tahoe_client(
-                DecodedURL.from_text(u"http://invalid./"),
-                StubTreq(StringStubbingResource(get_resource_for)),
-            ),
+            tahoe_client=tahoe_client,
             status=FolderStatus(self.alice_config.name, self.status),
+            write_participant=particiapnts.writer,
         )
 
     @inline_callbacks

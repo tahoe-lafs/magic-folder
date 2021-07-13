@@ -76,11 +76,14 @@ class MagicFolder(service.MultiService):
 
         folder_status = FolderStatus(name, status_service)
 
-        initial_participants = participants_from_collective(
+        participants = participants_from_collective(
             mf_config.collective_dircap,
+            # FIXME: verify this corresponds to collective dircap
+            # with the right name
             mf_config.upload_dircap,
             tahoe_client
         )
+
         remote_snapshot_cache_service = RemoteSnapshotCacheService.from_config(
             config=mf_config,
             tahoe_client=tahoe_client,
@@ -115,7 +118,7 @@ class MagicFolder(service.MultiService):
                     config=mf_config,
                     local_author=mf_config.author,
                     tahoe_client=tahoe_client,
-                    upload_dircap=mf_config.upload_dircap,
+                    write_participant=participants.writer,
                     status=folder_status,
                 ),
             ),
@@ -123,7 +126,7 @@ class MagicFolder(service.MultiService):
             downloader=DownloaderService.from_config(
                 name=name,
                 config=mf_config,
-                participants=initial_participants,
+                participants=participants,
                 status=folder_status,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(
@@ -136,12 +139,13 @@ class MagicFolder(service.MultiService):
                     remote_snapshot_cache_service,
                     tahoe_client,
                     status=folder_status,
+                    write_participant=participants.writer,
                 ),
                 tahoe_client=tahoe_client,
             ),
             folder_status=folder_status,
             scanner_service=scanner_service,
-            initial_participants=initial_participants,
+            participants=participants,
             clock=reactor,
         )
 
@@ -150,12 +154,12 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, folder_status, scanner_service, remote_snapshot_cache, downloader, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, folder_status, scanner_service, remote_snapshot_cache, downloader, 	participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
         self.config = config  # a MagicFolderConfig instance
-        self._participants = initial_participants
+        self._participants = participants
         self.local_snapshot_service = local_snapshot_service
         self.uploader_service = uploader_service
         self.downloader_service = downloader
