@@ -484,6 +484,11 @@ class LocalMagicFolderFilesystem(object):
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
             tmp = local_path.temporarySibling(b".snaptmp")
             local_path.moveTo(tmp)
+            Message.log(
+                message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
+                source_path=local_path.path,
+                target_path=tmp.path,
+            )
         mtime = remote_snapshot.metadata["modification_time"]
         os.utime(staged_content.path, (mtime, mtime))
 
