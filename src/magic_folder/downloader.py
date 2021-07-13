@@ -482,7 +482,11 @@ class LocalMagicFolderFilesystem(object):
         # Instead, we get the path state before and after the move, and use
         # the later if the mtime and size match.
         staged_path_state = get_pathinfo(staged_content).state
-        staged_content.moveTo(local_path)
+        with start_action(
+            action_type=u"downloader:filesystem:mark-overwrite:emplace",
+            content_final_path=local_path.path,
+        ):
+            staged_content.moveTo(local_path)
         path_state = get_pathinfo(local_path).state
         if (
             staged_path_state.mtime_ns != path_state.mtime_ns
