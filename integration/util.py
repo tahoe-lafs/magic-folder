@@ -809,6 +809,10 @@ def await_file_contents(path, contents, timeout=15):
                     message_type=u"integration:await-file-contents:mismatched",
                     got=current,
                 )
+        else:
+            Message.log(
+                message_type=u"integration:await-file-contents:missing",
+            )
         time.sleep(1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
