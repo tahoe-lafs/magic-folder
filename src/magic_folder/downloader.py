@@ -27,6 +27,7 @@ from eliot.twisted import (
     inline_callbacks,
 )
 from eliot import (
+    log_call,
     start_action,
     Message,
 )
@@ -455,6 +456,7 @@ class LocalMagicFolderFilesystem(object):
             yield tahoe_client.stream_capability(remote_snapshot.content_cap, f)
         returnValue(staged_path)
 
+    @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
     def mark_overwrite(self, remote_snapshot, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
