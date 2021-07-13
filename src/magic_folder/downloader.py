@@ -366,7 +366,12 @@ class MagicFolderUpdater(object):
 
             self._status.download_started(self._config.name, relpath)
             try:
-                staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+                with start_action(
+                    action_type=u"downloader:updater:content-to-staging",
+                    name=snapshot.name,
+                    capability=snapshot.capability,
+                ):
+                    staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
             finally:
                 self._status.download_finished(self._config.name, relpath)
 
