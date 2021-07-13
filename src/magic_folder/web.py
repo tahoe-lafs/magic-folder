@@ -53,12 +53,6 @@ from werkzeug.routing import RequestRedirect
 
 from klein import Klein
 
-from allmydata.uri import (
-    from_string as tahoe_uri_from_string,
-)
-from allmydata.interfaces import (
-    IDirnodeURI,
-)
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
@@ -75,6 +69,7 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
+from .util.capabilities import is_readonly_directory_cap
 from .util.file import (
     ns_to_seconds,
 )
@@ -330,12 +325,10 @@ class APIv1(object):
             VerifyKey(os.urandom(32)),
         )
 
-        dmd = tahoe_uri_from_string(participant["personal_dmd"])
-        if not IDirnodeURI.providedBy(dmd):
-            raise _InputError("personal_dmd must be a directory-capability")
-        if not dmd.is_readonly():
-            raise _InputError("personal_dmd must be read-only")
         personal_dmd_cap = participant["personal_dmd"]
+        if not is_readonly_directory_cap(personal_dmd_cap):
+            raise _InputError("personal_dmd must be a read-only directory capability.")
+
 
         collective = participants_from_collective(
             folder_config.collective_dircap,

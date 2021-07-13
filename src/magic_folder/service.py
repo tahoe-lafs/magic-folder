@@ -20,7 +20,7 @@ from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
-from .util.capabilities import tahoe_uri_from_string
+from .util.capabilities import to_readonly_capability
 from .web import magic_folder_web_service
 
 
@@ -231,7 +231,7 @@ class MagicFolderService(MultiService):
         personal_write_cap = yield self.tahoe_client.create_mutable_directory()
 
         # 'attenuate' our personal dmd write-cap to a read-cap
-        personal_readonly_cap = tahoe_uri_from_string(personal_write_cap).get_readonly().to_string().encode("ascii")
+        personal_readonly_cap = to_readonly_capability(personal_write_cap)
 
         # add ourselves to the collective
         yield self.tahoe_client.add_entry_to_mutable_directory(
