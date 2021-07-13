@@ -13,12 +13,21 @@ It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 Installing
 ==========
 
-via pip
-^^^^^^^
+for integrators
+^^^^^^^^^^^^^^^
 
-Then, to install the most recent release, just run:
+When packaging magic-folder, please install using our pinned requirements,
+which are tested in CI. This should be done in a virtualenv, or other
+isolated python environment, so as to not interfere with system or user 
+python packages.
 
-* ``pip install magic-folder``
+```shell 
+git clone https://github.com/LeastAuthority/magic-folder
+cd magic-folder
+pip install --require-hashes -r requirements/base.txt
+pip install --no-deps .
+```
+
 
 from source
 ^^^^^^^^^^^
@@ -31,6 +40,7 @@ pre-release code), you should create a virtualenv and install into that:
 * ``venv/bin/pip install --upgrade setuptools``
 * ``venv/bin/pip install --editable .``
 * ``venv/bin/magic-folder --version``
+
 
 Usage
 =====
