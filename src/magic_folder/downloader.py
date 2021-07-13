@@ -514,12 +514,15 @@ class LocalMagicFolderFilesystem(object):
             path_state = staged_path_state
 
         if tmp is not None:
-            # FIXME: We should verify that this moved file has
-            # the same (except ctime) state as the the previous snapshot
-            # before we remove it.
-            # https://github.com/LeastAuthority/magic-folder/issues/454
-            # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
-            tmp.remove()
+            with start_action(
+                action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
+            ):
+                # FIXME: We should verify that this moved file has
+                # the same (except ctime) state as the the previous snapshot
+                # before we remove it.
+                # https://github.com/LeastAuthority/magic-folder/issues/454
+                # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
+                tmp.remove()
         return path_state
 
     def mark_conflict(self, remote_snapshot, staged_content):
