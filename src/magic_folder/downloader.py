@@ -27,6 +27,7 @@ from eliot.twisted import (
     inline_callbacks,
 )
 from eliot import (
+    log_call,
     start_action,
     Message,
 )
@@ -366,7 +367,12 @@ class MagicFolderUpdater(object):
 
             self._status.download_started(self._config.name, relpath)
             try:
-                staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+                with start_action(
+                    action_type=u"downloader:updater:content-to-staging",
+                    name=snapshot.name,
+                    capability=snapshot.capability,
+                ):
+                    staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
             finally:
                 self._status.download_finished(self._config.name, relpath)
 
@@ -450,6 +456,7 @@ class LocalMagicFolderFilesystem(object):
             yield tahoe_client.stream_capability(remote_snapshot.content_cap, f)
         returnValue(staged_path)
 
+    @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
     def mark_overwrite(self, remote_snapshot, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
@@ -460,6 +467,15 @@ class LocalMagicFolderFilesystem(object):
 
         :return PathState: The path state of the file that was written.
         """
+        # Could be items associated with the action but then we have to define
+        # an action type to teach Eliot how to serialize the remote snapshot
+        # and the FilePath.  Probably *should* do that but just doing this for
+        # now...  Maybe it should be /easier/ to do that?
+        Message.log(
+            message_type=u"downloader:filesystem:mark-overwrite",
+            content_relpath=magic2path(remote_snapshot.name),
+            staged_content_path=staged_content.path,
+        )
         local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
         tmp = None
         if local_path.exists():
@@ -468,6 +484,11 @@ class LocalMagicFolderFilesystem(object):
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
             tmp = local_path.temporarySibling(b".snaptmp")
             local_path.moveTo(tmp)
+            Message.log(
+                message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
+                source_path=local_path.path,
+                target_path=tmp.path,
+            )
         mtime = remote_snapshot.metadata["modification_time"]
         os.utime(staged_content.path, (mtime, mtime))
 
@@ -477,7 +498,11 @@ class LocalMagicFolderFilesystem(object):
         # Instead, we get the path state before and after the move, and use
         # the later if the mtime and size match.
         staged_path_state = get_pathinfo(staged_content).state
-        staged_content.moveTo(local_path)
+        with start_action(
+            action_type=u"downloader:filesystem:mark-overwrite:emplace",
+            content_final_path=local_path.path,
+        ):
+            staged_content.moveTo(local_path)
         path_state = get_pathinfo(local_path).state
         if (
             staged_path_state.mtime_ns != path_state.mtime_ns
@@ -489,12 +514,15 @@ class LocalMagicFolderFilesystem(object):
             path_state = staged_path_state
 
         if tmp is not None:
-            # FIXME: We should verify that this moved file has
-            # the same (except ctime) state as the the previous snapshot
-            # before we remove it.
-            # https://github.com/LeastAuthority/magic-folder/issues/454
-            # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
-            tmp.remove()
+            with start_action(
+                action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
+            ):
+                # FIXME: We should verify that this moved file has
+                # the same (except ctime) state as the the previous snapshot
+                # before we remove it.
+                # https://github.com/LeastAuthority/magic-folder/issues/454
+                # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
+                tmp.remove()
         return path_state
 
     def mark_conflict(self, remote_snapshot, staged_content):
