@@ -135,6 +135,19 @@ class StatusFactory(WebSocketServerFactory):
         return protocol
 
 
+def _create_blank_folder_state():
+    """
+    Internal helper. Create the blank state for a new folder in the
+    status-service state.
+    """
+    return {
+        "uploads": {},
+        "downloads": {},
+        "recent": [],
+        "errors": [],
+    }
+
+
 @attr.s
 @implementer(service.IService)
 @implementer(IStatus)
@@ -162,7 +175,7 @@ class WebSocketStatusService(service.Service):
     _last_state = attr.ib(default=None)
 
     # current live state
-    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(lambda: defaultdict(dict))))
+    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
 
     def client_connected(self, protocol):
         """
