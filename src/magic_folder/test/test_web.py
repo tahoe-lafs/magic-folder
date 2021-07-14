@@ -1353,8 +1353,6 @@ class FileStatusTests(SyncTestCase):
         """
         We return empty information for an empty magic-folder
         """
-        # XXX can do a better test once the better-test-utilities are
-        # merged (treq_for_folders() doesn't give access to the config)
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
@@ -1386,6 +1384,60 @@ class FileStatusTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals([
+                        ]),
+                    )
+                ),
+            )
+        )
+
+    def test_one_item(self):
+        """
+        Appropriate information is returned when we have a file-status for
+        one file in our config/db
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "kristi",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        from ..util.file import PathState, seconds_to_ns
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "file-status"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                            {
+                                "mtime": 1,
+                                "size": 123,
+                                "relpath": "foo",
+                            },
                         ]),
                     )
                 ),
