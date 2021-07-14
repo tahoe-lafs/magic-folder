@@ -111,6 +111,10 @@ from ..web import (
     magic_folder_resource,
     APIv1,
 )
+from ..util.file import (
+    PathState,
+    seconds_to_ns,
+)
 from ..client import (
     authorized_request,
     url_to_bytes,
@@ -1413,7 +1417,6 @@ class FileStatusTests(SyncTestCase):
             start_folder_services=False,
         )
         mf_config = node.global_config.get_magic_folder("default")
-        from ..util.file import PathState, seconds_to_ns
         mf_config.store_currentsnapshot_state(
             "foo",
             PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
