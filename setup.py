@@ -37,68 +37,16 @@ def read_version_py(infname):
 VERSION_PY_FILENAME = 'src/magic_folder/_version.py'
 version = read_version_py(VERSION_PY_FILENAME)
 
-install_requires = [
-    # we don't need much out of setuptools but the version checking stuff
-    # needs pkg_resources and PEP 440 version specifiers.  We do need it to be
-    # Python 2 compatible though, so don't venture to 45 and beyond.
-    "setuptools >= 28.8.0, <45",
+def load_requirements(filename):
+    with open(os.path.join(basedir, "requirements", filename), "r") as f:
+        return [
+            line.rstrip("\n")
+            for line in f.readlines()
+            if not line.startswith(("#", "-r")) and line.rstrip("\n")
+        ]
 
-    "importlib_metadata",
-
-    # zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
-    # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
-    "zope.interface >= 3.6.0, != 3.6.3, != 3.6.4",
-
-    "PyYAML >= 3.11",
-
-    "six >= 1.10.0",
-
-    # Eliot is contemplating dropping Python 2 support.  Stick to a version we
-    # know works on Python 2.7.
-    "eliot ~= 1.7",
-
-    # A great way to define types of values. (Same restrictions as tahoe 1.15.1)
-    "attrs >= 18.2.0, < 20.0",
-
-    # WebSocket library for twisted and asyncio
-    "autobahn >= 19.5.2",
-
-    "hyperlink",
-
-    # Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
-    # declaration serve, though.  Otherwise we have to be careful to agree on
-    # which extras to pull in.
-    #
-    # Additionally, pin Tahoe-LAFS to a specific version we know works.
-    # Magic-Folder uses a lot of private Tahoe-LAFS Python APIs so there's
-    # good reason to expect things to break from release to release.  Pin a
-    # specific version so we can upgrade intentionally when we know it will
-    # work.
-    "tahoe-lafs == 1.15.1",
-
-    # twisted-based HTTP client
-    "treq",
-
-    # find the default location for configuration on different OSes
-    "appdirs",
-
-    # Python utilities that were originally extracted from tahoe
-    # We use them directly, rather than the re-exports from allmydata
-    "pyutil >= 3.3.0",
-
-    # This is the version of cryptography required by tahoe-lafs
-    "cryptography >= 2.6",
-
-    # last py2 release of klein
-    "klein==20.6.0",
-
-    # Loading old magic-folders config for migration
-    # Minimum version is the version packaged in the nix snapshot we use.
-    "PyYAML >= 5.1.1"
-
-    # Backported configparser for Python 2:
-    "configparser ; python_version < '3.0'",
-]
+install_requires = load_requirements("base.in")
+test_requires = load_requirements("test.in")
 
 setup_requires = [
     'setuptools >= 28.8.0, <45',  # for PEP-440 style versions
@@ -309,30 +257,7 @@ setup(name="magic_folder",
       python_requires="~=2.7",
       install_requires=install_requires,
       extras_require={
-          # For magic-folder on "darwin" (macOS) and the BSDs
-          # Pin to < 0.10.4 to fix tests.
-          # See https://github.com/LeastAuthority/magic-folder/issues/345
-          ':sys_platform!="win32" and sys_platform!="linux2"': ["watchdog<0.10.4"],
-          "test": [
-              # Pin a specific flake8 so we don't have different folks
-              # disagreeing on what is or is not a lint issue.  We can bump
-              # this version from time to time, but we will do it
-              # intentionally.
-              "flake8 == 3.9.2",
-              "flake8-future-import",
-              # coverage 5.0 breaks the integration tests in some opaque way.
-              # This probably needs to be addressed in a more permanent way
-              # eventually...
-              "coverage ~= 4.5",
-              "tox",
-              "mock",
-              "pytest",
-              "pytest-twisted",
-              "hypothesis >= 3.6.1",
-              "towncrier >= 21.3.0",
-              "testtools",
-              "fixtures",
-          ],
+          "test": test_requires,
       },
       package_data={"magic_folder": ["ported-modules.txt"],
                     },
