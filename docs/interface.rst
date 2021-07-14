@@ -156,11 +156,11 @@ Accepts a JSON body listing the details of the participant to add::
         "author": {
             "name": "arbitrary string"
         },
-        "personal_dmd": "URI:DIR2:..."
+        "personal_dmd": "URI:DIR2-RO:..."
     }
 
 The response is delayed until the participant is correctly added to the Collective DMD.
-``personal_dmd`` is a Tahoe writable directory capability-string.
+The ``personal_dmd`` is a Tahoe read-only directory capability-string (the participant device holds the write-capability).
 A response code of **CREATED** is sent upon success with response body::
 
     {}
