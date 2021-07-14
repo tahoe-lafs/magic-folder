@@ -70,6 +70,9 @@ from .util.twisted import (
 from .status import (
     IStatus,
 )
+from .error import (
+    PublicError,
+)
 
 
 @attr.s
@@ -371,6 +374,15 @@ class MagicFolderUpdater(object):
             self._status.download_started(self._config.name, relpath)
             try:
                 staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+            except Exception:
+                self._status.error_occurred(
+                    self._config.name,
+                    PublicError(
+                        self._clock.seconds(),
+                        "Failed to download snapshot for '{}'.".format(relpath)
+                    )
+                )
+                raise
             finally:
                 self._status.download_finished(self._config.name, relpath)
 
@@ -402,9 +414,17 @@ class MagicFolderUpdater(object):
                     self._magic_fs.mark_conflict(snapshot, staged)
                     # FIXME note conflict internally
                 else:
-                    # FIXME: This should take the path and mtime as arguments,
-                    # instead of the snapshot argument
-                    path_state = self._magic_fs.mark_overwrite(snapshot, staged)
+                    try:
+                        path_state = self._magic_fs.mark_overwrite(snapshot, staged)
+                    except OSError as e:
+                        self._status.error_occurred(
+                            self._config.name,
+                            PublicError(
+                                self._clock.seconds(),
+                                "Failed to overwrite file '{}': {}".format(relpath, str(e))
+                            )
+                        )
+                        return#raise
 
                     # Note, if we crash here (after moving the file into place
                     # but before noting that in our database) then we could

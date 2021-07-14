@@ -25,6 +25,10 @@ from twisted.application import (
     service,
 )
 
+from .error import (
+    PublicError,
+)
+
 
 class IStatus(Interface):
     """
@@ -32,6 +36,14 @@ class IStatus(Interface):
     information. These don't necessarily correspond 1:1 to outgoing
     messages from the status API.
     """
+
+    def error_occurred(public_error):
+        """
+        Some error happened that should be reported to the user.
+
+        :param PublicError public_error: a plain-language description
+            of the error.
+        """
 
     def upload_queued(folder, relpath):
         """
@@ -220,6 +232,7 @@ class WebSocketStatusService(service.Service):
             return {
                 "uploads": self._folders.get(name, {}).get("uploads", {}),
                 "downloads": self._folders.get(name, {}).get("downloads", {}),
+                "errors": self._folders.get(name, {}).get("errors", []),
                 "recent": most_recent,
             }
 
@@ -251,6 +264,17 @@ class WebSocketStatusService(service.Service):
                     # XXX disconnect / remove client?
 
     # IStatus API
+
+    def error_occurred(self, folder, err):
+        """
+        IStatus API
+
+        :param unicode folder: the folder this error pertains to
+        :param PublicError err: the actual error
+        """
+        self._folders[folder]["errors"].insert(0, err.to_json())
+        self._folders[folder]["errors"] = self._folders[folder]["errors"][:30]
+        self._maybe_update_clients()
 
     def upload_queued(self, folder, relpath):
         """
