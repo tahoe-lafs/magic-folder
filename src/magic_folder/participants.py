@@ -30,6 +30,7 @@ from eliot.twisted import (
 
 from .magicpath import (
     magic2path,
+    path2magic,
 )
 from .snapshot import (
     RemoteAuthor,
@@ -314,7 +315,7 @@ class _WriteableParticipant(object):
         """
         return self._tahoe_client.add_entry_to_mutable_directory(
             self.upload_cap.encode("ascii"),
-            name,
+            path2magic(name),
             capability.encode("ascii"),
             replace=True,
         )

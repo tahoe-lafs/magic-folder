@@ -52,9 +52,6 @@ from twisted.internet.interfaces import (
 from .config import (
     MagicFolderConfig,
 )
-from .magicpath import (
-    path2magic,
-)
 from .participants import IWriteableParticipant
 from .snapshot import (
     create_snapshot_from_capability,
@@ -690,7 +687,7 @@ class DownloaderService(service.MultiService):
             # latest, there is nothing to do .. otherwise, we
             # have to figure out what to do
             try:
-                our_snapshot_cap = self._config.get_remotesnapshot(path2magic(relpath))
+                our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
             if snapshot.capability != our_snapshot_cap:

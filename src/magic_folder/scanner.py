@@ -14,7 +14,6 @@ from twisted.application.service import MultiService
 from twisted.internet.defer import DeferredLock, gatherResults
 from twisted.internet.task import Cooperator
 
-from .magicpath import path2magic
 from .util.file import get_pathinfo
 from .util.twisted import exclusively
 
@@ -140,7 +139,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     def process_file(path):
         with action.context():
             relpath = "/".join(path.segmentsFrom(magic_path))
-            mangled_name = path2magic(relpath)
             with start_action(action_type="scanner:find-updates:file", relpath=relpath):
                 # NOTE: Make sure that we get both these states without yielding
                 # to the reactor. Otherwise, we may detect a changed made by us
@@ -148,7 +146,7 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                 path_info = get_pathinfo(path)
                 try:
                     snapshot_state = folder_config.get_currentsnapshot_pathstate(
-                        mangled_name
+                        relpath
                     )
                 except KeyError:
                     snapshot_state = None

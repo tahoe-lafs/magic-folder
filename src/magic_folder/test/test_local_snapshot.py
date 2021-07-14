@@ -51,9 +51,6 @@ from ..magic_folder import (
 from ..snapshot import (
     create_local_author,
 )
-from ..magicpath import (
-    path2magic,
-)
 from ..config import (
     create_global_configuration,
     create_testing_configuration,
@@ -325,10 +322,9 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, filename, content) in files:
-            mangled_filename = path2magic(filename)
-            stored_snapshot = self.db.get_local_snapshot(mangled_filename)
+            stored_snapshot = self.db.get_local_snapshot(filename)
             stored_content = stored_snapshot.content_path.getContent()
-            path_state = self.db.get_currentsnapshot_pathstate(mangled_filename)
+            path_state = self.db.get_currentsnapshot_pathstate(filename)
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
             self.assertThat(
@@ -357,8 +353,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        foo_magicname = path2magic(filename)
-        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
+        stored_snapshot1 = self.db.get_local_snapshot(filename)
 
         # now modify the file with some new content.
         foo.asBytesMode("utf-8").setContent(content2)
@@ -368,7 +363,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
-        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)
+        stored_snapshot2 = self.db.get_local_snapshot(filename)
 
         self.assertThat(
             stored_snapshot2.parents_local[0],
