@@ -43,6 +43,9 @@ from twisted.internet.defer import (
     returnValue,
     succeed,
 )
+from twisted.internet.interfaces import (
+    IReactorTime,
+)
 from twisted.web.error import (
     SchemeNotSupported,
 )
@@ -267,6 +270,7 @@ class MagicFolderUpdater(object):
     "Relevant" here means all parents unless we find a common
     ancestor.
     """
+    _clock = attr.ib(validator=provides(IReactorTime))
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))

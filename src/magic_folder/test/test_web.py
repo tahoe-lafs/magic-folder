@@ -420,7 +420,7 @@ class MagicFolderTests(SyncTestCase):
 
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
-            object(),
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {},
@@ -770,7 +770,7 @@ class CreateSnapshotTests(SyncTestCase):
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
-            object(),
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},

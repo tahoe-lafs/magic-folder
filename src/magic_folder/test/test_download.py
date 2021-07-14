@@ -44,6 +44,7 @@ from hypothesis import (
 from twisted.internet import reactor
 from twisted.internet.task import (
     deferLater,
+    Clock,
 )
 from twisted.internet.defer import (
     inlineCallbacks,
@@ -691,6 +692,7 @@ class ConflictTests(AsyncTestCase):
             return (200, {}, b"{}")
 
         self.updater = MagicFolderUpdater(
+            clock=Clock(),
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
