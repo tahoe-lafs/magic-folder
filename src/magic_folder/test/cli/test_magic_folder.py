@@ -67,11 +67,9 @@ from ...tahoe_client import (
     create_tahoe_client,
 )
 
+from ...cli import MagicFolderCommand
 from ...common import (
     InvalidMagicFolderName,
-)
-from ..common_util import (
-    parse_cli,
 )
 from ..common import (
     AsyncTestCase,
@@ -84,6 +82,14 @@ from .common import (
     cli,
 )
 from ...testing.web import create_tahoe_treq_client, create_fake_tahoe_root
+
+
+def parse_cli(*argv):
+    # This parses the CLI options (synchronously), and returns the Options
+    # argument, or throws usage.UsageError if something went wrong.
+    options = MagicFolderCommand()
+    options.parseOptions(argv)
+    return options
 
 
 class ListMagicFolder(AsyncTestCase):
