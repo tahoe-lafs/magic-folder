@@ -19,6 +19,7 @@ from errno import (
     ENOENT,
 )
 
+from allmydata.util.base32 import b2a
 from ..util.encoding import load_yaml, dump_yaml
 
 import attr
@@ -29,10 +30,11 @@ from fixtures import (
 from hyperlink import (
     DecodedURL,
 )
+from treq.client import HTTPClient
+from twisted.internet.task import Clock
+from twisted.python.filepath import FilePath
 
-from twisted.internet.task import (
-    Clock,
-)
+from ..client import create_testing_http_client
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
@@ -43,15 +45,19 @@ from ..tahoe_client import (
 from ..magic_folder import (
     RemoteSnapshotCreator,
 )
+from ..snapshot import create_local_author
 from ..status import (
     WebSocketStatusService,
 )
+from ..service import MagicFolderService
 
 from ..config import (
+    GlobalConfigDatabase,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
     create_testing_configuration,
 )
+from .common import success_result_of
 
 @attr.s
 class NodeDirectory(Fixture):
@@ -186,4 +192,126 @@ class RemoteSnapshotCreatorFixture(Fixture):
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
             status=WebSocketStatusService(Clock(), self._global_config),
+        )
+
+@attr.s
+class MagicFolderNode(object):
+    tahoe_root = attr.ib()
+    http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+    global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
+    global_config = attr.ib(validator=attr.validators.instance_of(GlobalConfigDatabase))
+
+    @classmethod
+    def create(
+        cls,
+        reactor,
+        basedir,
+        auth_token=None,
+        folders=None,
+        start_folder_services=False,
+        tahoe_client=None,
+    ):
+        """
+        Create a :py:`MagicFolderService` and a treq client which is hooked up to it.
+
+        :param reactor: A reactor to give to the ``MagicFolderService`` which will
+            back the HTTP interface.
+
+        :param FilePath basedir: A non-existant directory to create and populate
+            with a new Magic Folder service configuration.
+
+        :param unicode auth_token: The authorization token accepted by the
+            service.
+
+        :param folders: A mapping from Magic Folder names to their configurations.
+            These are the folders which will appear to exist.
+
+        :param bool start_folder_services: If ``True``, start the Magic Folder
+            service objects.  Otherwise, don't.
+
+        :param TahoeClient tahoe_client: if provided, used as the
+            tahoe-client. If it is not provided, an in-memory Tahoe instance will
+            be used, and populated with empty folders corresponding to the
+            requested folders.
+
+        :return MagicFolderNode:
+        """
+        global_config = create_testing_configuration(
+            basedir,
+            FilePath(u"/non-tahoe-directory"),
+        )
+        if auth_token is None:
+            auth_token = global_config.api_token
+
+        if tahoe_client is None:
+            # Setup a Tahoe client backed by a fake Tahoe instance Since we
+            # know it is a working instance, we can delegate to
+            # py:`MagicFolderService.create_folder` below to create folders.
+            tahoe_root = create_fake_tahoe_root()
+            tahoe_client = create_tahoe_client(
+                DecodedURL.from_text(u"http://invalid./"),
+                create_tahoe_treq_client(tahoe_root),
+            )
+        else:
+            tahoe_root = None
+            # If we've been supplied a custom Tahoe client, we can't assume
+            # anything about it, so we create the requested folders in the
+            # database and that is it. The folders created may not have
+            # corresponding Tahoe data in them.
+            if folders:
+                for name, config in folders.items():
+                    global_config.create_magic_folder(
+                        name,
+                        config[u"magic-path"],
+                        create_local_author(config[u"author-name"]),
+                        u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
+                        u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
+                        config[u"poll-interval"],
+                    )
+
+        status_service = WebSocketStatusService(
+            reactor,
+            global_config,
+        )
+        global_service = MagicFolderService(
+            reactor,
+            global_config,
+            status_service,
+            # Provide a TahoeClient so MagicFolderService doesn't try to look up a
+            # Tahoe-LAFS node URL in the non-existent directory we supplied above
+            # in its efforts to create one itself.
+            tahoe_client,
+        )
+
+        if folders and tahoe_root:
+            # Since we created a Tahoe node above, we delegate to
+            # py:`MagicFolderService.create_folder` to create folders, which
+            # creates the appropriate DMDs such that the folders are usable.
+            for name, config in folders.items():
+                success_result_of(
+                    global_service.create_folder(
+                        name,
+                        config[u"author-name"],
+                        config[u"magic-path"],
+                        config[u"poll-interval"],
+                    )
+                )
+
+        # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
+        # See https://github.com/LeastAuthority/magic-folder/issues/334
+        if start_folder_services:
+            # Reach in and start the individual service for the folder we're going
+            # to interact with.  This is required for certain functionality, eg
+            # snapshot creation.  We avoid starting the whole global_service
+            # because it wants to do error-prone things like bind ports.
+            for name in folders:
+                global_service.get_folder_service(name).startService()
+
+        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, status_service)
+
+        return cls(
+            tahoe_root=tahoe_root,
+            http_client=http_client,
+            global_service=global_service,
+            global_config=global_config,
         )
