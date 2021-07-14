@@ -29,6 +29,7 @@ from eliot.twisted import (
 
 from testtools.matchers import (
     MatchesAll,
+    MatchesListwise,
     MatchesStructure,
     Always,
     Equals,
@@ -97,6 +98,7 @@ from .common import (
     SyncTestCase,
     AsyncTestCase,
 )
+from .matchers import matches_flushed_traceback
 from .strategies import (
     tahoe_lafs_immutable_dir_capabilities,
 )
@@ -744,7 +746,7 @@ class ConflictTests(AsyncTestCase):
         self.alice_config.store_local_snapshot(local0)
 
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot(remote0)
+        yield self.updater.add_remote_snapshot("foo", remote0)
 
         # we have a local-snapshot for the same name as the incoming
         # remote, so this is a conflict
@@ -752,8 +754,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", remote0),
-                ("conflict", remote0),
+                ("download", "foo", remote0),
+                ("conflict", "foo", remote0),
             ])
         )
 
@@ -794,7 +796,7 @@ class ConflictTests(AsyncTestCase):
         self.alice_magic_path.child("foo").setContent(parent_content)
 
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot(remote0)
+        yield self.updater.add_remote_snapshot("foo", remote0)
 
         # we have a local-snapshot for the same name as the incoming
         # remote, so this is a conflict
@@ -802,8 +804,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", remote0),
-                ("overwrite", remote0),
+                ("download", "foo", remote0),
+                ("overwrite", "foo", remote0),
             ])
         )
 
@@ -839,14 +841,14 @@ class ConflictTests(AsyncTestCase):
 
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
-        yield self.updater.add_remote_snapshot(youngest)
+        yield self.updater.add_remote_snapshot("foo", youngest)
 
         # we have a common ancestor so this should be an update
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", youngest),
-                ("overwrite", youngest),
+                ("download", "foo", youngest),
+                ("overwrite", "foo", youngest),
             ])
         )
 
@@ -896,14 +898,14 @@ class ConflictTests(AsyncTestCase):
         ))
 
         # ...child->parent aren't related to "other"
-        yield self.updater.add_remote_snapshot(child)
+        yield self.updater.add_remote_snapshot("foo", child)
 
         # so, no common ancestor: a conflict
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", child),
-                ("conflict", child),
+                ("download", "foo", child),
+                ("conflict", "foo", child),
             ])
         )
 
@@ -942,7 +944,7 @@ class ConflictTests(AsyncTestCase):
         ))
 
         # we update with the parent (so, it's old)
-        yield self.updater.add_remote_snapshot(parent)
+        yield self.updater.add_remote_snapshot("foo", parent)
 
         # so we should do nothing
         self.assertThat(
@@ -968,7 +970,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def permissions_suck(remote_snap, staged_content):
+        def permissions_suck(relpath, remote_snap, staged_content):
             """
             cause the filesystem to fail to write due to a permissions problem
             """
@@ -1030,6 +1032,13 @@ class ConflictTests(AsyncTestCase):
             })
         )
 
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(OSError),
+            MatchesListwise([
+                matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")
+            ]),
+        )
+
     @inline_callbacks
     def test_update_download_error(self):
         """
@@ -1047,7 +1056,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def network_is_out(remote_snap, tahoe_client):
+        def network_is_out(relpath, remote_snap, tahoe_client):
             """
             download fails for some reason
             """
@@ -1107,4 +1116,11 @@ class ConflictTests(AsyncTestCase):
                     }),
                 }),
             })
+        )
+
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            MatchesListwise([
+                matches_flushed_traceback(Exception, "something bad")
+            ]),
         )

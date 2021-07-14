@@ -28,8 +28,9 @@ from eliot.twisted import (
 )
 from eliot import (
     log_call,
-    start_action,
     Message,
+    start_action,
+    write_failure,
 )
 
 from twisted.application import (
@@ -52,7 +53,7 @@ from .config import (
     MagicFolderConfig,
 )
 from .magicpath import (
-    magic2path,
+    path2magic,
 )
 from .snapshot import (
     create_snapshot_from_capability,
@@ -212,7 +213,7 @@ class IMagicFolderFilesystem(Interface):
     there are no 'partial' files in the magic-folder.
     """
 
-    def download_content_to_staging(remote_snapshot, tahoe_client):
+    def download_content_to_staging(relpath, remote_snapshot, tahoe_client):
         """
         Prepare the content by downloading it.
 
@@ -220,7 +221,7 @@ class IMagicFolderFilesystem(Interface):
             content (or errback if the download fails).
         """
 
-    def mark_overwrite(remote_snapshot, staged_content):
+    def mark_overwrite(relpath, remote_snapshot, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -231,7 +232,7 @@ class IMagicFolderFilesystem(Interface):
         :return PathState: The path state of the file that was written.
         """
 
-    def mark_conflict(remote_snapshot, staged_content):
+    def mark_conflict(relpath, remote_snapshot, staged_content):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
@@ -247,7 +248,7 @@ class IMagicFolderFilesystem(Interface):
             content.
         """
 
-    def mark_delete(remote_snapshot):
+    def mark_delete(relpath, remote_snapshot):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
@@ -278,7 +279,7 @@ class MagicFolderUpdater(object):
 
     @exclusively
     @inline_callbacks
-    def add_remote_snapshot(self, snapshot):
+    def add_remote_snapshot(self, relpath, snapshot):
         """
         :returns Deferred: fires with None when this RemoteSnapshot has
             been processed (or errback if that fails).
@@ -286,10 +287,10 @@ class MagicFolderUpdater(object):
         # the lock ensures we only run _process() one at a time per
         # process
         with start_action(action_type="downloader:modify_filesystem"):
-            yield self._process(snapshot)
+            yield self._process(relpath, snapshot)
 
     @inline_callbacks
-    def _process(self, snapshot):
+    def _process(self, relpath, snapshot):
         """
         Internal helper.
 
@@ -303,20 +304,19 @@ class MagicFolderUpdater(object):
                           name=snapshot.name,
                           capability=snapshot.capability,
                           ) as action:
-            relpath = magic2path(snapshot.name)
             local_path = self._config.magic_path.preauthChild(relpath)
 
             # see if we have existing local or remote snapshots for
             # this name already
             try:
-                remote_cap = self._config.get_remotesnapshot(snapshot.name)
+                remote_cap = self._config.get_remotesnapshot(relpath)
                 # w/ no KeyError we have seen this before
                 action.add_success_fields(remote=remote_cap)
             except KeyError:
                 remote_cap = None
 
             try:
-                local_snap = self._config.get_local_snapshot(snapshot.name)
+                local_snap = self._config.get_local_snapshot(relpath)
                 action.add_success_fields(
                     local=local_snap.content_path.path,
                 )
@@ -377,7 +377,7 @@ class MagicFolderUpdater(object):
                     capability=snapshot.capability,
                 ):
                     try:
-                        staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot, self.tahoe_client)
                     except Exception:
                         self._status.error_occurred(
                             "Failed to download snapshot for '{}'.".format(relpath)
@@ -392,7 +392,7 @@ class MagicFolderUpdater(object):
             # already. so mark an overwrite or conflict into the
             # filesystem.
             if is_conflict:
-                self._magic_fs.mark_conflict(snapshot, staged)
+                self._magic_fs.mark_conflict(relpath, snapshot, staged)
                 # FIXME probably want to also record internally that
                 # this is a conflict.
 
@@ -413,11 +413,11 @@ class MagicFolderUpdater(object):
                         last_minute_change = True
                 if last_minute_change:
                     action.add_success_fields(conflict_reason="last-minute-change")
-                    self._magic_fs.mark_conflict(snapshot, staged)
+                    self._magic_fs.mark_conflict(relpath, snapshot, staged)
                     # FIXME note conflict internally
                 else:
                     try:
-                        path_state = self._magic_fs.mark_overwrite(snapshot, staged)
+                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot, staged)
                     except OSError as e:
                         self._status.error_occurred(
                             "Failed to overwrite file '{}': {}".format(relpath, str(e))
@@ -432,7 +432,7 @@ class MagicFolderUpdater(object):
 
                     # remember the last remote we've downloaded
                     self._config.store_downloaded_snapshot(
-                        snapshot.name, snapshot, path_state
+                        relpath, snapshot, path_state
                     )
 
                     # XXX careful here, we still need something that makes
@@ -442,7 +442,7 @@ class MagicFolderUpdater(object):
                     # retry later.
                     yield self.tahoe_client.add_entry_to_mutable_directory(
                         self._config.upload_dircap,
-                        snapshot.name,
+                        relpath,
                         snapshot.capability.encode("ascii"),
                         replace=True,
                     )
@@ -459,7 +459,7 @@ class LocalMagicFolderFilesystem(object):
     staging_path = attr.ib(validator=instance_of(FilePath))
 
     @inline_callbacks
-    def download_content_to_staging(self, remote_snapshot, tahoe_client):
+    def download_content_to_staging(self, relpath, remote_snapshot, tahoe_client):
         """
         IMagicFolderFilesystem API
         """
@@ -472,7 +472,7 @@ class LocalMagicFolderFilesystem(object):
         returnValue(staged_path)
 
     @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
-    def mark_overwrite(self, remote_snapshot, staged_content):
+    def mark_overwrite(self, relpath, remote_snapshot, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -488,10 +488,10 @@ class LocalMagicFolderFilesystem(object):
         # now...  Maybe it should be /easier/ to do that?
         Message.log(
             message_type=u"downloader:filesystem:mark-overwrite",
-            content_relpath=magic2path(remote_snapshot.name),
+            content_relpath=relpath,
             staged_content_path=staged_content.path,
         )
-        local_path = self.magic_path.preauthChild(magic2path(remote_snapshot.name))
+        local_path = self.magic_path.preauthChild(relpath)
         tmp = None
         if local_path.exists():
             # As long as the scanner is running in-process, in the reactor,
@@ -540,7 +540,7 @@ class LocalMagicFolderFilesystem(object):
                 tmp.remove()
         return path_state
 
-    def mark_conflict(self, remote_snapshot, staged_content):
+    def mark_conflict(self, relpath, remote_snapshot, staged_content):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
@@ -556,7 +556,7 @@ class LocalMagicFolderFilesystem(object):
             content.
         """
         local_path = self.magic_path.preauthChild(
-            magic2path(remote_snapshot.name) + ".conflict-{}".format(remote_snapshot.author.name)
+            relpath + ".conflict-{}".format(remote_snapshot.author.name)
         )
         staged_content.moveTo(local_path)
 
@@ -579,17 +579,17 @@ class InMemoryMagicFolderFilesystem(object):
         self.actions = []
         self._staged_content = {}
 
-    def download_content_to_staging(self, remote_snapshot, tahoe_client):
+    def download_content_to_staging(self, relpath, remote_snapshot, tahoe_client):
         self.actions.append(
-            ("download", remote_snapshot)
+            ("download", relpath, remote_snapshot)
         )
         self._staged_content[id(remote_snapshot)] = marker = object()
         return succeed(marker)
 
-    def mark_overwrite(self, remote_snapshot, staged_content):
+    def mark_overwrite(self, relpath, remote_snapshot, staged_content):
         assert self._staged_content[id(remote_snapshot)] is staged_content
         self.actions.append(
-            ("overwrite", remote_snapshot)
+            ("overwrite", relpath, remote_snapshot)
         )
         mtime_ns = seconds_to_ns(remote_snapshot.metadata["modification_time"])
         return PathState(
@@ -598,15 +598,15 @@ class InMemoryMagicFolderFilesystem(object):
             size=0,
         )
 
-    def mark_conflict(self, remote_snapshot, staged_content):
+    def mark_conflict(self, relpath, remote_snapshot, staged_content):
         assert self._staged_content[id(remote_snapshot)] is staged_content
         self.actions.append(
-            ("conflict", remote_snapshot)
+            ("conflict", relpath, remote_snapshot)
         )
 
-    def mark_delete(self, remote_snapshot):
+    def mark_delete(self, relpath, remote_snapshot):
         self.actions.append(
-            ("delete", remote_snapshot)
+            ("delete", relpath, remote_snapshot)
         )
 
 
@@ -647,12 +647,10 @@ class DownloaderService(service.MultiService):
         )
         self._scanner.setServiceParent(self)
 
-    @inline_callbacks
     def _loop(self):
-        try:
-            yield self._scan_collective()
-        except Exception as e:
-            print(e)
+        d = self._scan_collective()
+        # in some cases, might want to surface elsewhere
+        d.addErrback(write_failure)
 
     @inline_callbacks
     def _scan_collective(self):
@@ -670,10 +668,10 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        yield self._process_snapshot(file_data.snapshot_cap, relpath)
+                        yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
     @inline_callbacks
-    def _process_snapshot(self, snapshot_cap, relpath):
+    def _process_snapshot(self, relpath, snapshot_cap):
         """
         Internal helper.
 
@@ -692,10 +690,10 @@ class DownloaderService(service.MultiService):
             # latest, there is nothing to do .. otherwise, we
             # have to figure out what to do
             try:
-                our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+                our_snapshot_cap = self._config.get_remotesnapshot(path2magic(relpath))
             except KeyError:
                 our_snapshot_cap = None
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                yield self._folder_updater.add_remote_snapshot(snapshot)
+                yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
