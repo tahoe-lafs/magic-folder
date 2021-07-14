@@ -87,10 +87,6 @@ from treq.testing import (
 
 import werkzeug
 
-from allmydata.util.base32 import (
-    b2a,
-)
-
 from .common import (
     skipIf,
     SyncTestCase,
@@ -111,10 +107,6 @@ from .strategies import (
     author_names,
 )
 
-from ..snapshot import (
-    create_local_author,
-    format_filenode,
-)
 from ..web import (
     magic_folder_resource,
     APIv1,
@@ -123,15 +115,7 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
-from ..tahoe_client import (
-    create_tahoe_client,
-)
 from .strategies import (
-    local_authors,
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
@@ -282,14 +266,12 @@ def treq_for_folders(
         reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
     ).http_client
 
-def magic_folder_config(author, local_directory):
+def magic_folder_config(author_name, local_directory):
     # see also treq_for_folders() where these dicts are turned into
     # real magic-folder configs
     return {
         u"magic-path": local_directory,
-        u"author": author,
-        u"collective-dircap": u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
-        u"upload-dircap": u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
+        u"author-name": author_name,
         u"poll-interval": 60,
     }
 
@@ -302,7 +284,7 @@ class MagicFolderTests(SyncTestCase):
 
     def setUp(self):
         super(MagicFolderTests, self).setUp()
-        self.author = create_local_author(u"alice")
+        self.author_name = u"alice"
 
     @given(
         sampled_from([b"PUT", b"PATCH", b"DELETE", b"OPTIONS"]),
@@ -338,12 +320,6 @@ class MagicFolderTests(SyncTestCase):
         """
         folder_path.asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
 
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
             object(),
@@ -351,13 +327,12 @@ class MagicFolderTests(SyncTestCase):
             AUTH_TOKEN,
             {},
             False,
-            tahoe_client,
         )
 
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
                 'name': folder_name,
-                'author_name': self.author.name,
+                'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
             })),
@@ -385,12 +360,6 @@ class MagicFolderTests(SyncTestCase):
         """
         folder_path = FilePath(self.mktemp())
 
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
             object(),
@@ -398,13 +367,12 @@ class MagicFolderTests(SyncTestCase):
             AUTH_TOKEN,
             {},
             False,
-            tahoe_client,
         )
 
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
                 'name': folder_name,
-                'author_name': self.author.name,
+                'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
             })),
@@ -479,7 +447,7 @@ class MagicFolderTests(SyncTestCase):
             basedir,
             AUTH_TOKEN,
             {
-                name: magic_folder_config(self.author, path_u)
+                name: magic_folder_config(self.author_name, path_u)
                 for (name, path_u)
                 in folders.items()
             },
@@ -548,8 +516,6 @@ class RedirectTests(SyncTestCase):
         We test this by using a `//` in the URL path, which werkzeug
         redirects to not have the `/`.
         """
-        author = create_local_author("alice")
-
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
@@ -557,7 +523,7 @@ class RedirectTests(SyncTestCase):
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, local_path)},
+            {folder_name: magic_folder_config("alice", local_path)},
             start_folder_services=False,
         )
 
@@ -633,7 +599,7 @@ class CreateSnapshotTests(SyncTestCase):
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
         binary(),
@@ -676,7 +642,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
     )
@@ -729,7 +695,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
         binary(),
@@ -747,7 +713,7 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -757,9 +723,11 @@ class CreateSnapshotTests(SyncTestCase):
             # our request to receive a response.
             start_folder_services=True,
         )
+        folder_config = node.global_config.get_magic_folder(folder_name)
+
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
@@ -773,7 +741,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"GET",
                 DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
@@ -799,7 +767,7 @@ class CreateSnapshotTests(SyncTestCase):
                                             lambda path: FilePath(path).getContent(),
                                             Equals(some_content),
                                         ),
-                                        u"author": Equals(author.to_remote_author().to_json()),
+                                        u"author": Equals(folder_config.author.to_remote_author().to_json()),
                                     }),
                                 ]),
                             }),
@@ -810,7 +778,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
         binary(),
@@ -854,18 +822,12 @@ class CreateSnapshotTests(SyncTestCase):
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         self.assertThat(
@@ -896,18 +858,12 @@ class ParticipantsTests(SyncTestCase):
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         self.assertThat(
@@ -949,47 +905,31 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        folder_config = magic_folder_config(
-            create_local_author("iris"),
-            local_path,
-        )
-        # we can't add a new participant if their DMD is the same as
-        # one we already have .. and because Hypothesis is 'sneaky' we
-        # have to make sure it's not our collective, either
-        assume(personal_dmd != folder_config["upload-dircap"])
-        assume(personal_dmd != to_readonly_capability(folder_config["upload-dircap"]))
-        assume(personal_dmd != folder_config["collective-dircap"])
-        assume(personal_dmd != to_readonly_capability(folder_config["collective-dircap"]))
-
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    "iris": format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
-                folder_name: folder_config,
+                folder_name: magic_folder_config(
+                    "iris",
+                    local_path,
+                ),
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
+        folder_config = node.global_config.get_magic_folder(folder_name)
+        # we can't add a new participant if their DMD is the same as
+        # one we already have .. and because Hypothesis is 'sneaky' we
+        # have to make sure it's not our collective, either
+        assume(personal_dmd != folder_config.upload_dircap)
+        assume(personal_dmd != to_readonly_capability(folder_config.upload_dircap))
+        assume(personal_dmd != folder_config.collective_dircap)
+        assume(personal_dmd != to_readonly_capability(folder_config.collective_dircap))
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1013,7 +953,7 @@ class ParticipantsTests(SyncTestCase):
         # participant
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"GET",
                 self.url.child(folder_name, "participants"),
@@ -1025,7 +965,7 @@ class ParticipantsTests(SyncTestCase):
                         loads,
                         Equals({
                             u"iris": {
-                                u"personal_dmd": folder_config["upload-dircap"],
+                                u"personal_dmd": to_readonly_capability(folder_config.upload_dircap),
                             },
                             u'kelly': {
                                 u'personal_dmd': personal_dmd,
@@ -1047,25 +987,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1073,13 +999,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1107,25 +1032,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1133,13 +1044,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1169,25 +1079,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1195,13 +1091,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1234,25 +1129,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1260,13 +1141,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1298,25 +1178,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1324,13 +1190,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1362,7 +1227,7 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
@@ -1424,7 +1289,7 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
@@ -1494,15 +1359,10 @@ class FileStatusTests(SyncTestCase):
         local_path.makedirs()
 
         folder_config = magic_folder_config(
-            create_local_author("louise"),
+            "louise",
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
@@ -1511,7 +1371,6 @@ class FileStatusTests(SyncTestCase):
                 "default": folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         self.assertThat(
