@@ -270,6 +270,7 @@ def treq_for_folders(
         reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
     ).http_client
 
+
 def magic_folder_config(author_name, local_directory):
     # see also treq_for_folders() where these dicts are turned into
     # real magic-folder configs
@@ -298,7 +299,7 @@ class MagicFolderTests(SyncTestCase):
         A request to **/v1/magic-folder** with a method other than **GET** or **POST**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, method, self.url),
             succeeded(
@@ -366,7 +367,7 @@ class MagicFolderTests(SyncTestCase):
 
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
-            object(),
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {},
@@ -400,7 +401,7 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** that does not have a JSON body
         fails with BAD REQUEST.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(
                 treq, AUTH_TOKEN, "POST", self.url, "not-json".encode("utf-8")
@@ -447,7 +448,7 @@ class MagicFolderTests(SyncTestCase):
 
         basedir = FilePath(self.mktemp())
         node = MagicFolderNode.create(
-            object(),
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {
