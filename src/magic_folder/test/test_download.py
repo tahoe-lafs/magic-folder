@@ -16,6 +16,7 @@ from mock import Mock
 
 from json import (
     dumps,
+    loads,
 )
 
 from hyperlink import (
@@ -64,6 +65,7 @@ from ..downloader import (
     RemoteSnapshotCacheService,
     MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
+    DownloaderService,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -85,6 +87,9 @@ from ..tahoe_client import (
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
+)
+from ..participants import (
+    participants_from_collective,
 )
 from ..util.file import PathState, get_pathinfo, seconds_to_ns
 from .common import (
@@ -939,4 +944,83 @@ class ConflictTests(AsyncTestCase):
             self.filesystem.actions,
             Equals([
             ])
+        )
+
+    @inline_callbacks
+    def test_update_filesystem_error(self):
+        """
+        An update that fails to write to the filesystem
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            name="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        def permissions_suck(remote_snap, staged_content):
+            """
+            cause the filesystem to fail to write due to a permissions problem
+            """
+            raise OSError(13, "Permission denied")
+        self.filesystem.mark_overwrite = permissions_suck
+
+        # set up a collective for 'alice' to pull an update from
+        # 'carol' into the "always permissions denied" filesystem
+        # .. but it needs to be "real" since we have to run the
+        # top-level scanner which discovers snapshots (because it
+        # handles the top-level errors)
+        root = create_fake_tahoe_root()
+        client = create_tahoe_treq_client(root)
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            client,
+        )
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        # hook in the top-level service .. we don't "start" it and
+        # instead just call _loop() because we just want a single
+        # scan.
+        top_service = DownloaderService(
+            self.alice_config,
+            alice_participants,
+            self.updater._status,
+            self.remote_cache,
+            self.updater,
+            tahoe_client,
+        )
+        yield top_service._loop()
+
+        # status system should report our error
+        self.assertThat(
+            loads(self.updater._status._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": Equals([
+                                {
+                                    "timestamp": int(self.updater._clock.seconds()),
+                                    "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
+                                },
+                            ]),
+                        }),
+                    }),
+                }),
+            })
         )
