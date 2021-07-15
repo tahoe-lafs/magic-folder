@@ -186,7 +186,9 @@ def list_participants(options):
 
 
 class MonitorOptions(usage.Options):
-    pass
+    optFlags = [
+        ["once", "", "Exit after receiving a single status message"],
+    ]
 
 
 class StatusProtocol(WebSocketClientProtocol):
@@ -195,10 +197,18 @@ class StatusProtocol(WebSocketClientProtocol):
     magic-folder
     """
 
+    def __init__(self, output, single_message):
+        super(StatusProtocol, self).__init__()
+        self._output = output
+        self._single_message = single_message
+
     def onMessage(self, payload, is_binary):
-        print(payload, file=self.factory._output)
+        print(payload, file=self._output)
+        if self._single_message:
+            self.sendClose()
 
 
+@inlineCallbacks
 def monitor(options):
     """
     Print out updates from the WebSocket status API
@@ -215,10 +225,12 @@ def monitor(options):
             "Authorization": "Bearer {}".format(options.parent.config.api_token),
         }
     )
-    factory._output = options.parent.stdout
-    factory.protocol = StatusProtocol
-    endpoint.connect(factory)
-    return Deferred()
+    factory.protocol = lambda: StatusProtocol(
+        output=options.parent.stdout,
+        single_message=options['once'],
+    )
+    proto = yield endpoint.connect(factory)
+    yield proto.is_closed
 
 
 @with_eliot_options
