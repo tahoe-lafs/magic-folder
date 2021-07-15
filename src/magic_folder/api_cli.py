@@ -12,13 +12,9 @@ from collections import deque
 from twisted.internet.task import (
     react,
 )
-from twisted.internet.endpoints import (
-    clientFromString,
-)
 
 from autobahn.twisted.websocket import (
     WebSocketClientProtocol,
-    WebSocketClientFactory,
     create_client_agent,
 )
 
