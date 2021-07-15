@@ -13,6 +13,7 @@ __all__ = [
     "flush_logged_errors",
     "skip",
     "skipIf",
+    "success_result_of",
 ]
 
 import os
@@ -21,13 +22,7 @@ from functools import partial
 from unittest import case as _case
 from socket import (
     AF_INET,
-    error as socket_error,
 )
-from errno import (
-    EADDRINUSE,
-)
-
-import treq
 
 from zope.interface import implementer
 
@@ -44,20 +39,13 @@ from testtools.twistedsupport import (
 )
 
 from twisted.plugin import IPlugin
-from twisted.internet import defer
-from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.internet.interfaces import IPullProducer
-from twisted.python import failure
 from twisted.python.filepath import FilePath
-from twisted.application import service
-from twisted.web.error import Error as WebError
 from twisted.internet.interfaces import (
     IStreamServerEndpointStringParser,
 )
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
 from twisted.python import log
-
-from allmydata import uri
+from twisted.trial.unittest import SynchronousTestCase as _TwistedSynchronousTestCase
 
 from eliot import (
     log_call,
@@ -121,164 +109,11 @@ class AdoptedServerPort(object):
         return AdoptedStreamServerEndpoint(reactor, os.dup(int(fd)), AF_INET)
 
 
-def really_bind(s, addr):
-    # Arbitrarily decide we'll try 100 times.  We don't want to try forever in
-    # case this is a persistent problem.  Trying is cheap, though, so we may
-    # as well try a lot.  Hopefully the OS isn't so bad at allocating a port
-    # for us that it takes more than 2 iterations.
-    for i in range(100):
-        try:
-            s.bind(addr)
-        except socket_error as e:
-            if e.errno == EADDRINUSE:
-                continue
-            raise
-        else:
-            return
-    raise Exception("Many bind attempts failed with EADDRINUSE")
-
-
-@implementer(IPullProducer)
-class DummyProducer(object):
-    def resumeProducing(self):
-        pass
-
-
-def make_chk_file_cap(size):
-    return uri.CHKFileURI(key=os.urandom(16),
-                          uri_extension_hash=os.urandom(32),
-                          needed_shares=3,
-                          total_shares=10,
-                          size=size)
-def make_chk_file_uri(size):
-    return make_chk_file_cap(size).to_string()
-
-
-def make_mutable_file_cap():
-    return uri.WriteableSSKFileURI(writekey=os.urandom(16),
-                                   fingerprint=os.urandom(32))
-
-def make_mdmf_mutable_file_cap():
-    return uri.WriteableMDMFFileURI(writekey=os.urandom(16),
-                                    fingerprint=os.urandom(32))
-
-def make_mutable_file_uri(mdmf=False):
-    if mdmf:
-        uri = make_mdmf_mutable_file_cap()
-    else:
-        uri = make_mutable_file_cap()
-
-    return uri.to_string()
-
-def make_verifier_uri():
-    return uri.SSKVerifierURI(storage_index=os.urandom(16),
-                              fingerprint=os.urandom(32)).to_string()
-
-class LoggingServiceParent(service.MultiService):
-    def log(self, *args, **kwargs):
-        return log.msg(*args, **kwargs)
-
-
 # The maximum data size for a literal cap, from the Tahoe-LAFS LIT URI docs.
 LITERAL_LIMIT = 55
 
 # Some data that won't result in a literal cap.
 TEST_DATA = "\x02" * (LITERAL_LIMIT + 1)
-
-class ShouldFailMixin(object):
-    def shouldFail(self, expected_failure, which, substring,
-                   callable, *args, **kwargs):
-        """Assert that a function call raises some exception. This is a
-        Deferred-friendly version of TestCase.assertRaises() .
-
-        Suppose you want to verify the following function:
-
-         def broken(a, b, c):
-             if a < 0:
-                 raise TypeError('a must not be negative')
-             return defer.succeed(b+c)
-
-        You can use:
-            d = self.shouldFail(TypeError, 'test name',
-                                'a must not be negative',
-                                broken, -4, 5, c=12)
-        in your test method. The 'test name' string will be included in the
-        error message, if any, because Deferred chains frequently make it
-        difficult to tell which assertion was tripped.
-
-        The substring= argument, if not None, must appear in the 'repr'
-        of the message wrapped by this Failure, or the test will fail.
-        """
-
-        assert substring is None or isinstance(substring, str)
-        d = defer.maybeDeferred(callable, *args, **kwargs)
-        def done(res):
-            if isinstance(res, failure.Failure):
-                res.trap(expected_failure)
-                if substring:
-                    message = repr(res.value.args[0])
-                    self.failUnless(substring in message,
-                                    "%s: substring '%s' not in '%s'"
-                                    % (which, substring, message))
-            else:
-                self.fail("%s was supposed to raise %s, not get '%s'" %
-                          (which, expected_failure, res))
-        d.addBoth(done)
-        return d
-
-class WebErrorMixin(object):
-    def explain_web_error(self, f):
-        # an error on the server side causes the client-side getPage() to
-        # return a failure(t.web.error.Error), and its str() doesn't show the
-        # response body, which is where the useful information lives. Attach
-        # this method as an errback handler, and it will reveal the hidden
-        # message.
-        f.trap(WebError)
-        print("Web Error:", f.value, ":", f.value.response)
-        return f
-
-    def _shouldHTTPError(self, res, which, validator):
-        if isinstance(res, failure.Failure):
-            res.trap(WebError)
-            return validator(res)
-        else:
-            self.fail("%s was supposed to Error, not get '%s'" % (which, res))
-
-    def shouldHTTPError(self, which,
-                        code=None, substring=None, response_substring=None,
-                        callable=None, *args, **kwargs):
-        # returns a Deferred with the response body
-        assert substring is None or isinstance(substring, str)
-        assert callable
-        def _validate(f):
-            if code is not None:
-                self.failUnlessEqual(f.value.status, str(code), which)
-            if substring:
-                code_string = str(f)
-                self.failUnless(substring in code_string,
-                                "%s: substring '%s' not in '%s'"
-                                % (which, substring, code_string))
-            response_body = f.value.response
-            if response_substring:
-                self.failUnless(response_substring in response_body,
-                                "%s: response substring '%s' not in '%s'"
-                                % (which, response_substring, response_body))
-            return response_body
-        d = defer.maybeDeferred(callable, *args, **kwargs)
-        d.addBoth(self._shouldHTTPError, which, _validate)
-        return d
-
-    @inlineCallbacks
-    def assertHTTPError(self, url, code, response_substring,
-                        method="get", persistent=False,
-                        **args):
-        response = yield treq.request(method, url, persistent=persistent,
-                                      **args)
-        body = yield response.content()
-        self.assertEquals(response.code, code)
-        if response_substring is not None:
-            self.assertIn(response_substring, body)
-        returnValue(body)
 
 
 class _TestCaseMixin(object):
@@ -365,3 +200,13 @@ class AsyncBrokenTestCase(_TestCaseMixin, TestCase):
     run_tests_with = EliotLoggedRunTest.make_factory(
         AsynchronousDeferredRunTestForBrokenTwisted.make_factory(timeout=60.0),
     )
+
+
+# Twisted provides the useful function `successResultOf`, for getting
+# the result of an already fired deferred. Unfortunately, it is only
+# available as a method on trial's TestCase. Since we don't use that,
+# we expose it as a free function here. While it only makes sense to
+# use it in test code, that includes test fixtures, which may not have
+# access to any test case.
+_TWISTED_TEST_CASE = _TwistedSynchronousTestCase()
+success_result_of = _TWISTED_TEST_CASE.successResultOf

@@ -41,6 +41,7 @@ from eliot import (
     current_action,
     start_action,
     start_task,
+    log_call,
 )
 from eliot.twisted import (
     inline_callbacks,
@@ -777,6 +778,8 @@ class FileShouldVanishException(Exception):
         )
 
 
+
+@log_call(action_type=u"integration:await-file-contents", include_args=["path", "contents", "timeout"])
 def await_file_contents(path, contents, timeout=15):
     """
     wait up to `timeout` seconds for the file at `path` (any path-like
@@ -802,6 +805,14 @@ def await_file_contents(path, contents, timeout=15):
                 if len(contents) < 80:
                     print("  wanted: {}".format(contents.replace('\n', ' ')))
                     print("     got: {}".format(current.replace('\n', ' ')))
+                Message.log(
+                    message_type=u"integration:await-file-contents:mismatched",
+                    got=current,
+                )
+        else:
+            Message.log(
+                message_type=u"integration:await-file-contents:missing",
+            )
         time.sleep(1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)

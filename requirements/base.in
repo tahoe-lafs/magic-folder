@@ -1,0 +1,51 @@
+# zope.interface >= 3.6.0 is required for Twisted >= 12.1.0.
+# zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
+zope.interface >= 3.6.0, != 3.6.3, != 3.6.4
+
+six >= 1.10.0
+
+# Eliot is contemplating dropping Python 2 support.  Stick to a version we
+# know works on Python 2.7.
+eliot ~= 1.7
+
+# A great way to define types of values. (The upper bound matches tahoe 1.15.1)
+attrs >= 19.1.0, < 20.0
+
+# WebSocket library for twisted and asyncio
+autobahn >= 19.5.2
+
+hyperlink
+
+# Of course, we depend on Twisted.  Let Tahoe-LAFS' Twisted dependency
+# declaration serve, though.  Otherwise we have to be careful to agree on
+# which extras to pull in.
+#
+# Additionally, pin Tahoe-LAFS to a specific version we know works.
+# Magic-Folder uses a lot of private Tahoe-LAFS Python APIs so there's
+# good reason to expect things to break from release to release.  Pin a
+# specific version so we can upgrade intentionally when we know it will
+# work.
+tahoe-lafs == 1.15.1
+
+# twisted-based HTTP client
+treq
+
+# find the default location for configuration on different OSes
+appdirs
+
+# Python utilities that were originally extracted from tahoe
+# We use them directly, rather than the re-exports from allmydata
+pyutil >= 3.3.0
+
+# This is the version of cryptography required by tahoe-lafs
+cryptography >= 2.6
+
+# last py2 release of klein
+klein==20.6.0
+
+# Loading old magic-folders config for migration
+# Minimum version is the version packaged in the nix snapshot we use.
+PyYAML >= 5.1.1
+
+# Backported configparser for Python 2:
+configparser ; python_version < '3.0'

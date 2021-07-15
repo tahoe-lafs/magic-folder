@@ -442,7 +442,7 @@ class APIv1(object):
 
         return json.dumps([
             {
-                "name": name,
+                "relpath": magic2path(name),
                 "mtime": ns_to_seconds(ps.mtime_ns),
                 "size": ps.size,
             }

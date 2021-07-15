@@ -1,0 +1,22 @@
+-r base.in
+# Pin a specific flake8 so we don't have different folks
+# disagreeing on what is or is not a lint issue.  We can bump
+# this version from time to time, but we will do it
+# intentionally.
+flake8 == 3.9.2
+flake8-future-import
+# coverage 5.0 breaks the integration tests in some opaque way.
+# This probably needs to be addressed in a more permanent way
+# eventually...
+coverage ~= 4.5
+tox
+mock
+pytest
+# pytest depends on colorama on windows include it here so
+# pip-compile records its hashes
+colorama
+pytest-twisted
+hypothesis >= 3.6.1
+towncrier >= 21.3.0
+testtools
+fixtures

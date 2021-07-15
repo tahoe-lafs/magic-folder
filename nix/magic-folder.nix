@@ -5,7 +5,7 @@ buildPythonPackage rec {
   src = ../.;
 
   propagatedBuildInputs = with pythonPackages; [
-    importlib-metadata
+    configparser
     tahoe-lafs
     klein
   ];
