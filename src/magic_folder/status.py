@@ -179,6 +179,9 @@ class WebSocketStatusService(service.Service):
     # global configuration
     _config = attr.ib()
 
+    # maximum number of recent errors to retain
+    max_errors = attr.ib(default=30)
+
     # tracks currently-connected clients
     _clients = attr.ib(default=attr.Factory(set))
 
@@ -273,7 +276,7 @@ class WebSocketStatusService(service.Service):
         :param PublicError err: the actual error
         """
         self._folders[folder]["errors"].insert(0, err.to_json())
-        self._folders[folder]["errors"] = self._folders[folder]["errors"][:30]
+        self._folders[folder]["errors"] = self._folders[folder]["errors"][:self.max_errors]
         self._maybe_update_clients()
 
     def upload_queued(self, folder, relpath):
