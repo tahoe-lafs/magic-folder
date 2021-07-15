@@ -668,12 +668,9 @@ class DownloaderService(service.MultiService):
                     if participant.is_self:
                         # we don't download from ourselves
                         continue
-                    files = yield self._tahoe_client.list_directory(participant.dircap)
-                    for fname, data in files.items():
-                        snapshot_cap, metadata = data
-                        fpath = self._config.magic_path.preauthChild(magic2path(fname))
-                        relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
-                        yield self._process_snapshot(snapshot_cap, relpath)
+                    files = yield participant.files()
+                    for relpath, file_data in files.items():
+                        yield self._process_snapshot(file_data.snapshot_cap, relpath)
 
     @inline_callbacks
     def _process_snapshot(self, snapshot_cap, relpath):
