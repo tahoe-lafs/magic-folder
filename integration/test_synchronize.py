@@ -9,14 +9,17 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
+from functools import partial
 import time
 from tempfile import (
     mkdtemp,
 )
 
+from eliot import Message
 from twisted.python.filepath import (
     FilePath,
 )
+import pytest
 import pytest_twisted
 
 from magic_folder.util.capabilities import (
@@ -28,8 +31,63 @@ from .util import (
 )
 
 
+def add_snapshot(node, folder_name, path):
+    """
+    Take a snapshot of the given path in the given magic folder.
+
+    :param MagigFolderEnabledNode node: The node on which to take the snapshot.
+    """
+    return node.add_snapshot(folder_name, path)
+
+
+def periodic_scan(node, folder_name, path):
+    """
+    Wait to given the given magic folder a change to run a periodic scan.
+    This should cause the given path to be
+    snapshotted.
+
+    :param MagigFolderEnabledNode node: The node on which to do the scan.
+    """
+    Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
+    time.sleep(1)
+
+@pytest.fixture(name='periodic_scan')
+def enable_periodic_scans(magic_folder_nodes, monkeypatch):
+    """
+    A fixture causes magic folders to have periodic scans enabled (with
+    interval of 1s), and returns a function to take a snapshot of a file (that
+    waits for the scanner to run).
+    """
+    for node in magic_folder_nodes.values():
+        monkeypatch.setattr(node, "add", partial(node.add, scan_interval=1))
+    return periodic_scan
+
+
+@pytest.fixture(
+    params=[
+        add_snapshot,
+        pytest.lazy_fixture('periodic_scan'),
+    ]
+)
+def take_snapshot(request, magic_folder_nodes):
+    """
+    Pytest fixture that parametrizes different ways of having
+    magic-folder take a local snapshot of a given file.
+
+    - use the `POST /v1/magic-folder/<folder-name>/snapshot` endpoint
+      to request the snapshot directly.
+    - use the `PUT /v1/magic-folder/<folder-name>/scan` endpoint to request
+      a scan, which will cause a snapshot to be taken.
+
+    :returns Callable[[MagicFolderEnabledNode, unicode, unicode], Deferred[None]]:
+        A callable that takes a node, folder name, and relative path to a file
+        that should be snapshotted.
+    """
+    return request.param
+
+
 @pytest_twisted.inlineCallbacks
-def test_local_snapshots(request, reactor, temp_dir, alice, bob):
+def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
     """
@@ -48,7 +106,7 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
     # put a file in our folder
     content0 = "zero\n" * 1000
     magic.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("local", "sylvester")
+    yield take_snapshot(alice, "local", "sylvester")
 
     # wait until we've definitely uploaded it
     for _ in range(10):
@@ -68,13 +126,13 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
         # add several snapshots
         content1 = "one\n" * 1000
         magic.child("sylvester").setContent(content1)
-        yield alice.add_snapshot("local", "sylvester")
+        yield take_snapshot(alice, "local", "sylvester")
         content2 = "two\n" * 1000
         magic.child("sylvester").setContent(content2)
-        yield alice.add_snapshot("local", "sylvester")
+        yield take_snapshot(alice, "local", "sylvester")
         content3 = "three\n" * 1000
         magic.child("sylvester").setContent(content3)
-        yield alice.add_snapshot("local", "sylvester")
+        yield take_snapshot(alice, "local", "sylvester")
 
         x = yield alice.dump_state("local")
         print(x)
@@ -105,7 +163,7 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob):
 
 
 @pytest_twisted.inlineCallbacks
-def test_create_then_recover(request, reactor, temp_dir, alice, bob):
+def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapshot):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -145,12 +203,12 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("original", "sylvester")
+    yield take_snapshot(alice, "original", "sylvester")
 
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
-    yield alice.add_snapshot("original", "sylvester")
+    yield take_snapshot(alice, "original", "sylvester")
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -178,7 +236,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
     # folder. This also tests the normal 'update' flow as well.
     content2 = "two\n" * 1000
     original_folder.child("sylvester").setContent(content2)
-    yield alice.add_snapshot("original", "sylvester")
+    yield take_snapshot(alice, "original", "sylvester")
 
     # the new content should appear in the 'recovery' folder
     await_file_contents(
@@ -188,7 +246,7 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob):
 
 
 @pytest_twisted.inlineCallbacks
-def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
+def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_snapshot):
     # FIXME needs docstring
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
@@ -208,7 +266,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("internal", "sylvester")
+    yield take_snapshot(alice, "internal", "sylvester")
 
     # create the 'rec' magic-folder
     yield bob.add("rec", recover_folder.path)
@@ -236,7 +294,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
-    yield alice.add_snapshot("internal", "sylvester")
+    yield take_snapshot(alice, "internal", "sylvester")
 
     time.sleep(2)
 
@@ -252,7 +310,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob):
 
 
 @pytest_twisted.inlineCallbacks
-def test_ancestors(request, reactor, temp_dir, alice, bob):
+def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -271,7 +329,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("ancestor0", "sylvester")
+    yield take_snapshot(alice, "ancestor0", "sylvester")
 
     # create the 'ancestor1' magic-folder
     yield bob.add("ancestor1", recover_folder.path)
@@ -297,7 +355,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     # update the file in bob's folder
     content1 = "one\n" * 1000
     recover_folder.child("sylvester").setContent(content1)
-    yield bob.add_snapshot("ancestor1", "sylvester")
+    yield take_snapshot(bob, "ancestor1", "sylvester")
 
     await_file_contents(
         recover_folder.child("sylvester").path,
@@ -312,7 +370,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     # update the file in alice's folder
     content2 = "two\n" * 1000
     original_folder.child("sylvester").setContent(content2)
-    yield alice.add_snapshot("ancestor0", "sylvester")
+    yield take_snapshot(alice, "ancestor0", "sylvester")
 
     # Since we made local changes to the file, a change to alice
     # shouldn't overwrite our changes
@@ -323,7 +381,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob):
     )
 
 @pytest_twisted.inlineCallbacks
-def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
+def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snapshot):
     magic = FilePath(mkdtemp())
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
@@ -344,7 +402,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     # put a file in our folder
     content0 = "zero\n" * 1000
     original_folder.child("sylvester").setContent(content0)
-    yield alice.add_snapshot("original", "sylvester")
+    yield take_snapshot(alice, "original", "sylvester")
 
     time.sleep(5)
     yield alice.stop_magic_folder()
@@ -374,7 +432,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
     # update the file (so now there's two versions)
     content1 = "one\n" * 1000
     recover_folder.child("sylvester").setContent(content1)
-    yield bob.add_snapshot("recovery", "sylvester")
+    yield take_snapshot(bob, "recovery", "sylvester")
 
     # We shouldn't see this show up as a conflict, since we are newer than
     # alice
@@ -391,6 +449,7 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond):
 
     def cleanup_recovery():
         pytest_twisted.blockon(edmond.leave("recovery-2"))
+        pytest_twisted.blockon(edmond.restart_magic_folder())
     request.addfinalizer(cleanup_recovery)
 
     # add the 'recovery' magic-folder as a participant in the

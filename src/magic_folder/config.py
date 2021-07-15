@@ -146,7 +146,8 @@ _magicfolder_config_schema = Schema([
             collective_dircap    TEXT,              -- read-capability-string
             upload_dircap        TEXT,              -- write-capability-string
             magic_directory      TEXT,              -- local path of sync'd directory
-            poll_interval        INTEGER            -- seconds
+            poll_interval        INTEGER NOT NULL,  -- seconds
+            scan_interval        INTEGER CHECK ([scan_interval] > 0) -- seconds
         )
         """,
         """
@@ -746,6 +747,7 @@ class MagicFolderConfig(object):
             upload_dircap,
             magic_path,
             poll_interval,
+            scan_interval,
     ):
         """
         Create the database state for a new Magic Folder and return a
@@ -773,7 +775,10 @@ class MagicFolderConfig(object):
             folder will read and write files belonging to this folder.
 
         :param int poll_interval: The interval, in seconds, on which to poll
-            for changes (for download?).
+            for remote changes (for download).
+
+        :param int scan_interval: The interval, in seconds, on which to poll
+            for local changes (for upload).
 
         :return: A new ``cls`` instance populated with the given
             configuration.
@@ -796,9 +801,10 @@ class MagicFolderConfig(object):
                     , upload_dircap
                     , magic_directory
                     , poll_interval
+                    , scan_interval
                     )
                 VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
+                    (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     author.name,
@@ -808,6 +814,7 @@ class MagicFolderConfig(object):
                     upload_dircap,
                     magic_path.path,
                     poll_interval,
+                    scan_interval,
                 ),
             )
         return cls(name, connection)
@@ -1204,6 +1211,12 @@ class MagicFolderConfig(object):
         cursor.execute("SELECT poll_interval FROM config")
         return int(cursor.fetchone()[0])
 
+    @property
+    @with_cursor
+    def scan_interval(self, cursor):
+        cursor.execute("SELECT scan_interval FROM config")
+        return cursor.fetchone()[0]
+
     def is_admin(self):
         """
         :returns: True if this device can administer this folder. That is,
@@ -1480,8 +1493,16 @@ class GlobalConfigDatabase(object):
                 failed_cleanups.append((clean.path, e))
         return failed_cleanups
 
-    def create_magic_folder(self, name, magic_path, author,
-                            collective_dircap, upload_dircap, poll_interval):
+    def create_magic_folder(
+        self,
+        name,
+        magic_path,
+        author,
+        collective_dircap,
+        upload_dircap,
+        poll_interval,
+        scan_interval,
+    ):
         """
         Add a new Magic Folder configuration.
 
@@ -1499,9 +1520,31 @@ class GlobalConfigDatabase(object):
         :param unicode upload_dircap: the write-capability of the
             directory we upload data into.
 
+        :param int poll_interval: how often to scan for remote changes
+            (in seconds).
+
+        :param Optional[int] scan_interval: how often to scan for local changes
+            (in seconds). ``None`` means to not scan periodically.
+
         :returns: a MagicFolderConfig instance
         """
         valid_magic_folder_name(name)
+        if not isinstance(poll_interval, int) or poll_interval <= 0:
+            raise APIError(
+                code=http.BAD_REQUEST,
+                reason="Poll interval must be a positive integer (not '{!r}').".format(
+                    poll_interval
+                ),
+            )
+        if scan_interval is not None and (
+            not isinstance(scan_interval, int) or scan_interval <= 0
+        ):
+            raise APIError(
+                code=http.BAD_REQUEST,
+                reason="Scan interval must be a positive integer or null (not '{!r}').".format(
+                    scan_interval
+                ),
+            )
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
@@ -1534,6 +1577,7 @@ class GlobalConfigDatabase(object):
                 upload_dircap,
                 magic_path.asTextMode("utf-8"),
                 poll_interval,
+                scan_interval,
             )
             # add to the global config
             with self.database:

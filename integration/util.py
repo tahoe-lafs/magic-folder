@@ -239,20 +239,36 @@ class MagicFolderEnabledNode(object):
 
     # magic-folder CLI API helpers
 
-    def add(self, folder_name, magic_directory, author=None, poll_interval=5):
+    def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None):
         """
         magic-folder add
         """
+        args = [
+            "--config",
+            self.magic_config_directory,
+            "add",
+            "--name",
+            folder_name,
+            "--author",
+            author or self.name,
+            "--poll-interval",
+            str(poll_interval),
+        ]
+        if scan_interval is None:
+            args += ["--disable-scanning"]
+        else:
+            args += [
+                "--scan-interval",
+                str(scan_interval),
+            ]
+        args += [
+            magic_directory,
+        ]
         return _magic_folder_runner(
-            self.reactor, self.request, self.name,
-            [
-                "--config", self.magic_config_directory,
-                "add",
-                "--name", folder_name,
-                "--author", author or self.name,
-                "--poll-interval", str(int(poll_interval)),
-                magic_directory,
-            ],
+            self.reactor,
+            self.request,
+            self.name,
+            args,
         )
 
     def leave(self, folder_name):

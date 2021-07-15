@@ -48,6 +48,7 @@ class FindUpdatesTests(SyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         # Use a cooperator that does not cooperate.
         self.cooperator = Cooperator(
@@ -175,9 +176,9 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_service(self, name):
+    def test_scan_once(self, name):
         """
-        The scanner service iteself discovers a_file
+        The scanner service discovers a_file when a scan is requested.
         """
         name = "a_file"
         local = self.magic_path.preauthChild(name)
@@ -196,6 +197,7 @@ class FindUpdatesTests(SyncTestCase):
             SnapshotService(),
             object(),
             cooperator=self.cooperator,
+            scan_interval=None,
         )
         service.startService()
         self.addCleanup(service.stopService)
@@ -204,5 +206,37 @@ class FindUpdatesTests(SyncTestCase):
             service.scan_once(),
             succeeded(Always()),
         )
+
+        self.assertThat(files, Equals([local]))
+
+    @given(
+        relative_paths(),
+    )
+    def test_scan_periodic(self, name):
+        """
+        The scanner service iteself discovers a_file, when a scan interval is
+        set.
+        """
+        name = "a_file"
+        local = self.magic_path.preauthChild(name)
+        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        local.asBytesMode("utf-8").setContent(b"dummy\n")
+
+        files = []
+
+        class SnapshotService(object):
+            def add_file(self, f):
+                files.append(f)
+                return succeed(None)
+
+        service = ScannerService(
+            self.config,
+            SnapshotService(),
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=1,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
 
         self.assertThat(files, Equals([local]))

@@ -149,14 +149,15 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
         return self._authorized_request("GET", api_url)
 
-    def add_folder(self, magic_folder, author_name, local_path, poll_interval):
-        # type: (unicode, unicode, FilePath, int) -> dict
+    def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
+        # type: (unicode, unicode, FilePath, int, int) -> dict
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
         return self._authorized_request("POST", api_url, body=json.dumps({
             'name': magic_folder,
             'author_name': author_name,
             'local_path': local_path.path,
             'poll_interval': poll_interval,
+            'scan_interval': scan_interval,
         }, ensure_ascii=False).encode('utf-8'))
 
     @inlineCallbacks

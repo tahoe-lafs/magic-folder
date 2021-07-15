@@ -117,6 +117,7 @@ class CacheTests(SyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
@@ -412,6 +413,7 @@ class UpdateTests(AsyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(
@@ -676,6 +678,7 @@ class ConflictTests(AsyncTestCase):
             self.alice_collective,
             self.alice_personal,
             1,
+            None,
         )
 
         # note, we don't "run" this service, just populate ._cached_snapshots

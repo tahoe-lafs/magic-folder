@@ -545,6 +545,7 @@ class TestDumpState(AsyncTestCase):
             collective_dircap="URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
             upload_dircap="URI:DIR2:hnua3xva2meb46dqm3ndmiqxhe:h7l2qnydoztv7gruwd65xtdhsvd3cm2kk2544knp5fhmzxoyckba",
             poll_interval=1,
+            scan_interval=1,
         )
         config.store_local_snapshot(
             LocalSnapshot(

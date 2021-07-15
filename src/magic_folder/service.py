@@ -198,7 +198,7 @@ class MagicFolderService(MultiService):
         return self._starting
 
     @inline_callbacks
-    def create_folder(self, name, author_name, local_dir, poll_interval):
+    def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):
         """
         Create a magic-folder with the specified ``name`` and
         ``local_dir``.
@@ -213,6 +213,9 @@ class MagicFolderService(MultiService):
         :param integer poll_interval: Periodic time interval after which the
             client polls for updates.
 
+        :param integer scan_interval: Every 'scan_interval' seconds the
+            local directory will be scanned for changes.
+
         :return Deferred: ``None`` or an appropriate exception is raised.
         """
         if name in self.config.list_magic_folders():
@@ -220,6 +223,13 @@ class MagicFolderService(MultiService):
                 code=http.CONFLICT,
                 reason="Already have a magic-folder named '{}'".format(name),
             )
+
+        if scan_interval is not None and scan_interval <= 0:
+            raise APIError(
+                code=http.BAD_REQUEST,
+                reason="scan_interval must be positive integer or null",
+            )
+
 
         # create our author
         author = create_local_author(author_name)
@@ -247,6 +257,7 @@ class MagicFolderService(MultiService):
             collective_write_cap,
             personal_write_cap,
             poll_interval,
+            scan_interval,
         )
 
         mf = self._add_service_for_folder(name)
