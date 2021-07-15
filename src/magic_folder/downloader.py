@@ -382,7 +382,7 @@ class MagicFolderUpdater(object):
                     try:
                         staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
                     except Exception:
-                        PublicError(
+                        raise PublicError(
                             self._clock.seconds(),
                             "Failed to download snapshot for '{}'.".format(relpath)
                         )
