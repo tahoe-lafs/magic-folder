@@ -12,16 +12,10 @@ from collections import deque
 from twisted.internet.task import (
     react,
 )
-from twisted.internet.defer import (
-    Deferred,
-)
-from twisted.internet.endpoints import (
-    clientFromString,
-)
 
 from autobahn.twisted.websocket import (
     WebSocketClientProtocol,
-    WebSocketClientFactory,
+    create_client_agent,
 )
 
 from twisted.python.filepath import (
@@ -186,7 +180,9 @@ def list_participants(options):
 
 
 class MonitorOptions(usage.Options):
-    pass
+    optFlags = [
+        ["once", "", "Exit after receiving a single status message"],
+    ]
 
 
 class StatusProtocol(WebSocketClientProtocol):
@@ -195,10 +191,18 @@ class StatusProtocol(WebSocketClientProtocol):
     magic-folder
     """
 
+    def __init__(self, output, single_message):
+        super(StatusProtocol, self).__init__()
+        self._output = output
+        self._single_message = single_message
+
     def onMessage(self, payload, is_binary):
-        print(payload, file=self.factory._output)
+        print(payload, file=self._output)
+        if self._single_message:
+            self.sendClose()
 
 
+@inlineCallbacks
 def monitor(options):
     """
     Print out updates from the WebSocket status API
@@ -207,18 +211,20 @@ def monitor(options):
     endpoint_str = options.parent.config.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
-    from twisted.internet import reactor
-    endpoint = clientFromString(reactor, endpoint_str)
-    factory = WebSocketClientFactory(
+    agent = options.parent.get_websocket_agent()
+    proto = yield agent.open(
         websocket_uri,
-        headers={
-            "Authorization": "Bearer {}".format(options.parent.config.api_token),
-        }
+        {
+            "headers": {
+                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+            }
+        },
+        lambda: StatusProtocol(
+            output=options.parent.stdout,
+            single_message=options['once'],
+        )
     )
-    factory._output = options.parent.stdout
-    factory.protocol = StatusProtocol
-    endpoint.connect(factory)
-    return Deferred()
+    yield proto.is_closed
 
 
 @with_eliot_options
@@ -230,6 +236,7 @@ class MagicFolderApiCommand(usage.Options):
     stdout = sys.stdout
     stderr = sys.stderr
     _client = None  # initialized (at most once) in get_client()
+    _websocket_agent = None  # initialized (at most once) in get_websocket_agent()
 
     optFlags = [
         ["version", "V", "Display version numbers."],
@@ -272,6 +279,12 @@ class MagicFolderApiCommand(usage.Options):
                 create_http_client(reactor, self.config.api_client_endpoint),
             )
         return self._client
+
+    def get_websocket_agent(self):
+        if self._websocket_agent is None:
+            from twisted.internet import reactor
+            self._websocket_agent = create_client_agent(reactor)
+        return self._websocket_agent
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
@@ -321,7 +334,8 @@ class MagicFolderApiCommand(usage.Options):
 
 
 @inlineCallbacks
-def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None):
+def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None,
+                                      websocket_agent=None, config=None):
     """
     Run a magic-folder-api command with the given args
 
@@ -336,6 +350,12 @@ def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=Non
     :param MagicFolderClient client: the client to use, or None to
         construct one.
 
+    :param GlobalConfigurationDatabase config: a configuration, or
+        None to load one.
+
+    :param IWebSocketClientAgent websocket_agent: an Autobahn
+        websocket agent to use, or None to construct one.
+
     :returns: a Deferred which fires with the result of doing this
         magic-folder-api (sub)command.
     """
@@ -347,6 +367,10 @@ def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=Non
         options.stderr = stderr
     if client is not None:
         options._client = client
+    if websocket_agent is not None:
+        options._websocket_agent = websocket_agent
+    if config is not None:
+        options._config = config
     try:
         options.parseOptions(args)
     except usage.UsageError as e:

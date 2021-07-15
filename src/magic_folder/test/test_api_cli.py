@@ -39,6 +39,11 @@ from treq.testing import (
     StringStubbingResource,
     StubTreq,
 )
+from autobahn.twisted.testing import (
+    create_memory_agent,
+    MemoryReactorClockResolver,
+    create_pumper,
+)
 from nacl.encoding import (
     HexEncoder,
 )
@@ -57,6 +62,10 @@ from ..config import (
     create_testing_configuration,
     create_global_configuration,
     GlobalConfigDatabase,
+)
+from ..status import (
+    StatusFactory,
+    WebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
@@ -803,4 +812,65 @@ class TestApiParticipants(AsyncTestCase):
         self.assertThat(
             stderr.getvalue().strip(),
             Equals("")
+        )
+
+
+class TestApiMonitor(AsyncTestCase):
+    """
+    Tests related to 'magic-folder-api monitor'
+    """
+    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    def setUp(self):
+        super(TestApiMonitor, self).setUp()
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
+        )
+        self.reactor = MemoryReactorClockResolver()
+        self.pumper = create_pumper()
+        self.service = WebSocketStatusService(
+            self.reactor,
+            self.global_config,
+        )
+        self.factory = StatusFactory(self.service)
+        self.agent = create_memory_agent(
+            self.reactor,
+            self.pumper,
+            lambda: self.factory.buildProtocol(None)
+        )
+        return self.pumper.start()
+
+    def tearDown(self):
+        super(TestApiMonitor, self).tearDown()
+        return self.pumper.stop()
+
+    @inlineCallbacks
+    def test_once(self):
+        """
+        Output a single status message with --once option
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        yield dispatch_magic_folder_api_command(
+            ["--config", self.magic_config.path, "monitor",
+             "--once",
+            ],
+            stdout=stdout,
+            stderr=stderr,
+            websocket_agent=self.agent,
+            config=self.global_config,
+        )
+        self.pumper._flush()
+
+        self.assertThat(
+            json.loads(stdout.getvalue()),
+            Equals({
+                'state': {
+                    'folders': {},
+                    'synchronizing': False,
+                }
+            }),
         )
