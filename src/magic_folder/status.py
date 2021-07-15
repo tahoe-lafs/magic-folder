@@ -25,10 +25,6 @@ from twisted.application import (
     service,
 )
 
-from .error import (
-    PublicError,
-)
-
 
 class IStatus(Interface):
     """
