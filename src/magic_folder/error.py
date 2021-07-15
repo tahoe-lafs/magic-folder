@@ -34,7 +34,3 @@ class PublicError(Exception):
 
     def __str__(self):
         return self.summary
-
-
-def public_error_tahoe_failure(summary):
-    return PublicError(summary)
