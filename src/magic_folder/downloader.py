@@ -44,9 +44,6 @@ from twisted.internet.defer import (
     returnValue,
     succeed,
 )
-from twisted.web.error import (
-    SchemeNotSupported,
-)
 
 from .config import (
     MagicFolderConfig,
@@ -647,33 +644,24 @@ class DownloaderService(service.MultiService):
 
     @inline_callbacks
     def _scan_collective(self):
-        action = start_action(action_type="downloader:scan-collective")
-
-        with action:
-            try:
-                people = yield self._participants.list()
-            except SchemeNotSupported:
-                # mostly a testing aid; if we provided an "empty"
-                # Tahoe Client fake we get this error .. otherwise we
-                # need a proper collective set up.
-                people = []
-            for person in people:
-                Message.log(message_type="scan-participant", person=person.name, is_self=person.is_self)
-                if person.is_self:
-                    # we don't download from ourselves
-                    continue
-                files = yield self._tahoe_client.list_directory(person.dircap)
-                action.add_success_fields(files=files) #FIXME: this can't be in a loop
-                for fname, data in files.items():
-                    snapshot_cap, metadata = data
-                    fpath = self._config.magic_path.preauthChild(magic2path(fname))
-                    relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
-                    action.add_success_fields(
-                        #FIXME, this can't be in a loop
-                        abspath=fpath.path,
-                        relpath=relpath,
-                    )
-                    yield self._process_snapshot(snapshot_cap, relpath)
+        with start_action(
+            action_type="downloader:scan-collective", folder=self._config.name
+        ):
+            for participant in (yield self._participants.list()):
+                with start_action(
+                    action_type="downloader:scan-participant",
+                    participant=participant.name,
+                    is_self=participant.is_self,
+                ):
+                    if participant.is_self:
+                        # we don't download from ourselves
+                        continue
+                    files = yield self._tahoe_client.list_directory(participant.dircap)
+                    for fname, data in files.items():
+                        snapshot_cap, metadata = data
+                        fpath = self._config.magic_path.preauthChild(magic2path(fname))
+                        relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
+                        yield self._process_snapshot(snapshot_cap, relpath)
 
     @inline_callbacks
     def _process_snapshot(self, snapshot_cap, relpath):
@@ -685,15 +673,20 @@ class DownloaderService(service.MultiService):
 
         :returns Deferred: fires with None upon completion
         """
-        snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-        # if this remote matches what we believe to be the
-        # latest, there is nothing to do .. otherwise, we
-        # have to figure out what to do
-        try:
-            our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
-        except KeyError:
-            our_snapshot_cap = None
-        if snapshot.capability != our_snapshot_cap:
-            if our_snapshot_cap is not None:
-                yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-            yield self._folder_updater.add_remote_snapshot(snapshot)
+        with start_action(
+            action_type="downloader:scan-file",
+            relpath=relpath,
+            remote_cap=snapshot_cap,
+        ):
+            snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
+            # if this remote matches what we believe to be the
+            # latest, there is nothing to do .. otherwise, we
+            # have to figure out what to do
+            try:
+                our_snapshot_cap = self._config.get_remotesnapshot(snapshot.name)
+            except KeyError:
+                our_snapshot_cap = None
+            if snapshot.capability != our_snapshot_cap:
+                if our_snapshot_cap is not None:
+                    yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+                yield self._folder_updater.add_remote_snapshot(snapshot)
