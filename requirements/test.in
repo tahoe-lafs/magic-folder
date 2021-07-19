@@ -22,3 +22,5 @@ hypothesis >= 3.6.1
 towncrier >= 21.3.0
 testtools
 fixtures
+# Used to suspend tahoe on windows
+psutil

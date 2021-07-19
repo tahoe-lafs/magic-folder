@@ -8,7 +8,6 @@ import sys
 import time
 import json
 import os
-import signal
 from os import mkdir
 from io import BytesIO
 from os.path import exists, join
@@ -16,6 +15,7 @@ from six.moves import StringIO
 from functools import partial
 
 import attr
+from psutil import Process
 
 from twisted.internet.defer import (
     returnValue,
@@ -234,11 +234,11 @@ class MagicFolderEnabledNode(object):
 
     def pause_tahoe(self):
         Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
-        self.tahoe.transport.signalProcess(signal.SIGSTOP)
+        self.tahoe.suspend()
 
     def resume_tahoe(self):
         Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
-        self.tahoe.transport.signalProcess(signal.SIGCONT)
+        self.tahoe.resume()
 
     # magic-folder CLI API helpers
 
@@ -741,6 +741,14 @@ class TahoeProcess(object):
     @property
     def transport(self):
         return self._process_transport
+
+    def suspend(self):
+        if self.transport.pid is not None:
+            Process(self.transport.pid).suspend()
+
+    def resume(self):
+        if self.transport.pid is not None:
+            Process(self.transport.pid).resume()
 
     @property
     def node_dir(self):
