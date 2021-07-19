@@ -132,8 +132,16 @@ def opt_eliot_fd(self, fd):
     except Exception as e:
         raise usage.UsageError(str(e))
 
+    stdio_fds = {
+        1: self.stdout,
+        2: self.stderr,
+    }
+
     def to_fd(reactor):
-        return FileDestination(os.fdopen(fd, "w"))
+        f = stdio_fds.get(fd)
+        if f is None:
+            f = os.fdopen(fd, "w")
+        return FileDestination(f)
 
     self.setdefault("eliot-destinations", []).append(to_fd)
 

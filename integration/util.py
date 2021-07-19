@@ -445,7 +445,10 @@ class EliotLogStream(object):
 
     This is intended to capture eliot log output from a subprocess, and include
     them in the logs for this process.
+
+    :ivar Callable[[str], None] _fallback: A function to call with non-JSON log lines.
     """
+    _fallback = attr.ib()
     _eliot_buffer = attr.ib(init=False, default=b"")
 
     def data_received(self, data):
@@ -456,7 +459,12 @@ class EliotLogStream(object):
         lines = (self._eliot_buffer + data).split(b'\n')
         self._eliot_buffer = lines.pop(-1)
         for line in lines:
-            logger.write(json.loads(line))
+            try:
+                message = json.loads(line)
+            except ValueError:
+                self._fallback(line)
+            else:
+                logger.write(message)
 
 
 def run_service(
@@ -490,12 +498,15 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
+
         process = reactor.spawnProcess(
             protocol,
             executable,
             args,
             path=cwd,
-            childFDs={1: 'r', 2: 'r', 3: 'r'},
+            # Twisted on Windows doesn't support customizing FDs
+            # _MagicTextProtocol will collect eliot logs from FD 3 and stderr.
+            childFDs={1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
         return protocol.magic_seen.addCallback(lambda ignored: process)
@@ -552,7 +563,8 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
-        self._eliot_stream = EliotLogStream()
+        self._eliot_stream = EliotLogStream(fallback=self.eliot_garbage_received)
+        self._eliot_stderr = EliotLogStream(fallback=self.err_received)
         self._action = current_action()
         assert self._action is not None
 
@@ -562,11 +574,19 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited.callback(None)
 
     def childDataReceived(self, childFD, data):
-        ProcessProtocol.childDataReceived(self, childFD, data)
-        if childFD == 3:
+        if childFD == 1:
+            self.out_received(data)
+        elif childFD == 2:
+            self._eliot_stderr.data_received(data)
+        elif childFD == 3:
             self._eliot_stream.data_received(data)
+        else:
+            ProcessProtocol.childDataReceived(self, childFD, data)
 
-    def outReceived(self, data):
+    def out_received(self, data):
+        """
+        Called with output from stdout.
+        """
         with self._action.context():
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
@@ -575,10 +595,26 @@ class _MagicTextProtocol(ProcessProtocol):
             print("Saw '{}' in the logs".format(self._magic_text))
             self.magic_seen.callback(self)
 
-    def errReceived(self, data):
+    def err_received(self, data):
+        """
+        Called when non-JSON lines are received on stderr.
+
+        On Windows we use stderr for eliot logs from magic-folder.
+        But neither magic-folder nor tahoe guarantee that there is
+        no other output there, so we treat it as expected.
+        """
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
             sys.stdout.write(data)
+
+    def eliot_garbage_received(self, data):
+        """
+        Called when non-JSON lines are received on FD 3.
+
+        Since FD 3 is suppposed to only have eliot-logs, log them as malformed.
+        """
+        with self._action.context():
+            Message.log(message_type=u"malformed-eliot-log", data=data)
 
 
 def _cleanup_service_process(process, exited, action):
@@ -1047,8 +1083,9 @@ def _run_magic_folder(reactor, request, base_dir, name):
     ]) + [
         "--config",
         config_dir,
+        # run_service will collect eliot logs from FD 3 and stderr.
         "--eliot-fd",
-        "3",
+        "3" if sys.platform != "win32" else "2",
         "--debug",
         "--eliot-task-fields",
         json.dumps({
