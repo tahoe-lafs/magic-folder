@@ -575,6 +575,8 @@ class _MagicTextProtocol(ProcessProtocol):
     def processEnded(self, reason):
         with self._action:
             Message.log(message_type=u"process-ended")
+        if not self.magic_seen.called:
+            self.magic_seen.errback(Exception("Service failed."))
         self.exited.callback(None)
 
     def childDataReceived(self, childFD, data):
