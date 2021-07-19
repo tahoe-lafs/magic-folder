@@ -173,7 +173,7 @@ class PublicError(object):
     avoiding jargon and technical details (except where immediately
     relevant). This is used by the IStatus API.
     """
-    timestamp = attr.ib(validator=attr.validators.instance_of((float, int)))
+    timestamp = attr.ib(validator=attr.validators.instance_of((float, int, long)))
     summary = attr.ib(validator=attr.validators.instance_of(unicode))
 
     def to_json(self):
