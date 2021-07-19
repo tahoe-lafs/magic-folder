@@ -25,6 +25,11 @@ from twisted.application import (
     service,
 )
 
+from .util.file import (
+    seconds_to_ns,
+    ns_to_seconds,
+)
+
 
 class IStatus(Interface):
     """
@@ -168,7 +173,7 @@ class PublicError(object):
     avoiding jargon and technical details (except where immediately
     relevant). This is used by the IStatus API.
     """
-    timestamp = attr.ib(validator=attr.validators.instance_of(float))
+    timestamp = attr.ib(validator=attr.validators.instance_of((float, int)))
     summary = attr.ib(validator=attr.validators.instance_of(unicode))
 
     def to_json(self):
@@ -176,7 +181,7 @@ class PublicError(object):
         :returns: a dict suitable for serializing to JSON
         """
         return {
-            "timestamp": int(self.timestamp),
+            "timestamp": ns_to_seconds(self.timestamp),
             "summary": self.summary,
         }
 

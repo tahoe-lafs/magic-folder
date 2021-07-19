@@ -68,9 +68,6 @@ from .util.twisted import (
 from .status import (
     IStatus,
 )
-from .error import (
-    PublicError,
-)
 
 
 @attr.s
@@ -379,10 +376,11 @@ class MagicFolderUpdater(object):
                     try:
                         staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
                     except Exception:
-                        raise PublicError(
-                            self._clock.seconds(),
+                        self._status.error_occurred(
+                            self._config.name,
                             "Failed to download snapshot for '{}'.".format(relpath)
                         )
+                        raise
 
             finally:
                 self._status.download_finished(self._config.name, relpath)
@@ -418,10 +416,11 @@ class MagicFolderUpdater(object):
                     try:
                         path_state = self._magic_fs.mark_overwrite(snapshot, staged)
                     except OSError as e:
-                        raise PublicError(
-                                self._clock.seconds(),
-                                "Failed to overwrite file '{}': {}".format(relpath, str(e))
-                            )
+                        self._status.error_occurred(
+                            self._config.name,
+                            "Failed to overwrite file '{}': {}".format(relpath, str(e))
+                        )
+                        raise
 
                     # Note, if we crash here (after moving the file into place
                     # but before noting that in our database) then we could
@@ -651,9 +650,6 @@ class DownloaderService(service.MultiService):
     def _loop(self):
         try:
             yield self._scan_collective()
-        except PublicError as e:
-            self._status.error_occurred(self._config.name, e)
-            print("Folder '{}': {}".format(self._config.name, e))
         except Exception as e:
             print(e)
 

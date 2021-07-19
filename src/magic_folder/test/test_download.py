@@ -1018,7 +1018,7 @@ class ConflictTests(AsyncTestCase):
                         "default": ContainsDict({
                             "errors": Equals([
                                 {
-                                    "timestamp": int(self.updater._clock.seconds()),
+                                    "timestamp": int(self.updater._status._clock.seconds()),
                                     "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
                                 },
                             ]),
@@ -1097,7 +1097,7 @@ class ConflictTests(AsyncTestCase):
                         "default": ContainsDict({
                             "errors": Equals([
                                 {
-                                    "timestamp": int(self.updater._clock.seconds()),
+                                    "timestamp": int(self.updater._status._clock.seconds()),
                                     "summary": "Failed to download snapshot for 'foo'.",
                                 },
                             ]),
