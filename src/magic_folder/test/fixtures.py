@@ -170,6 +170,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
         self.stash_path.makedirs()
 
         self.poll_interval = 1
+        self.scan_interval = None
 
         self.config = MagicFolderConfig.initialize(
             u"some-folder",
@@ -180,6 +181,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
             u"URI:DIR2:ccc:ddd",
             self.magic_path,
             self.poll_interval,
+            self.scan_interval,
         )
 
         self._global_config = create_testing_configuration(
@@ -267,6 +269,7 @@ class MagicFolderNode(object):
                         u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
                         u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
                         config[u"poll-interval"],
+                        config[u"scan-interval"],
                     )
 
         status_service = WebSocketStatusService(
@@ -294,6 +297,7 @@ class MagicFolderNode(object):
                         config[u"author-name"],
                         config[u"magic-path"],
                         config[u"poll-interval"],
+                        config[u"scan-interval"],
                     )
                 )
 

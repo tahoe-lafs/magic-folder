@@ -239,8 +239,12 @@ class AddOptions(usage.Options):
     synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
+        ("scan-interval", "s", "60", "Seconds between scans of local changes"),
         ("name", "n", None, "The name of this magic-folder", to_unicode),
         ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
+    ]
+    optFlags = [
+        ["disable-scanning", None, "Disable scanning for local changes."],
     ]
     description = (
         "Create a new magic-folder."
@@ -274,11 +278,20 @@ class AddOptions(usage.Options):
         except InvalidMagicFolderName as e:
             raise usage.UsageError(str(e))
         try:
-            if int(self['poll-interval']) <= 0:
+            self['poll-interval'] = int(self['poll-interval'])
+            if self['poll-interval'] <= 0:
                 raise ValueError("should be positive")
         except ValueError:
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
+            )
+        try:
+            self['scan-interval'] = int(self['scan-interval'])
+            if self['scan-interval'] <= 0:
+                raise ValueError("should be positive")
+        except ValueError:
+            raise usage.UsageError(
+                "--scan-interval must be a positive integer"
             )
 
 
@@ -293,6 +306,7 @@ def add(options):
         options["author"],
         options.local_dir,
         options["poll-interval"],
+        None if options['disable-scanning'] else options["scan-interval"],
     )
     print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 

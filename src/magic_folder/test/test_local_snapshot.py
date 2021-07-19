@@ -115,6 +115,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
             "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
             "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
             60,
+            None,
         )
 
         self.snapshot_creator = MemorySnapshotCreator()
@@ -288,6 +289,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
             60,
+            None,
         )
         self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,

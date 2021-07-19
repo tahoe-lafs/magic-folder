@@ -9,7 +9,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import attr
 from eliot import start_action, write_failure
 from eliot.twisted import inline_callbacks
-from twisted.application.service import Service
+from twisted.application.service import MultiService
+from twisted.application.internet import TimerService
 from twisted.internet.defer import DeferredLock, gatherResults
 from twisted.internet.task import Cooperator
 
@@ -37,7 +38,7 @@ def _create_cooperator(clock):
 
 
 @attr.s
-class ScannerService(Service):
+class ScannerService(MultiService):
     """
     Periodically scan a local Magic Folder for new or updated files, and request
     the local snapshot service snapshot them.
@@ -47,6 +48,7 @@ class ScannerService(Service):
     _local_snapshot_service = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
+    _scan_interval = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
@@ -56,20 +58,36 @@ class ScannerService(Service):
             local_snapshot_service=local_snapshot_service,
             status=status,
             cooperator=_create_cooperator(clock),
+            scan_interval=folder_config.scan_interval,
         )
 
     def __attrs_post_init__(self):
         super(ScannerService, self).__init__()
+        if self._scan_interval is not None:
+            TimerService(
+                self._scan_interval,
+                self._loop,
+            ).setServiceParent(self)
+
 
     def stopService(self):
-        super(ScannerService, self).stopService()
-        self._cooperator.stop()
+        return super(ScannerService, self).stopService().addCallback(
+            lambda _: self._cooperator.stop()
+        )
 
     def scan_once(self):
         """
         Perform a scan for new files.
         """
         return self._scan()
+
+    def _loop(self):
+        """
+        Called periodically to scan for new files.
+
+        Performs a scan for files, and logs and consumes all errors.
+        """
+        return self._scan().addErrback(write_failure)
 
     @exclusively
     @inline_callbacks

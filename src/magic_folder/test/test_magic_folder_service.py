@@ -29,8 +29,10 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     binary,
-    just,
     integers,
+    just,
+    none,
+    one_of,
     sampled_from,
 )
 from testtools.matchers import (
@@ -135,6 +137,7 @@ class MagicFolderServiceTests(SyncTestCase):
             b"URI:DIR2:",
             b"URI:DIR2:",
             60,
+            None,
         )
 
         target_path = magic_path.preauthChild(relative_target_path)
@@ -199,6 +202,7 @@ class MagicFolderServiceTests(SyncTestCase):
             b"URI:DIR2:",
             b"URI:DIR2:",
             60,
+            None,
         )
 
         clock = task.Clock()
@@ -249,6 +253,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         just(LOCAL_AUTHOR),
         sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
+        one_of(integers(min_value=1, max_value=10000), none()),
         binary(),
     )
     def test_uploader_service(
@@ -258,6 +263,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             author,
             collective_cap_kind,
             poll_interval,
+            scan_interval,
             content,
     ):
         """
@@ -311,6 +317,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             collective_dircap,
             upload_dircap,
             poll_interval,
+            scan_interval,
         )
 
         magic_folder = MagicFolder.from_config(

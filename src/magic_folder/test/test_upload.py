@@ -57,6 +57,7 @@ from ..snapshot import (
 from ..magicpath import (
     path2magic,
 )
+from ..util.capabilities import is_immutable_directory_cap, to_verify_capability
 from ..util.file import PathState
 from twisted.internet import task
 
@@ -77,10 +78,6 @@ from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
 
-from allmydata.uri import (
-    is_uri,
-    from_string as uri_from_string,
-)
 
 class RemoteSnapshotCreatorTests(SyncTestCase):
     """
@@ -156,9 +153,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 mangled_name: [
                     u"dirnode", {
                         u"ro_uri": remote_snapshot_cap.decode("utf-8"),
-                        u"verify_uri": uri_from_string(
-                            remote_snapshot_cap
-                        ).get_verify_cap().to_string().decode("utf-8"),
+                        u"verify_uri": to_verify_capability(remote_snapshot_cap),
                         u"mutable": False,
                         u"format": u"CHK",
                     },
@@ -170,8 +165,10 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # test whether we got a capability
         self.assertThat(
             remote_snapshot_cap,
-            MatchesPredicate(is_uri,
-                             "%r is not a Tahoe-LAFS URI"),
+            MatchesPredicate(
+                is_immutable_directory_cap,
+                "%r is not a immuutable directory Tahoe-LAFS URI",
+            ),
         )
 
         with ExpectedException(KeyError, escape(repr(mangled_name))):
@@ -184,8 +181,9 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             min_size=1,
             max_size=2,
         ),
+        tahoe_lafs_dir_capabilities(),
     )
-    def test_write_snapshot_to_tahoe_fails(self, name, contents):
+    def test_write_snapshot_to_tahoe_fails(self, name, contents, upload_dircap):
         """
         If any part of a snapshot upload fails then the metadata for that snapshot
         is retained in the local database and the snapshot content is retained
@@ -197,7 +195,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             temp=FilePath(self.mktemp()),
             author=self.author,
             root=broken_root,
-            upload_dircap="URI:DIR2:foo:bar",
+            upload_dircap=upload_dircap,
         ))
         config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator

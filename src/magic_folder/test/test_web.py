@@ -278,6 +278,7 @@ def magic_folder_config(author_name, local_directory):
         u"magic-path": local_directory,
         u"author-name": author_name,
         u"poll-interval": 60,
+        u"scan-interval": None,
     }
 
 
@@ -340,6 +341,7 @@ class MagicFolderTests(SyncTestCase):
                 'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': None,
             })),
             succeeded(
                 matches_response(
@@ -380,6 +382,7 @@ class MagicFolderTests(SyncTestCase):
                 'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': None,
             })),
             succeeded(
                 matches_response(
@@ -421,6 +424,36 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+    def test_add_folder_illegal_scan_interval(self):
+        """
+        A request for **POST /v1/magic-folder** that has a negative
+        scan_interval fails with NOT ACCEPTABLE.
+        """
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, dumps({
+                    'name': 'valid',
+                    'author_name': 'author',
+                    'local_path': 'foo',
+                    'poll_interval': 60,
+                    'scan_interval': -123,
+                })
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("scan_interval must be positive integer or null"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     @given(
         dictionaries(
@@ -484,6 +517,7 @@ class MagicFolderTests(SyncTestCase):
                                 u"magic_path": config.magic_path.path,
                                 u"stash_path": config.stash_path.path,
                                 u"poll_interval": config.poll_interval,
+                                u"scan_interval": config.scan_interval,
                                 u"is_admin": config.is_admin(),
                             }
                             for name, config
@@ -1165,7 +1199,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be a directory-capability"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )
@@ -1214,7 +1248,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be read-only"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )
