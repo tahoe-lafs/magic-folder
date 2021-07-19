@@ -94,6 +94,8 @@ class MagicFolderEnabledNode(object):
 
     magic_folder_web_port = attr.ib()
 
+    _global_config = attr.ib(init=False, default=None)
+
     @property
     def node_directory(self):
         return join(self.base_dir, self.name)
@@ -103,7 +105,9 @@ class MagicFolderEnabledNode(object):
         return join(self.base_dir, "magic-daemon-{}".format(self.name))
 
     def global_config(self):
-        return load_global_configuration(FilePath(self.magic_config_directory))
+        if self._global_config is None:
+            self._global_config = load_global_configuration(FilePath(self.magic_config_directory))
+        return self._global_config
 
     @property
     def magic_directory(self):
@@ -278,6 +282,17 @@ class MagicFolderEnabledNode(object):
         """
         magic-folder leave
         """
+        if self._global_config is not None:
+            # If we've accessed the folder state database from the integration
+            # tests, make sure that the connection has been closed before we
+            # try to remove the database. This is necessary on windows,
+            # otherwise the state database can't be removed.
+            folder_config = self._global_config._folder_config_cache.pop(
+                folder_name, None
+            )
+            if folder_config is not None:
+                folder_config.database.close()
+
         return _magic_folder_runner(
             self.reactor, self.request, self.name,
             [
