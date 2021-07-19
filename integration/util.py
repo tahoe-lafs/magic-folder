@@ -668,7 +668,7 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
     )
 
 def _tahoe_runner_args(tahoe_venv, other_args):
-    tahoe_python = str(tahoe_venv.joinpath('bin', 'python'))
+    tahoe_python = str(tahoe_venv.python)
     args = [tahoe_python, '-m', 'allmydata.scripts.runner']
     args.extend(other_args)
     return tahoe_python, args

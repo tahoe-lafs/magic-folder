@@ -1,43 +1,29 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-import sys
 import subprocess
-from pathlib2 import Path
-from time import sleep
-from os import mkdir, listdir, environ
-from os.path import join, exists
+import sys
 from configparser import ConfigParser
+from os import environ, listdir, mkdir
+from os.path import exists, join
+from time import sleep
 
-from foolscap.furl import (
-    decode_furl,
-)
-
-from eliot import (
-    to_file,
-    log_call,
-    start_task,
-)
-
-from twisted.internet.error import (
-    ProcessTerminated,
-)
+import attr
 from twisted.python.filepath import FilePath
-
 import pytest
 import pytest_twisted
+from eliot import log_call, start_task, to_file
+from foolscap.furl import decode_furl
+from pathlib2 import Path
+from twisted.internet.error import ProcessTerminated
 
 from .util import (
+    MagicFolderEnabledNode,
     _CollectOutputProtocol,
     _DumpOutputProtocol,
+    _generate_invite,
+    _pair_magic_folder,
     _ProcessExitedProtocol,
     _tahoe_runner,
-    _pair_magic_folder,
-    _generate_invite,
-    MagicFolderEnabledNode,
     run_service,
     run_tahoe_service,
 )
@@ -116,6 +102,43 @@ def temp_filepath(tmp_path):
     return FilePath(str(tmp_path))
 
 
+@attr.s
+class VirtualEnv(object):
+    """
+    A python virtual environemnt.
+
+    :ivar Path base_dir: The base directory of the virtualenv.
+    """
+
+    base_dir = attr.ib(validator=attr.validators.instance_of(Path))
+
+    @property
+    def bin_dir(self):
+        """
+        The directory containing executables of the virtual environment.
+        """
+        if sys.platform == 'win32':
+            return self.base_dir.joinpath("Scripts")
+        else:
+            return self.base_dir.joinpath("bin")
+
+    def bin(self, executable):
+        """
+        Returns the path to the named executable from the virtual environment.
+        """
+        return self.bin_dir.joinpath(executable)
+
+    @property
+    def python(self):
+        """
+        The python executable of the virtualenv.
+        """
+        if sys.platform == 'win32':
+            return self.bin("python.exe")
+        else:
+            return self.bin("python")
+
+
 # NB: conceptually, it kind of makes sense to parametrize this fixture
 # on "Tahoe version" .. a quick attempt at that lead to all but the
 # first version failing; I think something doesn't get cleaned-up
@@ -151,12 +174,12 @@ def tahoe_venv(request, reactor):
 
     venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
 
-    return Path(venv_dir)
+    return VirtualEnv(Path(venv_dir))
 
 
 @pytest.fixture(scope='session')
 def flog_binary(tahoe_venv):
-    return str(tahoe_venv.joinpath("bin", "flogtool"))
+    return str(tahoe_venv.bin("flogtool"))
 
 
 @pytest.fixture(scope='session')
@@ -180,7 +203,7 @@ def flog_gatherer(reactor, base_dir, tahoe_venv, flog_binary, request):
         pytest_twisted.blockon(out_protocol.done)
 
         magic_text = "Gatherer waiting at"
-        executable = str(tahoe_venv.joinpath('bin', 'twistd'))
+        executable = str(tahoe_venv.bin('twistd'))
         args = (
             'twistd', '--nodaemon', '--python',
             join(gather_dir, 'gatherer.tac'),
