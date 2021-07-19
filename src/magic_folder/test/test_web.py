@@ -1198,7 +1198,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be a directory-capability"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )
@@ -1247,7 +1247,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be read-only"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )

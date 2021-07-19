@@ -78,10 +78,6 @@ from zope.interface import (
     Interface,
 )
 
-from allmydata.uri import (
-    from_string as tahoe_uri_from_string,
-)
-
 from .snapshot import (
     LocalAuthor,
     LocalSnapshot,
@@ -106,6 +102,7 @@ from eliot import (
     Field,
 )
 
+from .util.capabilities import is_readonly_directory_cap
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -1223,10 +1220,7 @@ class MagicFolderConfig(object):
             if the collective capability we have is mutable.
         """
         # check if this folder has a writable collective dircap
-        collective_dmd = tahoe_uri_from_string(
-            self.collective_dircap.encode("utf8")
-        )
-        return not collective_dmd.is_readonly()
+        return not is_readonly_directory_cap(self.collective_dircap)
 
 
 class ITokenProvider(Interface):
