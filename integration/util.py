@@ -7,6 +7,7 @@ from __future__ import (
 import sys
 import time
 import json
+import os
 import signal
 from os import mkdir
 from io import BytesIO
@@ -498,6 +499,8 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
 
         process = reactor.spawnProcess(
             protocol,
@@ -507,6 +510,7 @@ def run_service(
             # Twisted on Windows doesn't support customizing FDs
             # _MagicTextProtocol will collect eliot logs from FD 3 and stderr.
             childFDs={1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
+            env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
         return protocol.magic_seen.addCallback(lambda ignored: process)
