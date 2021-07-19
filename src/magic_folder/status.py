@@ -157,6 +157,34 @@ def _create_blank_folder_state():
 
 
 @attr.s
+class PublicError(object):
+    """
+    Description of an error that is permissable to show to a UI.
+
+    Such an error MUST NOT reveal any secret information, which
+    includes at least: any capability-string or any fURL.
+
+    The langauge used in the error should be plain and simple,
+    avoiding jargon and technical details (except where immediately
+    relevant). This is used by the IStatus API.
+    """
+    timestamp = attr.ib(validator=attr.validators.instance_of(float))
+    summary = attr.ib(validator=attr.validators.instance_of(unicode))
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "timestamp": int(self.timestamp),
+            "summary": self.summary,
+        }
+
+    def __str__(self):
+        return self.summary
+
+
+@attr.s
 @implementer(service.IService)
 @implementer(IStatus)
 class WebSocketStatusService(service.Service):
@@ -231,7 +259,10 @@ class WebSocketStatusService(service.Service):
             return {
                 "uploads": self._folders.get(name, {}).get("uploads", {}),
                 "downloads": self._folders.get(name, {}).get("downloads", {}),
-                "errors": self._folders.get(name, {}).get("errors", []),
+                "errors": [
+                    err.to_json()
+                    for err in self._folders.get(name, {}).get("errors", [])
+                ],
                 "recent": most_recent,
             }
 
@@ -264,14 +295,21 @@ class WebSocketStatusService(service.Service):
 
     # IStatus API
 
-    def error_occurred(self, folder, err):
+    def error_occurred(self, folder, message):
         """
         IStatus API
 
         :param unicode folder: the folder this error pertains to
-        :param PublicError err: the actual error
+
+        :param unicode message: a message suitable for an end-user to
+            read that describes the error. Such a message MUST NOT
+            include any secrects such as Tahoe capabilities.
         """
-        self._folders[folder]["errors"].insert(0, err.to_json())
+        err = PublicError(
+            seconds_to_ns(self._clock.seconds()),
+            message,
+        )
+        self._folders[folder]["errors"].insert(0, err)
         self._folders[folder]["errors"] = self._folders[folder]["errors"][:self.max_errors]
         self._maybe_update_clients()
 
