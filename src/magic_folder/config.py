@@ -735,6 +735,7 @@ class MagicFolderConfig(object):
     """
     name = attr.ib()
     database = attr.ib()  # sqlite3 Connection
+    _get_current_timestamp = attr.ib(default=time.time)
 
     @classmethod
     def initialize(
@@ -1004,7 +1005,7 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
-        now_ns = seconds_to_ns(time.time())
+        now_ns = seconds_to_ns(self._get_current_timestamp())
         with action:
             cursor.execute(
                 """
@@ -1037,7 +1038,7 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
-        now_ns = seconds_to_ns(time.time())
+        now_ns = seconds_to_ns(self._get_current_timestamp())
         with action:
             try:
                 cursor.execute(
@@ -1066,7 +1067,7 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
-        now_ns = seconds_to_ns(time.time())
+        now_ns = seconds_to_ns(self._get_current_timestamp())
         with action:
             try:
                 cursor.execute(
