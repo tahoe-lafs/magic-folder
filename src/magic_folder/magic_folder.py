@@ -124,6 +124,7 @@ class MagicFolder(service.MultiService):
                 status=status_service,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(
+                    reactor,
                     LocalMagicFolderFilesystem(
                         mf_config.magic_path,
                         mf_config.stash_path,

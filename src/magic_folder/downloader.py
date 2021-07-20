@@ -44,6 +44,9 @@ from twisted.internet.defer import (
     returnValue,
     succeed,
 )
+from twisted.internet.interfaces import (
+    IReactorTime,
+)
 
 from .config import (
     MagicFolderConfig,
@@ -265,6 +268,7 @@ class MagicFolderUpdater(object):
     "Relevant" here means all parents unless we find a common
     ancestor.
     """
+    _clock = attr.ib(validator=provides(IReactorTime))
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
@@ -369,7 +373,15 @@ class MagicFolderUpdater(object):
                     name=snapshot.name,
                     capability=snapshot.capability,
                 ):
-                    staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+                    try:
+                        staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
+                    except Exception:
+                        self._status.error_occurred(
+                            self._config.name,
+                            "Failed to download snapshot for '{}'.".format(relpath)
+                        )
+                        raise
+
             finally:
                 self._status.download_finished(self._config.name, relpath)
 
@@ -401,9 +413,14 @@ class MagicFolderUpdater(object):
                     self._magic_fs.mark_conflict(snapshot, staged)
                     # FIXME note conflict internally
                 else:
-                    # FIXME: This should take the path and mtime as arguments,
-                    # instead of the snapshot argument
-                    path_state = self._magic_fs.mark_overwrite(snapshot, staged)
+                    try:
+                        path_state = self._magic_fs.mark_overwrite(snapshot, staged)
+                    except OSError as e:
+                        self._status.error_occurred(
+                            self._config.name,
+                            "Failed to overwrite file '{}': {}".format(relpath, str(e))
+                        )
+                        raise
 
                     # Note, if we crash here (after moving the file into place
                     # but before noting that in our database) then we could
@@ -625,22 +642,16 @@ class DownloaderService(service.MultiService):
         service.MultiService.__init__(self)
         self._scanner = internet.TimerService(
             self._config.poll_interval,
-            # FIXME: we need to somehow catch errors here so we don't stop syncing
-            # we could choose let unexepected errors here stop syncing, but
-            # we'd need a way to be able to restart syncing
             self._loop,
         )
         self._scanner.setServiceParent(self)
 
+    @inline_callbacks
     def _loop(self):
-        d = self._scan_collective()
-
-        def eb(failure):
-            # in some cases, might want to surface elsewhere
-            print(failure)
-
-        d.addErrback(eb)
-        return d
+        try:
+            yield self._scan_collective()
+        except Exception as e:
+            print(e)
 
     @inline_callbacks
     def _scan_collective(self):
