@@ -56,15 +56,16 @@ from testtools.twistedsupport import (
 )
 
 from twisted.web.http import (
-    OK,
-    CREATED,
-    UNAUTHORIZED,
-    NOT_IMPLEMENTED,
-    NOT_ALLOWED,
-    NOT_ACCEPTABLE,
-    NOT_FOUND,
     BAD_REQUEST,
+    CONFLICT,
+    CREATED,
     INTERNAL_SERVER_ERROR,
+    NOT_ACCEPTABLE,
+    NOT_ALLOWED,
+    NOT_FOUND,
+    NOT_IMPLEMENTED,
+    OK,
+    UNAUTHORIZED,
 )
 from twisted.internet.task import Clock
 from twisted.web.resource import (
@@ -76,6 +77,7 @@ from twisted.web.static import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python import runtime
 
 from nacl.encoding import (
     Base32Encoder,
@@ -271,14 +273,15 @@ def treq_for_folders(
     ).http_client
 
 
-def magic_folder_config(author_name, local_directory):
+def magic_folder_config(author_name, local_directory, admin=True):
     # see also treq_for_folders() where these dicts are turned into
     # real magic-folder configs
     return {
-        u"magic-path": local_directory,
-        u"author-name": author_name,
-        u"poll-interval": 60,
-        u"scan-interval": None,
+        "magic-path": local_directory,
+        "author-name": author_name,
+        "poll-interval": 60,
+        "scan-interval": None,
+        "admin": admin,
     }
 
 
@@ -528,6 +531,280 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+
+class MagicFolderInstanceTests(SyncTestCase):
+    """
+    Tests for ``/v1/magic-folder/<folder-name>``.
+    """
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
+
+    def setUp(self):
+        super(MagicFolderInstanceTests, self).setUp()
+        self.author_name = "alice"
+
+    @given(
+        sampled_from([b"GET", b"POST", b"PUT", b"PATCH", b"OPTIONS"]), folder_names()
+    )
+    def test_method_not_allowed(self, method, folder_name):
+        """
+        A request to **/v1/magic-folder/<folder-name>** with a method other than **DELETE**
+        receives a NOT ALLOWED or NOT IMPLEMENTED response.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                method,
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(NOT_ALLOWED),
+                        Equals(NOT_IMPLEMENTED),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+            },
+            False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({}),
+                    ),
+                ),
+            ),
+        )
+
+    # Note: It may be possible to get this test to fail on windows, using a different
+    # means of causing the cleanup to fail
+    @skipIf(runtime.platformType == "win32", "windows does not have unix-like permissions")
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_cant_cleanup(self, folder_name):
+
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** fails, if
+        we can't delete the state or stash directories.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        basedir = FilePath(self.mktemp())
+        node = MagicFolderNode.create(
+            Clock(),
+            basedir,
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+            },
+            False,
+        )
+
+        # Make the magic-folder config directory readonly (and restore it after
+        # the test) so that removing the folder state directory fails.
+        # Note that we use an in-memory global config database, otherwise
+        # this would also cause write to it to fail.
+        basedir.chmod(0o500)
+        self.addCleanup(basedir.chmod, 0o700)
+
+        folder_service = node.global_service.get_folder_service(folder_name)
+        folder_config_dir = folder_service.config.stash_path.parent()
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Contains(
+                                    "Problems while removing state directories"
+                                ),
+                                "details": MatchesDict(
+                                    {
+                                        folder_config_dir.path: Contains(
+                                            "Permission denied"
+                                        )
+                                    }
+                                ),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_admin(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(CONFLICT),
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({"reason": Contains("holds a write capability")}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_admin_really(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                dumps(
+                    {
+                        "really-delete-write-capability": True,
+                    }
+                ),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(OK),
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_not_existing(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** with a non-existant
+        magic-folder fails with NOT FOUND.
+        """
+        basedir = FilePath(self.mktemp())
+        node = MagicFolderNode.create(
+            Clock(),
+            basedir,
+            AUTH_TOKEN,
+            {},
+            False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("No such magic-folder"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
 
 
 class RedirectTests(SyncTestCase):
@@ -879,6 +1156,12 @@ class CreateSnapshotTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
                 ),
             )
         )
@@ -915,6 +1198,12 @@ class ParticipantsTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
                 ),
             )
         )

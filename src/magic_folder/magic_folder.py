@@ -151,7 +151,7 @@ class MagicFolder(service.MultiService):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
-        self._config = config  # a MagicFolderConfig instance
+        self.config = config  # a MagicFolderConfig instance
         self._participants = initial_participants
         self.local_snapshot_service = local_snapshot_service
         self.uploader_service = uploader_service

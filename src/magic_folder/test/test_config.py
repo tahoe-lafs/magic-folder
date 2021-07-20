@@ -68,7 +68,7 @@ from .strategies import (
     folder_names,
     path_states,
 )
-from ..common import InvalidMagicFolderName, APIError
+from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
 from ..config import (
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
@@ -395,12 +395,44 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             Equals(config._get_state_path(name).child(u"stash")),
         )
 
+    def test_folder_cache(self):
+        """
+        After calling `remove_magic_folder`, `get_magic_folder` raises `NoSuchMagicFolder`
+        even if there is a live reference to the previous `MagicFolderConfig` instance.
+        """
+        config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
+        name = u"foo"
+        alice = create_local_author(u"alice")
+        magic = self.temp.child("magic")
+        magic.makedirs()
+        config.create_magic_folder(
+            name,
+            magic,
+            alice,
+            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
+            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            60,
+            None,
+        )
+
+        # We grab a reference to the `MagicFolderConfig` so that the cache
+        # doesn't get cleaned up by the object being collected. This simulates
+        # the case of MagicFolder having circular references and pointers to
+        # the MagicFolderConfig.
+        folder_config = config.get_magic_folder(name)
+
+        config.remove_magic_folder(name)
+        with self.assertRaises(NoSuchMagicFolder):
+            config.get_magic_folder(name)
+
+        del folder_config
+
     def test_get_folder_nonexistent(self):
         """
         an error to retrieve a non-existent folder
         """
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
-        with ExpectedException(ValueError):
+        with ExpectedException(NoSuchMagicFolder):
             config.get_magic_folder(u"non-existent")
 
     @given(
