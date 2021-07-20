@@ -5,7 +5,6 @@ import sys
 from configparser import ConfigParser
 from os import environ, listdir, mkdir
 from os.path import exists, join
-from time import sleep
 
 import attr
 from twisted.python.filepath import FilePath
@@ -26,6 +25,7 @@ from .util import (
     _tahoe_runner,
     run_service,
     run_tahoe_service,
+    sleep,
 )
 
 

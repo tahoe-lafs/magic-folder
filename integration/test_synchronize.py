@@ -22,6 +22,7 @@ from magic_folder.util.capabilities import (
 from .util import (
     await_file_contents,
     ensure_file_not_created,
+    twisted_sleep,
 )
 
 
@@ -52,8 +53,9 @@ def periodic_scan(node, folder_name, path):
 
     :param MagicFolderEnabledNode node: The node on which to do the scan.
     """
+    from twisted.internet import reactor
     Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
-    time.sleep(1)
+    return twisted_sleep(reactor, 1)
 
 @pytest.fixture(name='periodic_scan')
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):
@@ -114,7 +116,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
     # wait until we've definitely uploaded it
     for _ in range(10):
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
         try:
             former_remote = local_cfg.get_remotesnapshot("sylvester")
             break
@@ -162,7 +164,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
             if local_cfg.get_remotesnapshot("sylvester") != former_remote:
                 found = True
                 break
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
     assert found, "Expected 'sylvester' to be (only) a remote-snapshot"
 
 
@@ -226,7 +228,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
@@ -240,7 +242,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     yield take_snapshot(alice, "original", "sylvester")
 
     # the new content should appear in the 'recovery' folder
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content2,
     )
@@ -281,7 +283,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
@@ -300,7 +302,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
@@ -341,7 +343,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'ancestor1' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
@@ -352,12 +354,12 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
     recover_folder.child("sylvester").setContent(content1)
     yield take_snapshot(bob, "ancestor1", "sylvester")
 
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
     )
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
         timeout=25,
     )
@@ -369,7 +371,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     # Since we made local changes to the file, a change to alice
     # shouldn't overwrite our changes
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
@@ -399,7 +401,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "original", "sylvester")
 
-    time.sleep(5)
+    yield twisted_sleep(reactor, 5)
     yield alice.stop_magic_folder()
 
     # create the 'recovery' magic-folder
@@ -419,7 +421,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
@@ -432,12 +434,12 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
 
     # We shouldn't see this show up as a conflict, since we are newer than
     # alice
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
         timeout=25,
     )
 
-    time.sleep(5)
+    yield twisted_sleep(reactor, 5)
     yield bob.stop_magic_folder()
 
     # create the second 'recovery' magic-folder
@@ -452,7 +454,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
     yield edmond.add_participant("recovery-2", "bob", bob_cap)
 
-    await_file_contents(
+    yield await_file_contents(
         recover2_folder.child("sylvester").path,
         content1,
         timeout=25,

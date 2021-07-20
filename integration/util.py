@@ -42,7 +42,6 @@ from eliot import (
     current_action,
     start_action,
     start_task,
-    log_call,
 )
 from eliot.twisted import (
     inline_callbacks,
@@ -64,6 +63,7 @@ from magic_folder.cli import (
 from magic_folder.config import (
     load_global_configuration,
 )
+from magic_folder.util.eliotutil import log_inline_callbacks
 
 
 @attr.s
@@ -864,17 +864,20 @@ class FileShouldVanishException(Exception):
 
 
 
-@log_call(action_type=u"integration:await-file-contents", include_args=["path", "contents", "timeout"])
+@log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
 def await_file_contents(path, contents, timeout=15):
     """
-    wait up to `timeout` seconds for the file at `path` (any path-like
-    object) to have the exact content `contents`.
+    Return a deferred that fires when the file at `path` (any path-like
+    object) has the exact content `contents`.
 
-    :param error_if: if specified, a list of additional paths; if any
-        of these paths appear an Exception is raised.
+    :raises ExpectedFileMismatchException: if the path doesn't have the
+        expected content after the timeout.
+    :raises ExpectedFileUnfoundException: if the path doesn't exist after the
+        the timeout.
     """
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             try:
@@ -884,7 +887,7 @@ def await_file_contents(path, contents, timeout=15):
                 print("IOError; trying again")
             else:
                 if current == contents:
-                    return True
+                    return
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
                 if len(contents) < 80:
@@ -898,18 +901,26 @@ def await_file_contents(path, contents, timeout=15):
             Message.log(
                 message_type=u"integration:await-file-contents:missing",
             )
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
 
+@inline_callbacks
 def ensure_file_not_created(path, timeout=15):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    """
+    Returns a deferred that fires after the given timeout, if the file has not
+    appeared.
+
+    :raises UnwantedFileException: if the file appears before the timeout.
+    """
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             raise UnwantedFileException(path)
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
 
 
 def await_files_exist(paths, timeout=15, await_all=False):
@@ -929,7 +940,7 @@ def await_files_exist(paths, timeout=15, await_all=False):
         else:
             if len(found) > 0:
                 return found
-        time.sleep(1)
+        sleep(1)
     if await_all:
         nice_paths = ' and '.join(paths)
     else:
@@ -943,7 +954,7 @@ def await_file_vanishes(path, timeout=10):
         print("  waiting for '{}' to vanish".format(path))
         if not exists(path):
             return
-        time.sleep(1)
+        sleep(1)
     raise FileShouldVanishException(path, timeout)
 
 
@@ -984,7 +995,21 @@ def web_get(tahoe, uri_fragment, **kwargs):
 
 
 def twisted_sleep(reactor, timeout):
+    """
+    Return a deferred that fires after the given time.
+    """
     return deferLater(reactor, timeout, lambda: None)
+
+
+def sleep(timeout):
+    """
+    Sleep for the given amount of time, letting the pytest-twisted reactor run.
+
+    This can only be called from the main pytest greenlet, not from the reactor
+    greenlet.
+    """
+    from twisted.internet import reactor as _reactor
+    pytest_twisted.blockon(twisted_sleep(_reactor, timeout))
 
 
 @inline_callbacks
