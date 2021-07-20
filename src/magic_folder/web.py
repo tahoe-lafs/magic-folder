@@ -446,9 +446,10 @@ class APIv1(object):
             {
                 "relpath": magic2path(name),
                 "mtime": ns_to_seconds(ps.mtime_ns),
+                "last-updated": ns_to_seconds(last_updated_ns),
                 "size": ps.size,
             }
-            for name, ps
+            for name, ps, last_updated_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
 
