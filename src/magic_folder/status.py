@@ -201,8 +201,14 @@ class WebSocketStatusService(service.Service):
 
         def folder_data_for(name):
             most_recent = [
-                {relpath: {"updated": timestamp}}
-                for relpath, timestamp in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+                {
+                    relpath: {
+                        "modified": timestamp,
+                        "last-updated": last_updated,
+                    }
+                }
+                for relpath, timestamp, last_updated
+                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
             ]
             return {
                 "uploads": self._folders.get(name, {}).get("uploads", {}),

@@ -1474,6 +1474,7 @@ class FileStatusTests(SyncTestCase):
                                 "mtime": 1,
                                 "size": 123,
                                 "relpath": "foo",
+                                "last-updated": 1,
                             },
                         ]),
                     )

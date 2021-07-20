@@ -729,7 +729,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             self.db.get_all_current_snapshot_pathstates(),
             AfterPreprocessing(
-                lambda statuses: set(name for name, ps in statuses),
+                lambda statuses: set(name for name, ps, last_updated in statuses),
                 Equals(set(paths)),
             )
         )
@@ -782,8 +782,11 @@ class RemoteSnapshotTimeTests(SyncTestCase):
 
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),
-            Equals([
-                ("foo_{}".format(x), x)
-                for x in range(34, 4, -1)  # newest to oldest
-            ])
+            AfterPreprocessing(
+                lambda data: [t[:2] for t in data],
+                Equals([
+                    ("foo_{}".format(x), x)
+                    for x in range(34, 4, -1)  # newest to oldest
+                ])
+            )
         )

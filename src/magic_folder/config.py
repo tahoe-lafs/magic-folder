@@ -27,6 +27,7 @@ from base64 import (
     urlsafe_b64encode,
 )
 import hashlib
+import time
 
 from hyperlink import (
     DecodedURL,
@@ -110,6 +111,7 @@ from .util.eliotutil import (
 from .util.file import (
     PathState,
     ns_to_seconds,
+    seconds_to_ns,
 )
 
 _global_config_schema = Schema([
@@ -214,16 +216,17 @@ _magicfolder_config_schema = Schema([
         )
         """,
         """
-        -- This table represents the current of the file on disk, as last known to us
+        -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]          TEXT PRIMARY KEY, -- mangled name in UTF-8
-            [snapshot_cap]  TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
-                                              -- associated with this file, either as downloaded from a peer
-                                              -- or uploaded from local changes
-            [mtime_ns]      INTEGER NOT NULL, -- ctime of current snapshot
-            [ctime_ns]      INTEGER NOT NULL, -- mtime of current snapshot
-            [size]          INTEGER NOT NULL  -- size of current snapshot
+            [name]             TEXT PRIMARY KEY, -- mangled name in UTF-8
+            [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
+                                                 -- associated with this file, either as downloaded from a peer
+                                                 -- or uploaded from local changes
+            [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
+            [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
+            [size]             INTEGER NOT NULL, -- size of current snapshot
+            [last_updated_ns]  INTEGER NOT NULL  -- timestamp when last changed
         )
         """,
     ]),
@@ -1001,10 +1004,18 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
+        now_ns = seconds_to_ns(time.time())
         with action:
             cursor.execute(
-                "UPDATE current_snapshots" " SET snapshot_cap=?" " WHERE [name]=?",
-                (snapshot_cap, name),
+                """
+                UPDATE
+                    current_snapshots
+                SET
+                    snapshot_cap=?, last_updated_ns=?
+                WHERE
+                    [name]=?
+                """,
+                (snapshot_cap, now_ns, name),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1026,20 +1037,21 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
+        now_ns = seconds_to_ns(time.time())
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size)"
-                    " VALUES (?,?,?,?,?)",
-                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
                     "UPDATE current_snapshots"
-                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?"
+                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
                     " WHERE [name]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1054,20 +1066,21 @@ class MagicFolderConfig(object):
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=name,
         )
+        now_ns = seconds_to_ns(time.time())
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size)"
-                    " VALUES (?,?,?,?)",
-                    (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size),
+                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size, last_updated_ns)"
+                    " VALUES (?,?,?,?,?)",
+                    (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
                     "UPDATE current_snapshots"
-                    " SET mtime_ns=?, ctime_ns=?, size=?"
+                    " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
                     " WHERE [name]=?",
-                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, name),
+                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1087,12 +1100,12 @@ class MagicFolderConfig(object):
         Retrieve a set of the ``n`` most-recent relpaths of files that
         have a remote representation.
 
-        :returns: a list of 2-tuples (relpath, unix-timestamp)
+        :returns: a list of 3-tuples (relpath, unix-timestamp, last-updated)
         """
         cursor.execute(
             """
             SELECT
-                name, mtime_ns
+                name, mtime_ns, last_updated_ns
             FROM
                 [current_snapshots]
             ORDER BY
@@ -1102,7 +1115,7 @@ class MagicFolderConfig(object):
             """
         )
         rows = cursor.fetchall()
-        return [(r[0], ns_to_seconds(r[1])) for r in rows]
+        return [(r[0], ns_to_seconds(r[1]), ns_to_seconds(r[2])) for r in rows]
 
     @with_cursor
     def get_remotesnapshot(self, cursor, name):
@@ -1161,17 +1174,17 @@ class MagicFolderConfig(object):
         'current_snapshot' table.
 
         :returns Iterable[(unicode, PathState)]: an iterable of
-            2-tuples of (name, PathState instance), one for each file
-            (ordered by timestamp)
+            3-tuples of (name, PathState instance, last-update), one for each file
+            (ordered by last-updated timestamp)
         """
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, ctime_ns, size
+                name, mtime_ns, ctime_ns, size, last_updated_ns
             FROM
                 current_snapshots
             ORDER BY
-                mtime_ns DESC
+                last_updated_ns DESC
             """,
         )
 
@@ -1179,6 +1192,7 @@ class MagicFolderConfig(object):
             (
                 row[0],  # name
                 PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
+                ns_to_seconds(row[4]),  # last_updated_ns
             )
             for row in cursor.fetchall()
         ]
