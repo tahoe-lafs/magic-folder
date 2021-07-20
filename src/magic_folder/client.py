@@ -75,33 +75,41 @@ class MagicFolderApiError(ClientError):
     A Magic Folder HTTP API returned a failure code.
     """
     code = attr.ib()
+    reason = attr.ib()
     body = attr.ib()
 
+    @property
+    def reason(self):
+        return self.body.get("reason")
+
     def __repr__(self):
-        return "<MagicFolderApiError code={} body={!r}>".format(
+        return "<MagicFolderApiError code={} reason={!r} body={!r}>".format(
             self.code,
+            self.reason,
             self.body,
         )
 
     def __str__(self):
-        return u"Magic Folder HTTP API reported error {}: {}".format(
+        extra_fields = {k: v for (k, v) in self.body.items() if k != "reason"}
+        return u"Magic Folder HTTP API reported error {}: {}{}".format(
             self.code,
-            self.body,
+            self.reason,
+            " ({})".format(extra_fields) if extra_fields else "",
         )
 
 
 @inlineCallbacks
-def _get_content_check_code(acceptable_codes, res):
+def _get_json_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
     body.
 
     :raise MagicFolderApiError: If the response code is not acceptable.
 
-    :return Deferred[bytes]: If the response code is acceptable, a Deferred
-        which fires with the response body.
+    :return Deferred[Any]: If the response code is acceptable, a Deferred
+        which fires with the parsed response body.
     """
-    body = yield res.content()
+    body = yield res.json()
     if res.code not in acceptable_codes:
         raise MagicFolderApiError(res.code, body)
     returnValue(body)
@@ -160,6 +168,20 @@ class MagicFolderClient(object):
             'scan_interval': scan_interval,
         }, ensure_ascii=False).encode('utf-8'))
 
+    def leave_folder(self, magic_folder, really_delete_write_capability):
+        # type: (unicode, bool) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder)
+        return self._authorized_request(
+            "DELETE",
+            api_url,
+            body=json.dumps(
+                {
+                    "really-delete-write-capability": really_delete_write_capability,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
     @inlineCallbacks
     def _authorized_request(self, method, url, body=b""):
         """
@@ -181,9 +203,8 @@ class MagicFolderClient(object):
                 "Can't reach the magic folder daemon at all"
             )
 
-        body = yield _get_content_check_code([http.OK, http.CREATED], response)
-        # all responses should contain JSON
-        returnValue(json.loads(body))
+        body = yield _get_json_check_code([http.OK, http.CREATED], response)
+        returnValue(body)
 
 
 @implementer(IAgentEndpointFactory)

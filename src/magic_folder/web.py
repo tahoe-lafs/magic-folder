@@ -23,6 +23,7 @@ from autobahn.twisted.resource import (
 )
 
 from eliot import write_failure
+from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
     InsecurePath, FilePath,
@@ -33,9 +34,6 @@ from twisted.internet.defer import (
 )
 from twisted.application.internet import (
     StreamServerEndpointService,
-)
-from twisted.web.resource import (
-    NoResource,
 )
 from twisted.web.server import (
     Site,
@@ -181,7 +179,7 @@ class APIv1(object):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
-        return json.dumps({"reason": exc.reason})
+        return json.dumps(exc.to_json())
 
     @app.handle_errors(RequestRedirect)
     def handle_redirect(self, request, failure):
@@ -257,6 +255,24 @@ class APIv1(object):
         _application_json(request)
         returnValue(b"{}")
 
+    @app.route("/magic-folder/<string:folder_name>", methods=["DELETE"])
+    @inline_callbacks
+    def leave_magic_folder(self, request, folder_name):
+        """
+        Leave a new magic folder.
+        """
+        body = request.content.read()
+        data = _load_json(body)
+
+        yield self._global_service.leave_folder(
+            folder_name,
+            really_delete_write_capability=data.get(
+                "really-delete-write-capability", False
+            ),
+        )
+
+        _application_json(request)
+        returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inlineCallbacks
@@ -264,10 +280,7 @@ class APIv1(object):
         """
         List all participants of this folder
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_config = self._global_config.get_magic_folder(folder_name)
 
         collective = participants_from_collective(
             folder_config.collective_dircap,
@@ -294,10 +307,7 @@ class APIv1(object):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_config = self._global_config.get_magic_folder(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -357,11 +367,8 @@ class APIv1(object):
         """
         Create a new Snapshot
         """
-        try:
-            folder_config = self._global_config.get_magic_folder(folder_name)
-            folder_service = self._global_service.get_folder_service(folder_name)
-        except ValueError:
-            returnValue(NoResource(b"{}"))
+        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_config = folder_service.config
 
         path_u = request.args[b"path"][0].decode("utf-8")
 

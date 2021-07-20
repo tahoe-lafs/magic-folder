@@ -218,6 +218,8 @@ class MagicFolderEnabledNode(object):
 
     @inline_callbacks
     def start_magic_folder(self):
+        if self.magic_folder is not None:
+            return
         # We log a notice that we are starting the service in the context of the test
         # but the logs of the service are in the context of the fixture.
         Message.log(message_type=u"integation:magic-folder:start", node=self.name)
@@ -273,7 +275,7 @@ class MagicFolderEnabledNode(object):
 
     def leave(self, folder_name):
         """
-        magic-folder add
+        magic-folder leave
         """
         return _magic_folder_runner(
             self.reactor, self.request, self.name,
@@ -473,7 +475,7 @@ def run_service(
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    with start_action(args=args, executable=executable, **action_fields).context():
+    with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
         process = reactor.spawnProcess(
             protocol,
@@ -482,7 +484,7 @@ def run_service(
             path=cwd,
             childFDs={1: 'r', 2: 'r', 3: 'r'},
         )
-        request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited))
+        request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
         return protocol.magic_seen.addCallback(lambda ignored: process)
 
 def run_tahoe_service(
@@ -566,7 +568,7 @@ class _MagicTextProtocol(ProcessProtocol):
             sys.stdout.write(data)
 
 
-def _cleanup_service_process(process, exited):
+def _cleanup_service_process(process, exited, action):
     """
     Terminate the given process with a kill signal (SIGKILL on POSIX,
     TerminateProcess on Windows).
@@ -577,11 +579,15 @@ def _cleanup_service_process(process, exited):
     :return: After the process has exited.
     """
     try:
-        print("signaling {} with TERM".format(process.pid))
-        process.signalProcess('TERM')
-        print("signaled, blocking on exit")
-        pytest_twisted.blockon(exited)
-        print("exited, goodbye")
+        with action.context():
+            def report(m):
+                Message.log(message_type="integration:cleanup", message=m)
+                print(m)
+            report("signaling {} with TERM".format(process.pid))
+            process.signalProcess('TERM')
+            report("signaled, blocking on exit")
+            pytest_twisted.blockon(exited)
+            report("exited, goodbye")
     except ProcessExitedAlready:
         pass
 
