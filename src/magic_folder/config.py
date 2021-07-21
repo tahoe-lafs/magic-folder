@@ -1216,6 +1216,9 @@ class MagicFolderConfig(object):
     @collective_dircap.setter
     @with_cursor
     def collective_dircap(self, cursor, dircap):
+        """
+        This is for use by tests that need a non-admin collective.
+        """
         if not is_directory_cap(dircap):
             raise AssertionError(
                 "Collective dirnode was {!r}, must be a directory node.".format(
