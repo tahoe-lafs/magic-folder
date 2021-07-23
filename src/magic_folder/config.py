@@ -1195,7 +1195,7 @@ class MagicFolderConfig(object):
             (
                 row[0],  # name
                 PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
-                ns_to_seconds(row[4]),  # last_updated_ns
+                row[4],  # last_updated_ns
             )
             for row in cursor.fetchall()
         ]

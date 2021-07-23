@@ -1741,6 +1741,7 @@ class FileStatusTests(SyncTestCase):
             start_folder_services=False,
         )
         mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
             "foo",
             PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
@@ -1764,7 +1765,7 @@ class FileStatusTests(SyncTestCase):
                                 "mtime": 1,
                                 "size": 123,
                                 "relpath": "foo",
-                                "last-updated": 1,
+                                "last-updated": 42,
                             },
                         ]),
                     )

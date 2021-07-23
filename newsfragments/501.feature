@@ -1,1 +1,1 @@
-Include "last-updated" time in file-status endpoint.
+Include "last-updated" time in file-status endpoint
