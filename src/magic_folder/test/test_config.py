@@ -743,7 +743,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         )
 
     @given(
-        lists(path_segments(), min_size=1),
+        lists(path_segments(), min_size=1, unique=True),
         lists(path_states(), min_size=1),
     )
     def test_all_path_status(self, paths, path_states):
@@ -755,15 +755,16 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         paths = paths[:size]
         path_states = path_states[:size]
 
+        self.db._get_current_timestamp = lambda: 1234
         for p, ps in zip(paths, path_states):
             self.db.store_currentsnapshot_state(p, ps)
 
         self.assertThat(
             self.db.get_all_current_snapshot_pathstates(),
-            AfterPreprocessing(
-                lambda statuses: set(name for name, ps, last_updated in statuses),
-                Equals(set(paths)),
-            )
+            Equals([
+                (p, ps, seconds_to_ns(1234))
+                for p, ps in zip(paths, path_states)
+            ]),
         )
 
 
