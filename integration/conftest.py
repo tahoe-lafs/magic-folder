@@ -25,6 +25,7 @@ from eliot import (
 from twisted.internet.error import (
     ProcessTerminated,
 )
+from twisted.python.filepath import FilePath
 
 import pytest
 import pytest_twisted
@@ -101,6 +102,18 @@ def base_dir(tmp_path_factory):
     """
     base = tmp_path_factory.mktemp("magic-folder")
     return str(base)
+
+
+@pytest.fixture(scope='function')
+def temp_filepath(tmp_path):
+    """
+    Fixture that returns a per test function temporary directory represented
+    as a :py:`FilePath`.
+
+    :param pathlib.Path tmp_path: A function-scoped pytest fixture that provides
+        a temporary directory.
+    """
+    return FilePath(str(tmp_path))
 
 
 # NB: conceptually, it kind of makes sense to parametrize this fixture
