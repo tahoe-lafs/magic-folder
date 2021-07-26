@@ -175,6 +175,15 @@ class MagicFolder(service.MultiService):
         """
         return defer.succeed(None)
 
+    def scan(self):
+        """
+        Scan the magic folder for changes.
+
+        :returns Deferred[None]: that fires when all the changed files have
+            been snapshotted.
+        """
+        return self.scanner_service.scan_once()
+
 
 _NICKNAME = Field.for_types(
     u"nickname",

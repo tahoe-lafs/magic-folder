@@ -230,7 +230,7 @@ class TestMagicApi(AsyncTestCase):
             IsInstance(GlobalConfigDatabase),
         )
         self.assertThat(
-            options.get_client(),
+            options.client,
             IsInstance(MagicFolderClient),
         )
         self.assertThat(

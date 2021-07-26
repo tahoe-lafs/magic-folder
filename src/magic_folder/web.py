@@ -361,6 +361,20 @@ class APIv1(object):
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
+    @app.route("/magic-folder/<string:folder_name>/scan", methods=['PUT'])
+    @inline_callbacks
+    def scan_folder(self, request, folder_name):
+        folder_service = self._global_service.get_folder_service(folder_name)
+
+        body = _load_json(request.content.read())
+        if body != {"wait-for-snapshots": True}:
+            raise _InputError("Unknown options to scan.")
+
+        yield folder_service.scan()
+
+        _application_json(request)
+        returnValue(b"{}")
+
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
     @inlineCallbacks
     def add_snapshot(self, request, folder_name):

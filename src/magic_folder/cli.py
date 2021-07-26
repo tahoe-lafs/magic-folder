@@ -518,6 +518,10 @@ def run(options):
 
 @with_eliot_options
 class BaseOptions(usage.Options):
+    stdin = sys.stdin
+    stdout = sys.stdout
+    stderr = sys.stderr
+
     optFlags = [
         ["version", "V", "Display version numbers."],
     ]
@@ -554,11 +558,13 @@ class BaseOptions(usage.Options):
 
     @property
     def client(self):
-        if self._http_client is None:
-            from twisted.internet import reactor
-            self._http_client = create_http_client(reactor, self.config.api_client_endpoint)
         if self._client is None:
             from twisted.internet import reactor
+
+            if self._http_client is None:
+                self._http_client = create_http_client(
+                    reactor, self.config.api_client_endpoint
+                )
             self._client = create_magic_folder_client(
                 reactor,
                 self.config,
@@ -568,9 +574,6 @@ class BaseOptions(usage.Options):
 
 
 class MagicFolderCommand(BaseOptions):
-    stdin = sys.stdin
-    stdout = sys.stdout
-    stderr = sys.stderr
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
