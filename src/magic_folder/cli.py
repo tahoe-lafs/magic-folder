@@ -82,9 +82,6 @@ from .migrate import (
 from .config import (
     load_global_configuration,
 )
-from .join import (
-    magic_folder_join
-)
 from .service import (
     MagicFolderService,
 )
@@ -372,8 +369,11 @@ def invite(options):
     data = yield magic_folder_invite(options)
     print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
     print(u"  waiting for {} to accept...".format(data["petname"]))
-    res = yield magic_folder_invite_wait(options, data["id"])
-    print(res)
+    try:
+        res = yield magic_folder_invite_wait(options, data["id"])
+        print(res)
+    except MagicFolderApiError as e:
+        print("Error: {}".format(e.reason))
 
 
 class JoinOptions(usage.Options):
@@ -381,7 +381,8 @@ class JoinOptions(usage.Options):
     dmd_write_cap = ""
     magic_readonly_cap = ""
     optParameters = [
-        ("poll-interval", "p", "60", "How often to ask for updates"),
+        ("poll-interval", "p", "60", "How often to look for remote updates"),
+        ("scan-interval", "s", "60", "How often to detect local changes"),
         ("name", "n", None, "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
@@ -395,6 +396,13 @@ class JoinOptions(usage.Options):
         except ValueError:
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
+            )
+        try:
+            if int(self['scan-interval']) <= 0:
+                raise ValueError("should be positive")
+        except ValueError:
+            raise usage.UsageError(
+                "--scan-interval must be a positive integer"
             )
         self.local_dir = FilePath(local_dir)
         if not self.local_dir.exists():
@@ -420,13 +428,13 @@ def join(options):
     """
     ``magic-folder join`` entrypoint.
     """
-    return magic_folder_join(
-        options.parent.config,
+    return options.parent.client.join(
+        options["name"].decode("utf8"),
         options.invite_code,
         options.local_dir,
-        options["name"],
-        options["poll-interval"],
-        options["author"],
+        options["author"].decode("utf8"),
+        int(options["poll-interval"]),
+        int(options["scan-interval"]),
     )
 
 

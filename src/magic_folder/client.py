@@ -190,7 +190,6 @@ class MagicFolderClient(object):
 
     def invite(self, magic_folder, suggested_petname):
         # type: (unicode, unicode) -> dict
-        print("HI", magic_folder, suggested_petname)
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite")
         return self._authorized_request(
             "POST",
@@ -212,6 +211,24 @@ class MagicFolderClient(object):
             body=json.dumps(
                 {
                     "id": invite_id,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def join(self, magic_folder, invite_code, local_dir, author, poll_interval, scan_interval):
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"join")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "name": magic_folder,
+                    "invite-code": invite_code,
+                    "local-directory": local_dir.asTextMode().path,
+                    "author": author,
+                    "poll-interval": poll_interval,
+                    "scan-interval": scan_interval,
                 },
                 ensure_ascii=False,
             ).encode("utf-8"),

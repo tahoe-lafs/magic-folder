@@ -480,7 +480,7 @@ class APIv1(object):
         return json.dumps(exc.to_json())
 
     @app.route("/magic-folder/<string:folder_name>/invite", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def create_invite(self, request, folder_name):
         """
         Create a new invite for a given folder.
@@ -503,12 +503,13 @@ class APIv1(object):
         from twisted.internet import reactor
         print("create")
         invite = yield folder_service.invite_manager.create_invite(reactor, author_name, folder_config)
-        yield invite.await_code()
         print("invite", invite.marshal())
+        yield invite.await_code()
+        print("have code", invite.marshal())
         returnValue(json.dumps(invite.marshal()))
 
     @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def await_invite(self, request, folder_name):
         """
         Await acceptance of a given invite.
@@ -536,6 +537,7 @@ class APIv1(object):
         )
 
     @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
+    @inline_callbacks
     def accept_invite(self, request, folder_name):
         """
         Accept an invite and create a new folder.
@@ -543,43 +545,48 @@ class APIv1(object):
         The body of the request must be a JSON dict that has the
         following keys:
 
-        - "accept": wormhole code
         - "name": arbitrary, valid magic folder name
-        - "participant": arbitrary, valid author name
-        - "local_dir": absolute path of an existing local directory to synchronize files in
+        - "invite-code": wormhole code
+        - "local-director": absolute path of an existing local directory to synchronize files in
+        - "author": arbitrary, valid author name
+        - "poll-interval": seconds between update checks
         """
         body = _load_json(request.content.read())
-        required_keys = valid_keys = ["accept", "name", "participant", "local_dir"]
-        valid_keys += ["poll_interval"]
-        invalids = [
-            key
-            for key in body.keys()
-            if key not in valid_keys
-        ]
-        missing = [
-            key
-            for key in body.keys()
-            if key not in required_keys
-        ]
-        if missing:
+        required_keys = {
+            u"name",
+            u"invite-code",
+            u"local-directory",
+            u"author",
+            u"poll-interval",
+            u"scan-interval",
+        }
+        if required_keys != set(body.keys()):
+            missing = required_keys - set(body.keys())
+            extra = set(body.keys()) - required_keys
+            if missing:
+                raise _InputError(
+                    "Missing keys: {}".format(" ".join(missing))
+                )
             raise _InputError(
-                "Require data for: {}".format(" ".join(missing))
+                "Extra keys: {}".format(" ".join(missing))
             )
-        if invalids:
-            raise _InputError(
-                "Unknown data: {}".format(" ".join(invalids))
-            )
-        wormhole_code = data["accept"].decode("utf-8")
-        author_name = data["name"].decode("utf-8")
-        local_dir = FilePath(data["local_dir"].decode("utf-8"))
-        poll_interval = int(data["poll_interval"].decode("utf-8"))
-        from twisted.internet import reactor
+        folder_name = body["name"].decode("utf8")
+        wormhole_code = body["invite-code"].decode("utf-8")
+        author_name = body["author"].decode("utf-8")
+        local_dir = FilePath(body["local-directory"].decode("utf-8"))
+        poll_interval = int(body["poll-interval"])
+        scan_interval = int(body["scan-interval"])
 
         _application_json(request)
-        result = yield accept_invite(
-            reactor, self._global_config, wormhole_code, folder_name,
-            author_name, local_dir, poll_interval, self._tahoe_client,
-        )
+        from twisted.internet import reactor
+        try:
+            result = yield accept_invite(
+                reactor, self._global_config, wormhole_code, folder_name,
+                author_name, local_dir, poll_interval, scan_interval,
+                self._tahoe_client,
+            )
+        except ValueError as e:
+            raise _InputError(str(e))
         print("good: {}".format(result))
         request.setResponseCode(http.CREATED)
         request.write(b"{}")

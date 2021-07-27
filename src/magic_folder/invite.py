@@ -40,6 +40,12 @@ import wormhole
 from wormhole.cli.public_relay import (
     RENDEZVOUS_RELAY,
 )
+from eliot import (
+    start_action,
+)
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from .snapshot import (
     create_local_author,
@@ -51,7 +57,6 @@ def magic_folder_invite(options):
     Invite a user identified by the nickname to a folder
     """
     client = options.parent.client
-    print(type(options["folder"].decode("utf8")))
     return client.invite(
         options["folder"].decode("utf8"),
         options.petname.decode("utf8"),
@@ -179,8 +184,8 @@ class Invite(object):
         self._awaiting_done.append(d)
         return d
 
-    @inlineCallbacks
-    def start(self, reactor, mf_config, tahoe_client):
+    @inline_callbacks
+    def perform_invite(self, reactor, mf_config, tahoe_client):
         """
         Performs the invite.
 
@@ -191,80 +196,86 @@ class Invite(object):
 
         :param TahoeClient tahoe_client: make Tahoe-LAFS API calls
         """
-        collective = tahoe_uri_from_string(mf_config.collective_dircap)
-        collective_readcap = collective.get_readonly()
-        print(collective)
-        print(collective_readcap)
+        action = start_action(
+            action_type="invite:start",
+            folder=mf_config.name,
+        )
+        with action:
+            collective = tahoe_uri_from_string(mf_config.collective_dircap)
+            collective_readcap = collective.get_readonly()
 
-        welcome = yield self._wormhole.get_welcome()
-        print("got welcome {}".format(welcome))
-        self._wormhole.allocate_code(2)
-        self._code = yield self._wormhole.get_code()
-        for d in self._awaiting_code:
-            d.callback(None)
-        print("code: {}".format(self._code))
+            with start_action(action_type="invite:welcome"):
+                welcome = yield self._wormhole.get_welcome()
 
-        invite_message = json.dumps({
-            "magic-folder-invite-version": 1,
-            "collective-dmd": collective_readcap.to_string(),
-            "suggested-petname": self.suggested_petname,
-        }).encode("utf8")
-        print("sending msg", invite_message)
-        self._wormhole.send_message(invite_message)
+            with start_action(action_type="invite:get_code") as action_code:
+                self._wormhole.allocate_code(2)
+                self._code = yield self._wormhole.get_code()
+                action_code.add_success_fields(code=self._code)
+                for d in self._awaiting_code:
+                    d.callback(None)
+                print("code: {}".format(self._code))
 
-        reply_data = yield self._wormhole.get_message()
-        print("reply data", reply_data)
-        reply_msg = json.loads(reply_data.decode("utf8"))
-        print("reply: {}".format(reply_msg))
+            invite_message = json.dumps({
+                "magic-folder-invite-version": 1,
+                "collective-dmd": collective_readcap.to_string(),
+                "suggested-petname": self.suggested_petname,
+            }).encode("utf8")
+            print("sending msg", invite_message)
+            self._wormhole.send_message(invite_message)
 
-        version = reply_msg.get("magic-folder-invite-version", None)
-        self._code = None  # done with code, it's consumed
-        self._consumed = True
+            reply_data = yield self._wormhole.get_message()
+            print("reply data", reply_data)
+            reply_msg = json.loads(reply_data.decode("utf8"))
+            print("reply: {}".format(reply_msg))
 
-        try:
-            if version != 1:
-                raise ValueError(
-                    "Invalid invite reply version: {}".format(version)
+            version = reply_msg.get("magic-folder-invite-version", None)
+            self._code = None  # done with code, it's consumed
+            self._consumed = True
+
+            try:
+                if version != 1:
+                    raise ValueError(
+                        "Invalid invite reply version: {}".format(version)
+                    )
+                if "reject-reason" in reply_msg:
+                    self._success = False
+                    raise InviteRejected(
+                        invite=self,
+                        reason=reply_msg["reject-reason"],
+                    )
+
+                self._petname = self.suggested_petname
+                if "preferred-petname" in reply_msg:
+                    # max 40 chars, no newlines
+                    sanitized_petname = reply_msg["preferred-petname"][:40].replace("\n", " ")
+                    self._petname = sanitized_petname
+                personal_dmd = tahoe_uri_from_string(reply_msg["personal-dmd"])
+                if not IDirnodeURI.providedBy(personal_dmd):
+                    raise InvalidInviteReply(
+                        invite=self,
+                        reason="Personal DMD must be a directory",
+                    )
+                if not personal_dmd.is_readonly():
+                    raise InvalidInviteReply(
+                        invite=self,
+                        reason="Personal DMD must be readonly",
+                    )
+
+                # everything checks out; add the invitee to our Collective DMD
+                yield tahoe_client.add_entry_to_mutable_directory(
+                    mutable_cap=mf_config.collective_dircap,
+                    path_name=self._petname,
+                    entry_cap=personal_dmd.to_string(),
                 )
-            if "reject-reason" in reply_msg:
-                self._success = False
-                raise InviteRejected(
-                    invite=self,
-                    reason=reply_msg["reject-reason"],
-                )
+                self._success = True
 
-            self._petname = self.suggested_petname
-            if "preferred-petname" in reply_msg:
-                # max 40 chars, no newlines
-                sanitized_petname = reply_msg["preferred-petname"][:40].replace("\n", " ")
-                self._petname = sanitized_petname
-            personal_dmd = tahoe_uri_from_string(reply_msg["personal-dmd"])
-            if not IDirnodeURI.providedBy(personal_dmd):
-                raise InvalidInviteReply(
-                    invite=self,
-                    reason="Personal DMD must be a directory",
-                )
-            if not personal_dmd.is_readonly():
-                raise InvalidInviteReply(
-                    invite=self,
-                    reason="Personal DMD must be readonly",
-                )
+            finally:
+                # whether due to errors above or happy-path, we are done
+                # with the wormhole
+                yield self._wormhole.close()
 
-            # everything checks out; add the invitee to our Collective DMD
-            yield tahoe_client.add_entry_to_mutable_directory(
-                mutable_cap=mf_config.collective_dircap,
-                path_name=self._petname,
-                entry_cap=personal_dmd.to_string(),
-            )
-            self._success = True
-
-        finally:
-            # whether due to errors above or happy-path, we are done
-            # with the wormhole
-            yield self._wormhole.close()
-
-            for d in self._awaiting_done:
-                d.callback(None)
+                for d in self._awaiting_done:
+                    d.callback(None)
 
     @property
     def petname(self):
@@ -305,34 +316,52 @@ class Invite(object):
         }
 
 
-@inlineCallbacks
-def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, tahoe_client):
+@inline_callbacks
+def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client):
     """
-    This does the opposite side of the invite to Invite.start()
+    This does the opposite side of the invite to Invite.perform_invite()
     above. That is:
 
     - create a fresh Personal DMD
     - extract the read-capability to the Personal DMD
     - send back our preferred petname and read-cap
     - (await seeing our name added to the Collective DMD?)
+
+    :param unicode wormhole_code:
+    :param unicode folder_name:
+    :param unicode author_name:
+    :param FilePath local_dir:
+    :param int poll_interval:
+    :param int scan_interval:
     """
+    if poll_interval < 1:
+        raise _InputError(
+            "'poll-interval' must be a positive integer"
+        )
+    if not local_dir.exists() and local_dir.isdir():
+        raise _InputError(
+            "Local path '{}' must be an existing directory".format(
+                local_dir.path,
+            )
+        )
+
     wh = wormhole.create(
         appid=u"tahoe-lafs.org/magic-folder/invite",
         relay_url=RENDEZVOUS_RELAY,
         reactor=reactor,
     )
     welcome = yield wh.get_welcome()
-    print("got welcome {}".format(welcome))
     wh.set_code(wormhole_code)
-    invite_data = yield wh.get_message()
-    invite_msg = json.loads(invite_data.decode("utf8"))
-    print("invite: {}".format(invite_msg))
+    with start_action(action_type="join:get_invite") as action_code:
+        invite_data = yield wh.get_message()
+        invite_msg = json.loads(invite_data.decode("utf8"))
+        action_code.add_success_fields(invite=invite_msg)
 
     version = invite_msg.get("magic-folder-invite-version", None)
     try:
         if version != 1:
             raise ValueError(
-                "Invalid invite version: {}".format(version)
+                "Invalid invite-msg version: {}".format(version)
             )
 
         # extract the Collective DMD
@@ -357,16 +386,15 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         author = create_local_author(author_name)
 
         # create our "state" directory for this magic-folder
-        state_dir = global_config.get_default_state_path(folder_name)
-        print("CREATE", folder_name, local_dir, state_dir, author, collective_dmd, personal_cap.to_string(), poll_interval)
+        print("CREATE", folder_name, local_dir, author, collective_dmd, personal_cap.to_string(), poll_interval)
         global_config.create_magic_folder(
             folder_name,
             local_dir,
-            state_dir,
             author,
             str(collective_dmd),
             personal_cap.to_string(),
             poll_interval,
+            scan_interval,
         )
 
         # send back our invite-reply
@@ -438,7 +466,7 @@ class InMemoryInviteManager(service.Service):
         )
         self._invites[invite.uuid] = invite
 
-        d = invite.start(reactor, mf_config, self.tahoe_client)
+        d = invite.perform_invite(reactor, mf_config, self.tahoe_client)
         d.addCallback(self._invite_succeeded, d, invite)
         d.addErrback(self._invite_failed, d, invite)
         self._in_progress.append(d)
@@ -465,4 +493,4 @@ class InMemoryInviteManager(service.Service):
             pass
         # XXX log this, somehow. Probably want to "emit an event" too
         # (e.g. for GridSync)
-        print("Invite failed: {}: {}".format(invite, fail))
+        print("Invite failed: {}: {}".format(invite.uuid, fail.reason))
