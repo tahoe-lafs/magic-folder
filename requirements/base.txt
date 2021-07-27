@@ -554,6 +554,10 @@ zope.interface==5.4.0 \
 #   twisted
 #   txtorcon
 
-# WARNING: The following packages were not pinned, but pip requires them to be
-# pinned when the requirements file includes hashes. Consider using the --allow-unsafe flag.
-# setuptools
+# The following packages are considered to be unsafe in a requirements file:
+setuptools==44.1.1 \
+    --hash=sha256:27a714c09253134e60a6fa68130f78c7037e5562c4f21f8f318f2ae900d152d5 \
+    --hash=sha256:c67aa55db532a0dadc4d2e20ba9961cbd3ccc84d544e9029699822542b5a476b
+# via
+#   tahoe-lafs
+#   zope.interface
