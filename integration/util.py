@@ -514,9 +514,10 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
+        magic_seen = protocol.magic_seen
+
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
-
         process = reactor.spawnProcess(
             protocol,
             executable,
@@ -528,7 +529,7 @@ def run_service(
             env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
-        return protocol.magic_seen.addCallback(lambda ignored: process)
+        return magic_seen.addCallback(lambda ignored: process)
 
 def run_tahoe_service(
     reactor,
@@ -590,8 +591,9 @@ class _MagicTextProtocol(ProcessProtocol):
     def processEnded(self, reason):
         with self._action:
             Message.log(message_type=u"process-ended")
-        if not self.magic_seen.called:
-            self.magic_seen.errback(Exception("Service failed."))
+        if self.magic_seen is not None:
+            d, self.magic_seen = self.magic_seen, None
+            d.errback(Exception("Service failed."))
         self.exited.callback(None)
 
     def childDataReceived(self, childFD, data):
@@ -612,9 +614,10 @@ class _MagicTextProtocol(ProcessProtocol):
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
             self._output.write(data)
-        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+        if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
-            self.magic_seen.callback(self)
+            d, self.magic_seen = self.magic_seen, None
+            d.callback(self)
 
     def err_received(self, data):
         """
