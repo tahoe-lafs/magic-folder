@@ -235,7 +235,6 @@ class Invite(object):
             self._code = None  # done with code, it's consumed
             self._consumed = True
 
-            print("AA")
             try:
                 if version != 1:
                     raise ValueError(
@@ -248,41 +247,32 @@ class Invite(object):
                         reason=reply_msg["reject-reason"],
                     )
 
-                print("BB")
 
                 self._petname = self.suggested_petname
                 if "preferred-petname" in reply_msg:
                     # max 40 chars, no newlines
                     sanitized_petname = reply_msg["preferred-petname"][:40].replace("\n", " ")
                     self._petname = sanitized_petname
-                personal_dmd = reply_msg["personal-dmd"]
-                print("CC")
+                personal_dmd = reply_msg["personal-dmd"].encode("utf8")
                 if not is_readonly_directory_cap(personal_dmd):
                     raise InvalidInviteReply(
                         invite=self,
                         reason="Personal DMD must be a read-only directory",
                     )
 
-                print("DD", mf_config.collective_dircap, personal_dmd)
                 # everything checks out; add the invitee to our Collective DMD
-                try:
-                    yield tahoe_client.add_entry_to_mutable_directory(
-                        mutable_cap=mf_config.collective_dircap,
-                        path_name=self._petname,
-                        entry_cap=personal_dmd,
-                    )
-                except Exception as e:
-                    print("BAD", e)
-                print("EE")
+                yield tahoe_client.add_entry_to_mutable_directory(
+                    mutable_cap=mf_config.collective_dircap,
+                    path_name=self._petname,
+                    entry_cap=personal_dmd,
+                )
                 self._success = True
 
             finally:
                 # whether due to errors above or happy-path, we are done
                 # with the wormhole
-                print("closing wormhome")
                 yield self._wormhole.close()
 
-                print("DONE", self._success, self._consumed)
                 for d in self._awaiting_done:
                     d.callback(None)
 
@@ -420,10 +410,6 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     finally:
         # whether due to errors above or happy-path, we are done
         # with the wormhole
-        print("closing wormhole")
-        from twisted.internet.task import deferLater
-        yield deferLater(reactor, 1.0)
-        print("closing wormhole")
         yield wh.close()
 
 
