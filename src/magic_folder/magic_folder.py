@@ -40,6 +40,7 @@ from .participants import (
 )
 from .scanner import (
     ScannerService,
+)
 from .invite import (
     InMemoryInviteManager,
 )
@@ -110,7 +111,7 @@ class MagicFolder(service.MultiService):
             client=tahoe_client,
             config=mf_config,
             name=name,
-            invite_manager=InMemoryInviteManager(other_tahoe_client),
+            invite_manager=InMemoryInviteManager(tahoe_client),
             local_snapshot_service=local_snapshot_service,
             uploader_service=UploaderService.from_config(
                 clock=reactor,

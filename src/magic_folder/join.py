@@ -32,6 +32,8 @@ def magic_folder_join(config, invite_code, local_dir, name, poll_interval, autho
 
     :return: None or exception is raised on error.
     """
-    # FIXME TODO
-    # https://github.com/LeastAuthority/magic-folder/issues/232
-    raise NotImplementedError
+    # to join a folder we need:
+    # - collective read-cap
+    # - create our own write-cap
+    # - turn ^ into a read-cap
+    # - cause ^ to get added to the Collective

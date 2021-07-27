@@ -62,7 +62,8 @@ from .client import (
 )
 
 from .invite import (
-    magic_folder_invite
+    magic_folder_invite,
+    magic_folder_invite_wait,
 )
 
 from .list import (
@@ -344,7 +345,7 @@ class InviteOptions(usage.Options):
     synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
     stdin = MixedIO(u"")
     optParameters = [
-        ("name", "n", None, "Name of an existing magic-folder"),
+        ("folder", "n", None, "Name of an existing magic-folder"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -352,14 +353,14 @@ class InviteOptions(usage.Options):
         "transmitted securely to the invitee."
     )
 
-    def parseArgs(self, nickname):
+    def parseArgs(self, petname):
         super(InviteOptions, self).parseArgs()
-        self.nickname = to_unicode(nickname)
+        self.petname = to_unicode(petname)
 
     def postOptions(self):
-        if self["name"] is None:
+        if self["folder"] is None:
             raise usage.UsageError(
-                "Must specify the --name option"
+                "Must specify the --folder option"
             )
 
 
@@ -368,13 +369,11 @@ def invite(options):
     from twisted.internet import reactor
     treq = HTTPClient(Agent(reactor))
 
-    invite_code = yield magic_folder_invite(
-        options.parent.config,
-        options['name'],
-        options.nickname,
-        treq,
-    )
-    print(u"{}".format(invite_code), file=options.stdout)
+    data = yield magic_folder_invite(options)
+    print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
+    print(u"  waiting for {} to accept...".format(data["petname"]))
+    res = yield magic_folder_invite_wait(options, data["id"])
+    print(res)
 
 
 class JoinOptions(usage.Options):

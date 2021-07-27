@@ -35,6 +35,28 @@ from .client import (
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
 
+class ListInvitesOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to add the Snapshot to"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def list_invites(options):
+    """
+    List all pending invites for a folder
+    """
+    res = yield options.parent.client.list_invites(
+        options['folder'].decode("utf8"),
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
 class AddSnapshotOptions(usage.Options):
     optParameters = [
         ("file", "f", None, "Path of the file to add a Snapshot of"),
@@ -261,6 +283,7 @@ class MagicFolderApiCommand(BaseOptions):
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
         ["scan-folder", None, ScanFolderOptions, "Scan for local changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
+        ["list-invites", None, ListInvitesOptions, "List all invites in a magic-folder."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -374,6 +397,7 @@ def run_magic_folder_api_options(options):
         "list-participants": list_participants,
         "scan-folder": scan_folder,
         "monitor": monitor,
+        "list-invites": list_invites,
     }[options.subCommand]
 
     maybe_enable_eliot_logging(options)

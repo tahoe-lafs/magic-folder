@@ -188,6 +188,43 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
+    def invite(self, magic_folder, suggested_petname):
+        # type: (unicode, unicode) -> dict
+        print("HI", magic_folder, suggested_petname)
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "suggested-petname": suggested_petname,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def invite_wait(self, magic_folder, invite_id):
+        # type: (unicode, unicode) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite-wait")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "id": invite_id,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def list_invites(self, magic_folder):
+        # type: (unicode, ) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invites")
+        return self._authorized_request(
+            "GET",
+            api_url,
+        )
+
     @inlineCallbacks
     def _authorized_request(self, method, url, body=b""):
         """

@@ -9,6 +9,7 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 import json
@@ -25,6 +26,7 @@ from twisted.application import (
 )
 from twisted.internet.defer import (
     inlineCallbacks,
+    Deferred,
 )
 from allmydata.interfaces import (
     IDirnodeURI,
@@ -44,25 +46,28 @@ from .snapshot import (
 )
 
 
-def magic_folder_invite(config, folder_name, suggested_invitee_name, treq):
+def magic_folder_invite(options):
     """
-    Invite a user identified by the nickname to a folder owned by the alias
-
-    :param GlobalConfigDatabase config: our configuration
-
-    :param unicode folder_name: The name of an existing magic-folder
-
-    :param unicode suggested_invitee_name: petname for the invited device
-
-    :param HTTPClient treq: An ``HTTPClient`` or similar object to use to make
-        the queries.
-
-    :return Deferred[unicode]: A secret magic-wormhole invitation code.
+    Invite a user identified by the nickname to a folder
     """
-    # FIXME TODO
-    # see https://github.com/LeastAuthority/magic-folder/issues/232
-    raise NotImplementedError
+    client = options.parent.client
+    print(type(options["folder"].decode("utf8")))
+    return client.invite(
+        options["folder"].decode("utf8"),
+        options.petname.decode("utf8"),
+    )
 
+
+def magic_folder_invite_wait(options, invite_id):
+    """
+    Await the wormhole completion for a given invite
+    """
+    client = options.parent.client
+    print(type(options["folder"].decode("utf8")))
+    return client.invite_wait(
+        options["folder"].decode("utf8"),
+        invite_id,
+    )
 
 
 class IInviteCollection(Interface):
@@ -73,6 +78,11 @@ class IInviteCollection(Interface):
     def list_invites(self):
         """
         An iterable of IInvite instances
+        """
+
+    def get_invite(self, id_):
+        """
+        :returns IInvite: an invite with the given ID (or KeyError)
         """
 
     def create_invite(self, suggested_petname, ):
@@ -95,25 +105,36 @@ class IInvite(Interface):
 
 
 @attr.s
-class InviteRejected(Exception):
+class InviteError(Exception):
+    """
+    Base class for all invite-related errors
+    """
+    invite=attr.ib()
+    reason=attr.ib()
+
+    def to_json(self):
+        return {
+            "invite": self.invite,
+            "reason": self.reason,
+        }
+
+
+@attr.s
+class InviteRejected(InviteError):
     """
     The other side has (nicely) rejected our invite with a provided
     reason.
     """
-    invite=attr.ib()
-    reason=attr.ib()
 
 
 @attr.s
-class InvalidInviteReply(Exception):
+class InvalidInviteReply(InviteError):
     """
     Something is semantically invalid about an invite reply
     """
-    invite=attr.ib()
-    reason=attr.ib()
 
     def __str__(self):
-        return "InvateInviteReply({})".format(self.reason)
+        return "InvalidInviteReply({})".format(self.reason)
 
 
 @implementer(IInvite)
@@ -131,7 +152,32 @@ class Invite(object):
     # I guess actually wormhole.IDeferredWormhole ..
     _code = None
     _petname = None
-    _accepted = None
+    _consumed = None  # True if the wormhole code was consumed
+    _success = None  # True if succeeded, False if something went wrong
+    _awaiting_code = attr.ib(default=attr.Factory(list))
+    _awaiting_done = attr.ib(default=attr.Factory(list))
+
+    def await_code(self):
+        """
+        :returns Deferred[None]: fires when we have the invite code
+        """
+        if self._code is not None:
+            return succeed(None)
+        d = Deferred()
+        self._awaiting_code.append(d)
+        return d
+
+    def await_done(self):
+        """
+        :returns Deferred[None]: fires when the wormhole is completed
+            (this could mean an error or that the other side accepted the
+            invite).
+        """
+        if self._consumed and self._success is not None:
+            return succeed(None)
+        d = Deferred()
+        self._awaiting_done.append(d)
+        return d
 
     @inlineCallbacks
     def start(self, reactor, mf_config, tahoe_client):
@@ -154,6 +200,8 @@ class Invite(object):
         print("got welcome {}".format(welcome))
         self._wormhole.allocate_code(2)
         self._code = yield self._wormhole.get_code()
+        for d in self._awaiting_code:
+            d.callback(None)
         print("code: {}".format(self._code))
 
         invite_message = json.dumps({
@@ -161,14 +209,17 @@ class Invite(object):
             "collective-dmd": collective_readcap.to_string(),
             "suggested-petname": self.suggested_petname,
         }).encode("utf8")
+        print("sending msg", invite_message)
         self._wormhole.send_message(invite_message)
 
         reply_data = yield self._wormhole.get_message()
+        print("reply data", reply_data)
         reply_msg = json.loads(reply_data.decode("utf8"))
         print("reply: {}".format(reply_msg))
 
         version = reply_msg.get("magic-folder-invite-version", None)
         self._code = None  # done with code, it's consumed
+        self._consumed = True
 
         try:
             if version != 1:
@@ -176,13 +227,12 @@ class Invite(object):
                     "Invalid invite reply version: {}".format(version)
                 )
             if "reject-reason" in reply_msg:
-                self._accepted = False
+                self._success = False
                 raise InviteRejected(
                     invite=self,
                     reason=reply_msg["reject-reason"],
                 )
 
-            self._accepted = True
             self._petname = self.suggested_petname
             if "preferred-petname" in reply_msg:
                 # max 40 chars, no newlines
@@ -206,11 +256,15 @@ class Invite(object):
                 path_name=self._petname,
                 entry_cap=personal_dmd.to_string(),
             )
+            self._success = True
 
         finally:
             # whether due to errors above or happy-path, we are done
             # with the wormhole
             yield self._wormhole.close()
+
+            for d in self._awaiting_done:
+                d.callback(None)
 
     @property
     def petname(self):
@@ -233,7 +287,7 @@ class Invite(object):
         :returns: True if we've communcated to the other side and hear
             back that they accept otherwise False
         """
-        if self._accepted:
+        if self._consumed and self._success:
             return True
         return False
 
@@ -244,7 +298,8 @@ class Invite(object):
         return {
             "id": self.uuid,
             "petname": self.petname,
-            "accepted": True if self.is_accepted() else False,
+            "consumed": True if self._consumed else False,
+            "success": True if self._success else False,
             # None on the invitee side, str on inviter side
             "wormhole-code": self.wormhole_code,
         }
@@ -354,6 +409,12 @@ class InMemoryInviteManager(service.Service):
             invite.marshal()
             for invite in self._invites.values()
         ]
+
+    def get_invite(self, id_):
+        """
+        :returns IInvite: an invite with the given ID (or KeyError)
+        """
+        return self._invites[id_]
 
     def create_invite(self, reactor, suggested_petname, mf_config):
         """

@@ -56,6 +56,7 @@ from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe
 from .common import APIError
 from .invite import (
     accept_invite,
+    InviteError,
 )
 from .status import (
     StatusFactory,
@@ -232,6 +233,7 @@ class APIv1(object):
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
+        print(failure)
         return json.dumps({"reason": "unexpected error processing request"})
 
     @app.route("/status")
@@ -469,6 +471,134 @@ class APIv1(object):
             for name, ps, last_updated_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
+
+    @app.handle_errors(InviteError)
+    def handle_invite_error(self, request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code or http.NOT_ACCEPTABLE)
+        _application_json(request)
+        return json.dumps(exc.to_json())
+
+    @app.route("/magic-folder/<string:folder_name>/invite", methods=['POST'])
+    @inlineCallbacks
+    def create_invite(self, request, folder_name):
+        """
+        Create a new invite for a given folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "suggested-petname": arbitrary, valid author name
+        """
+        body = _load_json(request.content.read())
+        print("XXX", body)
+        if set(body.keys()) != {u"suggested-petname"}:
+            raise _InputError(
+                u'Body must be {"suggested-petname": "..."}'
+            )
+        author_name = body[u"suggested-petname"]
+        folder_service = self._global_service.get_folder_service(folder_name)
+        print("svc", folder_service)
+        folder_config = folder_service.config
+        from twisted.internet import reactor
+        print("create")
+        invite = yield folder_service.invite_manager.create_invite(reactor, author_name, folder_config)
+        yield invite.await_code()
+        print("invite", invite.marshal())
+        returnValue(json.dumps(invite.marshal()))
+
+    @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
+    @inlineCallbacks
+    def await_invite(self, request, folder_name):
+        """
+        Await acceptance of a given invite.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "id": the ID of an existing invite
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"id"}:
+            raise _InputError(
+                u'Body must be {"id": "..."}'
+            )
+        print("get-invite", body)
+        folder_service = self._global_service.get_folder_service(folder_name)
+        invite = folder_service.invite_manager.get_invite(body[u"id"])
+        print(invite)
+        yield invite.await_done()
+        if invite.is_accepted():
+            returnValue(b"{}")
+        raise APIError(
+            code=400,
+            reason="Wormhole failed or other side declined",
+        )
+
+    @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
+    def accept_invite(self, request, folder_name):
+        """
+        Accept an invite and create a new folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "accept": wormhole code
+        - "name": arbitrary, valid magic folder name
+        - "participant": arbitrary, valid author name
+        - "local_dir": absolute path of an existing local directory to synchronize files in
+        """
+        body = _load_json(request.content.read())
+        required_keys = valid_keys = ["accept", "name", "participant", "local_dir"]
+        valid_keys += ["poll_interval"]
+        invalids = [
+            key
+            for key in body.keys()
+            if key not in valid_keys
+        ]
+        missing = [
+            key
+            for key in body.keys()
+            if key not in required_keys
+        ]
+        if missing:
+            raise _InputError(
+                "Require data for: {}".format(" ".join(missing))
+            )
+        if invalids:
+            raise _InputError(
+                "Unknown data: {}".format(" ".join(invalids))
+            )
+        wormhole_code = data["accept"].decode("utf-8")
+        author_name = data["name"].decode("utf-8")
+        local_dir = FilePath(data["local_dir"].decode("utf-8"))
+        poll_interval = int(data["poll_interval"].decode("utf-8"))
+        from twisted.internet import reactor
+
+        _application_json(request)
+        result = yield accept_invite(
+            reactor, self._global_config, wormhole_code, folder_name,
+            author_name, local_dir, poll_interval, self._tahoe_client,
+        )
+        print("good: {}".format(result))
+        request.setResponseCode(http.CREATED)
+        request.write(b"{}")
+        request.finish()
+
+    @app.route("/magic-folder/<string:folder_name>/invites", methods=['GET'])
+    def list_invites(self, request, folder_name):
+        """
+        List pending invites.
+        """
+        _application_json(request)
+        folder_service = self._global_service.get_folder_service(folder_name)
+        request.setResponseCode(http.CREATED)
+        request.write(
+            json.dumps(
+                folder_service.invite_manager.list_invites()
+            )
+        )
+        request.finish()
 
 
 class _InputError(APIError):
