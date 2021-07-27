@@ -11,14 +11,8 @@ Testing synchronizing files between participants
 
 from functools import partial
 import time
-from tempfile import (
-    mkdtemp,
-)
 
 from eliot import Message
-from twisted.python.filepath import (
-    FilePath,
-)
 import pytest
 import pytest_twisted
 
@@ -98,12 +92,12 @@ def take_snapshot(request, magic_folder_nodes):
 
 
 @pytest_twisted.inlineCallbacks
-def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
     """
 
-    magic = FilePath(mkdtemp())
+    magic = temp_filepath
 
     # add our magic-folder and re-start
     yield alice.add("local", magic.path)
@@ -173,7 +167,7 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
 
 
 @pytest_twisted.inlineCallbacks
-def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -195,9 +189,8 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
 
     # "alice" contains the 'original' magic-folder
     # "bob" contains the 'recovery' magic-folder
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -254,11 +247,10 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
 
 
 @pytest_twisted.inlineCallbacks
-def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, take_snapshot):
     # FIXME needs docstring
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -316,10 +308,9 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
 
 
 @pytest_twisted.inlineCallbacks
-def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -385,11 +376,10 @@ def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
     )
 
 @pytest_twisted.inlineCallbacks
-def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snapshot):
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
-    recover2_folder = magic.child("mice")
+def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take_snapshot):
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    recover2_folder = temp_filepath.child("mice")
     original_folder.makedirs()
     recover_folder.makedirs()
     recover2_folder.makedirs()

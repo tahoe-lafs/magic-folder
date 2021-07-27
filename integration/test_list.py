@@ -28,7 +28,7 @@ from . import util
 
 @inline_callbacks
 @pytest_twisted.inlineCallbacks
-def test_list(request, reactor, tahoe_venv, temp_dir, introducer_furl, flog_gatherer):
+def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
     """
     'magic-folder list' happy-path works
     """
@@ -38,7 +38,7 @@ def test_list(request, reactor, tahoe_venv, temp_dir, introducer_furl, flog_gath
             reactor,
             tahoe_venv,
             request,
-            temp_dir,
+            base_dir,
             introducer_furl,
             flog_gatherer,
             name="zelda",
@@ -56,7 +56,7 @@ def test_list(request, reactor, tahoe_venv, temp_dir, introducer_furl, flog_gath
     )
     assert output.strip() == "No magic-folders"
 
-    magic_dir = FilePath(temp_dir).child("zelda-magic")
+    magic_dir = FilePath(base_dir).child("zelda-magic")
     magic_dir.makedirs()
 
     output = yield util._magic_folder_runner(

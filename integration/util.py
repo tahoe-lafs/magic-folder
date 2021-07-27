@@ -83,7 +83,7 @@ class MagicFolderEnabledNode(object):
     """
     reactor = attr.ib()
     request = attr.ib()
-    temp_dir = attr.ib()
+    base_dir = attr.ib()
     name = attr.ib()
 
     action = attr.ib()
@@ -95,18 +95,18 @@ class MagicFolderEnabledNode(object):
 
     @property
     def node_directory(self):
-        return join(self.temp_dir, self.name)
+        return join(self.base_dir, self.name)
 
     @property
     def magic_config_directory(self):
-        return join(self.temp_dir, "magic-daemon-{}".format(self.name))
+        return join(self.base_dir, "magic-daemon-{}".format(self.name))
 
     def global_config(self):
         return load_global_configuration(FilePath(self.magic_config_directory))
 
     @property
     def magic_directory(self):
-        return join(self.temp_dir, "magic-{}".format(self.name))
+        return join(self.base_dir, "magic-{}".format(self.name))
 
     @classmethod
     @inline_callbacks
@@ -115,7 +115,7 @@ class MagicFolderEnabledNode(object):
             reactor,
             tahoe_venv,
             request,
-            temp_dir,
+            base_dir,
             introducer_furl,
             flog_gatherer,
             name,
@@ -132,7 +132,7 @@ class MagicFolderEnabledNode(object):
         :param reactor: The reactor to use to launch the processes.
         :param tahoe_venv: Directory where our virtualenv is located.
         :param request: The pytest request object to use for cleanup.
-        :param bytes temp_dir: A directory beneath which to place the
+        :param bytes base_dir: A directory beneath which to place the
             Tahoe-LAFS node.
         :param bytes introducer_furl: The introducer fURL to configure the new
             Tahoe-LAFS node with.
@@ -158,7 +158,7 @@ class MagicFolderEnabledNode(object):
                 reactor,
                 tahoe_venv,
                 request,
-                temp_dir,
+                base_dir,
                 introducer_furl,
                 flog_gatherer,
                 name,
@@ -174,7 +174,7 @@ class MagicFolderEnabledNode(object):
             yield _init_magic_folder(
                 reactor,
                 request,
-                temp_dir,
+                base_dir,
                 name,
                 magic_folder_web_port,
             )
@@ -183,14 +183,14 @@ class MagicFolderEnabledNode(object):
             magic_folder = yield _run_magic_folder(
                 reactor,
                 request,
-                temp_dir,
+                base_dir,
                 name,
             )
         returnValue(
             cls(
                 reactor,
                 request,
-                temp_dir,
+                base_dir,
                 name,
                 action,
                 tahoe,
@@ -227,7 +227,7 @@ class MagicFolderEnabledNode(object):
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
                 self.request,
-                self.temp_dir,
+                self.base_dir,
                 self.name,
             )
 
@@ -715,7 +715,7 @@ class TahoeProcess(object):
 
 
 @inline_callbacks
-def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_gatherer, name, web_port,
+def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_gatherer, name, web_port,
                  storage=True,
                  magic_text=None,
                  needed=2,
@@ -725,7 +725,7 @@ def _create_node(reactor, tahoe_venv, request, temp_dir, introducer_furl, flog_g
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
     """
-    node_dir = join(temp_dir, name)
+    node_dir = join(base_dir, name)
     if web_port is None:
         web_port = ''
     if not exists(node_dir):
@@ -989,19 +989,19 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _init_magic_folder(reactor, request, temp_dir, name, web_port):
+def _init_magic_folder(reactor, request, base_dir, name, web_port):
     """
     Create a new magic-folder-daemon configuration
 
     :param reactor: The reactor to use to launch the process.
     :param request: The pytest request object to use for cleanup.
-    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param base_dir: The directory in which to find a Tahoe-LAFS node.
     :param name: The alias of the Tahoe-LAFS node.
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    node_dir = join(temp_dir, name)
-    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
+    node_dir = join(base_dir, name)
+    config_dir = join(base_dir, "magic-daemon-{}".format(name))
 
     args = [
         "--config", config_dir,
@@ -1012,18 +1012,18 @@ def _init_magic_folder(reactor, request, temp_dir, name, web_port):
     return _magic_folder_runner(reactor, request, name, args)
 
 
-def _run_magic_folder(reactor, request, temp_dir, name):
+def _run_magic_folder(reactor, request, base_dir, name):
     """
     Start a magic-folder process.
 
     :param reactor: The reactor to use to launch the process.
     :param request: The pytest request object to use for cleanup.
-    :param temp_dir: The directory in which to find a Tahoe-LAFS node.
+    :param base_dir: The directory in which to find a Tahoe-LAFS node.
     :param name: The alias of the Tahoe-LAFS node.
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    config_dir = join(temp_dir, "magic-daemon-{}".format(name))
+    config_dir = join(base_dir, "magic-daemon-{}".format(name))
 
     magic_text = "Completed initial Magic Folder setup"
 
