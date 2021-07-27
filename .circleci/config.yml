@@ -465,10 +465,6 @@ jobs:
       - "checkout"
       - "setup_remote_docker"
       - run:
-          name: "Log in to Dockerhub"
-          command: |
-            docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}
-      - run:
           name: "Build image"
           command: |
             docker \
@@ -480,7 +476,12 @@ jobs:
       - run:
           name: "Push image"
           command: |
-            docker push magicfolderci/${DISTRO}:${TAG}
+            if [[ "$CIRCLE_BRANCH" != "main" ]]; then
+              echo "Skipping pushing to docker hub."
+            else
+              docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}
+              docker push magicfolderci/${DISTRO}:${TAG}
+            fi
 
 
   build-image-debian-9:
