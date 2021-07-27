@@ -106,7 +106,6 @@ class MagicFolder(service.MultiService):
             status_service,
         )
 
-        # XXX unify TahoeClients ...
         return cls(
             client=tahoe_client,
             config=mf_config,

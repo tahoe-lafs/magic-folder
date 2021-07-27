@@ -50,6 +50,10 @@ from eliot.twisted import (
 from .snapshot import (
     create_local_author,
 )
+from .util.capabilities import (
+    is_readonly_directory_cap,
+    to_readonly_capability,
+)
 
 
 def magic_folder_invite(options):
@@ -68,7 +72,6 @@ def magic_folder_invite_wait(options, invite_id):
     Await the wormhole completion for a given invite
     """
     client = options.parent.client
-    print(type(options["folder"].decode("utf8")))
     return client.invite_wait(
         options["folder"].decode("utf8"),
         invite_id,
@@ -213,25 +216,26 @@ class Invite(object):
                 action_code.add_success_fields(code=self._code)
                 for d in self._awaiting_code:
                     d.callback(None)
-                print("code: {}".format(self._code))
 
-            invite_message = json.dumps({
-                "magic-folder-invite-version": 1,
-                "collective-dmd": collective_readcap.to_string(),
-                "suggested-petname": self.suggested_petname,
-            }).encode("utf8")
-            print("sending msg", invite_message)
-            self._wormhole.send_message(invite_message)
+            with start_action(action_type="invite:send_message") as action_msg:
+                invite_message = json.dumps({
+                    "magic-folder-invite-version": 1,
+                    "collective-dmd": collective_readcap.to_string(),
+                    "suggested-petname": self.suggested_petname,
+                }).encode("utf8")
+                action_msg.add_success_fields(msg=invite_message)
+                self._wormhole.send_message(invite_message)
 
-            reply_data = yield self._wormhole.get_message()
-            print("reply data", reply_data)
-            reply_msg = json.loads(reply_data.decode("utf8"))
-            print("reply: {}".format(reply_msg))
+            with start_action(action_type="invite:get_reply") as action_reply:
+                reply_data = yield self._wormhole.get_message()
+                reply_msg = json.loads(reply_data.decode("utf8"))
+                action_reply.add_success_fields(msg=reply_msg)
 
             version = reply_msg.get("magic-folder-invite-version", None)
             self._code = None  # done with code, it's consumed
             self._consumed = True
 
+            print("AA")
             try:
                 if version != 1:
                     raise ValueError(
@@ -244,36 +248,41 @@ class Invite(object):
                         reason=reply_msg["reject-reason"],
                     )
 
+                print("BB")
+
                 self._petname = self.suggested_petname
                 if "preferred-petname" in reply_msg:
                     # max 40 chars, no newlines
                     sanitized_petname = reply_msg["preferred-petname"][:40].replace("\n", " ")
                     self._petname = sanitized_petname
-                personal_dmd = tahoe_uri_from_string(reply_msg["personal-dmd"])
-                if not IDirnodeURI.providedBy(personal_dmd):
+                personal_dmd = reply_msg["personal-dmd"]
+                print("CC")
+                if not is_readonly_directory_cap(personal_dmd):
                     raise InvalidInviteReply(
                         invite=self,
-                        reason="Personal DMD must be a directory",
-                    )
-                if not personal_dmd.is_readonly():
-                    raise InvalidInviteReply(
-                        invite=self,
-                        reason="Personal DMD must be readonly",
+                        reason="Personal DMD must be a read-only directory",
                     )
 
+                print("DD", mf_config.collective_dircap, personal_dmd)
                 # everything checks out; add the invitee to our Collective DMD
-                yield tahoe_client.add_entry_to_mutable_directory(
-                    mutable_cap=mf_config.collective_dircap,
-                    path_name=self._petname,
-                    entry_cap=personal_dmd.to_string(),
-                )
+                try:
+                    yield tahoe_client.add_entry_to_mutable_directory(
+                        mutable_cap=mf_config.collective_dircap,
+                        path_name=self._petname,
+                        entry_cap=personal_dmd,
+                    )
+                except Exception as e:
+                    print("BAD", e)
+                print("EE")
                 self._success = True
 
             finally:
                 # whether due to errors above or happy-path, we are done
                 # with the wormhole
+                print("closing wormhome")
                 yield self._wormhole.close()
 
+                print("DONE", self._success, self._consumed)
                 for d in self._awaiting_done:
                     d.callback(None)
 
@@ -370,37 +379,40 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
                 "No 'collective-dmd' in invite"
             )
         collective_dmd = invite_msg["collective-dmd"]
-        if not tahoe_uri_from_string(collective_dmd).is_readonly():
+        if not is_readonly_directory_cap(collective_dmd):
             raise ValueError(
                 "The 'collective-dmd' must be read-only"
             )
 
-        # what to do with 'suggested-petname'?
-
         # create a new Personal DMD for our new magic-folder
-        personal_dmd = yield tahoe_client.create_mutable_directory()
-        personal_cap = tahoe_uri_from_string(personal_dmd)
-        personal_readonly_cap = personal_cap.get_readonly()
+        with start_action(action_type="join:create_personal_dmd") as action_dmd:
+            personal_dmd = yield tahoe_client.create_mutable_directory()
+            personal_readonly_cap = to_readonly_capability(personal_dmd)
+            action_dmd.add_success_fields(personal_dmd=personal_readonly_cap)
 
         # create our author
         author = create_local_author(author_name)
 
-        # create our "state" directory for this magic-folder
-        print("CREATE", folder_name, local_dir, author, collective_dmd, personal_cap.to_string(), poll_interval)
-        global_config.create_magic_folder(
-            folder_name,
-            local_dir,
-            author,
-            str(collective_dmd),
-            personal_cap.to_string(),
-            poll_interval,
-            scan_interval,
-        )
+        # now create the actual magic-folder locally
+        with start_action(action_type="join:create_folder") as action_folder:
+            action_folder.add_success_fields(
+                name=folder_name,
+                path=local_dir.path,
+            )
+            global_config.create_magic_folder(
+                folder_name,
+                local_dir,
+                author,
+                str(collective_dmd),
+                personal_dmd,  # need read-write capability here
+                poll_interval,
+                scan_interval,
+            )
 
         # send back our invite-reply
         reply = {
             "magic-folder-invite-version": 1,
-            "personal-dmd": personal_readonly_cap.to_string(),
+            "personal-dmd": personal_readonly_cap,
             "preferred-petname": author_name,
         }
         yield wh.send_message(json.dumps(reply).encode("utf8"))
@@ -408,6 +420,10 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     finally:
         # whether due to errors above or happy-path, we are done
         # with the wormhole
+        print("closing wormhole")
+        from twisted.internet.task import deferLater
+        yield deferLater(reactor, 1.0)
+        print("closing wormhole")
         yield wh.close()
 
 

@@ -368,12 +368,12 @@ def invite(options):
 
     data = yield magic_folder_invite(options)
     print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
-    print(u"  waiting for {} to accept...".format(data["petname"]))
+    print(u"  waiting for {} to accept...".format(data["petname"]), file=options.stdout)
     try:
         res = yield magic_folder_invite_wait(options, data["id"])
-        print(res)
+        print("Successfully added as '{}'".format(res["petname"]), file=options.stdout)
     except MagicFolderApiError as e:
-        print("Error: {}".format(e.reason))
+        print("Error: {}".format(e.reason), file=options.stderr)
 
 
 class JoinOptions(usage.Options):

@@ -524,17 +524,18 @@ class APIv1(object):
             raise _InputError(
                 u'Body must be {"id": "..."}'
             )
-        print("get-invite", body)
         folder_service = self._global_service.get_folder_service(folder_name)
         invite = folder_service.invite_manager.get_invite(body[u"id"])
-        print(invite)
         yield invite.await_done()
         if invite.is_accepted():
-            returnValue(b"{}")
-        raise APIError(
-            code=400,
-            reason="Wormhole failed or other side declined",
-        )
+            request.setResponseCode(http.OK)
+            request.write(json.dumps(invite.marshal()))
+            return
+        else:
+            raise APIError(
+                code=400,
+                reason="Wormhole failed or other side declined",
+            )
 
     @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
     @inline_callbacks
@@ -578,6 +579,8 @@ class APIv1(object):
         scan_interval = int(body["scan-interval"])
 
         _application_json(request)
+
+        # create a folder via wormhole
         from twisted.internet import reactor
         try:
             result = yield accept_invite(
@@ -587,7 +590,11 @@ class APIv1(object):
             )
         except ValueError as e:
             raise _InputError(str(e))
-        print("good: {}".format(result))
+
+        # start the services for this folder
+        mf = self._global_service._add_service_for_folder(folder_name)
+        yield mf.ready()
+
         request.setResponseCode(http.CREATED)
         request.write(b"{}")
         request.finish()
