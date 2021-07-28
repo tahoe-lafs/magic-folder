@@ -22,6 +22,7 @@ from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
 from .util.capabilities import to_readonly_capability
+from .util.eliotutil import log_inline_callbacks
 from .web import magic_folder_web_service
 
 
@@ -198,7 +199,7 @@ class MagicFolderService(MultiService):
         MultiService.stopService(self)
         return self._starting
 
-    @inline_callbacks
+    @log_inline_callbacks(action_type=u"root-service:create-folder")
     def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):
         """
         Create a magic-folder with the specified ``name`` and
@@ -264,7 +265,7 @@ class MagicFolderService(MultiService):
         mf = self._add_service_for_folder(name)
         yield mf.ready()
 
-    @inline_callbacks
+    @log_inline_callbacks(action_type=u"root-service:leave-folder")
     def leave_folder(self, name, really_delete_write_capability):
         with start_action(
             action_type="service:leave-folder",

@@ -119,9 +119,10 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         yield twisted_sleep(reactor, 1)
         try:
             former_remote = local_cfg.get_remotesnapshot("sylvester")
-            break
         except KeyError:
             pass
+        else:
+            break
     x = yield alice.dump_state("local")
     print(x)
 
