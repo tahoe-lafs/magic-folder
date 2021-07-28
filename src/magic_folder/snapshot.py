@@ -365,7 +365,6 @@ class RemoteSnapshot(object):
         retrieve the contents.
     """
 
-    name = attr.ib()
     author = attr.ib()  # any SnapshotAuthor instance
     metadata = attr.ib()
     capability = attr.ib()
@@ -440,7 +439,6 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
     returnValue(
         RemoteSnapshot(
-            name=name,
             author=author,
             metadata=metadata,
             content_cap=content_cap,
@@ -660,7 +658,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # snapshot, so we shouldn't yet delete the LocalSnapshot
     returnValue(
         RemoteSnapshot(
-            name=snapshot.name,
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
             parents_raw=parents_raw,

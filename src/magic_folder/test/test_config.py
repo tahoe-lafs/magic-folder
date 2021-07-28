@@ -59,6 +59,7 @@ from .fixtures import (
     NodeDirectory,
 )
 from .strategies import (
+    relative_paths,
     path_segments,
     path_segments_without_dotfiles,
     port_numbers,
@@ -641,51 +642,54 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         )
 
     @given(
+        relative_paths(),
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_roundtrips(self, snapshot, path_state):
+    def test_remotesnapshot_roundtrips(self, name, snapshot, path_state):
         """
         The capability for a ``RemoteSnapshot`` added with
         ``MagicFolderConfig.store_downloaded_snapshot`` can be read back with
         ``MagicFolderConfig.get_remotesnapshot``.
         """
-        self.db.store_downloaded_snapshot(snapshot.name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(snapshot.name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.name)
+        self.db.store_downloaded_snapshot(name, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(name)
+        db_path_state = self.db.get_currentsnapshot_pathstate(name)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
         )
 
     @given(
+        relative_paths(),
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_with_existing_state(self, snapshot, path_state):
+    def test_remotesnapshot_with_existing_state(self, name, snapshot, path_state):
         """
         A ``RemoveSnapshot`` can be added without path state, if existing path
         state is in the database.
         """
-        self.db.store_currentsnapshot_state(snapshot.name, path_state)
-        self.db.store_downloaded_snapshot(snapshot.name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(snapshot.name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.name)
+        self.db.store_currentsnapshot_state(name, path_state)
+        self.db.store_downloaded_snapshot(name, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(name)
+        db_path_state = self.db.get_currentsnapshot_pathstate(name)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
         )
 
     @given(
+        relative_paths(),
         remote_snapshots(),
     )
-    def test_store_remote_without_state(self, snapshot):
+    def test_store_remote_without_state(self, name, snapshot):
         """
         Calling :py:`MagicFolderConfig.store_uploaded_snapshot` without a path
         state, when there isn't already corresponding path state fails.
         """
         with ExpectedException(RemoteSnapshotWithoutPathState):
-            self.db.store_uploaded_snapshot(snapshot.name, snapshot, 42)
+            self.db.store_uploaded_snapshot(name, snapshot, 42)
 
     @given(
         path_segments(),
@@ -717,10 +721,13 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
     @given(
         # Get two RemoteSnapshots with the same path.
         path_segments().flatmap(
-            lambda path: lists(
-                remote_snapshots(names=just(path)),
-                min_size=2,
-                max_size=2,
+            lambda path: tuples(
+                just(path),
+                lists(
+                    remote_snapshots(names=just(path)),
+                    min_size=2,
+                    max_size=2,
+                ),
             ),
         ),
         path_states(),
@@ -730,7 +737,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         A ``RemoteSnapshot`` for a given path can be replaced by a new
         ``RemoteSnapshot`` for the same path, without providing path state.
         """
-        path = snapshots[0].name
+        path, snapshots = snapshots
         self.db.store_downloaded_snapshot(path, snapshots[0], path_state)
         self.db.store_uploaded_snapshot(path, snapshots[1], 42)
         capability = self.db.get_remotesnapshot(path)
@@ -743,10 +750,13 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
     @given(
         # Get two RemoteSnapshots with the same path.
         path_segments().flatmap(
-            lambda path: lists(
-                remote_snapshots(names=just(path)),
-                min_size=2,
-                max_size=2,
+            lambda path: tuples(
+                just(path),
+                lists(
+                    remote_snapshots(names=just(path)),
+                    min_size=2,
+                    max_size=2,
+                ),
             ),
         ),
         lists(path_states(), min_size=2, max_size=2)
@@ -756,7 +766,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         A ``RemoteSnapshot`` for a given path can be replaced by a new
         ``RemoteSnapshot`` for the same path, when providing path state.
         """
-        path = snapshots[0].name
+        path, snapshots = snapshots
         self.db.store_downloaded_snapshot(path, snapshots[0], path_states[0])
         self.db.store_downloaded_snapshot(path, snapshots[1], path_states[1])
         capability = self.db.get_remotesnapshot(path)
@@ -844,9 +854,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         for x in range(35):
             name = "foo_{}".format(x)
             remote = RemoteSnapshot(
-                name,
                 self.author,
-                {"modification_time": x},
+                {"name": name, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
                 "URI:DIR2-CHK:",

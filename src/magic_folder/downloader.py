@@ -152,7 +152,7 @@ class RemoteSnapshotCacheService(service.Service):
         )
         self._cached_snapshots[snapshot_cap] = snapshot
         Message.log(message_type="remote-cache:cached",
-                    name=snapshot.name,
+                    name=snapshot.metadata['name'],
                     capability=snapshot.capability)
 
         # breadth-first traversal of the parents
@@ -301,7 +301,7 @@ class MagicFolderUpdater(object):
         conflict_path = relpath + ".conflict-{}".format(snapshot.author.name)
 
         with start_action(action_type="downloader:updater:process",
-                          name=snapshot.name,
+                          name=relpath,
                           capability=snapshot.capability,
                           ) as action:
             local_path = self._config.magic_path.preauthChild(relpath)
@@ -373,7 +373,7 @@ class MagicFolderUpdater(object):
             try:
                 with start_action(
                     action_type=u"downloader:updater:content-to-staging",
-                    name=snapshot.name,
+                    name=relpath,
                     capability=snapshot.capability,
                 ):
                     try:

@@ -54,7 +54,7 @@ class MatchesAuthorSignature(object):
             u"{name}\n"
         ).format(
             content_capability=self.remote_snapshot.content_cap,
-            name=self.remote_snapshot.name,
+            name=self.remote_snapshot.metadata['name'],
         ).encode("utf8")
 
         try:

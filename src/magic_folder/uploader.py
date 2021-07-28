@@ -336,7 +336,7 @@ class RemoteSnapshotCreator(object):
         )
         Message.log(message_type="snapshot:metadata",
                     metadata=remote_snapshot.metadata,
-                    name=remote_snapshot.name,
+                    name=name,
                     capability=remote_snapshot.capability)
 
         # if we crash here, we'll retry and re-upload (hopefully
