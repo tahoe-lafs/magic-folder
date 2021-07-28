@@ -17,7 +17,20 @@ buildPythonPackage rec {
   ];
 
   postPatch = ''
-    PATH="$PATH:${git}/bin" ${python}/bin/python setup.py update_version
+    # Generate _version.py ourselves since we can't rely on the Python code
+    # extracting the information from the .git directory that is likely not
+    # available.
+    cat > src/magic_folder/_version.py <<EOF
+
+# This _version.py is generated from metadata by nix/magic-folder.nix.
+
+__pkgname__ = "magic-folder"
+real_version = "${version}"
+full_version = "${version}"
+branch = "main"
+verstr = "${version}"
+__version__ = verstr
+EOF
   '';
 
   checkPhase = ''
