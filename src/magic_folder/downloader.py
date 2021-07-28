@@ -211,7 +211,7 @@ class IMagicFolderFilesystem(Interface):
     there are no 'partial' files in the magic-folder.
     """
 
-    def download_content_to_staging(relpath, remote_snapshot, tahoe_client):
+    def download_content_to_staging(relpath, file_cap, tahoe_client):
         """
         Prepare the content by downloading it.
 
@@ -219,7 +219,7 @@ class IMagicFolderFilesystem(Interface):
             content (or errback if the download fails).
         """
 
-    def mark_overwrite(relpath, remote_snapshot, staged_content):
+    def mark_overwrite(relpath, mtime, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -298,6 +298,7 @@ class MagicFolderUpdater(object):
         note the new snapshot-cap in our database and then push it to
         Tahoe (i.e. to our Personal DMD)
         """
+        conflict_path = relpath + ".conflict-{}".format(snapshot.author.name)
 
         with start_action(action_type="downloader:updater:process",
                           name=snapshot.name,
@@ -376,7 +377,7 @@ class MagicFolderUpdater(object):
                     capability=snapshot.capability,
                 ):
                     try:
-                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot, self.tahoe_client)
+                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot.content_cap, self.tahoe_client)
                     except Exception:
                         self._status.error_occurred(
                             "Failed to download snapshot for '{}'.".format(relpath)
@@ -391,7 +392,7 @@ class MagicFolderUpdater(object):
             # already. so mark an overwrite or conflict into the
             # filesystem.
             if is_conflict:
-                self._magic_fs.mark_conflict(relpath, snapshot, staged)
+                self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                 # FIXME probably want to also record internally that
                 # this is a conflict.
 
@@ -412,11 +413,11 @@ class MagicFolderUpdater(object):
                         last_minute_change = True
                 if last_minute_change:
                     action.add_success_fields(conflict_reason="last-minute-change")
-                    self._magic_fs.mark_conflict(relpath, snapshot, staged)
+                    self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                     # FIXME note conflict internally
                 else:
                     try:
-                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot, staged)
+                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
                     except OSError as e:
                         self._status.error_occurred(
                             "Failed to overwrite file '{}': {}".format(relpath, str(e))
@@ -456,20 +457,20 @@ class LocalMagicFolderFilesystem(object):
     staging_path = attr.ib(validator=instance_of(FilePath))
 
     @inline_callbacks
-    def download_content_to_staging(self, relpath, remote_snapshot, tahoe_client):
+    def download_content_to_staging(self, relpath, file_cap, tahoe_client):
         """
         IMagicFolderFilesystem API
         """
         import hashlib
         h = hashlib.sha256()
-        h.update(remote_snapshot.capability)
+        h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
         with staged_path.open('wb') as f:
-            yield tahoe_client.stream_capability(remote_snapshot.content_cap, f)
+            yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
 
     @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
-    def mark_overwrite(self, relpath, remote_snapshot, staged_content):
+    def mark_overwrite(self, relpath, mtime, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -501,7 +502,6 @@ class LocalMagicFolderFilesystem(object):
                 source_path=local_path.path,
                 target_path=tmp.path,
             )
-        mtime = remote_snapshot.metadata["modification_time"]
         os.utime(staged_content.path, (mtime, mtime))
 
         # We want to get the path state of the file we are about to write.
@@ -537,7 +537,7 @@ class LocalMagicFolderFilesystem(object):
                 tmp.remove()
         return path_state
 
-    def mark_conflict(self, relpath, remote_snapshot, staged_content):
+    def mark_conflict(self, relpath, conflict_path, staged_content):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
@@ -552,9 +552,7 @@ class LocalMagicFolderFilesystem(object):
         :param FilePath staged_content: a local path to the downloaded
             content.
         """
-        local_path = self.magic_path.preauthChild(
-            relpath + ".conflict-{}".format(remote_snapshot.author.name)
-        )
+        local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
 
     def mark_delete(remote_snapshot):
@@ -576,29 +574,30 @@ class InMemoryMagicFolderFilesystem(object):
         self.actions = []
         self._staged_content = {}
 
-    def download_content_to_staging(self, relpath, remote_snapshot, tahoe_client):
+    def download_content_to_staging(self, relpath, file_cap, tahoe_client):
         self.actions.append(
-            ("download", relpath, remote_snapshot)
+            ("download", relpath, file_cap)
         )
-        self._staged_content[id(remote_snapshot)] = marker = object()
+        marker = object()
+        self._staged_content[marker] = file_cap
         return succeed(marker)
 
-    def mark_overwrite(self, relpath, remote_snapshot, staged_content):
-        assert self._staged_content[id(remote_snapshot)] is staged_content
+    def mark_overwrite(self, relpath, mtime, staged_content):
+        assert staged_content in self._staged_content
         self.actions.append(
-            ("overwrite", relpath, remote_snapshot)
+            ("overwrite", relpath, self._staged_content[staged_content])
         )
-        mtime_ns = seconds_to_ns(remote_snapshot.metadata["modification_time"])
+        mtime_ns = seconds_to_ns(mtime)
         return PathState(
             mtime_ns=mtime_ns,
             ctime_ns=mtime_ns,
             size=0,
         )
 
-    def mark_conflict(self, relpath, remote_snapshot, staged_content):
-        assert self._staged_content[id(remote_snapshot)] is staged_content
+    def mark_conflict(self, relpath, conflict_path, staged_content):
+        assert staged_content in self._staged_content
         self.actions.append(
-            ("conflict", relpath, remote_snapshot)
+            ("conflict", relpath, conflict_path, self._staged_content[staged_content])
         )
 
     def mark_delete(self, relpath, remote_snapshot):

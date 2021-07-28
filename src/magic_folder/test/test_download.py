@@ -759,8 +759,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", remote0),
-                ("conflict", "foo", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
             ])
         )
 
@@ -809,8 +809,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", remote0),
-                ("overwrite", "foo", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("overwrite", "foo", remote0.content_cap),
             ])
         )
 
@@ -852,8 +852,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", youngest),
-                ("overwrite", "foo", youngest),
+                ("download", "foo", youngest.content_cap),
+                ("overwrite", "foo", youngest.content_cap),
             ])
         )
 
@@ -909,8 +909,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", child),
-                ("conflict", "foo", child),
+                ("download", "foo", child.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
             ])
         )
 
@@ -975,7 +975,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def permissions_suck(relpath, remote_snap, staged_content):
+        def permissions_suck(relpath, mtime, staged_content):
             """
             cause the filesystem to fail to write due to a permissions problem
             """
@@ -1061,7 +1061,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def network_is_out(relpath, remote_snap, tahoe_client):
+        def network_is_out(relpath, file_cap, tahoe_client):
             """
             download fails for some reason
             """
