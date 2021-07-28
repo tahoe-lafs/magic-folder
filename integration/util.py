@@ -7,7 +7,7 @@ from __future__ import (
 import sys
 import time
 import json
-import signal
+import os
 from os import mkdir
 from io import BytesIO
 from os.path import exists, join
@@ -15,6 +15,7 @@ from six.moves import StringIO
 from functools import partial
 
 import attr
+from psutil import Process
 
 from twisted.internet.defer import (
     returnValue,
@@ -41,7 +42,6 @@ from eliot import (
     current_action,
     start_action,
     start_task,
-    log_call,
 )
 from eliot.twisted import (
     inline_callbacks,
@@ -63,6 +63,7 @@ from magic_folder.cli import (
 from magic_folder.config import (
     load_global_configuration,
 )
+from magic_folder.util.eliotutil import log_inline_callbacks
 
 
 @attr.s
@@ -93,6 +94,8 @@ class MagicFolderEnabledNode(object):
 
     magic_folder_web_port = attr.ib()
 
+    _global_config = attr.ib(init=False, default=None)
+
     @property
     def node_directory(self):
         return join(self.base_dir, self.name)
@@ -102,7 +105,9 @@ class MagicFolderEnabledNode(object):
         return join(self.base_dir, "magic-daemon-{}".format(self.name))
 
     def global_config(self):
-        return load_global_configuration(FilePath(self.magic_config_directory))
+        if self._global_config is None:
+            self._global_config = load_global_configuration(FilePath(self.magic_config_directory))
+        return self._global_config
 
     @property
     def magic_directory(self):
@@ -233,11 +238,11 @@ class MagicFolderEnabledNode(object):
 
     def pause_tahoe(self):
         Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
-        self.tahoe.transport.signalProcess(signal.SIGSTOP)
+        self.tahoe.suspend()
 
     def resume_tahoe(self):
         Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
-        self.tahoe.transport.signalProcess(signal.SIGCONT)
+        self.tahoe.resume()
 
     # magic-folder CLI API helpers
 
@@ -277,6 +282,17 @@ class MagicFolderEnabledNode(object):
         """
         magic-folder leave
         """
+        if self._global_config is not None:
+            # If we've accessed the folder state database from the integration
+            # tests, make sure that the connection has been closed before we
+            # try to remove the database. This is necessary on windows,
+            # otherwise the state database can't be removed.
+            folder_config = self._global_config._folder_config_cache.pop(
+                folder_name, None
+            )
+            if folder_config is not None:
+                folder_config.database.close()
+
         return _magic_folder_runner(
             self.reactor, self.request, self.name,
             [
@@ -445,7 +461,10 @@ class EliotLogStream(object):
 
     This is intended to capture eliot log output from a subprocess, and include
     them in the logs for this process.
+
+    :ivar Callable[[str], None] _fallback: A function to call with non-JSON log lines.
     """
+    _fallback = attr.ib()
     _eliot_buffer = attr.ib(init=False, default=b"")
 
     def data_received(self, data):
@@ -456,7 +475,12 @@ class EliotLogStream(object):
         lines = (self._eliot_buffer + data).split(b'\n')
         self._eliot_buffer = lines.pop(-1)
         for line in lines:
-            logger.write(json.loads(line))
+            try:
+                message = json.loads(line)
+            except ValueError:
+                self._fallback(line)
+            else:
+                logger.write(message)
 
 
 def run_service(
@@ -490,15 +514,22 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
+        magic_seen = protocol.magic_seen
+
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
         process = reactor.spawnProcess(
             protocol,
             executable,
             args,
             path=cwd,
-            childFDs={1: 'r', 2: 'r', 3: 'r'},
+            # Twisted on Windows doesn't support customizing FDs
+            # _MagicTextProtocol will collect eliot logs from FD 3 and stderr.
+            childFDs={1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
+            env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
-        return protocol.magic_seen.addCallback(lambda ignored: process)
+        return magic_seen.addCallback(lambda ignored: process)
 
 def run_tahoe_service(
     reactor,
@@ -552,33 +583,62 @@ class _MagicTextProtocol(ProcessProtocol):
         self.exited = Deferred()
         self._magic_text = magic_text
         self._output = StringIO()
-        self._eliot_stream = EliotLogStream()
+        self._eliot_stream = EliotLogStream(fallback=self.eliot_garbage_received)
+        self._eliot_stderr = EliotLogStream(fallback=self.err_received)
         self._action = current_action()
         assert self._action is not None
 
     def processEnded(self, reason):
         with self._action:
             Message.log(message_type=u"process-ended")
+        if self.magic_seen is not None:
+            d, self.magic_seen = self.magic_seen, None
+            d.errback(Exception("Service failed."))
         self.exited.callback(None)
 
     def childDataReceived(self, childFD, data):
-        ProcessProtocol.childDataReceived(self, childFD, data)
-        if childFD == 3:
+        if childFD == 1:
+            self.out_received(data)
+        elif childFD == 2:
+            self._eliot_stderr.data_received(data)
+        elif childFD == 3:
             self._eliot_stream.data_received(data)
+        else:
+            ProcessProtocol.childDataReceived(self, childFD, data)
 
-    def outReceived(self, data):
+    def out_received(self, data):
+        """
+        Called with output from stdout.
+        """
         with self._action.context():
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
             self._output.write(data)
-        if not self.magic_seen.called and self._magic_text in self._output.getvalue():
+        if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
-            self.magic_seen.callback(self)
+            d, self.magic_seen = self.magic_seen, None
+            d.callback(self)
 
-    def errReceived(self, data):
+    def err_received(self, data):
+        """
+        Called when non-JSON lines are received on stderr.
+
+        On Windows we use stderr for eliot logs from magic-folder.
+        But neither magic-folder nor tahoe guarantee that there is
+        no other output there, so we treat it as expected.
+        """
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
             sys.stdout.write(data)
+
+    def eliot_garbage_received(self, data):
+        """
+        Called when non-JSON lines are received on FD 3.
+
+        Since FD 3 is suppposed to only have eliot-logs, log them as malformed.
+        """
+        with self._action.context():
+            Message.log(message_type=u"malformed-eliot-log", data=data)
 
 
 def _cleanup_service_process(process, exited, action):
@@ -668,7 +728,7 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
     )
 
 def _tahoe_runner_args(tahoe_venv, other_args):
-    tahoe_python = str(tahoe_venv.joinpath('bin', 'python'))
+    tahoe_python = str(tahoe_venv.python)
     args = [tahoe_python, '-m', 'allmydata.scripts.runner']
     args.extend(other_args)
     return tahoe_python, args
@@ -699,6 +759,14 @@ class TahoeProcess(object):
     @property
     def transport(self):
         return self._process_transport
+
+    def suspend(self):
+        if self.transport.pid is not None:
+            Process(self.transport.pid).suspend()
+
+    def resume(self):
+        if self.transport.pid is not None:
+            Process(self.transport.pid).resume()
 
     @property
     def node_dir(self):
@@ -814,17 +882,20 @@ class FileShouldVanishException(Exception):
 
 
 
-@log_call(action_type=u"integration:await-file-contents", include_args=["path", "contents", "timeout"])
+@log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
 def await_file_contents(path, contents, timeout=15):
     """
-    wait up to `timeout` seconds for the file at `path` (any path-like
-    object) to have the exact content `contents`.
+    Return a deferred that fires when the file at `path` (any path-like
+    object) has the exact content `contents`.
 
-    :param error_if: if specified, a list of additional paths; if any
-        of these paths appear an Exception is raised.
+    :raises ExpectedFileMismatchException: if the path doesn't have the
+        expected content after the timeout.
+    :raises ExpectedFileUnfoundException: if the path doesn't exist after the
+        the timeout.
     """
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             try:
@@ -834,7 +905,7 @@ def await_file_contents(path, contents, timeout=15):
                 print("IOError; trying again")
             else:
                 if current == contents:
-                    return True
+                    return
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
                 if len(contents) < 80:
@@ -848,18 +919,26 @@ def await_file_contents(path, contents, timeout=15):
             Message.log(
                 message_type=u"integration:await-file-contents:missing",
             )
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
 
+@inline_callbacks
 def ensure_file_not_created(path, timeout=15):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    """
+    Returns a deferred that fires after the given timeout, if the file has not
+    appeared.
+
+    :raises UnwantedFileException: if the file appears before the timeout.
+    """
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             raise UnwantedFileException(path)
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
 
 
 def await_files_exist(paths, timeout=15, await_all=False):
@@ -879,7 +958,7 @@ def await_files_exist(paths, timeout=15, await_all=False):
         else:
             if len(found) > 0:
                 return found
-        time.sleep(1)
+        sleep(1)
     if await_all:
         nice_paths = ' and '.join(paths)
     else:
@@ -893,7 +972,7 @@ def await_file_vanishes(path, timeout=10):
         print("  waiting for '{}' to vanish".format(path))
         if not exists(path):
             return
-        time.sleep(1)
+        sleep(1)
     raise FileShouldVanishException(path, timeout)
 
 
@@ -934,7 +1013,21 @@ def web_get(tahoe, uri_fragment, **kwargs):
 
 
 def twisted_sleep(reactor, timeout):
+    """
+    Return a deferred that fires after the given time.
+    """
     return deferLater(reactor, timeout, lambda: None)
+
+
+def sleep(timeout):
+    """
+    Sleep for the given amount of time, letting the pytest-twisted reactor run.
+
+    This can only be called from the main pytest greenlet, not from the reactor
+    greenlet.
+    """
+    from twisted.internet import reactor as _reactor
+    pytest_twisted.blockon(twisted_sleep(_reactor, timeout))
 
 
 @inline_callbacks
@@ -1047,8 +1140,9 @@ def _run_magic_folder(reactor, request, base_dir, name):
     ]) + [
         "--config",
         config_dir,
+        # run_service will collect eliot logs from FD 3 and stderr.
         "--eliot-fd",
-        "3",
+        "3" if sys.platform != "win32" else "2",
         "--debug",
         "--eliot-task-fields",
         json.dumps({
