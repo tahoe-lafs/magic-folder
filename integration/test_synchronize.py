@@ -536,7 +536,68 @@ def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_sn
     yield await_file_contents(
         recover_folder.child("sylvester.conflict-alice").path,
         content2,
-        timeout=25,
+        timeout=10,
+    )
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content1,
+        timeout=10,
+    )
+
+@pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
+@pytest_twisted.inlineCallbacks
+def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    """
+    If we make a change to a local file, it is not detected as a conflict.
+    """
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    alice_folders = yield alice.list_(True)
+
+    def cleanup_original():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(alice.start_magic_folder())
+        pytest_twisted.blockon(alice.leave("original"))
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = non_lit_content("zero")
+    original_folder.child("sylvester").setContent(content0)
+    yield take_snapshot(alice, "original", "sylvester")
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+
+    def cleanup_recovery():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(bob.start_magic_folder())
+        pytest_twisted.blockon(bob.leave("recovery"))
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content0,
+        timeout=10,
+    )
+
+    content1 = non_lit_content("one")
+    recover_folder.child("sylvester").setContent(content1)
+
+    yield ensure_file_not_created(
+        recover_folder.child("sylvester.conflict-alice").path,
+        timeout=10,
     )
     yield await_file_contents(
         recover_folder.child("sylvester").path,
