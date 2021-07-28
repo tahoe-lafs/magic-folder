@@ -79,7 +79,7 @@ jobs:
         pip install wheel tox eliot-tree
     - name: Test with tox
       run: |
-        tox -e integration
+        tox -e integration "integration/test_synchronize.py::test_local_snapshots[periodic_scan]" "integration/test_synchronize.py::test_create_then_recover[add_snapshot]"
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
