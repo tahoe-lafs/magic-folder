@@ -6,11 +6,18 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
+
+import re
+from typing import Optional
+
+from twisted.internet.address import IPv4Address, IPv6Address
 
 from twisted.internet.endpoints import (
     _parse as twisted_endpoint_parse,
 )
+from twisted.internet.interfaces import IAddress
 
 
 class CannotConvertEndpointError(Exception):
@@ -18,6 +25,23 @@ class CannotConvertEndpointError(Exception):
     Failed to convert a server endpoint-string into a corresponding
     client one.
     """
+
+def _quote_endpoint_argument(s):
+    # type: (unicode) -> unicode
+    return re.sub(
+        r"[\:]",
+        lambda m: r"\{}".format(m.group(0)),
+        s
+    )
+
+def client_endpoint_from_address(address):
+    # type: (IAddress) -> Optional[unicode]
+    if isinstance(address, (IPv4Address, IPv6Address)) and address.type == "TCP":
+        return "tcp:host={host}:port={port}".format(
+            host=_quote_endpoint_argument(address.host.encode("utf-8")),
+            port=address.port,
+        )
+    return None
 
 
 def server_endpoint_str_to_client(server_ep):
@@ -54,6 +78,8 @@ def _tcp_endpoint_to_client(args, kwargs):
     """
     host = kwargs.get(u"interface", None) or u"127.0.0.1"
     port = args[0]
+    if port == "0":
+        return None
     return u"tcp:{}:{}".format(host, port)
 
 
