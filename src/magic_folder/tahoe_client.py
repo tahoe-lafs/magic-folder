@@ -258,7 +258,7 @@ class TahoeClient(object):
         ).to_uri().to_text().encode("ascii")
         action = start_action(
             action_type=u"magic-folder:cli:list-dir",
-            filenode_uri=dir_cap.decode("ascii"),
+            dirnode_uri=dir_cap.decode("ascii"),
             api_uri=api_uri,
         )
         with action.context():
