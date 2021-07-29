@@ -47,6 +47,7 @@ def magic_folder_show_config(config, stdout=None):
     json = {
         "tahoe_node_directory": config.tahoe_node_directory.path,
         "api_endpoint": config.api_endpoint,
+        "api_client_endpoint": config.api_client_endpoint,
         "api_token": config.api_token,
         "magic_folders": magic_folders,
     }

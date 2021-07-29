@@ -560,6 +560,9 @@ class BaseOptions(usage.Options):
     def client(self):
         if self._client is None:
             from twisted.internet import reactor
+            endpoint = self.config.api_client_endpoint
+            if endpoint is None:
+                raise Exception("Service not running.")
 
             if self._http_client is None:
                 self._http_client = create_http_client(

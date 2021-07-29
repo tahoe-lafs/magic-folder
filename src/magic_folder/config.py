@@ -311,15 +311,16 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         raise ValueError(
             "'api_endpoint_str' must be unicode"
         )
-    if not isinstance(api_client_endpoint_str, unicode):
+    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, unicode):
         raise ValueError(
             "'api_client_endpoint_str' must be unicode"
         )
-    api_endpoint_str = nativeString(api_endpoint_str)
-    api_client_endpoint_str = nativeString(api_client_endpoint_str)
     # check that the endpoints are valid (will raise exception if not)
+    api_endpoint_str = nativeString(api_endpoint_str)
     _validate_listen_endpoint_str(api_endpoint_str)
-    _validate_connect_endpoint_str(api_client_endpoint_str)
+    if api_client_endpoint_str is not None:
+        api_client_endpoint_str = nativeString(api_client_endpoint_str)
+        _validate_connect_endpoint_str(api_client_endpoint_str)
 
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
@@ -1391,7 +1392,10 @@ class GlobalConfigDatabase(object):
         The twisted client-string describing our API listener
         """
         cursor.execute("SELECT api_client_endpoint FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        endpoint = cursor.fetchone()[0]
+        if endpoint is not None:
+            endpoint.encode("utf8")
+        return endpoint
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):

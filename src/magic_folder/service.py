@@ -17,11 +17,13 @@ from twisted.web import http
 from twisted.web.client import Agent
 
 from .common import APIError, NoSuchMagicFolder
+from .endpoints import client_endpoint_from_address
 from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
 from .util.capabilities import to_readonly_capability
+from .util.observer import ListenObserver
 from .web import magic_folder_web_service
 
 
@@ -62,6 +64,7 @@ class MagicFolderService(MultiService):
     config = attr.ib()
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
+    _run_deferred = attr.ib(init=False, factory=Deferred)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -70,9 +73,11 @@ class MagicFolderService(MultiService):
                 self.config.tahoe_client_url,
                 HTTPClient(Agent(self.reactor)),
             )
-        self._listen_endpoint = serverFromString(
-            self.reactor,
-            self.config.api_endpoint,
+        self._listen_endpoint = ListenObserver(
+            serverFromString(
+                self.reactor,
+                self.config.api_endpoint,
+            )
         )
         web_service = magic_folder_web_service(
             self._listen_endpoint,
@@ -179,13 +184,27 @@ class MagicFolderService(MultiService):
     def run(self):
         d = self._when_connected_enough()
         d.addCallback(lambda ignored: self.startService())
-        d.addCallback(lambda ignored: Deferred())
+        d.addCallback(lambda ignored: self._run_deferred)
         return d
 
     def startService(self):
         MultiService.startService(self)
 
+        def _set_api_endpoint(address):
+            endpoint = client_endpoint_from_address(address)
+            if endpoint is not None:
+                self.config.api_client_endpoint = endpoint
+            return None
+
+        def _stop_reactor(failure):
+            self._run_deferred.errback(failure)
+
         ds = []
+        ds.append(
+            self._listen_endpoint.observe().addCallbacks(
+                _set_api_endpoint, _stop_reactor,
+            )
+        )
         for magic_folder in self._iter_magic_folder_services():
             ds.append(magic_folder.ready())
         # The integration tests look for this message.  You cannot get rid of
@@ -193,10 +212,12 @@ class MagicFolderService(MultiService):
         print("Completed initial Magic Folder setup")
         self._starting = gatherResults(ds)
 
+    @inline_callbacks
     def stopService(self):
         self._starting.cancel()
-        MultiService.stopService(self)
-        return self._starting
+        yield MultiService.stopService(self)
+        yield self._starting
+        self.config.api_client_endpoint = None
 
     @inline_callbacks
     def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):
@@ -230,7 +251,6 @@ class MagicFolderService(MultiService):
                 code=http.BAD_REQUEST,
                 reason="scan_interval must be positive integer or null",
             )
-
 
         # create our author
         author = create_local_author(author_name)
