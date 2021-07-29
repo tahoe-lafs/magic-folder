@@ -109,12 +109,14 @@ class ScannerService(MultiService):
             results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
-            yield find_updated_files(self._cooperator, self._config, process)
+            yield find_updated_files(
+                self._cooperator, self._config, process, status=self._status
+            )
             yield gatherResults(results)
         # XXX update/use IStatus to report scan start/end
 
 
-def find_updated_files(cooperator, folder_config, on_new_file):
+def find_updated_files(cooperator, folder_config, on_new_file, status):
     """
     :param Cooperator cooperator: The cooperator to use to control yielding to
         the reactor.
@@ -124,6 +126,8 @@ def find_updated_files(cooperator, folder_config, on_new_file):
     :param Callable[[FilePath], None] on_new_file:
         This function will be invoked for each updated / new file we find. The
         argument will be a FilePath of the updated/new file.
+
+    :param FileStatus status: The status implementation to report errors to.
 
     :returns Deferred[None]: Deferred that fires once the scan is complete.
     """
@@ -149,6 +153,12 @@ def find_updated_files(cooperator, folder_config, on_new_file):
                     snapshot_state = None
 
                 if not path_info.is_file:
+                    if snapshot_state is not None:
+                        status.error_occurred(
+                            "File {} was a file, and now is {}.".format(
+                                relpath, "a directory" if path_info.is_dir else "not"
+                            )
+                        )
                     return
                 if path_info.state != snapshot_state:
                     # TODO: We may also want to compare checksums here,
