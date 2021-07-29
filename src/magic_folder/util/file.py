@@ -62,6 +62,8 @@ def get_pathinfo(path):
                 mtime_ns=seconds_to_ns(statinfo.st_mtime),
                 ctime_ns=seconds_to_ns(statinfo.st_ctime),
             )
+        else:
+            path_state = None
         return PathInfo(
             is_dir=stat.S_ISDIR(mode),
             is_file=is_file,
@@ -72,9 +74,9 @@ def get_pathinfo(path):
     except OSError as e:
         if e.errno == ENOENT:
             return PathInfo(
-                isdir=False,
-                isfile=False,
-                islink=False,
+                is_dir=False,
+                is_file=False,
+                is_link=False,
                 exists=False,
                 state=None,
             )
