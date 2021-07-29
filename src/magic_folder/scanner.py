@@ -29,9 +29,9 @@ def _create_cooperator(clock):
 
     # NOTE: We don't use CooperatorSevice here, since:
     # - There is not a way to set the reactor it uses
-    # - Once we enable periodic scans, we want to wait to stop the cooperator
-    #   stop it until after the TimerService for periodic scans has stoppped,
-    #   so that the Cooperator will have no pending work.
+    # - We want to wait to stop the cooperator until after the TimerService for
+    #   periodic scans has stopped, so that the Cooperator will have no pending
+    #   work.
     return Cooperator(
         scheduler=schedule,
     )
@@ -121,8 +121,8 @@ def find_updated_files(cooperator, folder_config, on_new_file):
     :param MagicFolderConfig folder_config: the folder for which we
         are scanning
 
-    :param callable on_new_file: a 1-argument callable. This function
-        will be invoked for each updated / new file we find. The
+    :param Callable[[FilePath], None] on_new_file:
+        This function will be invoked for each updated / new file we find. The
         argument will be a FilePath of the updated/new file.
 
     :returns Deferred[None]: Deferred that fires once the scan is complete.
