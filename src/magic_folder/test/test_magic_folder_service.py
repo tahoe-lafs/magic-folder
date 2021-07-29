@@ -56,6 +56,7 @@ from ..config import (
     create_testing_configuration,
 )
 from ..status import (
+    FolderStatus,
     WebSocketStatusService,
 )
 from ..snapshot import (
@@ -97,13 +98,14 @@ class MagicFolderServiceTests(SyncTestCase):
         name = u"local-snapshot-service-test"
         config = object()
         participants = object()
+        status_service = WebSocketStatusService(reactor, None)
         magic_folder = MagicFolder(
             client=tahoe_client,
             config=config,
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
-            status_service=WebSocketStatusService(reactor, None),
+            folder_status=FolderStatus(name, status_service),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,
@@ -144,12 +146,15 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
         target_path.asBytesMode("utf-8").setContent(content)
 
+        clock = task.Clock()
+        status_service = WebSocketStatusService(clock, global_config)
+        folder_status = FolderStatus(u"foldername", status_service)
         local_snapshot_creator = MemorySnapshotCreator()
         clock = task.Clock()
         local_snapshot_service = LocalSnapshotService(
             mf_config,
             local_snapshot_creator,
-            WebSocketStatusService(clock, global_config),
+            folder_status,
         )
 
         tahoe_client = object()
@@ -161,7 +166,7 @@ class MagicFolderServiceTests(SyncTestCase):
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=Service(),
-            status_service=WebSocketStatusService(None, None),
+            folder_status=folder_status,
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,
@@ -206,11 +211,13 @@ class MagicFolderServiceTests(SyncTestCase):
         )
 
         clock = task.Clock()
+        status_service = WebSocketStatusService(clock, None)
+        folder_status = FolderStatus(u"foldername", status_service)
         local_snapshot_creator = MemorySnapshotCreator()
         local_snapshot_service = LocalSnapshotService(
             config,
             local_snapshot_creator,
-            WebSocketStatusService(clock, config),
+            folder_status,
         )
 
         # create RemoteSnapshotCreator and UploaderService
@@ -225,7 +232,7 @@ class MagicFolderServiceTests(SyncTestCase):
             name=name,
             local_snapshot_service=local_snapshot_service,
             uploader_service=uploader_service,
-            status_service=WebSocketStatusService(None, None),
+            folder_status=folder_status,
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
             initial_participants=participants,

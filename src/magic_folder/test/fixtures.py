@@ -37,6 +37,7 @@ from twisted.internet.task import Clock
 from twisted.python.filepath import FilePath
 
 from ..client import create_testing_http_client
+from ..status import FolderStatus
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
@@ -190,12 +191,13 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.temp.child(b"config"),
             self.temp.child(b"tahoe-node"),
         )
+        self.status = WebSocketStatusService(Clock(), self._global_config)
         self.remote_snapshot_creator = RemoteSnapshotCreator(
             config=self.config,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
             upload_dircap=self.upload_dircap,
-            status=WebSocketStatusService(Clock(), self._global_config),
+            status=FolderStatus(self.config.name, self.status),
         )
 
 @attr.s
