@@ -491,21 +491,17 @@ class APIv1(object):
         - "suggested-petname": arbitrary, valid author name
         """
         body = _load_json(request.content.read())
-        print("XXX", body)
         if set(body.keys()) != {u"suggested-petname"}:
             raise _InputError(
                 u'Body must be {"suggested-petname": "..."}'
             )
         author_name = body[u"suggested-petname"]
         folder_service = self._global_service.get_folder_service(folder_name)
-        print("svc", folder_service)
         folder_config = folder_service.config
+
         from twisted.internet import reactor
-        print("create")
         invite = yield folder_service.invite_manager.create_invite(reactor, author_name, folder_config)
-        print("invite", invite.marshal())
         yield invite.await_code()
-        print("have code", invite.marshal())
         returnValue(json.dumps(invite.marshal()))
 
     @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
@@ -548,9 +544,10 @@ class APIv1(object):
 
         - "name": arbitrary, valid magic folder name
         - "invite-code": wormhole code
-        - "local-director": absolute path of an existing local directory to synchronize files in
+        - "local-directory": absolute path of an existing local directory to synchronize files in
         - "author": arbitrary, valid author name
-        - "poll-interval": seconds between update checks
+        - "poll-interval": seconds between remote update checks
+        - "scan-interval": seconds between local update checks
         """
         body = _load_json(request.content.read())
         required_keys = {
@@ -622,164 +619,6 @@ class _InputError(APIError):
     """
     def __init__(self, reason):
         super(_InputError, self).__init__(code=http.BAD_REQUEST, reason=reason)
-
-@attr.s
-class InviteAPIv1(Resource, object):
-    """
-    ``InviteAPIv1`` implements the ``/v1/invite`` portion of the HTTP API
-    resource hierarchy.
-
-    This includes listing invites, beginning new invites and details
-    about in-progress invites. In-progress invites may also be cancelled.
-
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
-    """
-    _global_config = attr.ib()
-    _global_service = attr.ib()
-    _tahoe_client = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def render_POST(self, request):
-        """
-        Accept an invite and create a new folder
-
-        Accept: "?accept=<wormhole_code>&author_name=<name>&local_dir=<path>"
-        """
-        if b"accept" in request.args:
-            # XXX all this needs to be validated
-            wormhole_code = request.args[b"accept"][0].decode("utf-8")
-            folder_name = request.args[b"name"][0].decode("utf-8")
-            author_name = request.args[b"author_name"][0].decode("utf-8")
-            local_dir = FilePath(request.args[b"local_dir"][0].decode("utf-8"))
-            poll_interval = int(request.args[b"poll_interval"][0].decode("utf-8"))
-            from twisted.internet import reactor
-            d = accept_invite(
-                reactor, self._global_config, wormhole_code, folder_name,
-                author_name, local_dir, poll_interval, self._tahoe_client,
-            )
-            _application_json(request)
-
-            def success(arg):
-                print("good: {}".format(arg))
-                request.setResponseCode(http.CREATED)
-                request.write(b"{}")
-                request.finish()
-
-            def error(fail):
-                print("bad: {}".format(fail))
-                request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-                request.write(json.dumps({u"reason": fail.getErrorMessage()}))
-                request.finish()
-            d.addCallback(success)
-            d.addErrback(error)
-            return NOT_DONE_YET
-
-        # fall-through, none of our args fit so it's an error
-        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        _application_json(request)
-        return json.dumps({u"reason": "missing arguments"})
-
-    def getChild(self, name, request):
-        name_u = name.decode("utf-8")
-        folder_config = self._global_config.get_magic_folder(name_u)
-        folder_service = self._global_service.get_folder_service(name_u)
-        return InviteFolderAPIv1(folder_config, folder_service)
-
-
-@attr.s
-class InviteFolderAPIv1(Resource, object):
-    """
-    Implements the ``/v1/invite/<folder-name>`` portion of the HTTP
-    API resource hierarchy.
-
-    This includes listing invites, beginning new invites and details
-    about in-progress invites. In-progress invites may also be cancelled.
-
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
-    """
-    _folder_config = attr.ib()
-    _folder_service = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def render_GET(self, request):
-        """
-        Respond with all of the in-progress invites for this folver
-        """
-        return json.dumps(
-            {
-                u"invites": self._folder_service.invite_manager.list_invites()
-            }
-        )
-
-    def render_POST(self, request):
-        """
-        Create a new invite for this folder.
-
-        Create: "?create=1&preferred_petname=" latter being optional
-        """
-        if b"create" in request.args and int(request.args[b"create"][0].decode("utf-8")):
-            # ?create=1
-            petname = None
-            if b"preferred_petname" in request.args:
-                petname = request.args[b"preferred_petname"][0].decode("utf8")
-                if len(petname) >= 40 or "\n" in petname:
-                    request.setResponseCode(http.ERROR)
-                    _application_json(request)
-                    return json.dumps({
-                        u"reason": "preferred_petname must be under 40 chars and have no newlines"
-                    })
-
-            from twisted.internet import reactor
-            invite = self._folder_service.invite_manager.create_invite(
-                reactor,
-                petname,
-                self._folder_config,
-            )
-            request.setResponseCode(http.CREATED)
-            _application_json(request)
-            return json.dumps({
-                "invite": invite.uuid,
-            })
-
-        # fall-through, none of our args fit so it's an error
-        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-        _application_json(request)
-        return json.dumps({u"reason": "missing arguments"})
-
-
-    def getChild(self, name, request):
-        name_u = name.decode("utf-8")
-        invite_detail = None
-        return InviteDetailAPIv1(self._folder_config, invite_detail)
-
-
-@attr.s
-class InviteDetailAPIv1(Resource, object):
-    """
-    Information about a particular in-progress invite
-    """
-    _invite_detail = attr.ib()
-
-    def __attrs_post_init__(self):
-        Resource.__init__(self)
-
-    def render_GET(self, request):
-        """
-        Respond with details about this invite
-        """
-
-    def render_POST(self, request):
-        """
-        Cancel this invite
-
-        XXX "?cancel=1" probably most-consistent with other APIs?
-        """
 
 
 def _application_json(request):
