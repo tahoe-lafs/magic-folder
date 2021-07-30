@@ -2,7 +2,7 @@
 buildPythonPackage rec {
   pname = "magic-folder";
   version = "2020-02-05";
-  src = ../.;
+  src = lib.cleanSource ../.;
 
   propagatedBuildInputs = with pythonPackages; [
     configparser
