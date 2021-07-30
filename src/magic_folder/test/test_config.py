@@ -767,6 +767,14 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             ]),
         )
 
+    def test_remotesnapshot_caps_missing(self):
+        """
+        A KeyError is thrown accessing missing remotesnapshot_caps
+        """
+        self.setup_example()
+        with self.assertRaises(KeyError):
+            self.db.get_remotesnapshot_caps("a-missing-snapshot-name")
+
 
 class RemoteSnapshotTimeTests(SyncTestCase):
     """
