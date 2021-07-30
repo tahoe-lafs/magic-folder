@@ -270,7 +270,7 @@ class WebSocketStatusService(service.Service):
                 upload
                 for upload in sorted(
                         self._folders.get(name, {}).get("uploads", {}).values(),
-                        key=lambda u: u["queued-at"],
+                        key=lambda u: u.get("queued-at", 0),
                         reverse=True,
                 )
             ]
@@ -278,7 +278,7 @@ class WebSocketStatusService(service.Service):
                 download
                 for download in sorted(
                         self._folders.get(name, {}).get("downloads", {}).values(),
-                        key=lambda d: d["queued-at"],
+                        key=lambda d: d.get("queued-at", 0),
                         reverse=True,
                 )
             ]
