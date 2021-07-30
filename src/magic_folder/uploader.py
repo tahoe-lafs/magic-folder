@@ -274,6 +274,20 @@ class RemoteSnapshotCreator(object):
     _upload_dircap = attr.ib()
     _status = attr.ib(validator=attr.validators.provides(IStatus))
 
+    def initialize_upload_status(self):
+        """
+        If any local-snapshots are present in our database at
+        startup we need to reflect their "pending upload" status
+        properly.
+        """
+        localsnapshot_names = self._config.get_all_localsnapshot_paths()
+        for name in localsnapshot_names:
+            # if we re-started with LocalSnapshots already in our database
+            # locally, we won't have done a .upload_queued() yet _in this
+            # process_ (that is, a previous daemon did that resulting in
+            # the database entries)
+            self._status.upload_queued(self._config.name, magic2path(name))
+
     @inline_callbacks
     def upload_local_snapshots(self):
         """
@@ -290,12 +304,6 @@ class RemoteSnapshotCreator(object):
         # the new snapshot gets lost.
 
         for name in localsnapshot_names:
-            # if we re-started with LocalSnapshots already in our database
-            # locally, we won't have done a .upload_queued() yet _in this
-            # process_ (that is, a previous daemon did that resulting in
-            # the database entries)
-            self._status.upload_queued(self._config.name, magic2path(name))
-
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
@@ -410,8 +418,11 @@ class UploaderService(service.Service):
         Start UploaderService and initiate a periodic task
         to poll for LocalSnapshots in the database.
         """
-
         service.Service.startService(self)
+
+        # if we started with any local snapshots already in the
+        # database we must reflect this in our status service.
+        self._remote_snapshot_creator.initialize_upload_status()
 
         # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = LoopingCall(
