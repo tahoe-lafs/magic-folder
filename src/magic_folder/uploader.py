@@ -4,6 +4,7 @@ from __future__ import (
     print_function,
 )
 
+import time
 import attr
 
 from twisted.python.filepath import (
@@ -264,6 +265,12 @@ class IRemoteSnapshotCreator(Interface):
             made to commit at least some local uncommitted snapshots.
         """
 
+    def initialize_upload_status(self):
+        """
+        Called precisely once upon startup, before any calls to
+        upload_local_snapshots.
+        """
+
 
 @implementer(IRemoteSnapshotCreator)
 @attr.s
@@ -328,6 +335,7 @@ class RemoteSnapshotCreator(object):
         """
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(name)
+        upload_started_at = time.time()
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,
@@ -345,7 +353,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(name, remote_snapshot)
+        yield self._config.store_uploaded_snapshot(name, remote_snapshot, upload_started_at)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but

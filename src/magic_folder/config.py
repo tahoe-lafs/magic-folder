@@ -228,7 +228,8 @@ _magicfolder_config_schema = Schema([
             [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
             [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
             [size]             INTEGER NOT NULL, -- size of current snapshot
-            [last_updated_ns]  INTEGER NOT NULL  -- timestamp when last changed
+            [last_updated_ns]  INTEGER NOT NULL, -- timestamp when last changed
+            [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
     ]),
@@ -988,7 +989,7 @@ class MagicFolderConfig(object):
 
 
     @with_cursor
-    def store_uploaded_snapshot(self, cursor, name, remote_snapshot):
+    def store_uploaded_snapshot(self, cursor, name, remote_snapshot, upload_started_at):
         """
         Store the remote snapshot cap of a snapshot that we uploaded.
 
@@ -997,6 +998,7 @@ class MagicFolderConfig(object):
 
         :param unicode name: The name to match.  See ``LocalSnapshot.name``.
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
+        :param float upload_started_at: Timestamp when this upload started, in seconds.
 
         :raises RemoteSnapshotWithoutPathState:
             if there is not already path state in the database for the given
@@ -1008,17 +1010,18 @@ class MagicFolderConfig(object):
             relpath=name,
         )
         now_ns = seconds_to_ns(self._get_current_timestamp())
+        duration_ns = now_ns - seconds_to_ns(upload_started_at)
         with action:
             cursor.execute(
                 """
                 UPDATE
                     current_snapshots
                 SET
-                    snapshot_cap=?, last_updated_ns=?
+                    snapshot_cap=?, last_updated_ns=?, upload_duration_ns=?
                 WHERE
                     [name]=?
                 """,
-                (snapshot_cap, now_ns, name),
+                (snapshot_cap, now_ns, duration_ns, name),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1183,7 +1186,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, ctime_ns, size, last_updated_ns
+                name, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
             FROM
                 current_snapshots
             ORDER BY
@@ -1196,6 +1199,7 @@ class MagicFolderConfig(object):
                 row[0],  # name
                 PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
                 row[4],  # last_updated_ns
+                row[5],  # upload_duration_ns
             )
             for row in cursor.fetchall()
         ]

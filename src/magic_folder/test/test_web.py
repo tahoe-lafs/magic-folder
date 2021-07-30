@@ -1939,7 +1939,6 @@ class FileStatusTests(SyncTestCase):
             PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
         )
 
-
         self.assertThat(
             authorized_request(
                 node.http_client,
@@ -1958,6 +1957,7 @@ class FileStatusTests(SyncTestCase):
                                 "size": 123,
                                 "relpath": "foo",
                                 "last-updated": 42,
+                                "last-upload-duration": None,
                             },
                         ]),
                     )
