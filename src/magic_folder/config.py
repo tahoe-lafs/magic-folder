@@ -225,6 +225,8 @@ _magicfolder_config_schema = Schema([
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
+            [content_cap]      TEXT,             -- Tahoe-LAFS URI of the content capability
+            [metadata_cap]     TEXT,             -- Tahoe-LAFS URI of the metadata capability
             [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
             [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
             [size]             INTEGER NOT NULL, -- size of current snapshot
@@ -1014,11 +1016,11 @@ class MagicFolderConfig(object):
                 UPDATE
                     current_snapshots
                 SET
-                    snapshot_cap=?, last_updated_ns=?
+                    snapshot_cap=?, last_updated_ns=?, content_cap=?, metadata_cap=?
                 WHERE
                     [name]=?
                 """,
-                (snapshot_cap, now_ns, name),
+                (snapshot_cap, now_ns, remote_snapshot.content_cap, remote_snapshot.metadata_cap, name),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1044,17 +1046,17 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns)"
-                    " VALUES (?,?,?,?,?,?)",
-                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, metadata_cap, content_cap)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, remote_snapshot.metadata_cap, remote_snapshot.content_cap),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
                     "UPDATE current_snapshots"
-                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
+                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, metadata_cap?, content_cap=?"
                     " WHERE [name]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name),
+                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name, remote_snapshot.metadata_cap, remote_snapshot.content_cap),
                 )
                 action.add_success_fields(insert_or_update="update")
 
