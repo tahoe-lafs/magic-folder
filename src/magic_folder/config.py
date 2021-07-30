@@ -1053,10 +1053,16 @@ class MagicFolderConfig(object):
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
-                    "UPDATE current_snapshots"
-                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, metadata_cap?, content_cap=?"
-                    " WHERE [name]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name, remote_snapshot.metadata_cap, remote_snapshot.content_cap),
+                    """
+                    UPDATE
+                        current_snapshots
+                    SET
+                        snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, metadata_cap=?, content_cap=?
+                    WHERE
+                        [name]=?
+                    """,
+                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size,
+                     now_ns, remote_snapshot.metadata_cap, remote_snapshot.content_cap, name),
                 )
                 action.add_success_fields(insert_or_update="update")
 
