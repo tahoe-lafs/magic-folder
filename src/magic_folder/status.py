@@ -5,7 +5,10 @@ from __future__ import (
     unicode_literals,
 )
 
+from functools import partial
 import json
+
+from six import string_types
 import attr
 from collections import (
     defaultdict,
@@ -15,6 +18,7 @@ from zope.interface import (
     Interface,
     implementer,
 )
+from zope.interface.interface import Method
 
 from autobahn.twisted.websocket import (
     WebSocketServerFactory,
@@ -38,7 +42,7 @@ class IStatus(Interface):
     messages from the status API.
     """
 
-    def error_occurred(public_error):
+    def error_occurred(folder, message):
         """
         Some error happened that should be reported to the user.
 
@@ -383,3 +387,57 @@ class WebSocketStatusService(service.Service):
         """
         del self._folders[folder]["downloads"][relpath]
         self._maybe_update_clients()
+
+
+@attr.s
+class _ProxyDescriptor(object):
+    """
+    Descriptor that returns ``partial(self.<original>.<method>, self.<relative>)``.
+    """
+    original = attr.ib(validator=attr.validators.instance_of(unicode))
+    relative = attr.ib(validator=attr.validators.instance_of(unicode))
+    method = attr.ib(validator=attr.validators.instance_of(string_types))
+
+    def __get__(self, oself, type=None):
+        if oself is None:
+            raise NotImplementedError()
+        original = getattr(oself, self.original)
+        return partial(
+            getattr(original, self.method),
+            getattr(oself, self.relative),
+        )
+
+def relative_proxy_for(iface, original, relative):
+    """
+    Class decorator that partially applies methods of an interface.
+
+    For each method of the given interface, that takes as first argument the
+    given relative argument, this adds a corresponding proxy method to the
+    decorated class, that gets that argument from the decorated instance.
+
+    :param Interface iface: The interface to generate proxy methods for.
+    :param unicode original: The attribute on the decorated class that
+        contains the implementation of the interface.
+    :param unicode relative: The attribute on the decorated class to
+        pass as the first argument to methods of the interface, when
+        the name of the first argument matches.
+    """
+    def decorator(cls):
+        for name, method in iface.namesAndDescriptions():
+            if not isinstance(method, Method):
+                continue
+            if method.positional[0] == relative:
+                setattr(cls, name, _ProxyDescriptor(original, relative, name))
+        return cls
+    return decorator
+
+
+@relative_proxy_for(IStatus, "_status", "folder")
+@attr.s
+class FolderStatus(object):
+    """
+    Wrapper around an :py:`IStatus` implementation that automatically passes
+    the ``folder`` argument.
+    """
+    folder = attr.ib(validator=attr.validators.instance_of(unicode))
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
