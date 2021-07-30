@@ -413,6 +413,7 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         capability=tahoe_lafs_immutable_dir_capabilities(),
         parents_raw=lists(tahoe_lafs_immutable_dir_capabilities()),
         content_cap=tahoe_lafs_chk_capabilities(),
+        metadata_cap=tahoe_lafs_chk_capabilities(),
     )
 
 

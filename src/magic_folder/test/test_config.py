@@ -806,7 +806,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 {"modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
-                "URI:DIR2-CHK:",
+                "URI:CHK:",
+                "URI:CHK:",
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...

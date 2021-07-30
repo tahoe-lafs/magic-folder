@@ -103,6 +103,7 @@ class FindUpdatesTests(SyncTestCase):
             capability="URI:DIR2-CHK:",
             parents_raw=[],
             content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
             path2magic(name), snap, get_pathinfo(local).state
@@ -138,6 +139,7 @@ class FindUpdatesTests(SyncTestCase):
             capability="URI:DIR2-CHK:",
             parents_raw=[],
             content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
             path2magic(name),
