@@ -266,9 +266,25 @@ class WebSocketStatusService(service.Service):
                 for relpath, timestamp, last_updated
                 in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
             ]
+            uploads = [
+                upload
+                for upload in sorted(
+                        self._folders.get(name, {}).get("uploads", {}).values(),
+                        key=lambda u: u["queued-at"],
+                        reverse=True,
+                )
+            ]
+            downloads = [
+                download
+                for download in sorted(
+                        self._folders.get(name, {}).get("downloads", {}).values(),
+                        key=lambda d: d["queued-at"],
+                        reverse=True,
+                )
+            ]
             return {
-                "uploads": self._folders.get(name, {}).get("uploads", {}),
-                "downloads": self._folders.get(name, {}).get("downloads", {}),
+                "uploads": uploads,
+                "downloads": downloads,
                 "errors": [
                     err.to_json()
                     for err in self._folders.get(name, {}).get("errors", [])
