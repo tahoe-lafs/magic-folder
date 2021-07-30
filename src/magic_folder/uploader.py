@@ -46,7 +46,7 @@ from .snapshot import (
     create_snapshot,
 )
 from .status import (
-    IStatus,
+    FolderStatus,
 )
 from .config import (
     MagicFolderConfig,
@@ -170,7 +170,7 @@ class LocalSnapshotService(service.Service):
     """
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -227,7 +227,7 @@ class LocalSnapshotService(service.Service):
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-            self._status.upload_queued(self._config.name, relpath)
+            self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
@@ -272,7 +272,7 @@ class RemoteSnapshotCreator(object):
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -294,12 +294,12 @@ class RemoteSnapshotCreator(object):
             # locally, we won't have done a .upload_queued() yet _in this
             # process_ (that is, a previous daemon did that resulting in
             # the database entries)
-            self._status.upload_queued(self._config.name, magic2path(name))
+            self._status.upload_queued(magic2path(name))
 
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
-                    self._status.upload_started(self._config.name, magic2path(name))
+                    self._status.upload_started(magic2path(name))
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # XXX this existing comment is wrong; there are many
@@ -310,7 +310,7 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 print(Failure())
             finally:
-                self._status.upload_finished(self._config.name, magic2path(name))
+                self._status.upload_finished(magic2path(name))
 
 
     @inline_callbacks

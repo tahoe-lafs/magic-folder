@@ -79,6 +79,7 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
+    FolderStatus,
     WebSocketStatusService,
 )
 from ..tahoe_client import (
@@ -699,6 +700,7 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
+        self.status = WebSocketStatusService(reactor, self._global_config)
         self.updater = MagicFolderUpdater(
             clock=Clock(),
             magic_fs=self.filesystem,
@@ -708,7 +710,7 @@ class ConflictTests(AsyncTestCase):
                 DecodedURL.from_text(u"http://invalid./"),
                 StubTreq(StringStubbingResource(get_resource_for)),
             ),
-            status=WebSocketStatusService(reactor, self._global_config),
+            status=FolderStatus(self.alice_config.name, self.status),
         )
 
     @inline_callbacks
@@ -1011,14 +1013,14 @@ class ConflictTests(AsyncTestCase):
 
         # status system should report our error
         self.assertThat(
-            loads(self.updater._status._marshal_state()),
+            loads(self.status._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
                         "default": ContainsDict({
                             "errors": Equals([
                                 {
-                                    "timestamp": int(self.updater._status._clock.seconds()),
+                                    "timestamp": int(self.status._clock.seconds()),
                                     "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
                                 },
                             ]),
@@ -1090,14 +1092,14 @@ class ConflictTests(AsyncTestCase):
 
         # status system should report our error
         self.assertThat(
-            loads(self.updater._status._marshal_state()),
+            loads(self.status._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
                         "default": ContainsDict({
                             "errors": Equals([
                                 {
-                                    "timestamp": int(self.updater._status._clock.seconds()),
+                                    "timestamp": int(self.status._clock.seconds()),
                                     "summary": "Failed to download snapshot for 'foo'.",
                                 },
                             ]),

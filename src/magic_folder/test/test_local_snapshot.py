@@ -59,6 +59,7 @@ from ..config import (
     create_testing_configuration,
 )
 from ..status import (
+    FolderStatus,
     WebSocketStatusService,
 )
 from ..util.file import (
@@ -118,11 +119,12 @@ class LocalSnapshotServiceTests(SyncTestCase):
             None,
         )
 
+        self.status = WebSocketStatusService(reactor, self._global_config)
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
             config=self.magic_config,
             snapshot_creator=self.snapshot_creator,
-            status=WebSocketStatusService(reactor, self._global_config),
+            status=FolderStatus(self.magic_config.name, self.status),
         )
 
 
