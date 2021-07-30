@@ -25,6 +25,18 @@ from .util import (
     twisted_sleep,
 )
 
+def non_lit_content(s):
+    # type: (unicode) -> unicode
+    """
+    Pad the given string so it is long enough to not fit in a tahoe literal
+    URI.
+    """
+    # The max size of data that will be stored in a literal tahoe cap is 55.
+    # See allmydata.immutable.upload.Uploader.URI_LIT_SIZE_THRESHOLD
+    # We don't need to be exactly longer than that threshold, as long as we
+    # are over it.
+    return "{} {}\n".format(s, "." * max(55 - len(s), 0))
+
 
 def add_snapshot(node, folder_name, path):
     """
@@ -110,7 +122,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
     request.addfinalizer(cleanup)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     magic.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "local", "sylvester")
 
@@ -130,13 +142,13 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
     try:
         # add several snapshots
-        content1 = "one\n" * 1000
+        content1 = non_lit_content("one")
         magic.child("sylvester").setContent(content1)
         yield take_snapshot(alice, "local", "sylvester")
-        content2 = "two\n" * 1000
+        content2 = non_lit_content("two")
         magic.child("sylvester").setContent(content2)
         yield take_snapshot(alice, "local", "sylvester")
-        content3 = "three\n" * 1000
+        content3 = non_lit_content("three")
         magic.child("sylvester").setContent(content3)
         yield take_snapshot(alice, "local", "sylvester")
 
@@ -205,12 +217,12 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "original", "sylvester")
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     original_folder.child("sylvester").setContent(content1)
     yield take_snapshot(alice, "original", "sylvester")
 
@@ -237,7 +249,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     # in the (ideally rare) case that the old device is found *and* a
     # new snapshot is uploaded, we put an update into the 'original'
     # folder. This also tests the normal 'update' flow as well.
-    content2 = "two\n" * 1000
+    content2 = non_lit_content("two")
     original_folder.child("sylvester").setContent(content2)
     yield take_snapshot(alice, "original", "sylvester")
 
@@ -265,7 +277,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "internal", "sylvester")
 
@@ -292,7 +304,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
     yield bob.stop_magic_folder()
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     original_folder.child("sylvester").setContent(content1)
     yield take_snapshot(alice, "internal", "sylvester")
 
@@ -325,7 +337,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "ancestor0", "sylvester")
 
@@ -350,7 +362,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
     )
 
     # update the file in bob's folder
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     recover_folder.child("sylvester").setContent(content1)
     yield take_snapshot(bob, "ancestor1", "sylvester")
 
@@ -365,7 +377,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
     )
 
     # update the file in alice's folder
-    content2 = "two\n" * 1000
+    content2 = non_lit_content("two")
     original_folder.child("sylvester").setContent(content2)
     yield take_snapshot(alice, "ancestor0", "sylvester")
 
@@ -397,7 +409,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "original", "sylvester")
 
@@ -428,7 +440,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     )
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     recover_folder.child("sylvester").setContent(content1)
     yield take_snapshot(bob, "recovery", "sylvester")
 
