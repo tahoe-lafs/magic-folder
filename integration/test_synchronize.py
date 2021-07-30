@@ -147,10 +147,10 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         snap = local_cfg.get_local_snapshot("sylvester")
         print(snap)
         # we should have 3 snapshots total, each one the parent of the next
-        assert len(snap.parents_local) == 1 and \
-            len(snap.parents_local[0].parents_local) == 1 and \
-            len(snap.parents_local[0].parents_local[0].parents_local) == 0 and \
-            len(snap.parents_local[0].parents_local[0].parents_remote) == 1
+        assert len(snap.parents_local) == 1
+        assert len(snap.parents_local[0].parents_local) == 1
+        assert len(snap.parents_local[0].parents_local[0].parents_local) == 0
+        assert len(snap.parents_local[0].parents_local[0].parents_remote) == 1
 
     finally:
         # turn Tahoe back on
