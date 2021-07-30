@@ -1146,6 +1146,42 @@ class MagicFolderConfig(object):
                 return row[0].encode("utf-8")
             raise KeyError(name)
 
+
+    @with_cursor
+    def get_remotesnapshot_caps(self, cursor, name):
+        """
+        return all three capabilities corresponding to a given remote snapshot
+
+        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+
+        :raise KeyError: If no snapshot exists for the given name.
+
+        :returns: A 3-tuple of (snapshot-cap, content-cap, metadata-cap)
+        """
+        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
+            relpath=name,
+        )
+        with action:
+            cursor.execute(
+                """
+                SELECT
+                    snapshot_cap, content_cap, metadata_cap
+                FROM
+                    current_snapshots
+                WHERE
+                    [name]=?
+                """,
+                (name,)
+            )
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                return (
+                    row[0].encode("utf-8"),  # snapshot-cap
+                    row[1].encode("utf-8"),  # content-cap
+                    row[2].encode("utf-8"),  # metadata-cap
+                )
+            raise KeyError(name)
+
     @with_cursor
     def get_currentsnapshot_pathstate(self, cursor, name):
         """
