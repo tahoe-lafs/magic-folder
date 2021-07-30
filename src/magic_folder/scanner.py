@@ -9,8 +9,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import attr
 from eliot import current_action, start_action, write_failure
 from eliot.twisted import inline_callbacks
-from twisted.application.service import MultiService
 from twisted.application.internet import TimerService
+from twisted.application.service import MultiService
 from twisted.internet.defer import DeferredLock, gatherResults
 from twisted.internet.task import Cooperator
 
@@ -69,10 +69,11 @@ class ScannerService(MultiService):
                 self._loop,
             ).setServiceParent(self)
 
-
     def stopService(self):
-        return super(ScannerService, self).stopService().addCallback(
-            lambda _: self._cooperator.stop()
+        return (
+            super(ScannerService, self)
+            .stopService()
+            .addCallback(lambda _: self._cooperator.stop())
         )
 
     def scan_once(self):
