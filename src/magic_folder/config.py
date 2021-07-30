@@ -1112,7 +1112,7 @@ class MagicFolderConfig(object):
             FROM
                 [current_snapshots]
             ORDER BY
-                mtime_ns DESC
+                last_updated_ns DESC
             LIMIT
                 30
             """
