@@ -15,6 +15,16 @@ from allmydata.uri import (
 from allmydata.uri import from_string as tahoe_uri_from_string
 
 
+def cap_size(capability):
+    """
+    :returns: the size, in bytes, of the capability
+    """
+    uri = tahoe_uri_from_string(capability)
+    if IDirnodeURI.providedBy(uri):
+        return uri.get_filenode_cap().get_size()
+    return uri.get_size()
+
+
 def is_directory_cap(capability):
     """
     :returns: True if `capability` is a directory-cap of any sort

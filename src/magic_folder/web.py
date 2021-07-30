@@ -67,7 +67,10 @@ from .snapshot import (
 from .participants import (
     participants_from_collective,
 )
-from .util.capabilities import is_readonly_directory_cap
+from .util.capabilities import (
+    is_readonly_directory_cap,
+    cap_size,
+)
 from .util.file import (
     ns_to_seconds,
 )
@@ -466,6 +469,30 @@ class APIv1(object):
             for name, ps, last_updated_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
+
+    @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
+    def folder_tahoe_objects(self, request, folder_name):
+        """
+        Renders a list of all the object-sizes of all Tahoe objects a
+        given magic-folder currently cares about. This is, for each
+        Snapshot: the Snapshot capability, the metadata capability and
+        the content capability.
+        """
+        _application_json(request)  # set reply headers
+        folder_config = self._global_config.get_magic_folder(folder_name)
+
+        snapshots = folder_config.get_all_snapshot_paths()
+        caps = [
+            folder_config.get_remotesnapshot_caps(name)
+            for name in snapshots
+        ]
+        sizes = []
+        for cap in caps:
+            sizes.extend([
+                cap_size(c)
+                for c in cap
+            ])
+        return json.dumps(sizes)
 
 
 class _InputError(APIError):
