@@ -1,7 +1,7 @@
 { lib, python, buildPythonPackage, pythonPackages, tahoe-lafs, klein, git }:
 buildPythonPackage rec {
   pname = "magic-folder";
-  version = "2020-07-30";
+  version = "2021.7.30.dev0";
   src = lib.cleanSource ../.;
 
   propagatedBuildInputs = with pythonPackages; [
