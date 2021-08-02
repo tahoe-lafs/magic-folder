@@ -36,7 +36,6 @@ from hyperlink import (
 
 from functools import (
     partial,
-    wraps,
 )
 from itertools import (
     chain,
@@ -106,6 +105,7 @@ from eliot import (
 )
 
 from .util.capabilities import is_readonly_directory_cap, is_directory_cap
+from .util.database import with_cursor, LockableDatabase
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -273,6 +273,14 @@ class LocalSnapshotCollision(Exception):
     snapshot's identifier was already associated with a snapshot in the
     database.
     """
+
+@attr.s(auto_exc=True, frozen=True)
+class LocalSnapshotMissingParent(Exception):
+    """
+    An attempt was made to store a local snapshot whose parents aren't in
+    the local database.
+    """
+    parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
 
 
 @attr.s(auto_exc=True, frozen=True)
@@ -442,24 +450,6 @@ def load_global_configuration(basedir):
             basedir.child("api_token"),
         )
     )
-
-
-# XXX: with_cursor lacks unit tests, see:
-#      https://github.com/LeastAuthority/magic-folder/issues/173
-def with_cursor(f):
-    """
-    Decorate a function so it is automatically passed a cursor with an active
-    transaction as the first positional argument.  If the function returns
-    normally then the transaction will be committed.  Otherwise, the
-    transaction will be rolled back.
-    """
-    @wraps(f)
-    def with_cursor(self, *a, **kw):
-        with self.database:
-            cursor = self.database.cursor()
-            cursor.execute("BEGIN IMMEDIATE TRANSACTION")
-            return f(self, cursor, *a, **kw)
-    return with_cursor
 
 
 def _upgraded(schema, connection):
@@ -737,7 +727,7 @@ class MagicFolderConfig(object):
     Low-level access to a single magic-folder's configuration
     """
     name = attr.ib()
-    database = attr.ib()  # sqlite3 Connection
+    _database = attr.ib(converter=LockableDatabase)  # sqlite3 Connection
     _get_current_timestamp = attr.ib(default=time.time)
 
     @classmethod
@@ -824,8 +814,11 @@ class MagicFolderConfig(object):
         return cls(name, connection)
 
     @property
+    def author(self):
+        return self._get_author()
+
     @with_cursor
-    def author(self, cursor):
+    def _get_author(self, cursor):
         cursor.execute("SELECT author_name, author_private_key FROM config")
         name, keydata = cursor.fetchone()
         return LocalAuthor(
@@ -864,7 +857,7 @@ class MagicFolderConfig(object):
         return _construct_local_snapshot(
             leaf_identifier,
             name,
-            self.author,
+            self._get_author.__wrapped__(self, cursor),
             snapshots,
             metadata,
             parents,
@@ -877,6 +870,21 @@ class MagicFolderConfig(object):
 
         :param LocalSnapshot snapshot: The snapshot to store.
         """
+        # Ensure that the local parent snapshots are already in the database.
+        for parent in snapshot.parents_local:
+            cursor.execute(
+                """
+                SELECT
+                    count(*) from [local_snapshots]
+                WHERE
+                    identifier= ?
+                """,
+                (unicode(parent.identifier),),
+            )
+            count = cursor.fetchone()
+            if count[0] != 1:
+                raise LocalSnapshotMissingParent(parent.identifier)
+
         try:
             # Create the primary row.
             cursor.execute(
@@ -925,41 +933,23 @@ class MagicFolderConfig(object):
                     [parent_identifier]
                 )
             VALUES
-                (?, ?, 0, ?)
+                (?, ?, ?, ?)
             """,
-            list(
-                (unicode(snapshot.identifier), index, parent_identifier)
-                for (index, parent_identifier)
-                in enumerate(snapshot.parents_remote)
-            ),
-        )
-
-        # Create any implied local parents that don't exist already.
-        for local_parent in snapshot.parents_local:
-            try:
-                self.store_local_snapshot(local_parent)
-            except LocalSnapshotCollision:
-                # If it exists already, fine.
-                pass
-
-        # Now insert references to them.
-        cursor.executemany(
-            """
-            INSERT INTO
-                [local_snapshot_parent] (
-                    [snapshot_identifier],
-                    [index],
-                    [local_only],
-                    [parent_identifier]
+            [
+                (unicode(snapshot.identifier), index, local_only, parent_identifier)
+                for (index, (local_only, parent_identifier)) in enumerate(
+                    chain(
+                        (
+                            (False, parent_identifier)
+                            for parent_identifier in snapshot.parents_remote
+                        ),
+                        (
+                            (True, unicode(parent.identifier))
+                            for parent in snapshot.parents_local
+                        ),
+                    )
                 )
-            VALUES
-                (?, ?, 1, ?)
-            """,
-            list(
-                (unicode(snapshot.identifier), index, unicode(parent.identifier))
-                for (index, parent)
-                in enumerate(snapshot.parents_local, len(snapshot.parents_remote))
-            ),
+            ],
         )
 
     @with_cursor
@@ -1373,13 +1363,14 @@ class GlobalConfigDatabase(object):
         return self._token_provider.rotate()
 
     @property
-    @with_cursor
-    def api_endpoint(self, cursor):
+    def api_endpoint(self):
         """
         The twisted server-string describing our API listener
         """
-        cursor.execute("SELECT api_endpoint FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT api_endpoint FROM config")
+            return cursor.fetchone()[0].encode("utf8")
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -1389,13 +1380,14 @@ class GlobalConfigDatabase(object):
             cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
 
     @property
-    @with_cursor
-    def api_client_endpoint(self, cursor):
+    def api_client_endpoint(self):
         """
         The twisted client-string describing our API listener
         """
-        cursor.execute("SELECT api_client_endpoint FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT api_client_endpoint FROM config")
+            return cursor.fetchone()[0].encode("utf8")
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
@@ -1510,7 +1502,7 @@ class GlobalConfigDatabase(object):
         # Close the per-folder state database. Since `get_magic_folder` caches
         # its return value, this should be the only instance. We need to close
         # it explicitly since otherwise we can't delete it below on windows.
-        folder_config.database.close()
+        folder_config._database.close()
         # we remove things from the database first and then give
         # best-effort attempt to remove stuff from the
         # filesystem. First confirm we have this folder and its

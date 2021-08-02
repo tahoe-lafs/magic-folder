@@ -70,6 +70,7 @@ from .strategies import (
 )
 from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
 from ..config import (
+    LocalSnapshotMissingParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -555,6 +556,46 @@ class StoreLocalSnapshotTests(SyncTestCase):
                 parents_local=HasLength(0),
             )
         )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_store_snapshot_missing_parents(self, content1, content2, filename, stash_subdir):
+        """
+        Storing a snapshot whose parents are not in the database will raise an
+        error.
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        with ExpectedException(LocalSnapshotMissingParent):
+            self.db.store_local_snapshot(snapshots[1])
 
     @given(
         local_snapshots(),
