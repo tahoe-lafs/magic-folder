@@ -34,6 +34,9 @@ from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
 )
+from .util.file import (
+    ns_to_seconds_float,
+)
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
 
@@ -119,7 +122,10 @@ def dump_state(options):
         print("        mtime: {}".format(ps.mtime_ns), file=options.stdout)
         print("        size: {}".format(ps.size), file=options.stdout)
         if upload_duration:
-            duration = upload_duration / 1000000000.0  # humans care about seconds not ns
+            # humans care about seconds not ns .. but we give some
+            # resolution beyond 'seconds' so that speed calculations
+            # (e.g. on small files) are more accurate.
+            duration = ns_to_seconds_float(upload_duration)
             print("        upload time: {}".format(humanize.naturaldelta(duration)), file=options.stdout)
             print("        upload speed: {}/s".format(humanize.naturalsize(ps.size / duration)), file=options.stdout)
 
