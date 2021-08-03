@@ -1,4 +1,7 @@
-# Include pinned platform dependencies, as pip-compile{,-multi} don't handle them.
+### THIS IS A GENERATED FILE
+#
+# Include pinned platform dependencies as neither pip-compile nor
+# pip-compile-multi handles them.
 # See https://github.com/jazzband/pip-tools/issues/826#issuecomment-748459788
 # Run 'tox -e pin-requirements' to regenerate this file.
 -r platform.txt
