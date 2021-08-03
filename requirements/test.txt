@@ -221,7 +221,9 @@ greenlet==1.1.0 \
 # via
 #   magic-wormhole
 #   spake2
-# via magic-wormhole
+# via
+#   -r base.in
+#   magic-wormhole
 # via
 #   -r base.in
 #   klein
