@@ -1037,17 +1037,17 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns)"
-                    " VALUES (?,?,?,?,?,?)",
-                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (name, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
                     "UPDATE current_snapshots"
-                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
+                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?"
                     " WHERE [name]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name),
+                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, name),
                 )
                 action.add_success_fields(insert_or_update="update")
 
