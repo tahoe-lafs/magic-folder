@@ -342,6 +342,7 @@ class MagicFolderUpdater(object):
                 # made a LocalSnapshot yet (so it's still a conflict).
                 if local_snap is not None or remote_cap is None:
                     is_conflict = True
+                    action.add_success_fields(conflict_reason="existing-file-no-remote")
 
                 else:
                     assert remote_cap != snapshot.capability, "already match"
@@ -358,6 +359,7 @@ class MagicFolderUpdater(object):
                         # to do because we are newer
                         if self._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
                             return
+                        action.add_success_fields(conflict_reason="no-ancestor")
                         is_conflict = True
 
             else:
@@ -366,6 +368,7 @@ class MagicFolderUpdater(object):
                 assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
 
+            action.add_success_fields(is_conflict=is_conflict)
             self._status.download_started(relpath)
             try:
                 with start_action(
@@ -409,6 +412,7 @@ class MagicFolderUpdater(object):
                     if local_path.getModificationTime() != local_timestamp:
                         last_minute_change = True
                 if last_minute_change:
+                    action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(snapshot, staged)
                     # FIXME note conflict internally
                 else:
@@ -425,7 +429,6 @@ class MagicFolderUpdater(object):
                     # produce LocalSnapshots referencing the wrong parent. We
                     # will no longer produce snapshots with the wrong parent
                     # once we re-run and get past this point.
-
 
                     # remember the last remote we've downloaded
                     self._config.store_downloaded_snapshot(
