@@ -2,7 +2,7 @@
 # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
 zope.interface >= 3.6.0, != 3.6.3, != 3.6.4
 
-humanize >= 1.0.0
+humanize >= 0.5.1
 
 six >= 1.10.0
 
