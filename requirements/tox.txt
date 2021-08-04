@@ -59,7 +59,9 @@ configparser==4.0.2 ; python_version < "3.0" --hash=sha256:254c1d9c79f60c45dfde8
 # via
 #   magic-wormhole
 #   spake2
-# via magic-wormhole
+# via
+#   -r base.in
+#   magic-wormhole
 # via
 #   -r base.in
 #   klein

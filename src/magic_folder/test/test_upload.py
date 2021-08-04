@@ -138,6 +138,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         config.store_local_snapshot(snapshots[0])
         config.store_currentsnapshot_state(mangled_name, PathState(0, 0, 0))
 
+        remote_snapshot_creator.initialize_upload_status()
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
             d,
@@ -221,6 +222,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         local_snapshot = snapshots[-1]
 
+        remote_snapshot_creator.initialize_upload_status()
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
             d,
@@ -246,6 +248,9 @@ class MemorySnapshotCreator(object):
 
     def upload_local_snapshots(self):
         self._uploaded += 1
+
+    def initialize_upload_status(self):
+        pass
 
 
 class UploaderServiceTests(SyncTestCase):

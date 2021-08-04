@@ -263,17 +263,32 @@ class WebSocketStatusService(service.Service):
         def folder_data_for(name):
             most_recent = [
                 {
-                    relpath: {
-                        "modified": timestamp,
-                        "last-updated": last_updated,
-                    }
+                    "relpath": relpath,
+                    "modified": timestamp,
+                    "last-updated": last_updated,
                 }
                 for relpath, timestamp, last_updated
                 in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
             ]
+            uploads = [
+                upload
+                for upload in sorted(
+                        self._folders.get(name, {}).get("uploads", {}).values(),
+                        key=lambda u: u.get("queued-at", 0),
+                        reverse=True,
+                )
+            ]
+            downloads = [
+                download
+                for download in sorted(
+                        self._folders.get(name, {}).get("downloads", {}).values(),
+                        key=lambda d: d.get("queued-at", 0),
+                        reverse=True,
+                )
+            ]
             return {
-                "uploads": self._folders.get(name, {}).get("uploads", {}),
-                "downloads": self._folders.get(name, {}).get("downloads", {}),
+                "uploads": uploads,
+                "downloads": downloads,
                 "errors": [
                     err.to_json()
                     for err in self._folders.get(name, {}).get("errors", [])
@@ -337,7 +352,7 @@ class WebSocketStatusService(service.Service):
         if relpath not in self._folders[folder]["uploads"]:
             self._folders[folder]["uploads"][relpath] = {
                 "name": relpath,
-                "queued_at": self._clock.seconds(),
+                "queued-at": self._clock.seconds(),
             }
         self._maybe_update_clients()
 
@@ -345,7 +360,7 @@ class WebSocketStatusService(service.Service):
         """
         IStatus API
         """
-        self._folders[folder]["uploads"][relpath]["started_at"] = self._clock.seconds()
+        self._folders[folder]["uploads"][relpath]["started-at"] = self._clock.seconds()
         self._maybe_update_clients()
 
     def upload_finished(self, folder, relpath):
@@ -361,7 +376,7 @@ class WebSocketStatusService(service.Service):
         """
         data = {
             "name": relpath,
-            "started_at": self._clock.seconds(),
+            "started-at": self._clock.seconds(),
         }
         self._folders[folder]["downloads"][relpath] = data
         self._maybe_update_clients()

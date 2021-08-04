@@ -9,6 +9,8 @@ import sys
 import json
 from collections import deque
 
+import humanize
+
 from twisted.internet.task import (
     react,
 )
@@ -31,6 +33,9 @@ from .cli import (
 from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
+)
+from .util.file import (
+    ns_to_seconds_float,
 )
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
@@ -106,14 +111,23 @@ def dump_state(options):
             q.extend(s.parents_local)
         print("    {}: {}".format(snap_name, parents[:-4]), file=options.stdout)
     print("  remote snapshots:", file=options.stdout)
-    for snap_name in config.get_all_snapshot_paths():
+    for snap_name, ps, last_update, upload_duration in config.get_all_current_snapshot_pathstates():
         try:
             cap = config.get_remotesnapshot(snap_name)
         except KeyError:
             cap = None
-        path_state = config.get_currentsnapshot_pathstate(snap_name)
-        print("    {}: {}".format(snap_name, cap), file=options.stdout)
-        print("    {}  {}".format(" "*len(snap_name), path_state), file=options.stdout)
+            continue
+        print("    {}:".format(snap_name), file=options.stdout)
+        print("        cap: {}".format(cap), file=options.stdout)
+        print("        mtime: {}".format(ps.mtime_ns), file=options.stdout)
+        print("        size: {}".format(ps.size), file=options.stdout)
+        if upload_duration:
+            # humans care about seconds not ns .. but we give some
+            # resolution beyond 'seconds' so that speed calculations
+            # (e.g. on small files) are more accurate.
+            duration = ns_to_seconds_float(upload_duration)
+            print("        upload time: {}".format(humanize.naturaldelta(duration)), file=options.stdout)
+            print("        upload speed: {}/s".format(humanize.naturalsize(ps.size / duration)), file=options.stdout)
 
 
 class AddParticipantOptions(usage.Options):

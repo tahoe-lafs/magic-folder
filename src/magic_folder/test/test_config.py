@@ -684,7 +684,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         state, when there isn't already corresponding path state fails.
         """
         with ExpectedException(RemoteSnapshotWithoutPathState):
-            self.db.store_uploaded_snapshot(snapshot.name, snapshot)
+            self.db.store_uploaded_snapshot(snapshot.name, snapshot, 42)
 
     @given(
         path_segments(),
@@ -731,7 +731,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         """
         path = snapshots[0].name
         self.db.store_downloaded_snapshot(path, snapshots[0], path_state)
-        self.db.store_uploaded_snapshot(path, snapshots[1])
+        self.db.store_uploaded_snapshot(path, snapshots[1], 42)
         capability = self.db.get_remotesnapshot(path)
         db_path_state = self.db.get_currentsnapshot_pathstate(path)
         self.assertThat(
@@ -803,7 +803,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             self.db.get_all_current_snapshot_pathstates(),
             Equals([
-                (p, ps, seconds_to_ns(1234))
+                (p, ps, seconds_to_ns(1234), None)
                 for p, ps in zip(paths, path_states)
             ]),
         )
@@ -852,7 +852,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
             self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
-            self.db.store_uploaded_snapshot(name, remote)
+            self.db.store_uploaded_snapshot(name, remote, 0)
 
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),

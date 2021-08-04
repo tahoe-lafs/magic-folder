@@ -2,7 +2,7 @@
 Post-process pip-compile-multi output to handle platform specific dependencies.
 
 pip-compile (and thus pip-compile-multi) don't support generating lock files
-for platforms other than the current one. They suggests[1] generating a lock
+for platforms other than the current one. They suggest[1] generating a lock
 file for each environment seperately.
 
 However, the only (transitive) dependency that is platform dependent is
@@ -10,7 +10,7 @@ pywin32. To avoid having to maintain separate sets of lock files per-platform,
 we modify the generated lock files to the platform specific dependencies (using
 environment markers). This is based loosely on an idea from [2].
 
-We have a hand generated platform-specific requirements lockfile, with appropriate
+We have a hand-generated platform-specific requirements lockfile with appropriate
 environment markers. After generating a lock file with pip-compile-multi, we
 add a reference to the platform-specific requirements lockfile.
 
@@ -34,7 +34,10 @@ class Options(usage.Options):
 
 
 HEADER = """
-# Include pinned platform dependencies, as pip-compile{,-multi} don't handle them.
+### THIS IS A GENERATED FILE
+#
+# Include pinned platform dependencies as neither pip-compile nor
+# pip-compile-multi handles them.
 # See https://github.com/jazzband/pip-tools/issues/826#issuecomment-748459788
 # Run 'tox -e pin-requirements' to regenerate this file.
 """.strip()
