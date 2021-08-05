@@ -870,7 +870,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             self.db.get_recent_remotesnapshot_paths(20),
             AfterPreprocessing(
                 lambda data: [
-                    (t[0], int(t[1]) for t in data
+                    (t[0], int(t[1])) for t in data
                 ],
                 Equals([
                     ("foo_{}".format(x), x)
