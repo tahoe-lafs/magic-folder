@@ -1021,7 +1021,7 @@ class ScanFolderTests(SyncTestCase):
         )
 
         folder_config = node.global_config.get_magic_folder(folder_name)
-        snapshot_paths = folder_config.get_all_localsnapshot_paths()
+        snapshot_paths = folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
             Equals({path2magic(path_in_folder)}),

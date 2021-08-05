@@ -82,7 +82,7 @@ class ScanMagicFolder(AsyncTestCase):
             Equals(True),
         )
 
-        snapshot_paths = self.folder_config.get_all_localsnapshot_paths()
+        snapshot_paths = self.folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
             Equals({name}),

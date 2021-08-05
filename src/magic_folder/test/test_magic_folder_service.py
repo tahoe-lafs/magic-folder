@@ -260,7 +260,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         just(LOCAL_AUTHOR),
         sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
-        one_of(integers(min_value=1, max_value=10000), none()),
         binary(),
     )
     def test_uploader_service(
@@ -270,7 +269,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             author,
             collective_cap_kind,
             poll_interval,
-            scan_interval,
             content,
     ):
         """
@@ -278,6 +276,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         upload snapshots using the given Tahoe client object.
         """
         reactor = task.Clock()
+        scan_interval = None
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
