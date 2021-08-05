@@ -7,7 +7,7 @@ Tests relating generally to magic_folder.scanner
 from hypothesis import given
 from testtools.matchers import Always, Equals
 from testtools.twistedsupport import succeeded
-from twisted.internet.defer import succeed, DeferredList, Deferred
+from twisted.internet.defer import succeed, Deferred
 from twisted.internet.task import Cooperator
 from twisted.python.filepath import FilePath
 
@@ -256,10 +256,8 @@ class FindUpdatesTests(SyncTestCase):
         self.addCleanup(service.stopService)
 
         # initiate 5 scans "at once"
-        scans = [
+        for _ in range(5):
             service.scan_once()
-            for _ in range(5)
-        ]
 
         # pretend the "actual" uploads completed now (although there
         # should be only one that actually got intiated; see assert)
