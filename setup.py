@@ -38,7 +38,6 @@ setup_requires = [
 
 from setuptools import find_packages, setup
 from setuptools import Command
-from setuptools.command import install
 
 
 trove_classifiers = [
