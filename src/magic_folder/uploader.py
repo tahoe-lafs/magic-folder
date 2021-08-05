@@ -50,6 +50,9 @@ from .snapshot import (
 from .status import (
     FolderStatus,
 )
+from .tahoe_client import (
+    TahoeAPIError,
+)
 from .config import (
     MagicFolderConfig,
 )
@@ -302,7 +305,6 @@ class RemoteSnapshotCreator(object):
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
         """
-
         # get the mangled paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
@@ -317,16 +319,13 @@ class RemoteSnapshotCreator(object):
                 with action:
                     self._status.upload_started(magic2path(name))
                     yield self._upload_some_snapshots(name)
-            except Exception:
-                # XXX this existing comment is wrong; there are many
-                # reasons we could receive an Exception here not just
-                # "Tahoe is gone" ...
-                # Unable to reach Tahoe storage nodes because of network
-                # errors or because the tahoe storage nodes are
-                # offline. Retry?
-                print(Failure())
-            finally:
                 self._status.upload_finished(magic2path(name))
+            except TahoeAPIError as e:
+                self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
+                write_traceback()
+                # note: we will re-try on the next upload pass, after one scan_interval
+            except Exception:
+                print(Failure())
 
 
     @inline_callbacks
