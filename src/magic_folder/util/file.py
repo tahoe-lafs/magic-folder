@@ -50,6 +50,14 @@ def ns_to_seconds(t):
     return int(t) // 1000000000
 
 
+def ns_to_seconds_float(t):
+    """
+    :param int t: nanoseconds
+    :returns float: the seconds representation of 't'
+    """
+    return float(t) / 1000000000.0
+
+
 def get_pathinfo(path):
     # type: (FilePath) -> PathInfo
     try:

@@ -70,6 +70,7 @@ from .strategies import (
 )
 from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
 from ..config import (
+    LocalSnapshotMissingParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -557,6 +558,46 @@ class StoreLocalSnapshotTests(SyncTestCase):
         )
 
     @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_store_snapshot_missing_parents(self, content1, content2, filename, stash_subdir):
+        """
+        Storing a snapshot whose parents are not in the database will raise an
+        error.
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash,
+            parents=[],
+        )
+        d.addCallback(snapshots.append)
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            name=filename,
+            author=self.author,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash,
+            parents=[snapshots[0]],
+        )
+        d.addCallback(snapshots.append)
+
+        # serialize and store the snapshot in db.
+        # It should rewrite the previously written row.
+        with ExpectedException(LocalSnapshotMissingParent):
+            self.db.store_local_snapshot(snapshots[1])
+
+    @given(
         local_snapshots(),
     )
     def test_delete_localsnapshot(self, snapshot):
@@ -643,7 +684,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         state, when there isn't already corresponding path state fails.
         """
         with ExpectedException(RemoteSnapshotWithoutPathState):
-            self.db.store_uploaded_snapshot(snapshot.name, snapshot)
+            self.db.store_uploaded_snapshot(snapshot.name, snapshot, 42)
 
     @given(
         path_segments(),
@@ -690,7 +731,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         """
         path = snapshots[0].name
         self.db.store_downloaded_snapshot(path, snapshots[0], path_state)
-        self.db.store_uploaded_snapshot(path, snapshots[1])
+        self.db.store_uploaded_snapshot(path, snapshots[1], 42)
         capability = self.db.get_remotesnapshot(path)
         db_path_state = self.db.get_currentsnapshot_pathstate(path)
         self.assertThat(
@@ -762,7 +803,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.assertThat(
             self.db.get_all_current_snapshot_pathstates(),
             Equals([
-                (p, ps, seconds_to_ns(1234))
+                (p, ps, seconds_to_ns(1234), None)
                 for p, ps in zip(paths, path_states)
             ]),
         )
@@ -820,7 +861,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
             self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
-            self.db.store_uploaded_snapshot(name, remote)
+            self.db.store_uploaded_snapshot(name, remote, 0)
 
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),

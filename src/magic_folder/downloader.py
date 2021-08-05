@@ -66,7 +66,7 @@ from .util.twisted import (
     exclusively,
 )
 from .status import (
-    IStatus,
+    FolderStatus,
 )
 
 
@@ -273,7 +273,7 @@ class MagicFolderUpdater(object):
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
-    _status = attr.ib(validator=provides(IStatus))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @exclusively
@@ -342,6 +342,7 @@ class MagicFolderUpdater(object):
                 # made a LocalSnapshot yet (so it's still a conflict).
                 if local_snap is not None or remote_cap is None:
                     is_conflict = True
+                    action.add_success_fields(conflict_reason="existing-file-no-remote")
 
                 else:
                     assert remote_cap != snapshot.capability, "already match"
@@ -358,6 +359,7 @@ class MagicFolderUpdater(object):
                         # to do because we are newer
                         if self._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
                             return
+                        action.add_success_fields(conflict_reason="no-ancestor")
                         is_conflict = True
 
             else:
@@ -366,7 +368,8 @@ class MagicFolderUpdater(object):
                 assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
                 is_conflict = False
 
-            self._status.download_started(self._config.name, relpath)
+            action.add_success_fields(is_conflict=is_conflict)
+            self._status.download_started(relpath)
             try:
                 with start_action(
                     action_type=u"downloader:updater:content-to-staging",
@@ -377,13 +380,12 @@ class MagicFolderUpdater(object):
                         staged = yield self._magic_fs.download_content_to_staging(snapshot, self.tahoe_client)
                     except Exception:
                         self._status.error_occurred(
-                            self._config.name,
                             "Failed to download snapshot for '{}'.".format(relpath)
                         )
                         raise
 
             finally:
-                self._status.download_finished(self._config.name, relpath)
+                self._status.download_finished(relpath)
 
             # once here, we know if we have a conflict or not. if
             # there is nothing to do, we shold have returned
@@ -410,6 +412,7 @@ class MagicFolderUpdater(object):
                     if local_path.getModificationTime() != local_timestamp:
                         last_minute_change = True
                 if last_minute_change:
+                    action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(snapshot, staged)
                     # FIXME note conflict internally
                 else:
@@ -417,7 +420,6 @@ class MagicFolderUpdater(object):
                         path_state = self._magic_fs.mark_overwrite(snapshot, staged)
                     except OSError as e:
                         self._status.error_occurred(
-                            self._config.name,
                             "Failed to overwrite file '{}': {}".format(relpath, str(e))
                         )
                         raise
@@ -427,7 +429,6 @@ class MagicFolderUpdater(object):
                     # produce LocalSnapshots referencing the wrong parent. We
                     # will no longer produce snapshots with the wrong parent
                     # once we re-run and get past this point.
-
 
                     # remember the last remote we've downloaded
                     self._config.store_downloaded_snapshot(
@@ -619,7 +620,7 @@ class DownloaderService(service.MultiService):
 
     _config = attr.ib()
     _participants = attr.ib()
-    _status = attr.ib()
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
     _tahoe_client = attr.ib()

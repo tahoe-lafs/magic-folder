@@ -4,6 +4,7 @@ from __future__ import (
     print_function,
 )
 
+import time
 import attr
 
 from twisted.python.filepath import (
@@ -46,7 +47,7 @@ from .snapshot import (
     create_snapshot,
 )
 from .status import (
-    IStatus,
+    FolderStatus,
 )
 from .config import (
     MagicFolderConfig,
@@ -170,7 +171,7 @@ class LocalSnapshotService(service.Service):
     """
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -227,7 +228,7 @@ class LocalSnapshotService(service.Service):
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-            self._status.upload_queued(self._config.name, relpath)
+            self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
             raise ValueError(
@@ -264,6 +265,12 @@ class IRemoteSnapshotCreator(Interface):
             made to commit at least some local uncommitted snapshots.
         """
 
+    def initialize_upload_status(self):
+        """
+        Called precisely once upon startup, before any calls to
+        upload_local_snapshots.
+        """
+
 
 @implementer(IRemoteSnapshotCreator)
 @attr.s
@@ -272,7 +279,21 @@ class RemoteSnapshotCreator(object):
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
     _upload_dircap = attr.ib()
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+
+    def initialize_upload_status(self):
+        """
+        If any local-snapshots are present in our database at
+        startup we need to reflect their "pending upload" status
+        properly.
+        """
+        localsnapshot_names = self._config.get_all_localsnapshot_paths()
+        for name in localsnapshot_names:
+            # if we re-started with LocalSnapshots already in our database
+            # locally, we won't have done a .upload_queued() yet _in this
+            # process_ (that is, a previous daemon did that resulting in
+            # the database entries)
+            self._status.upload_queued(magic2path(name))
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -290,16 +311,10 @@ class RemoteSnapshotCreator(object):
         # the new snapshot gets lost.
 
         for name in localsnapshot_names:
-            # if we re-started with LocalSnapshots already in our database
-            # locally, we won't have done a .upload_queued() yet _in this
-            # process_ (that is, a previous daemon did that resulting in
-            # the database entries)
-            self._status.upload_queued(self._config.name, magic2path(name))
-
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
-                    self._status.upload_started(self._config.name, magic2path(name))
+                    self._status.upload_started(magic2path(name))
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # XXX this existing comment is wrong; there are many
@@ -310,7 +325,7 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 print(Failure())
             finally:
-                self._status.upload_finished(self._config.name, magic2path(name))
+                self._status.upload_finished(magic2path(name))
 
 
     @inline_callbacks
@@ -320,6 +335,7 @@ class RemoteSnapshotCreator(object):
         """
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(name)
+        upload_started_at = time.time()
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
             self._local_author,
@@ -337,7 +353,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(name, remote_snapshot)
+        yield self._config.store_uploaded_snapshot(name, remote_snapshot, upload_started_at)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
@@ -410,8 +426,11 @@ class UploaderService(service.Service):
         Start UploaderService and initiate a periodic task
         to poll for LocalSnapshots in the database.
         """
-
         service.Service.startService(self)
+
+        # if we started with any local snapshots already in the
+        # database we must reflect this in our status service.
+        self._remote_snapshot_creator.initialize_upload_status()
 
         # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = LoopingCall(

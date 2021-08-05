@@ -1,0 +1,14 @@
+The files in here are cobbled together to make the _actual_
+requirements files, including pins.
+
+To re-pin all requirements, run:
+
+   tox -e pin-requirements
+
+To add a new (direct) requirement that simply didn't exist before, run:
+
+   tox -e pin-requirements -- --no-upgrade
+
+The place to actually add the new requirement is in one of the *.in
+files. That is: "base.in" for a general dependency or "test.in" for a
+development-only dependency.
