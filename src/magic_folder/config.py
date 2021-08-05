@@ -1041,7 +1041,7 @@ class MagicFolderConfig(object):
             try:
                 cursor.execute(
                     "INSERT INTO current_snapshots (name, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
-                    " VALUES (?,?,?,?,?,?,?)",
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
                     (name, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
                 action.add_success_fields(insert_or_update="insert")
