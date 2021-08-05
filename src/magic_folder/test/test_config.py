@@ -863,10 +863,15 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
             self.db.store_uploaded_snapshot(name, remote, 0)
 
+        # on windows the timestamps end up being long() instead of
+        # int() is why the pre-processing includes an int() on the
+        # second tuple element
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),
             AfterPreprocessing(
-                lambda data: [t[:2] for t in data],
+                lambda data: [
+                    (t[0], int(t[1]) for t in data
+                ],
                 Equals([
                     ("foo_{}".format(x), x)
                     for x in range(34, 4, -1)  # newest to oldest
