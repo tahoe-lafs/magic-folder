@@ -20,6 +20,7 @@ from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
     CancelledError,
+    maybeDeferred,
 )
 from twisted.internet.task import (
     LoopingCall,
@@ -420,6 +421,7 @@ class UploaderService(service.Service):
         self._clock = clock
         self._poll_interval = poll_interval
         self._remote_snapshot_creator = remote_snapshot_creator
+        self._uploading = False
 
     def startService(self):
         """
@@ -434,10 +436,31 @@ class UploaderService(service.Service):
 
         # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = LoopingCall(
-            self._remote_snapshot_creator.upload_local_snapshots,
+            self.perform_upload
         )
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
+
+
+    def perform_upload(self):
+        """
+        Do an upload unless we are already doing one.
+        """
+        if self._uploading:
+            return
+
+        def err(fail):
+            print(fail)
+            return None
+
+        def reset_upload(arg):
+            self._uploading = False
+            return arg
+
+        d = maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
+        self._uploading = True
+        d.addBoth(reset_upload)
+        d.addErrback(err)
 
     def stopService(self):
         """
