@@ -53,5 +53,5 @@ Contents
    limitations
    backdoors
    development
-   relesae-process
+   release-process
    proposed/index
