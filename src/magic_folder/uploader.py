@@ -448,10 +448,6 @@ class UploaderService(service.Service):
         if self._uploading:
             return
 
-        def err(fail):
-            print(fail)
-            return None
-
         def reset_upload(arg):
             self._uploading = False
             return arg
@@ -459,7 +455,7 @@ class UploaderService(service.Service):
         d = maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
         self._uploading = True
         d.addBoth(reset_upload)
-        d.addErrback(err)
+        return d
 
     def stopService(self):
         """
