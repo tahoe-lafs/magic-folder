@@ -102,6 +102,7 @@ from ._endpoint_parser import (
 from eliot import (
     ActionType,
     Field,
+    start_action,
 )
 
 from .util.capabilities import is_readonly_directory_cap, is_directory_cap
@@ -232,12 +233,19 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
+        """
+        --- This table represents our notion of conflicts (although they are also represented
+        --- on disk, our representation is canonical as the filesystem is part of the API)
+        CREATE TABLE [conflicted_files]
+        (
+            [name]             TEXT NOT NULL,    -- mangled name in UTF-8
+            [conflict_author]  TEXT NOT NULL     -- another participant who conflicts
+        )
+        --- note that a single name may appear more than once if there are multiple conflicts
+        """
     ]),
 ])
 
-
-## XXX "parents_local" should be IDs of other local_snapshots, not
-## sure how to do that w/o docs here
 
 DELETE_SNAPSHOTS = ActionType(
     u"config:state-db:delete-local-snapshot-entry",
@@ -977,7 +985,6 @@ class MagicFolderConfig(object):
                            " WHERE [name]=?",
                            (name,))
 
-
     @with_cursor
     def store_uploaded_snapshot(self, cursor, name, remote_snapshot, upload_started_at):
         """
@@ -1193,6 +1200,79 @@ class MagicFolderConfig(object):
             )
             for row in cursor.fetchall()
         ]
+
+    @with_cursor
+    def list_conflicts(self, cursor, name):
+        """
+        :param text name: The name of an existing snapshot
+
+        :returns List[text]: the author-names of all participants that
+            conflict or None if there aren't any.
+        """
+        with start_action(action_type="config:state-db:list-conflicts", name=name):
+            cursor.execute(
+                """
+                SELECT
+                    conflict_author
+                FROM
+                    conflicted_files
+                WHERE
+                    [name]=?
+                """,
+                (name, ),
+            )
+            row = cursor.fetchall()
+            return [x[0] for x in row] if row else None
+
+    @with_cursor
+    def add_conflict(self, cursor, name, author):
+        """
+        Add a new conflicting author
+
+        :param text name: The name of an existing snapshot
+        :param text author: The name of an existing participant
+        """
+        with start_action(action_type="config:state-db:add-conflict", name=name):
+            cursor.execute(
+                """
+                SELECT
+                    conflict_author
+                FROM
+                    conflicted_files
+                WHERE
+                    name=? AND conflict_author=?
+                """,
+                (name, author),
+            )
+            if cursor.fetchall():
+                return
+            cursor.execute(
+                """
+                INSERT INTO
+                    conflicted_files (name, conflict_author)
+                VALUES
+                    (?,?)
+                """,
+                (name, author),
+            )
+
+    @with_cursor
+    def resolve_conflict(self, cursor, name):
+        """
+        Delete all conflicts for a given Snapshot.
+
+        :param text name: The name of an existing Snapshot.
+        """
+        with start_action(action_type="config:state-db:resolve-conflict", name=name):
+            cursor.execute(
+                """
+                DELETE FROM
+                    conflicted_files
+                WHERE
+                    name=?
+                """,
+                (name, ),
+            )
 
     @property
     @with_cursor

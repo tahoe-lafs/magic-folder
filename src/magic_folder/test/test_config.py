@@ -864,3 +864,70 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 ])
             )
         )
+
+
+class ConflictTests(SyncTestCase):
+    """
+    Test conflicts
+    """
+    def setUp(self):
+        super(ConflictTests, self).setUp()
+        self.author = create_local_author(u"desktop")
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+            60,
+        )
+
+    def test_add_list_conflict(self):
+        """
+        Adding a conflict allows us to list it
+        """
+
+        self.db.add_conflict("foo", "laptop")
+        self.assertThat(
+            self.db.list_conflicts("foo"),
+            Equals(["laptop"]),
+        )
+
+    def test_add_list_multi_conflict(self):
+        """
+        A multiple-conflict is reflected in the list
+        """
+
+        self.db.add_conflict("foo", "laptop")
+        self.db.add_conflict("foo", "phone")
+        self.assertThat(
+            set(self.db.list_conflicts("foo")),
+            Equals({"laptop", "phone"}),
+        )
+
+    def test_delete_multi_conflict(self):
+        """
+        A multiple-conflict is successfully deleted
+        """
+
+        self.db.add_conflict("foo", "laptop")
+        self.db.add_conflict("foo", "phone")
+        self.assertThat(
+            set(self.db.list_conflicts("foo")),
+            Equals({"laptop", "phone"}),
+        )
+
+        self.db.resolve_conflict("foo")
+        self.assertThat(
+            self.db.list_conflicts("foo"),
+            Equals(None),
+        )
