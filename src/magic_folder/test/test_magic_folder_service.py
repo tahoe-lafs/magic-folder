@@ -31,8 +31,6 @@ from hypothesis.strategies import (
     binary,
     integers,
     just,
-    none,
-    one_of,
     sampled_from,
 )
 from testtools.matchers import (
