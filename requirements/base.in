@@ -2,7 +2,9 @@
 # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
 zope.interface >= 3.6.0, != 3.6.3, != 3.6.4
 
-humanize >= 0.5.1
+# the highest version NixOS packages currently is 0.5.1 .. if that
+# changes, we should upgrade this.
+humanize == 0.5.1
 
 six >= 1.10.0
 
