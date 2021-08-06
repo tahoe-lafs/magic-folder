@@ -898,8 +898,10 @@ class ConflictTests(SyncTestCase):
 
         self.db.add_conflict("foo", "laptop")
         self.assertThat(
-            self.db.list_conflicts("foo"),
-            Equals(["laptop"]),
+            self.db.list_conflicts(),
+            Equals({
+                "foo": ["laptop"],
+            }),
         )
 
     def test_add_list_multi_conflict(self):
@@ -910,8 +912,10 @@ class ConflictTests(SyncTestCase):
         self.db.add_conflict("foo", "laptop")
         self.db.add_conflict("foo", "phone")
         self.assertThat(
-            set(self.db.list_conflicts("foo")),
-            Equals({"laptop", "phone"}),
+            self.db.list_conflicts(),
+            Equals({
+                "foo": ["laptop", "phone"]
+            })
         )
 
     def test_delete_multi_conflict(self):
@@ -922,12 +926,14 @@ class ConflictTests(SyncTestCase):
         self.db.add_conflict("foo", "laptop")
         self.db.add_conflict("foo", "phone")
         self.assertThat(
-            set(self.db.list_conflicts("foo")),
-            Equals({"laptop", "phone"}),
+            self.db.list_conflicts(),
+            Equals({
+                "foo": ["laptop", "phone"],
+            }),
         )
 
         self.db.resolve_conflict("foo")
         self.assertThat(
-            self.db.list_conflicts("foo"),
-            Equals(None),
+            self.db.list_conflicts(),
+            Equals(dict()),
         )
