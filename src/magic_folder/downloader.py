@@ -304,6 +304,12 @@ class MagicFolderUpdater(object):
                           capability=snapshot.capability,
                           ) as action:
             relpath = magic2path(snapshot.name)
+
+            # if we're already conflicted, no further processing
+            if self._config.list_conflicts_for(snapshot.name):
+                action.add_success_fields(is_conflict=True)
+                return
+
             local_path = self._config.magic_path.preauthChild(relpath)
 
             # see if we have existing local or remote snapshots for
@@ -393,8 +399,7 @@ class MagicFolderUpdater(object):
             # filesystem.
             if is_conflict:
                 self._magic_fs.mark_conflict(snapshot, staged)
-                # FIXME probably want to also record internally that
-                # this is a conflict.
+                self._config.add_conflict(snapshot.name, snapshot.author.name)
 
             else:
                 # there is a longer dance described in detail in
@@ -414,7 +419,7 @@ class MagicFolderUpdater(object):
                 if last_minute_change:
                     action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(snapshot, staged)
-                    # FIXME note conflict internally
+                    self._config.add_conflict(snapshot.name, snapshot.author.name)
                 else:
                     try:
                         path_state = self._magic_fs.mark_overwrite(snapshot, staged)

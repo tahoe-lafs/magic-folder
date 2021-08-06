@@ -1225,6 +1225,31 @@ class MagicFolderConfig(object):
             return conflicts
 
     @with_cursor
+    def list_conflicts_for(self, cursor, name):
+        """
+        :param text name: snapshot name
+
+        :returns dict: map of relpaths to a list of the author-names of
+            all participants that conflict with that path.
+        """
+        with start_action(action_type="config:state-db:list-conflicts"):
+            cursor.execute(
+                """
+                SELECT
+                    conflict_author
+                FROM
+                    conflicted_files
+                WHERE
+                    name=?
+                """,
+                (name, ),
+            )
+            rows = cursor.fetchall()
+            if not rows:
+                return None
+            return [row[0] for row in rows]
+
+    @with_cursor
     def add_conflict(self, cursor, name, author):
         """
         Add a new conflicting author

@@ -225,6 +225,11 @@ class LocalSnapshotService(service.Service):
                 "argument must be a FilePath"
             )
 
+        if self._config.list_conflicts_for(path2magic(relpath)):
+            return
+
+        # XXX also check if "path" _is_ a conflict-file
+
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
