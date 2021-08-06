@@ -225,14 +225,16 @@ class LocalSnapshotService(service.Service):
                 "argument must be a FilePath"
             )
 
-        if self._config.list_conflicts_for(path2magic(relpath)):
-            return
-
         # XXX also check if "path" _is_ a conflict-file
 
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
+
+            # if this is already conflicted do no further work.
+            if self._config.list_conflicts_for(path2magic(relpath)):
+                return
+
             self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
