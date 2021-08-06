@@ -29,6 +29,9 @@ from twisted.application import (
     service,
 )
 
+from .magicpath import(
+    path2magic,
+)
 from .util.file import (
     seconds_to_ns,
     ns_to_seconds,
@@ -261,11 +264,13 @@ class WebSocketStatusService(service.Service):
         )
 
         def folder_data_for(name):
+            mf_config = self._config.get_magic_folder(name)
             most_recent = [
                 {
                     "relpath": relpath,
                     "modified": timestamp,
                     "last-updated": last_updated,
+                    "conflicts": mf_config.list_conflicts_for(path2magic(relpath)),
                 }
                 for relpath, timestamp, last_updated
                 in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
