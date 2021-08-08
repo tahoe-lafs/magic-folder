@@ -225,15 +225,12 @@ class LocalSnapshotService(service.Service):
                 "argument must be a FilePath"
             )
 
-        # XXX also check if "path" _is_ a conflict-file
+        # XXX check if "path" _is_ a conflict-file in which case it
+        # should not be uploaded
 
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-
-            # if this is already conflicted do no further work.
-            if self._config.list_conflicts_for(path2magic(relpath)):
-                return
 
             self._status.upload_queued(relpath)
         except ValueError:
