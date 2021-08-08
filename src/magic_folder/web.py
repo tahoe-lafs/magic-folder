@@ -469,7 +469,7 @@ class APIv1(object):
         ])
 
     @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
-    def folder_file_status(self, request, folder_name):
+    def list_conflicts(self, request, folder_name):
         """
         Render status information for every file in a given folder
         """

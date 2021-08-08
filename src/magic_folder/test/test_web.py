@@ -258,6 +258,7 @@ class AuthorizationTests(SyncTestCase):
             ),
         )
 
+
 def treq_for_folders(
     reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
 ):

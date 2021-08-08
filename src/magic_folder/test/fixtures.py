@@ -202,6 +202,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
 
 @attr.s
 class MagicFolderNode(object):
+    # FIXME docstring
     tahoe_root = attr.ib()
     http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
     global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
