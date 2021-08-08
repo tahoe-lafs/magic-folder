@@ -92,7 +92,11 @@ from ..testing.web import (
 from ..participants import (
     participants_from_collective,
 )
-from ..util.file import PathState, get_pathinfo, seconds_to_ns
+from ..util.file import (
+    PathState,
+    get_pathinfo,
+    seconds_to_ns,
+)
 from .common import (
     SyncTestCase,
     AsyncTestCase,
@@ -576,7 +580,6 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-
     @inlineCallbacks
     def test_multi_update(self):
         """
@@ -651,6 +654,89 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0, lambda: None)
         assert self.magic_path.child("foo").exists()
         assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+
+    @inlineCallbacks
+    def test_conflicting_update(self):
+        """
+        Create an update that conflicts with a local file
+        """
+
+        content0 = b"foo" * 1000
+        content1 = b"bar" * 1000
+        content2 = b"baz" * 1000
+        content3 = b"quux" * 1000
+        local_snap0 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+        )
+
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability.encode("utf8"),
+        )
+
+        # create an update
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            parents=[local_snap0],
+        )
+        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+
+        # just before we link this in, put a local change "in the way"
+        # on Alice's side.
+        self.magic_path.child("foo").setContent(content2)
+
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap1.capability.encode("utf8"),
+            replace=True,
+        )
+
+        # wait for the downloader to put this into Alice's
+        # magic-folder, which should cause a conflcit
+        for _ in range(10):
+            if "foo.conflict-zara" in self.magic_path.listdir():
+                break
+            yield deferLater(reactor, 1.0, lambda: None)
+        assert self.magic_path.child("foo").exists()
+        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+
+        # now we produce another update on Zara's side, which
+        # shouldn't change anything locally because we're already
+        # conflicted.
+
+        # create an update
+        local_snap2 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content3),
+            self.state_path,
+            parents=[remote_snap1],
+        )
+        remote_snap2 = yield write_snapshot_to_tahoe(local_snap2, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap2.capability.encode("utf8"),
+            replace=True,
+        )
+
+        for _ in range(10):
+            if "foo.conflict-zara" in self.magic_path.listdir():
+                if self.magic_path.child("foo.conflict-zara").getContent() != content1:
+                    print("weird content")
+            yield deferLater(reactor, 1.0, lambda: None)
+        assert self.magic_path.child("foo").exists()
+        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+
 
 
 class ConflictTests(AsyncTestCase):

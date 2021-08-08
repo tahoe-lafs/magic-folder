@@ -1965,3 +1965,117 @@ class FileStatusTests(SyncTestCase):
                 ),
             )
         )
+
+
+class ConflictStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/conflicts` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        A folder with no conflicts reflect that in the status
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "louise",
+            local_path,
+        )
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            )
+        )
+
+    def test_one_conflict(self):
+        """
+        Appropriate information is returned when we have a conflict with
+        one author
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "marta",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        # internal API for "no conflict yet"
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals(None)
+        )
+
+        # adding it twice should still result in a single conflict
+        mf_config.add_conflict("foo", "nelli")
+        mf_config.add_conflict("foo", "nelli")
+
+        # internal API
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals(["nelli"])
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["nelli"],
+                        }),
+                    )
+                ),
+            )
+        )
