@@ -29,7 +29,7 @@ from twisted.application import (
     service,
 )
 
-from .magicpath import(
+from .magicpath import (
     path2magic,
 )
 from .util.file import (
