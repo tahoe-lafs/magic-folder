@@ -117,6 +117,7 @@ class ScannerService(MultiService):
                 # implementation there...
                 self._uploader_service.perform_upload()
                 return arg
+            d.addCallback(made_snapshot)
             results.append(d)
 
         # XXX update/use IStatus to report scan start/end
