@@ -110,6 +110,13 @@ class ScannerService(MultiService):
             d = self._local_snapshot_service.add_file(path)
             d.addErrback(write_failure)
 
+            # it might be slightly better to do this in
+            # e.g. LocalSnapshotService, but that has implications for
+            # test-ability and changes the "create a snapshot"
+            # low-level API to also mean "..and start uploading". See
+            # also
+            # https://github.com/LeastAuthority/magic-folder/issues/542
+
             def made_snapshot(arg):
                 # maybe start an upload .. actually doesn't check
                 # first, so this will stack up one "do an upload" per
@@ -127,8 +134,6 @@ class ScannerService(MultiService):
                 self._cooperator, self._config, process, status=self._status
             )
             yield gatherResults(results)
-        # if we aren't already doing uploads, start some now
-        self._uploader_service.perform_upload()
 
 
 def find_updated_files(cooperator, folder_config, on_new_file, status):
