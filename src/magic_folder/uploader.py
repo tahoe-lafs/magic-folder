@@ -324,7 +324,6 @@ class RemoteSnapshotCreator(object):
             except Exception:
                 write_traceback()
 
-
     @inline_callbacks
     def _upload_some_snapshots(self, name):
         """
