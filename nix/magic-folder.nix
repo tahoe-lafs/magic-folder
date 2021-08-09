@@ -1,8 +1,8 @@
 { lib, python, buildPythonPackage, pythonPackages, tahoe-lafs, klein, git }:
 buildPythonPackage rec {
   pname = "magic-folder";
-  version = "2020-02-05";
-  src = ../.;
+  version = "0.1.0";
+  src = lib.cleanSource ../.;
 
   propagatedBuildInputs = with pythonPackages; [
     configparser
@@ -15,10 +15,6 @@ buildPythonPackage rec {
     testtools
     fixtures
   ];
-
-  postPatch = ''
-    PATH="$PATH:${git}/bin" ${python}/bin/python setup.py update_version
-  '';
 
   checkPhase = ''
     export MAGIC_FOLDER_HYPOTHESIS_PROFILE="magic-folder-ci"
