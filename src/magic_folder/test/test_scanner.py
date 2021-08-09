@@ -13,7 +13,7 @@ from testtools.matchers import (
     MatchesStructure,
 )
 from testtools.twistedsupport import succeeded
-from twisted.internet.defer import succeed, Deferred
+from twisted.internet.defer import succeed
 from twisted.internet.task import Clock, Cooperator
 from twisted.python import runtime
 from twisted.python.filepath import FilePath
