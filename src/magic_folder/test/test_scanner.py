@@ -288,58 +288,6 @@ class FindUpdatesTests(SyncTestCase):
 
         self.assertThat(files, Equals([local]))
 
-
-    def test_overlapping_scans(self):
-        """
-        The scanner will not perform more than one scan at the same time
-        """
-        self.setup_example()  # no @given() on this test
-        performed_uploads = []
-
-        class SnapshotService(object):
-            def add_file(self, f):
-                return succeed(None)
-
-        class RemoteSnapshotCreator(object):
-            def initialize_upload_status(self):
-                pass
-
-            def upload_local_snapshots(self):
-                # these get "completed" below
-                d = Deferred()
-                performed_uploads.append(d)
-                return d
-
-        # we want to test the "real" uploader-service here (but use a
-        # fake snapshot-creator so there's no actual work performed)
-        from magic_folder.uploader import UploaderService
-
-        service = ScannerService(
-            self.config,
-            SnapshotService(),
-            UploaderService(
-                clock=object(),
-                poll_interval=1,
-                remote_snapshot_creator=RemoteSnapshotCreator(),
-            ),
-            object(),
-            cooperator=self.cooperator,
-            scan_interval=None,
-        )
-        service.startService()
-        self.addCleanup(service.stopService)
-
-        # initiate 5 scans "at once"
-        for _ in range(5):
-            service.scan_once()
-
-        # pretend the "actual" uploads completed now (although there
-        # should be only one that actually got intiated; see assert)
-        for d in performed_uploads:
-            d.callback(None)
-
-        self.assertThat(len(performed_uploads), Equals(1))
-
     @given(
         relative_paths(),
     )

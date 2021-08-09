@@ -16,8 +16,10 @@ from twisted.application import (
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
+    DeferredLock,
     CancelledError,
     maybeDeferred,
+    inlineCallbacks,
 )
 from twisted.internet.task import (
     LoopingCall,
@@ -38,6 +40,9 @@ from eliot.twisted import (
 from .util.eliotutil import (
     RELPATH,
     log_call_deferred,
+)
+from .util.twisted import (
+    exclusively,
 )
 from .snapshot import (
     LocalAuthor,
@@ -416,7 +421,7 @@ class UploaderService(service.Service):
         self._clock = clock
         self._poll_interval = poll_interval
         self._remote_snapshot_creator = remote_snapshot_creator
-        self._uploading = False
+        self._lock = DeferredLock()  # implicitly required by @exclusively()
 
     def startService(self):
         """
@@ -436,22 +441,13 @@ class UploaderService(service.Service):
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
 
-
+    @exclusively
+    @inlineCallbacks
     def perform_upload(self):
         """
         Do an upload unless we are already doing one.
         """
-        if self._uploading:
-            return
-
-        def reset_upload(arg):
-            self._uploading = False
-            return arg
-
-        d = maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
-        self._uploading = True
-        d.addBoth(reset_upload)
-        return d
+        yield maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
 
     def stopService(self):
         """
