@@ -10,9 +10,6 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.application import (
     service,
 )
@@ -325,7 +322,7 @@ class RemoteSnapshotCreator(object):
                 write_traceback()
                 # note: we will re-try on the next upload pass, after one scan_interval
             except Exception:
-                print(Failure())
+                write_traceback()
 
 
     @inline_callbacks

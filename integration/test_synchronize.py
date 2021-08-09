@@ -181,7 +181,8 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
 
 @pytest_twisted.inlineCallbacks
-def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot):
+@pytest.mark.parametrize("relpath", ["sylvester", "nested/sylvester"])
+def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot, relpath):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -205,8 +206,11 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     # "bob" contains the 'recovery' magic-folder
     original_folder = temp_filepath.child("cats")
     recover_folder = temp_filepath.child("kitties")
-    original_folder.makedirs()
-    recover_folder.makedirs()
+
+    original_file = original_folder.preauthChild(relpath)
+    original_file.parent().makedirs()
+    recover_file = recover_folder.preauthChild(relpath)
+    recover_file.parent().makedirs()
 
     # add our magic-folder and re-start
     yield alice.add("original", original_folder.path)
@@ -218,13 +222,13 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_file.setContent(content0)
+    yield take_snapshot(alice, "original", relpath)
 
     # update the file (so now there's two versions)
     content1 = non_lit_content("one")
-    original_folder.child("sylvester").setContent(content1)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_file.setContent(content1)
+    yield take_snapshot(alice, "original", relpath)
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -241,7 +245,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_file.path,
         content1,
         timeout=25,
     )
@@ -250,12 +254,12 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
     # new snapshot is uploaded, we put an update into the 'original'
     # folder. This also tests the normal 'update' flow as well.
     content2 = non_lit_content("two")
-    original_folder.child("sylvester").setContent(content2)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_file.setContent(content2)
+    yield take_snapshot(alice, "original", relpath)
 
     # the new content should appear in the 'recovery' folder
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_file.path,
         content2,
     )
 
