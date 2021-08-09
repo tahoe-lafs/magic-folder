@@ -295,7 +295,7 @@ class RemoteSnapshotCreator(object):
         format to LocalSnapshot objects and commit them into the grid.
         """
 
-        # get the mangled paths for the LocalSnapshot objects in the db
+        # get the paths for the LocalSnapshot objects in the db
         localsnapshot_names = self._config.get_all_localsnapshot_paths()
 
         # XXX: processing this table should be atomic. i.e. While the upload is

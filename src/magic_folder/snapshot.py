@@ -207,7 +207,7 @@ def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capa
 
     :param LocalAuthor local_author: the author to sign the data with
 
-    :param unicode snapshot_name: mangled snapshot name to sign
+    :param unicode snapshot_name: snapshot name to sign
 
     :param bytes content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
@@ -345,9 +345,6 @@ class RemoteSnapshot(object):
     Represents a snapshot corresponding to a particular version of a
     file authored by a particular human.
 
-    :ivar unicode name: the name of this Snapshot. This is a mangled
-        path relative to our local magic-folder path.
-
     :ivar dict metadata: a dict containing metadata about this
         Snapshot. Usually these are unicode keys mapping to data that
         can be anything JSON can serialize (so text, numbers, booleans
@@ -456,7 +453,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
     data is stashed in `snapshot_stash_dir` before this function
     returns.
 
-    :param name: The name for this snapshot (usually the 'mangled' filename).
+    :param name: The name for this snapshot (usually the relative path of the file).
 
     :param author: LocalAuthor instance (which will have a valid
         signing-key)

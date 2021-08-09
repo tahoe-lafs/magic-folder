@@ -157,10 +157,10 @@ class CacheTests(SyncTestCase):
         Caching a single RemoteSnapshot with no parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        name = "foo"
         metadata = {
             "snapshot_version": 1,
-            "name": mangled_name,
+            "name": name,
             "author": self.author.to_remote_author().to_json(),
             "parents": [],
         }
@@ -193,7 +193,7 @@ class CacheTests(SyncTestCase):
                                     "author_signature": base64.b64encode(
                                         sign_snapshot(
                                             self.author,
-                                            mangled_name,
+                                            name,
                                             content_cap,
                                             metadata_cap
                                         ).signature
@@ -228,14 +228,14 @@ class CacheTests(SyncTestCase):
         Caching a RemoteSnapshot with parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        name = "foo"
         parents = []
         genesis = None
 
         for who in range(5):
             metadata = {
                 "snapshot_version": 1,
-                "name": mangled_name,
+                "name": name,
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
@@ -271,7 +271,7 @@ class CacheTests(SyncTestCase):
                                             "author_signature": base64.b64encode(
                                                 sign_snapshot(
                                                     self.author,
-                                                    mangled_name,
+                                                    name,
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature

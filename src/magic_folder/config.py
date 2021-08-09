@@ -221,7 +221,7 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]             TEXT PRIMARY KEY, -- mangled name in UTF-8
+            [name]             TEXT PRIMARY KEY, -- relative file path in UTF-8
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
