@@ -109,6 +109,14 @@ class ScannerService(MultiService):
         def process(path):
             d = self._local_snapshot_service.add_file(path)
             d.addErrback(write_failure)
+
+            def made_snapshot(arg):
+                # maybe start an upload .. actually doesn't check
+                # first, so this will stack up one "do an upload" per
+                # file scanned because of the lock-based
+                # implementation there...
+                self._uploader_service.perform_upload()
+                return arg
             results.append(d)
 
         # XXX update/use IStatus to report scan start/end
