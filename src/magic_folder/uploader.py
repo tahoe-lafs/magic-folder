@@ -49,10 +49,7 @@ from .status import (
 from .config import (
     MagicFolderConfig,
 )
-from .magicpath import (
-    magic2path,
-    path2magic,
-)
+from .participants import IWriteableParticipant
 from .util.file import get_pathinfo
 
 
@@ -116,9 +113,8 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             relpath = u"/".join(path.segmentsFrom(self._magic_dir))
-            mangled_name = path2magic(relpath)
             try:
-                parent_snapshot = self._db.get_local_snapshot(mangled_name)
+                parent_snapshot = self._db.get_local_snapshot(relpath)
             except KeyError:
                 parents = []
             else:
@@ -131,7 +127,7 @@ class LocalSnapshotCreator(object):
             raw_remote = []
             if not parents:
                 try:
-                    parent_remote = self._db.get_remotesnapshot(mangled_name)
+                    parent_remote = self._db.get_remotesnapshot(relpath)
                     raw_remote = [parent_remote]
                 except KeyError:
                     pass
@@ -144,7 +140,7 @@ class LocalSnapshotCreator(object):
                 path_info = get_pathinfo(path)
 
                 snapshot = yield create_snapshot(
-                    name=mangled_name,
+                    name=relpath,
                     author=self._author,
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
@@ -157,7 +153,7 @@ class LocalSnapshotCreator(object):
                 # store the local snapshot to the disk
                 # FIXME: should be in a transaction
                 self._db.store_local_snapshot(snapshot)
-                self._db.store_currentsnapshot_state(mangled_name, path_info.state)
+                self._db.store_currentsnapshot_state(relpath, path_info.state)
 
 @attr.s
 @implementer(service.IService)
@@ -275,7 +271,7 @@ class RemoteSnapshotCreator(object):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
-    _upload_dircap = attr.ib()
+    _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
     def initialize_upload_status(self):
@@ -290,7 +286,7 @@ class RemoteSnapshotCreator(object):
             # locally, we won't have done a .upload_queued() yet _in this
             # process_ (that is, a previous daemon did that resulting in
             # the database entries)
-            self._status.upload_queued(magic2path(name))
+            self._status.upload_queued(name)
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -311,7 +307,7 @@ class RemoteSnapshotCreator(object):
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
             try:
                 with action:
-                    self._status.upload_started(magic2path(name))
+                    self._status.upload_started(name)
                     yield self._upload_some_snapshots(name)
             except Exception:
                 # XXX this existing comment is wrong; there are many
@@ -322,7 +318,7 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 write_traceback()
             finally:
-                self._status.upload_finished(magic2path(name))
+                self._status.upload_finished(name)
 
 
     @inline_callbacks
@@ -365,11 +361,9 @@ class RemoteSnapshotCreator(object):
         # detect the conflict but any diff migh be weird.
 
         # update the entry in the DMD
-        yield self._tahoe_client.add_entry_to_mutable_directory(
-            self._upload_dircap.encode("utf-8"),
+        yield self._write_participant.update_snapshot(
             name,
-            remote_snapshot.capability.encode('utf-8'),
-            replace=True,
+            remote_snapshot.capability,
         )
 
         # if removing the stashed content fails here, we MUST move on

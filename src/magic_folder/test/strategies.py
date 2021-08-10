@@ -242,7 +242,7 @@ def tahoe_lafs_dir_capabilities():
     Build unicode strings which look like Tahoe-LAFS directory capability strings.
     """
     return builds(
-        lambda a, b: u"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
+        lambda a, b: b"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
         binary(min_size=16, max_size=16),
 
         binary(min_size=32, max_size=32),

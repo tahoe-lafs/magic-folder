@@ -157,7 +157,7 @@ _magicfolder_config_schema = Schema([
             -- A random, unique identifier for this particular snapshot.
             [identifier]       TEXT PRIMARY KEY,
 
-            -- The magicpath-mangled name of the file this snapshot is for,
+            -- The relative path of the file this snapshot is for,
             -- UTF-8-encoded.
             [name]             TEXT,
 
@@ -845,7 +845,7 @@ class MagicFolderConfig(object):
 
         :raise KeyError: If there is no matching snapshot for the given path.
 
-        :returns: An instance of LocalSnapshot for the given magicpath.
+        :returns: An instance of LocalSnapshot for the given path.
         """
         # Read all the state for this name from the database.
         snapshots = _get_snapshots(cursor, name)

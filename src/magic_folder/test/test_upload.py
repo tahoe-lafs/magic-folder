@@ -88,11 +88,11 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     @given(
-        mangled_name=relative_paths().map(path2magic),
+        name=relative_paths(),
         content=binary(),
         upload_dircap=tahoe_lafs_dir_capabilities(),
     )
-    def test_commit_a_file(self, mangled_name, content, upload_dircap):
+    def test_commit_a_file(self, name, content, upload_dircap):
         """
         Add a file into localsnapshot store, start the service which
         should result in a remotesnapshot corresponding to the
@@ -117,7 +117,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=mangled_name,
+            name=name,
             author=self.author,
             data_producer=data,
             snapshot_stash_dir=config.stash_path,
@@ -136,7 +136,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         config.store_local_snapshot(snapshots[0])
-        config.store_currentsnapshot_state(mangled_name, PathState(0, 0, 0))
+        config.store_currentsnapshot_state(name, PathState(0, 0, 0))
 
         remote_snapshot_creator.initialize_upload_status()
         d = remote_snapshot_creator.upload_local_snapshots()
@@ -145,13 +145,13 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        remote_snapshot_cap = config.get_remotesnapshot(mangled_name)
+        remote_snapshot_cap = config.get_remotesnapshot(name)
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
             loads(f.root._uri.data[upload_dircap])[1][u"children"],
             Equals({
-                mangled_name: [
+                path2magic(name): [
                     u"dirnode", {
                         u"ro_uri": remote_snapshot_cap.decode("utf-8"),
                         u"verify_uri": to_verify_capability(remote_snapshot_cap),
@@ -172,8 +172,8 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             ),
         )
 
-        with ExpectedException(KeyError, escape(repr(mangled_name))):
-            config.get_local_snapshot(mangled_name)
+        with ExpectedException(KeyError, escape(repr(name))):
+            config.get_local_snapshot(name)
 
     @given(
         path_segments(),

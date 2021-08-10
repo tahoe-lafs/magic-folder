@@ -19,7 +19,6 @@ from twisted.python import runtime
 from twisted.python.filepath import FilePath
 
 from ..config import create_testing_configuration
-from ..magicpath import path2magic
 from ..scanner import ScannerService, find_updated_files
 from ..snapshot import RemoteSnapshot, create_local_author
 from ..status import FolderStatus, WebSocketStatusService
@@ -139,7 +138,7 @@ class FindUpdatesTests(SyncTestCase):
             content_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
-            path2magic(name), snap, get_pathinfo(local).state
+            name, snap, get_pathinfo(local).state
         )
 
         files = []
@@ -176,7 +175,7 @@ class FindUpdatesTests(SyncTestCase):
             content_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
-            path2magic(name),
+            name,
             snap,
             OLD_PATH_STATE,
         )
