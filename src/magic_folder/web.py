@@ -58,9 +58,6 @@ from .status import (
     StatusFactory,
     IStatus,
 )
-from .magicpath import (
-    magic2path,
-)
 from .snapshot import (
     create_author,
 )
@@ -458,13 +455,13 @@ class APIv1(object):
 
         return json.dumps([
             {
-                "relpath": magic2path(name),
+                "relpath": relpath,
                 "mtime": ns_to_seconds(ps.mtime_ns),
                 "last-updated": ns_to_seconds(last_updated_ns),
                 "last-upload-duration": float(upload_duration_ns) / 1000000000.0 if upload_duration_ns else None,
                 "size": ps.size,
             }
-            for name, ps, last_updated_ns, upload_duration_ns
+            for relpath, ps, last_updated_ns, upload_duration_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
 
@@ -513,8 +510,7 @@ def _list_all_folder_snapshots(folder_config):
         representing all snapshots for that file.
     """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
-        relative_path = magic2path(snapshot_path)
-        yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
+        yield snapshot_path, _list_all_path_snapshots(folder_config, snapshot_path)
 
 
 def _list_all_path_snapshots(folder_config, snapshot_path):

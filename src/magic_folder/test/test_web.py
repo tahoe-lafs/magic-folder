@@ -122,7 +122,6 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
-from ..magicpath import path2magic
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
@@ -1025,7 +1024,7 @@ class ScanFolderTests(SyncTestCase):
         snapshot_paths = folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
-            Equals({path2magic(path_in_folder)}),
+            Equals({path_in_folder}),
         )
 
     def test_snapshot_no_folder(self):

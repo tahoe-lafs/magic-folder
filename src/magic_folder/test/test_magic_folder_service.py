@@ -107,7 +107,7 @@ class MagicFolderServiceTests(SyncTestCase):
             folder_status=FolderStatus(name, status_service),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
-            initial_participants=participants,
+            participants=participants,
             scanner_service=Service(),
             clock=reactor,
         )
@@ -169,7 +169,7 @@ class MagicFolderServiceTests(SyncTestCase):
             folder_status=folder_status,
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
-            initial_participants=participants,
+            participants=participants,
             scanner_service=Service(),
             clock=clock,
         )
@@ -236,7 +236,7 @@ class MagicFolderServiceTests(SyncTestCase):
             folder_status=folder_status,
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
-            initial_participants=participants,
+            participants=participants,
             scanner_service=Service(),
             clock=clock,
         )

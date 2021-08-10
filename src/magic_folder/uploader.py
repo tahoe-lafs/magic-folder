@@ -58,10 +58,7 @@ from .tahoe_client import (
 from .config import (
     MagicFolderConfig,
 )
-from .magicpath import (
-    magic2path,
-    path2magic,
-)
+from .participants import IWriteableParticipant
 from .util.file import get_pathinfo
 
 
@@ -125,9 +122,8 @@ class LocalSnapshotCreator(object):
             # snapshot for the file being added.
             # If so, we use that as the parent.
             relpath = u"/".join(path.segmentsFrom(self._magic_dir))
-            mangled_name = path2magic(relpath)
             try:
-                parent_snapshot = self._db.get_local_snapshot(mangled_name)
+                parent_snapshot = self._db.get_local_snapshot(relpath)
             except KeyError:
                 parents = []
             else:
@@ -140,7 +136,7 @@ class LocalSnapshotCreator(object):
             raw_remote = []
             if not parents:
                 try:
-                    parent_remote = self._db.get_remotesnapshot(mangled_name)
+                    parent_remote = self._db.get_remotesnapshot(relpath)
                     raw_remote = [parent_remote]
                 except KeyError:
                     pass
@@ -153,7 +149,7 @@ class LocalSnapshotCreator(object):
                 path_info = get_pathinfo(path)
 
                 snapshot = yield create_snapshot(
-                    name=mangled_name,
+                    relpath=relpath,
                     author=self._author,
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
@@ -166,7 +162,7 @@ class LocalSnapshotCreator(object):
                 # store the local snapshot to the disk
                 # FIXME: should be in a transaction
                 self._db.store_local_snapshot(snapshot)
-                self._db.store_currentsnapshot_state(mangled_name, path_info.state)
+                self._db.store_currentsnapshot_state(relpath, path_info.state)
 
 @attr.s
 @implementer(service.IService)
@@ -287,7 +283,7 @@ class RemoteSnapshotCreator(object):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
-    _upload_dircap = attr.ib()
+    _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
     def initialize_upload_status(self):
@@ -296,13 +292,13 @@ class RemoteSnapshotCreator(object):
         startup we need to reflect their "pending upload" status
         properly.
         """
-        localsnapshot_names = self._config.get_all_localsnapshot_paths()
-        for name in localsnapshot_names:
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
+        for relpath in localsnapshot_paths:
             # if we re-started with LocalSnapshots already in our database
             # locally, we won't have done a .upload_queued() yet _in this
             # process_ (that is, a previous daemon did that resulting in
             # the database entries)
-            self._status.upload_queued(magic2path(name))
+            self._status.upload_queued(relpath)
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -310,35 +306,36 @@ class RemoteSnapshotCreator(object):
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
         """
-        # get the mangled paths for the LocalSnapshot objects in the db
-        localsnapshot_names = self._config.get_all_localsnapshot_paths()
+        # get the paths for the LocalSnapshot objects in the db
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
         # the new snapshot gets lost.
 
-        for name in localsnapshot_names:
-            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
+        for relpath in localsnapshot_paths:
+            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
             try:
                 with action:
-                    self._status.upload_started(magic2path(name))
-                    yield self._upload_some_snapshots(name)
-                self._status.upload_finished(magic2path(name))
+                    self._status.upload_started(relpath)
+                    yield self._upload_some_snapshots(relpath)
             except TahoeAPIError as e:
                 self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
                 write_traceback()
                 # note: we will re-try on the next upload pass, after one scan_interval
             except Exception:
                 write_traceback()
+            else:
+                self._status.upload_finished(relpath)
 
     @inline_callbacks
-    def _upload_some_snapshots(self, name):
+    def _upload_some_snapshots(self, relpath):
         """
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._config.get_local_snapshot(name)
+        snapshot = self._config.get_local_snapshot(relpath)
         upload_started_at = time.time()
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
@@ -347,7 +344,7 @@ class RemoteSnapshotCreator(object):
         )
         Message.log(message_type="snapshot:metadata",
                     metadata=remote_snapshot.metadata,
-                    name=remote_snapshot.name,
+                    relpath=relpath,
                     capability=remote_snapshot.capability)
 
         # if we crash here, we'll retry and re-upload (hopefully
@@ -357,7 +354,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(name, remote_snapshot, upload_started_at)
+        yield self._config.store_uploaded_snapshot(relpath, remote_snapshot, upload_started_at)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
@@ -372,11 +369,9 @@ class RemoteSnapshotCreator(object):
         # detect the conflict but any diff migh be weird.
 
         # update the entry in the DMD
-        yield self._tahoe_client.add_entry_to_mutable_directory(
-            self._upload_dircap.encode("utf-8"),
-            name,
-            remote_snapshot.capability.encode('utf-8'),
-            replace=True,
+        yield self._write_participant.update_snapshot(
+            relpath,
+            remote_snapshot.capability,
         )
 
         # if removing the stashed content fails here, we MUST move on
@@ -395,7 +390,7 @@ class RemoteSnapshotCreator(object):
             )
 
         # Remove the LocalSnapshot from the db.
-        yield self._config.delete_localsnapshot(name)
+        yield self._config.delete_localsnapshot(relpath)
 
 
 @implementer(service.IService)
