@@ -66,8 +66,8 @@ class ScanMagicFolder(AsyncTestCase):
         """
         Scanning a magic folder creates a snapshot of new files.
         """
-        name = "file"
-        local = self.magic_path.child(name)
+        relpath = "file"
+        local = self.magic_path.child(relpath)
         local.setContent(b"content")
 
         outcome = yield self.api_cli(
@@ -85,7 +85,7 @@ class ScanMagicFolder(AsyncTestCase):
         snapshot_paths = self.folder_config.get_all_localsnapshot_paths()
         self.assertThat(
             snapshot_paths,
-            Equals({name}),
+            Equals({relpath}),
         )
 
     @inline_callbacks
@@ -94,8 +94,8 @@ class ScanMagicFolder(AsyncTestCase):
         If a folder is not passed to ``magic-folder-api scan-folder``,
         an error is returned.
         """
-        name = "file"
-        local = self.magic_path.child(name)
+        relpath = "file"
+        local = self.magic_path.child(relpath)
         local.setContent(b"content")
 
         outcome = yield self.api_cli(

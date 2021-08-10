@@ -157,10 +157,10 @@ class CacheTests(SyncTestCase):
         Caching a single RemoteSnapshot with no parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        relpath = "foo"
         metadata = {
             "snapshot_version": 1,
-            "name": mangled_name,
+            "name": relpath,
             "author": self.author.to_remote_author().to_json(),
             "parents": [],
         }
@@ -193,7 +193,7 @@ class CacheTests(SyncTestCase):
                                     "author_signature": base64.b64encode(
                                         sign_snapshot(
                                             self.author,
-                                            mangled_name,
+                                            relpath,
                                             content_cap,
                                             metadata_cap
                                         ).signature
@@ -214,11 +214,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -229,14 +228,14 @@ class CacheTests(SyncTestCase):
         Caching a RemoteSnapshot with parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        relpath = "foo"
         parents = []
         genesis = None
 
         for who in range(5):
             metadata = {
                 "snapshot_version": 1,
-                "name": mangled_name,
+                "name": relpath,
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
@@ -272,7 +271,7 @@ class CacheTests(SyncTestCase):
                                             "author_signature": base64.b64encode(
                                                 sign_snapshot(
                                                     self.author,
-                                                    mangled_name,
+                                                    relpath,
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature
@@ -295,11 +294,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(genesis),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -316,11 +314,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -339,11 +336,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -728,7 +724,6 @@ class ConflictTests(AsyncTestCase):
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
-            name="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
@@ -739,7 +734,7 @@ class ConflictTests(AsyncTestCase):
 
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
@@ -753,14 +748,14 @@ class ConflictTests(AsyncTestCase):
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", remote0),
-                ("conflict", "foo", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
             ])
         )
 
@@ -773,7 +768,6 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -788,7 +782,6 @@ class ConflictTests(AsyncTestCase):
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
-            name="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
@@ -803,14 +796,14 @@ class ConflictTests(AsyncTestCase):
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", remote0),
-                ("overwrite", "foo", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("overwrite", "foo", remote0.content_cap),
             ])
         )
 
@@ -826,7 +819,6 @@ class ConflictTests(AsyncTestCase):
         for letter in 'abcd':
             parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
             parent = RemoteSnapshot(
-                name="foo",
                 author=self.alice,
                 metadata={"modification_time": 0},
                 capability=parent_cap,
@@ -852,8 +844,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", youngest),
-                ("overwrite", "foo", youngest),
+                ("download", "foo", youngest.content_cap),
+                ("overwrite", "foo", youngest.content_cap),
             ])
         )
 
@@ -865,7 +857,6 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -876,7 +867,6 @@ class ConflictTests(AsyncTestCase):
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=child_cap,
@@ -887,7 +877,6 @@ class ConflictTests(AsyncTestCase):
 
         other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=other_cap,
@@ -909,8 +898,8 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", "foo", child),
-                ("conflict", "foo", child),
+                ("download", "foo", child.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
             ])
         )
 
@@ -922,7 +911,6 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -933,7 +921,6 @@ class ConflictTests(AsyncTestCase):
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=child_cap,
@@ -966,7 +953,6 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -975,7 +961,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def permissions_suck(relpath, remote_snap, staged_content):
+        def permissions_suck(relpath, mtime, staged_content):
             """
             cause the filesystem to fail to write due to a permissions problem
             """
@@ -1052,7 +1038,6 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -1061,7 +1046,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        def network_is_out(relpath, remote_snap, tahoe_client):
+        def network_is_out(relpath, file_cap, tahoe_client):
             """
             download fails for some reason
             """

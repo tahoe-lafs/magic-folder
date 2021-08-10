@@ -69,11 +69,11 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_new(self, name):
+    def test_scan_new(self, relpath):
         """
         A completely new file is scanned
         """
-        local = self.magic_path.preauthChild(name)
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
 
@@ -95,11 +95,11 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_symlink(self, name):
+    def test_scan_symlink(self, relpath):
         """
         A completely new symlink is ignored
         """
-        local = self.magic_path.preauthChild(name)
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").linkTo(local.asBytesMode("utf-8"))
 
@@ -118,15 +118,14 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_nothing(self, name):
+    def test_scan_nothing(self, relpath):
         """
         An existing, non-updated file is not scanned
         """
-        local = self.magic_path.preauthChild(name)
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
         snap = RemoteSnapshot(
-            "new-file",
             self.author,
             metadata={
                 "modification_time": int(
@@ -138,7 +137,7 @@ class FindUpdatesTests(SyncTestCase):
             content_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
-            name, snap, get_pathinfo(local).state
+            relpath, snap, get_pathinfo(local).state
         )
 
         files = []
@@ -153,15 +152,14 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_something_remote(self, name):
+    def test_scan_something_remote(self, relpath):
         """
         We scan an update to a file we already know about.
         """
-        local = self.magic_path.preauthChild(name)
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
         snap = RemoteSnapshot(
-            name,
             self.author,
             metadata={
                 # this remote is 2min older than our local file
@@ -175,7 +173,7 @@ class FindUpdatesTests(SyncTestCase):
             content_cap="URI:CHK:",
         )
         self.config.store_downloaded_snapshot(
-            name,
+            relpath,
             snap,
             OLD_PATH_STATE,
         )
@@ -192,7 +190,7 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_something_local(self, name):
+    def test_scan_something_local(self, relpath):
         """
         We scan an update to a file we already know about (but only locally).
         """
@@ -215,7 +213,7 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_existing_to_directory(self, name):
+    def test_scan_existing_to_directory(self, relpath):
         """
         When we scan a path that we have a snapshot for, but it is now a directory,
         we ignore it, and report an error.
@@ -249,12 +247,12 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_once(self, name):
+    def test_scan_once(self, relpath):
         """
         The scanner service discovers a_file when a scan is requested.
         """
-        name = "a_file"
-        local = self.magic_path.preauthChild(name)
+        relpath = "a_file"
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
 
@@ -285,13 +283,13 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
-    def test_scan_periodic(self, name):
+    def test_scan_periodic(self, relpath):
         """
         The scanner service iteself discovers a_file, when a scan interval is
         set.
         """
-        name = "a_file"
-        local = self.magic_path.preauthChild(name)
+        relpath = "a_file"
+        local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
 

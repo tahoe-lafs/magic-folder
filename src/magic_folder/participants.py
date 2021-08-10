@@ -96,9 +96,9 @@ class IWriteableParticipant(Interface):
     """
 
     @inlineCallbacks
-    def update_snapshot(name, capability):
+    def update_snapshot(relpath, capability):
         """
-        Update the snapshot with the given name.
+        Update the snapshot with the given relpath.
         """
 
 
@@ -277,8 +277,8 @@ class _CollectiveDirnodeParticipant(object):
         """
         result = yield self._tahoe_client.list_directory(self.dircap)
         returnValue({
-            magic2path(encoded_relpath_u): SnapshotEntry(child, metadata)
-            for (encoded_relpath_u, (child, metadata))
+            magic2path(mangled_relpath): SnapshotEntry(child, metadata)
+            for (mangled_relpath, (child, metadata))
             in result.items()
         })
 
@@ -309,13 +309,13 @@ class _WriteableParticipant(object):
             ),
         )
 
-    def update_snapshot(self, name, capability):
+    def update_snapshot(self, relpath, capability):
         """
-        Update the snapshot with the given name.
+        Update the snapshot with the given relpath.
         """
         return self._tahoe_client.add_entry_to_mutable_directory(
             self.upload_cap.encode("ascii"),
-            path2magic(name),
+            path2magic(relpath),
             capability.encode("ascii"),
             replace=True,
         )
