@@ -178,6 +178,7 @@ class LocalSnapshotService(service.Service):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+    _uploader_service = attr.ib()
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -197,6 +198,8 @@ class LocalSnapshotService(service.Service):
                 (path, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     yield self._snapshot_creator.store_local_snapshot(path)
+                    # We explicitly don't wait to upload the snapshot.
+                    self._uploader_service.perform_upload()
                     d.callback(None)
             except CancelledError:
                 break

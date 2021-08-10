@@ -91,6 +91,12 @@ class MemorySnapshotCreator(object):
         )
         self.processed.append(path)
 
+class MemoryUploaderService(object):
+    upload_requested = False
+    def perform_upload(self):
+        self.upload_requested = True
+        return defer.Deferred()
+
 
 class LocalSnapshotServiceTests(SyncTestCase):
     """
@@ -121,10 +127,12 @@ class LocalSnapshotServiceTests(SyncTestCase):
 
         self.status = WebSocketStatusService(reactor, self._global_config)
         self.snapshot_creator = MemorySnapshotCreator()
+        self.uploader_service = MemoryUploaderService()
         self.snapshot_service = LocalSnapshotService(
             config=self.magic_config,
             snapshot_creator=self.snapshot_creator,
             status=FolderStatus(self.magic_config.name, self.status),
+            uploader_service=self.uploader_service,
         )
 
 
@@ -152,6 +160,11 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_creator.processed,
             Equals([to_add]),
+        )
+
+        self.assertThat(
+            self.uploader_service.upload_requested,
+            Equals(True)
         )
 
     @given(lists(path_segments(), unique=True),

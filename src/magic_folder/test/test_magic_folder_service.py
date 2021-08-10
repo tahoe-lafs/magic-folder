@@ -79,6 +79,7 @@ from .strategies import (
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator,
+    MemoryUploaderService,
 )
 
 class MagicFolderServiceTests(SyncTestCase):
@@ -153,6 +154,7 @@ class MagicFolderServiceTests(SyncTestCase):
             mf_config,
             local_snapshot_creator,
             folder_status,
+            MemoryUploaderService(),
         )
 
         tahoe_client = object()
@@ -216,6 +218,7 @@ class MagicFolderServiceTests(SyncTestCase):
             config,
             local_snapshot_creator,
             folder_status,
+            uploader_service=Service(),
         )
 
         # create RemoteSnapshotCreator and UploaderService
@@ -350,8 +353,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             Equals(name),
         )
 
-        # add a file. This won't actually add a file until we advance
-        # the clock.
+        # add a file.
         d = magic_folder.local_snapshot_service.add_file(
             target_path,
         )
@@ -363,15 +365,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         def children():
             return json.loads(root._uri.data[upload_dircap])[1][u"children"]
-
-        reactor.advance(poll_interval - 1)
-
-        self.assertThat(
-            children(),
-            Equals({}),
-        )
-
-        reactor.advance(1)
 
         self.assertThat(
             children(),

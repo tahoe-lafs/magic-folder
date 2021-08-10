@@ -45,19 +45,17 @@ class ScannerService(MultiService):
     """
 
     _config = attr.ib()
-    _local_snapshot_service = attr.ib()  # LocalSnapshotService instance
-    _uploader_service = attr.ib()  # UploaderService instance
+    _local_snapshot_service = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
-    def from_config(cls, clock, folder_config, local_snapshot_service, uploader_service, status):
+    def from_config(cls, clock, folder_config, local_snapshot_service, status):
         return cls(
             config=folder_config,
             local_snapshot_service=local_snapshot_service,
-            uploader_service=uploader_service,
             status=status,
             cooperator=_create_cooperator(clock),
             scan_interval=folder_config.scan_interval,
@@ -109,31 +107,14 @@ class ScannerService(MultiService):
         def process(path):
             d = self._local_snapshot_service.add_file(path)
             d.addErrback(write_failure)
-
-            # it might be slightly better to do this in
-            # e.g. LocalSnapshotService, but that has implications for
-            # test-ability and changes the "create a snapshot"
-            # low-level API to also mean "..and start uploading". See
-            # also
-            # https://github.com/LeastAuthority/magic-folder/issues/542
-
-            def made_snapshot(arg):
-                # maybe start an upload .. actually doesn't check
-                # first, so this will stack up one "do an upload" per
-                # file scanned because of the lock-based
-                # implementation there...
-                self._uploader_service.perform_upload()
-                return arg
-            d.addCallback(made_snapshot)
             results.append(d)
-
-        # XXX update/use IStatus to report scan start/end
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
                 self._cooperator, self._config, process, status=self._status
             )
             yield gatherResults(results)
+        # XXX update/use IStatus to report scan start/end
 
 
 def find_updated_files(cooperator, folder_config, on_new_file, status):

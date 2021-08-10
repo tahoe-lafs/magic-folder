@@ -266,14 +266,9 @@ class FindUpdatesTests(SyncTestCase):
                 files.append(f)
                 return succeed(None)
 
-        class UploaderService(object):
-            def perform_upload(self):
-                pass
-
         service = ScannerService(
             self.config,
             SnapshotService(),
-            UploaderService(),
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
@@ -308,14 +303,9 @@ class FindUpdatesTests(SyncTestCase):
                 files.append(f)
                 return succeed(None)
 
-        class UploaderService(object):
-            def perform_upload(self):
-                pass
-
         service = ScannerService(
             self.config,
             SnapshotService(),
-            UploaderService(),
             object(),
             cooperator=self.cooperator,
             scan_interval=1,
