@@ -155,7 +155,7 @@ class TestLocalSnapshot(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -183,7 +183,7 @@ class TestLocalSnapshot(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -214,7 +214,7 @@ class TestLocalSnapshot(SyncTestCase):
         parents = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
@@ -227,7 +227,7 @@ class TestLocalSnapshot(SyncTestCase):
 
         data2 = io.BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
@@ -256,7 +256,7 @@ class TestLocalSnapshot(SyncTestCase):
 
         # create a local snapshot and commit it to the grid
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
@@ -271,7 +271,7 @@ class TestLocalSnapshot(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
@@ -316,7 +316,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # create LocalSnapshot
         local_snapshot = success_result_of(
             create_snapshot(
-                name=filename,
+                relpath=filename,
                 author=self.alice,
                 data_producer=data,
                 snapshot_stash_dir=self.stash_dir,
@@ -368,7 +368,7 @@ class TestRemoteSnapshot(SyncTestCase):
 
         local_snapshot = success_result_of(
             create_snapshot(
-                name=filename,
+                relpath=filename,
                 author=self.alice,
                 data_producer=data1,
                 snapshot_stash_dir=self.stash_dir,
@@ -380,7 +380,7 @@ class TestRemoteSnapshot(SyncTestCase):
         data2 = io.BytesIO(content2)
         child_snapshot = success_result_of(
             create_snapshot(
-                name=filename,
+                relpath=filename,
                 author=self.alice,
                 data_producer=data2,
                 snapshot_stash_dir=self.stash_dir,
@@ -395,7 +395,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             reconstructed_local_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_local=HasLength(1),
             )
         )
@@ -416,7 +416,7 @@ class TestRemoteSnapshot(SyncTestCase):
         snapshots = []
         # create LocalSnapshot
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -443,7 +443,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # corresponding to snapshots[0]
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -457,7 +457,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             snapshots[2],
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_remote=AfterPreprocessing(len, Equals(1)),
             )
         )
@@ -496,7 +496,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # create LocalSnapshot
         local_snapshot = success_result_of(
             create_snapshot(
-                name=filename,
+                relpath=filename,
                 author=self.alice,
                 data_producer=data,
                 snapshot_stash_dir=self.stash_dir,
@@ -507,7 +507,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # create another LocalSnapshot with the first as parent
         child_snapshot = success_result_of(
             create_snapshot(
-                name=filename,
+                relpath=filename,
                 author=self.alice,
                 data_producer=data,
                 snapshot_stash_dir=self.stash_dir,

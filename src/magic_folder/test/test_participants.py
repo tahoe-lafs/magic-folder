@@ -517,8 +517,8 @@ class CollectiveParticipantTests(SyncTestCase):
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {
-                path2magic(name): format_filenode(cap, {u"version": version})
-                for (name, (cap, version))
+                path2magic(relpath): format_filenode(cap, {u"version": version})
+                for (relpath, (cap, version))
                 in children.items()
             }},
         ])

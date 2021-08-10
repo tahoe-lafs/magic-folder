@@ -157,10 +157,10 @@ class CacheTests(SyncTestCase):
         Caching a single RemoteSnapshot with no parents works
         """
         self.setup_example()
-        name = "foo"
+        relpath = "foo"
         metadata = {
             "snapshot_version": 1,
-            "name": name,
+            "name": relpath,
             "author": self.author.to_remote_author().to_json(),
             "parents": [],
         }
@@ -193,7 +193,7 @@ class CacheTests(SyncTestCase):
                                     "author_signature": base64.b64encode(
                                         sign_snapshot(
                                             self.author,
-                                            name,
+                                            relpath,
                                             content_cap,
                                             metadata_cap
                                         ).signature
@@ -217,7 +217,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -228,14 +228,14 @@ class CacheTests(SyncTestCase):
         Caching a RemoteSnapshot with parents works
         """
         self.setup_example()
-        name = "foo"
+        relpath = "foo"
         parents = []
         genesis = None
 
         for who in range(5):
             metadata = {
                 "snapshot_version": 1,
-                "name": name,
+                "name": relpath,
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
@@ -271,7 +271,7 @@ class CacheTests(SyncTestCase):
                                             "author_signature": base64.b64encode(
                                                 sign_snapshot(
                                                     self.author,
-                                                    name,
+                                                    relpath,
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature
@@ -297,7 +297,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -317,7 +317,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -339,7 +339,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
+                        "name": Equals(relpath),
                     }),
                 )
             )
@@ -734,7 +734,7 @@ class ConflictTests(AsyncTestCase):
 
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
@@ -748,7 +748,7 @@ class ConflictTests(AsyncTestCase):
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(
@@ -796,7 +796,7 @@ class ConflictTests(AsyncTestCase):
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(

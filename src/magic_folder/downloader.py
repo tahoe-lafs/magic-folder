@@ -84,9 +84,7 @@ class RemoteSnapshotCacheService(service.Service):
     next time we restart. That is, we only need the RemoteSnapshot
     cached until we decide what to do and synchronize local state.
 
-    Anyway, we do need to download parent snapshots UNTIL we reach the
-    current remotesnapshot that we've noted for that name (or run
-    out of parents).
+    Anyway, we do need to download all parent snapshots.
 
     Note: we *could* keep all this in our database .. but then we have
     to evict things from it at some point.
@@ -140,11 +138,7 @@ class RemoteSnapshotCacheService(service.Service):
         :param bytes snapshot_cap: capability-string of a Snapshot
 
         Cache a single snapshot, which we shall return. We also cache
-        parent snapshots until we find 'ours' -- that is, whatever our
-        config's remotesnapshot table points at for this name. (If we
-        don't have an entry for it yet, we cache all parents .. which
-        will also be the case when we don't find 'our' snapshot at
-        all).
+        all parent snapshots.
         """
         snapshot = yield create_snapshot_from_capability(
             snapshot_cap,
@@ -152,7 +146,7 @@ class RemoteSnapshotCacheService(service.Service):
         )
         self._cached_snapshots[snapshot_cap] = snapshot
         Message.log(message_type="remote-cache:cached",
-                    name=snapshot.metadata['name'],
+                    relpath=snapshot.metadata['name'],
                     capability=snapshot.capability)
 
         # breadth-first traversal of the parents
@@ -301,13 +295,13 @@ class MagicFolderUpdater(object):
         conflict_path = relpath + ".conflict-{}".format(snapshot.author.name)
 
         with start_action(action_type="downloader:updater:process",
-                          name=relpath,
+                          relpath=relpath,
                           capability=snapshot.capability,
                           ) as action:
             local_path = self._config.magic_path.preauthChild(relpath)
 
             # see if we have existing local or remote snapshots for
-            # this name already
+            # this relpath already
             try:
                 remote_cap = self._config.get_remotesnapshot(relpath)
                 # w/ no KeyError we have seen this before
@@ -336,7 +330,7 @@ class MagicFolderUpdater(object):
             if local_path.exists():
                 local_timestamp = local_path.getModificationTime()
                 # there is a file here already .. if we have any
-                # LocalSnapshots for this name, then we've got local
+                # LocalSnapshots for this relpath, then we've got local
                 # edits and it must be a conflict. If we have nothing
                 # in our remotesnapshot database then we've just not
                 # made a LocalSnapshot yet (so it's still a conflict).
@@ -365,7 +359,7 @@ class MagicFolderUpdater(object):
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this name but no local file"
+                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
@@ -373,7 +367,7 @@ class MagicFolderUpdater(object):
             try:
                 with start_action(
                     action_type=u"downloader:updater:content-to-staging",
-                    name=relpath,
+                    relpath=relpath,
                     capability=snapshot.capability,
                 ):
                     try:

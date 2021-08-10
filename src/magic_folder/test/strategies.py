@@ -399,7 +399,7 @@ def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
     )
 
 
-def remote_snapshots(names=path_segments(), authors=remote_authors()):
+def remote_snapshots(relpaths=path_segments(), authors=remote_authors()):
     """
     Build ``RemoteSnapshot`` instances.
     """
@@ -407,7 +407,7 @@ def remote_snapshots(names=path_segments(), authors=remote_authors()):
         RemoteSnapshot,
         author=authors,
         metadata=fixed_dictionaries({
-            "name": names,
+            "name": relpaths,
             "modification_time": integers(min_value=0, max_value=2**32),
         }),
         capability=tahoe_lafs_immutable_dir_capabilities(),
@@ -434,7 +434,7 @@ def local_snapshots():
     """
     return builds(
         LocalSnapshot,
-        name=relative_paths(),
+        relpath=relative_paths(),
         author=local_authors(),
         metadata=dictionaries(text(), text()),
         content_path=absolute_paths().map(FilePath),

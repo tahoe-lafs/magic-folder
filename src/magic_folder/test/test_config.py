@@ -510,7 +510,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshots = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
@@ -528,7 +528,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
@@ -546,7 +546,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.assertThat(
             reconstructed_local_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_local=HasLength(1)
             )
         )
@@ -575,7 +575,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshots = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
@@ -586,7 +586,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
@@ -609,9 +609,9 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshot's path.
         """
         self.db.store_local_snapshot(snapshot)
-        self.db.delete_localsnapshot(snapshot.name)
-        with ExpectedException(KeyError, escape(repr(snapshot.name))):
-            self.db.get_local_snapshot(snapshot.name)
+        self.db.delete_localsnapshot(snapshot.relpath)
+        with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
+            self.db.get_local_snapshot(snapshot.relpath)
 
 
 class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
@@ -646,15 +646,15 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_roundtrips(self, name, snapshot, path_state):
+    def test_remotesnapshot_roundtrips(self, relpath, snapshot, path_state):
         """
         The capability for a ``RemoteSnapshot`` added with
         ``MagicFolderConfig.store_downloaded_snapshot`` can be read back with
         ``MagicFolderConfig.get_remotesnapshot``.
         """
-        self.db.store_downloaded_snapshot(name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(name)
+        self.db.store_downloaded_snapshot(relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
@@ -665,15 +665,15 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_with_existing_state(self, name, snapshot, path_state):
+    def test_remotesnapshot_with_existing_state(self, relpath, snapshot, path_state):
         """
         A ``RemoveSnapshot`` can be added without path state, if existing path
         state is in the database.
         """
-        self.db.store_currentsnapshot_state(name, path_state)
-        self.db.store_downloaded_snapshot(name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(name)
+        self.db.store_currentsnapshot_state(relpath, path_state)
+        self.db.store_downloaded_snapshot(relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
@@ -683,13 +683,13 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         relative_paths(),
         remote_snapshots(),
     )
-    def test_store_remote_without_state(self, name, snapshot):
+    def test_store_remote_without_state(self, relpath, snapshot):
         """
         Calling :py:`MagicFolderConfig.store_uploaded_snapshot` without a path
         state, when there isn't already corresponding path state fails.
         """
         with ExpectedException(RemoteSnapshotWithoutPathState):
-            self.db.store_uploaded_snapshot(name, snapshot, 42)
+            self.db.store_uploaded_snapshot(relpath, snapshot, 42)
 
     @given(
         path_segments(),
@@ -724,7 +724,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             lambda path: tuples(
                 just(path),
                 lists(
-                    remote_snapshots(names=just(path)),
+                    remote_snapshots(relpaths=just(path)),
                     min_size=2,
                     max_size=2,
                 ),
@@ -753,7 +753,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             lambda path: tuples(
                 just(path),
                 lists(
-                    remote_snapshots(names=just(path)),
+                    remote_snapshots(relpaths=just(path)),
                     min_size=2,
                     max_size=2,
                 ),
@@ -852,18 +852,18 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         """
         self.patch(self.db, '_get_current_timestamp', itertools.count().next)
         for x in range(35):
-            name = "foo_{}".format(x)
+            relpath = "foo_{}".format(x)
             remote = RemoteSnapshot(
                 self.author,
-                {"name": name, "modification_time": x},
+                {"name": relpath, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
                 "URI:DIR2-CHK:",
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
-            self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
-            self.db.store_uploaded_snapshot(name, remote, 0)
+            self.db.store_currentsnapshot_state(relpath, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
+            self.db.store_uploaded_snapshot(relpath, remote, 0)
 
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),

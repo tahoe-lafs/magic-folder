@@ -455,13 +455,13 @@ class APIv1(object):
 
         return json.dumps([
             {
-                "relpath": name,
+                "relpath": relpath,
                 "mtime": ns_to_seconds(ps.mtime_ns),
                 "last-updated": ns_to_seconds(last_updated_ns),
                 "last-upload-duration": float(upload_duration_ns) / 1000000000.0 if upload_duration_ns else None,
                 "size": ps.size,
             }
-            for name, ps, last_updated_ns, upload_duration_ns
+            for relpath, ps, last_updated_ns, upload_duration_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
 

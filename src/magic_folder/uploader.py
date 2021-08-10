@@ -140,7 +140,7 @@ class LocalSnapshotCreator(object):
                 path_info = get_pathinfo(path)
 
                 snapshot = yield create_snapshot(
-                    name=relpath,
+                    relpath=relpath,
                     author=self._author,
                     data_producer=input_stream,
                     snapshot_stash_dir=self._stash_dir,
@@ -280,13 +280,13 @@ class RemoteSnapshotCreator(object):
         startup we need to reflect their "pending upload" status
         properly.
         """
-        localsnapshot_names = self._config.get_all_localsnapshot_paths()
-        for name in localsnapshot_names:
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
+        for relpath in localsnapshot_paths:
             # if we re-started with LocalSnapshots already in our database
             # locally, we won't have done a .upload_queued() yet _in this
             # process_ (that is, a previous daemon did that resulting in
             # the database entries)
-            self._status.upload_queued(name)
+            self._status.upload_queued(relpath)
 
     @inline_callbacks
     def upload_local_snapshots(self):
@@ -296,19 +296,19 @@ class RemoteSnapshotCreator(object):
         """
 
         # get the paths for the LocalSnapshot objects in the db
-        localsnapshot_names = self._config.get_all_localsnapshot_paths()
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
 
         # XXX: processing this table should be atomic. i.e. While the upload is
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
         # the new snapshot gets lost.
 
-        for name in localsnapshot_names:
-            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=name)
+        for relpath in localsnapshot_paths:
+            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
             try:
                 with action:
-                    self._status.upload_started(name)
-                    yield self._upload_some_snapshots(name)
+                    self._status.upload_started(relpath)
+                    yield self._upload_some_snapshots(relpath)
             except Exception:
                 # XXX this existing comment is wrong; there are many
                 # reasons we could receive an Exception here not just
@@ -318,16 +318,16 @@ class RemoteSnapshotCreator(object):
                 # offline. Retry?
                 write_traceback()
             finally:
-                self._status.upload_finished(name)
+                self._status.upload_finished(relpath)
 
 
     @inline_callbacks
-    def _upload_some_snapshots(self, name):
+    def _upload_some_snapshots(self, relpath):
         """
         Upload all of the snapshots for a particular path.
         """
         # deserialize into LocalSnapshot
-        snapshot = self._config.get_local_snapshot(name)
+        snapshot = self._config.get_local_snapshot(relpath)
         upload_started_at = time.time()
         remote_snapshot = yield write_snapshot_to_tahoe(
             snapshot,
@@ -336,7 +336,7 @@ class RemoteSnapshotCreator(object):
         )
         Message.log(message_type="snapshot:metadata",
                     metadata=remote_snapshot.metadata,
-                    name=name,
+                    relpath=relpath,
                     capability=remote_snapshot.capability)
 
         # if we crash here, we'll retry and re-upload (hopefully
@@ -346,7 +346,7 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(name, remote_snapshot, upload_started_at)
+        yield self._config.store_uploaded_snapshot(relpath, remote_snapshot, upload_started_at)
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
@@ -362,7 +362,7 @@ class RemoteSnapshotCreator(object):
 
         # update the entry in the DMD
         yield self._write_participant.update_snapshot(
-            name,
+            relpath,
             remote_snapshot.capability,
         )
 
@@ -382,7 +382,7 @@ class RemoteSnapshotCreator(object):
             )
 
         # Remove the LocalSnapshot from the db.
-        yield self._config.delete_localsnapshot(name)
+        yield self._config.delete_localsnapshot(relpath)
 
 
 @implementer(service.IService)

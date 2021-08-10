@@ -257,7 +257,7 @@ class LocalSnapshot(object):
     :ivar [bytes] parents_remote: The capability strings of snapshots that are
         known to exist remotely.
     """
-    name = attr.ib()
+    relpath = attr.ib()
     author = attr.ib()
     metadata = attr.ib()
     content_path = attr.ib(validator=attr.validators.instance_of(FilePath))
@@ -289,7 +289,7 @@ class LocalSnapshot(object):
 
         def _serialized_dict(local_snapshot):
             serialized = {
-                'name': local_snapshot.name,
+                'relpath': local_snapshot.relpath,
                 'metadata': local_snapshot.metadata,
                 'identifier': unicode(local_snapshot.identifier),
                 'content_path': local_snapshot.content_path.path,
@@ -321,10 +321,10 @@ class LocalSnapshot(object):
         local_snapshot_dict = json.loads(serialized)
 
         def deserialize_dict(snapshot_dict, author):
-            name = snapshot_dict["name"]
+            relpath = snapshot_dict["relpath"]
 
             return cls(
-                name=name,
+                relpath=relpath,
                 author=author,
                 identifier=UUID(hex=snapshot_dict["identifier"]),
                 metadata=snapshot_dict["metadata"],
@@ -446,14 +446,14 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 
 @inline_callbacks
-def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=None,
+def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=None,
                     raw_remote_parents=None, modified_time=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
     returns.
 
-    :param name: The name for this snapshot (usually the relative path of the file).
+    :param relpath: The relative path of the file.
 
     :param author: LocalAuthor instance (which will have a valid
         signing-key)
@@ -529,7 +529,7 @@ def create_snapshot(name, author, data_producer, snapshot_stash_dir, parents=Non
 
     returnValue(
         LocalSnapshot(
-            name=name,
+            relpath=relpath,
             author=author,
             metadata={
                 "mtime": modified_time,
@@ -616,7 +616,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # create our metadata
     snapshot_metadata = {
         "snapshot_version": SNAPSHOT_VERSION,
-        "name": snapshot.name,
+        "name": snapshot.relpath,
         "author": snapshot.author.to_remote_author().to_json(),
         "modification_time": snapshot.metadata["mtime"],
         "parents": [
@@ -630,7 +630,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
-    author_signature = sign_snapshot(author_key, snapshot.name, content_cap, metadata_cap)
+    author_signature = sign_snapshot(author_key, snapshot.relpath, content_cap, metadata_cap)
     author_signature_base64 = base64.b64encode(author_signature.signature)
 
     # create the actual snapshot: an immutable directory with
