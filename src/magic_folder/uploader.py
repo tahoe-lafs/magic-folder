@@ -10,9 +10,6 @@ import attr
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.failure import (
-    Failure,
-)
 from twisted.application import (
     service,
 )
@@ -327,7 +324,7 @@ class RemoteSnapshotCreator(object):
                 # Unable to reach Tahoe storage nodes because of network
                 # errors or because the tahoe storage nodes are
                 # offline. Retry?
-                print(Failure())
+                write_traceback()
             finally:
                 self._status.upload_finished(magic2path(name))
 

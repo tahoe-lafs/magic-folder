@@ -8,6 +8,7 @@ from __future__ import (
 from io import (
     BytesIO,
 )
+import itertools
 from re import (
     escape,
 )
@@ -839,6 +840,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         Add 35 RemoteSnapshots and ensure we only get 30 back from
         'recent' list.
         """
+        self.patch(self.db, '_get_current_timestamp', itertools.count().next)
         for x in range(35):
             name = "foo_{}".format(x)
             remote = RemoteSnapshot(
