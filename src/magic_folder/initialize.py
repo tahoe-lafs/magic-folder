@@ -5,25 +5,17 @@
 Implements the magic-folder init command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from twisted.internet.defer import (
-    succeed,
-)
+from twisted.internet.defer import succeed
 
-from .config import (
-    create_global_configuration,
-)
-from .endpoints import (
-    server_endpoint_str_to_client,
-)
+from .config import create_global_configuration
+from .endpoints import server_endpoint_str_to_client
 
 
-def magic_folder_initialize(config_dir, listen_endpoint_str, tahoe_node_directory, client_endpoint_str):
+def magic_folder_initialize(
+    config_dir, listen_endpoint_str, tahoe_node_directory, client_endpoint_str
+):
     """
     Initialize a magic-folder daemon configuration with the specified required options in ``config_dir``.
 

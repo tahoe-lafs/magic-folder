@@ -1,29 +1,20 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 """
 Testing synchronizing files between participants
 """
 
-from functools import partial
 import time
+from functools import partial
 
-from eliot import Message
 import pytest
 import pytest_twisted
+from eliot import Message
 
-from magic_folder.util.capabilities import (
-    to_readonly_capability,
-)
-from .util import (
-    await_file_contents,
-    ensure_file_not_created,
-    twisted_sleep,
-)
+from magic_folder.util.capabilities import to_readonly_capability
+
+from .util import await_file_contents, ensure_file_not_created, twisted_sleep
+
 
 def non_lit_content(s):
     # type: (unicode) -> unicode
@@ -66,10 +57,14 @@ def periodic_scan(node, folder_name, path):
     :param MagicFolderEnabledNode node: The node on which to do the scan.
     """
     from twisted.internet import reactor
-    Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
+
+    Message.log(
+        message_type="integration:wait_for_scan", node=node.name, folder=folder_name
+    )
     return twisted_sleep(reactor, 1)
 
-@pytest.fixture(name='periodic_scan')
+
+@pytest.fixture(name="periodic_scan")
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):
     """
     A fixture causes magic folders to have periodic scans enabled (with
@@ -85,7 +80,7 @@ def enable_periodic_scans(magic_folder_nodes, monkeypatch):
     params=[
         add_snapshot,
         scan_folder,
-        pytest.lazy_fixture('periodic_scan'),
+        pytest.lazy_fixture("periodic_scan"),
     ]
 )
 def take_snapshot(request, magic_folder_nodes):
@@ -119,6 +114,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
     def cleanup():
         pytest_twisted.blockon(alice.leave("local"))
+
     request.addfinalizer(cleanup)
 
     # put a file in our folder
@@ -182,7 +178,9 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
 @pytest_twisted.inlineCallbacks
 @pytest.mark.parametrize("relpath", ["sylvester", "nested/sylvester"])
-def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot, relpath):
+def test_create_then_recover(
+    request, reactor, temp_filepath, alice, bob, take_snapshot, relpath
+):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -218,6 +216,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
 
     def cleanup_original():
         pytest_twisted.blockon(alice.leave("original"))
+
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -235,6 +234,7 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("recovery"))
+
     request.addfinalizer(cleanup_recovery)
 
     # add the 'original' magic-folder as a participant in the
@@ -265,7 +265,9 @@ def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_s
 
 
 @pytest_twisted.inlineCallbacks
-def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, take_snapshot):
+def test_internal_inconsistency(
+    request, reactor, temp_filepath, alice, bob, take_snapshot
+):
     # FIXME needs docstring
     original_folder = temp_filepath.child("cats")
     recover_folder = temp_filepath.child("kitties")
@@ -278,6 +280,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     def cleanup_original():
         pytest_twisted.blockon(alice.leave("internal"))
+
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -290,6 +293,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("rec"))
+
     request.addfinalizer(cleanup_recovery)
 
     # add the 'internal' magic-folder as a participant in the
@@ -338,6 +342,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     def cleanup_original():
         pytest_twisted.blockon(alice.leave("ancestor0"))
+
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -350,6 +355,7 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     def cleanup_recovery():
         pytest_twisted.blockon(bob.leave("ancestor1"))
+
     request.addfinalizer(cleanup_recovery)
 
     # add the 'ancestor0' magic-folder as a participant in the
@@ -393,8 +399,11 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
         timeout=25,
     )
 
+
 @pytest_twisted.inlineCallbacks
-def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take_snapshot):
+def test_recover_twice(
+    request, reactor, temp_filepath, alice, bob, edmond, take_snapshot
+):
     original_folder = temp_filepath.child("cats")
     recover_folder = temp_filepath.child("kitties")
     recover2_folder = temp_filepath.child("mice")
@@ -410,6 +419,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
         # Maybe start the service, so we can remove the folder.
         pytest_twisted.blockon(alice.start_magic_folder())
         pytest_twisted.blockon(alice.leave("original"))
+
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
@@ -428,6 +438,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
         # Maybe start the service, so we can remove the folder.
         pytest_twisted.blockon(bob.start_magic_folder())
         pytest_twisted.blockon(bob.leave("recovery"))
+
     request.addfinalizer(cleanup_recovery)
 
     # add the 'original' magic-folder as a participant in the
@@ -463,6 +474,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
 
     def cleanup_recovery_2():
         pytest_twisted.blockon(edmond.leave("recovery-2"))
+
     request.addfinalizer(cleanup_recovery_2)
 
     # add the 'recovery' magic-folder as a participant in the

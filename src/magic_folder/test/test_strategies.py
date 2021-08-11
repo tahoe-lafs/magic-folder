@@ -5,40 +5,26 @@
 Tests for Hypothesis strategies for the test suite.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from hypothesis import (
-    given,
-    assume,
-)
-
-from testtools.matchers import (
-    Equals,
-)
-
-from twisted.python.filepath import (
-    FilePath,
-)
+from hypothesis import assume, given
+from testtools.matchers import Equals
+from twisted.python.filepath import FilePath
 
 from ..util.capabilities import tahoe_uri_from_string
-from .common import (
-    SyncTestCase,
-)
-
+from .common import SyncTestCase
 from .strategies import (
+    path_segments,
     tahoe_lafs_chk_capabilities,
     tahoe_lafs_dir_capabilities,
-    path_segments,
 )
+
 
 class StrategyTests(SyncTestCase):
     """
     Tests for various strategies.
     """
+
     @given(tahoe_lafs_chk_capabilities())
     def test_chk_roundtrips(self, cap_text):
         """

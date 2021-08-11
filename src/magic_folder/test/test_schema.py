@@ -5,48 +5,29 @@
 Tests for ``_zkapauthorizer.schema``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from testtools import (
-    TestCase,
-    ExpectedException,
-)
-from testtools.matchers import (
-    Equals,
-    MatchesStructure,
-    MatchesAll,
-)
+from sqlite3 import connect
 
-from hypothesis import (
-    given,
-)
-from hypothesis.strategies import (
-    integers,
-    data,
-    lists,
-)
-
-from sqlite3 import (
-    connect,
-)
+from hypothesis import given
+from hypothesis.strategies import data, integers, lists
+from testtools import ExpectedException, TestCase
+from testtools.matchers import Equals, MatchesAll, MatchesStructure
 
 from .._schema import (
     MAXIMUM_UPGRADES,
     DatabaseSchemaTooNew,
-    SchemaUpgrade,
     Schema,
+    SchemaUpgrade,
     change_user_version,
 )
+
 
 class SchemaTests(TestCase):
     """
     Tests for ``Schema``.
     """
+
     def test_exception_str(self):
         """
         ``str(DatabaseSchemaTooNew(...))`` returns a string identifying the
@@ -155,7 +136,7 @@ class SchemaTests(TestCase):
     @given(
         lists(
             integers(
-                min_value=-2 ** 63,
+                min_value=-(2 ** 63),
                 max_value=2 ** 63,
             ),
             unique=True,
@@ -180,8 +161,7 @@ class SchemaTests(TestCase):
             # schema upgrade would normally not have a variable in it like
             # this.
             SchemaUpgrade(["INSERT INTO [a] ([b]) VALUES ({})".format(value)])
-            for value
-            in values
+            for value in values
         )
 
         schema = Schema(upgrades=upgrades)
@@ -246,9 +226,10 @@ def dummy_upgrades(count):
     :return [SchemaUpgrade]: The requested number of upgrades.
     """
     return [
-        SchemaUpgrade([
-            "CREATE TABLE [foo_{}] ( [a] INT )".format(n),
-        ])
-        for n
-        in range(count)
+        SchemaUpgrade(
+            [
+                "CREATE TABLE [foo_{}] ( [a] INT )".format(n),
+            ]
+        )
+        for n in range(count)
     ]

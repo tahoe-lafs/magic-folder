@@ -1,87 +1,45 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import json
 import os.path
 
 from eliot.twisted import inline_callbacks
-
-from testtools import (
-    ExpectedException,
-)
-from testtools.twistedsupport import (
-    succeeded,
-)
+from hyperlink import DecodedURL
+from testtools import ExpectedException
 from testtools.matchers import (
-    Contains,
-    Equals,
     AfterPreprocessing,
     Always,
+    Contains,
     ContainsDict,
+    Equals,
     MatchesStructure,
 )
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from treq.testing import (
-    StubTreq,
-)
-
+from testtools.twistedsupport import succeeded
+from treq.testing import StubTreq
 from twisted.internet import reactor
 from twisted.python import usage
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.web.resource import (
-    Resource,
-)
+from twisted.python.filepath import FilePath
+from twisted.web.resource import Resource
 
 from ... import cli as magic_folder_cli
-from ...initialize import (
-    magic_folder_initialize,
-)
+from ...cli import MagicFolderCommand
+from ...client import create_testing_http_client
+from ...common import InvalidMagicFolderName
 from ...config import (
     create_global_configuration,
     create_testing_configuration,
     load_global_configuration,
 )
-from ...client import (
-    create_testing_http_client,
-)
-from ...status import (
-    WebSocketStatusService,
-)
-from ...endpoints import (
-    CannotConvertEndpointError,
-)
+from ...endpoints import CannotConvertEndpointError
+from ...initialize import magic_folder_initialize
 from ...service import MagicFolderService
-from ...snapshot import (
-    create_local_author,
-)
-from ...tahoe_client import (
-    create_tahoe_client,
-)
-
-from ...cli import MagicFolderCommand
-from ...common import (
-    InvalidMagicFolderName,
-)
-from ..common import (
-    AsyncTestCase,
-    SyncTestCase,
-)
-from ..fixtures import (
-    NodeDirectory,
-)
-from .common import (
-    cli,
-)
-from ...testing.web import create_tahoe_treq_client, create_fake_tahoe_root
+from ...snapshot import create_local_author
+from ...status import WebSocketStatusService
+from ...tahoe_client import create_tahoe_client
+from ...testing.web import create_fake_tahoe_root, create_tahoe_treq_client
+from ..common import AsyncTestCase, SyncTestCase
+from ..fixtures import NodeDirectory
+from .common import cli
 
 
 def parse_cli(*argv):
@@ -110,14 +68,19 @@ class ListMagicFolder(AsyncTestCase):
 
         # for these tests we never contact Tahoe so we can get
         # away with an "empty" Tahoe WebUI
-        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+        tahoe_client = (
+            create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
+        )
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             FilePath(u"/no/tahoe/node-directory"),
         )
         status_service = WebSocketStatusService(reactor, self.config)
         global_service = MagicFolderService(
-            reactor, self.config, status_service, tahoe_client,
+            reactor,
+            self.config,
+            status_service,
+            tahoe_client,
         )
         self.http_client = create_testing_http_client(
             reactor,
@@ -198,21 +161,24 @@ class ListMagicFolder(AsyncTestCase):
             outcome.stdout,
             AfterPreprocessing(
                 json.loads,
-                ContainsDict({
-                    u"list-some-json-folder": ContainsDict({
-                        u"magic_path": Equals(folder_path.path),
-                        u"poll_interval": Equals(1),
-                        u"is_admin": Equals(False),
-                        u"collective_dircap": Always(),
-                        u"upload_dircap": Always(),
-                    }),
-                }),
+                ContainsDict(
+                    {
+                        u"list-some-json-folder": ContainsDict(
+                            {
+                                u"magic_path": Equals(folder_path.path),
+                                u"poll_interval": Equals(1),
+                                u"is_admin": Equals(False),
+                                u"collective_dircap": Always(),
+                                u"upload_dircap": Always(),
+                            }
+                        ),
+                    }
+                ),
             ),
         )
 
 
 class CreateMagicFolder(AsyncTestCase):
-
     def cli(self, argv):
         return cli(argv, self.config, self.http_client)
 
@@ -237,7 +203,10 @@ class CreateMagicFolder(AsyncTestCase):
         )
         status_service = WebSocketStatusService(reactor, self.config)
         folder_service = MagicFolderService(
-            reactor, self.config, status_service, tahoe_client,
+            reactor,
+            self.config,
+            status_service,
+            tahoe_client,
         )
         self.http_client = create_testing_http_client(
             reactor,
@@ -260,8 +229,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"test",
-                b"--author", b"test",
+                b"--name",
+                b"test",
+                b"--author",
+                b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -283,10 +254,14 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"test",
-                b"--author", b"test",
-                b"--poll-interval", b"30",
-                b"--scan-interval", b"30",
+                b"--name",
+                b"test",
+                b"--author",
+                b"test",
+                b"--poll-interval",
+                b"30",
+                b"--scan-interval",
+                b"30",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -313,8 +288,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"test",
-                b"--author", b"test",
+                b"--name",
+                b"test",
+                b"--author",
+                b"test",
                 b"--disable-scanning",
                 magic_folder.asBytesMode().path,
             ],
@@ -343,8 +320,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
+                b"--name",
+                b"foo",
+                b"--author",
+                b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -357,8 +336,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
+                b"--name",
+                b"foo",
+                b"--author",
+                b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -367,10 +348,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(False),
         )
-        self.assertIn(
-            "Already have a magic-folder named 'foo'",
-            outcome.stderr
-        )
+        self.assertIn("Already have a magic-folder named 'foo'", outcome.stderr)
 
     @inline_callbacks
     def test_create_invalid_name(self):
@@ -384,8 +362,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"/",
-                b"--author", b"test",
+                b"--name",
+                b"/",
+                b"--author",
+                b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -394,10 +374,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(False),
         )
-        self.assertIn(
-            InvalidMagicFolderName.message,
-            outcome.stderr
-        )
+        self.assertIn(InvalidMagicFolderName.message, outcome.stderr)
 
     @inline_callbacks
     def test_add_leave_folder(self):
@@ -412,8 +389,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
+                b"--name",
+                b"foo",
+                b"--author",
+                b"test",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -426,7 +405,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"leave",
-                b"--name", b"foo",
+                b"--name",
+                b"foo",
                 b"--really-delete-write-capability",
             ],
         )
@@ -450,8 +430,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--author", b"test",
-                b"--name", b"foo",
+                b"--author",
+                b"test",
+                b"--name",
+                b"foo",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -464,7 +446,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"leave",
-                b"--name", b"bar",
+                b"--name",
+                b"bar",
             ],
         )
 
@@ -472,10 +455,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(False),
         )
-        self.assertIn(
-            "No such magic-folder 'bar'",
-            outcome.stderr
-        )
+        self.assertIn("No such magic-folder 'bar'", outcome.stderr)
 
     @inline_callbacks
     def test_leave_no_folder(self):
@@ -490,8 +470,10 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"add",
-                b"--name", b"foo",
-                b"--author", b"alice",
+                b"--name",
+                b"foo",
+                b"--author",
+                b"alice",
                 magic_folder.asBytesMode().path,
             ],
         )
@@ -504,7 +486,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"leave",
-                b"--name", b"foo",
+                b"--name",
+                b"foo",
                 b"--really-delete-write-capability",
             ],
         )
@@ -517,7 +500,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"leave",
-                b"--name", b"foo",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -525,10 +509,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(False),
         )
-        self.assertIn(
-            "No such magic-folder 'foo'",
-            outcome.stderr
-        )
+        self.assertIn("No such magic-folder 'foo'", outcome.stderr)
 
     @inline_callbacks
     def test_leave_no_folders_at_all(self):
@@ -539,7 +520,8 @@ class CreateMagicFolder(AsyncTestCase):
         outcome = yield self.cli(
             [
                 b"leave",
-                b"--name", b"foo",
+                b"--name",
+                b"foo",
             ],
         )
 
@@ -547,10 +529,7 @@ class CreateMagicFolder(AsyncTestCase):
             outcome.succeeded(),
             Equals(False),
         )
-        self.assertIn(
-            "No such magic-folder 'foo'",
-            outcome.stderr
-        )
+        self.assertIn("No such magic-folder 'foo'", outcome.stderr)
 
 
 class ConfigOptionTests(SyncTestCase):
@@ -596,9 +575,7 @@ class ConfigOptionTests(SyncTestCase):
         Passing --config option loads the configuration from the provided directory.
         """
         confdir = FilePath(self.mktemp())
-        nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
-        )
+        nodedir = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
         options = magic_folder_cli.MagicFolderCommand()
@@ -609,7 +586,7 @@ class ConfigOptionTests(SyncTestCase):
                 basedir=Equals(confdir),
                 api_endpoint=Equals(u"tcp:5555"),
                 tahoe_node_directory=Equals(nodedir.path),
-            )
+            ),
         )
 
     @inline_callbacks
@@ -618,9 +595,7 @@ class ConfigOptionTests(SyncTestCase):
         Not passing a --config loads the configuration from the default directory.
         """
         confdir = FilePath(self.mktemp())
-        nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
-        )
+        nodedir = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
         options = magic_folder_cli.MagicFolderCommand()
@@ -634,12 +609,11 @@ class ConfigOptionTests(SyncTestCase):
             options.config,
             MatchesStructure(
                 basedir=Equals(confdir),
-            )
+            ),
         )
 
 
 class CreateErrors(SyncTestCase):
-
     def setUp(self):
         super(CreateErrors, self).setUp()
         self.temp = FilePath(self.mktemp())
@@ -649,67 +623,91 @@ class CreateErrors(SyncTestCase):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--poll-interval=frog",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--poll-interval must be a positive integer"
+        )
 
     def test_poll_interval_negative(self):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--poll-interval=-1",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--poll-interval must be a positive integer"
+        )
 
     def test_poll_interval_zero(self):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--poll-interval=0",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--poll-interval must be a positive integer"
+        )
 
     def test_scan_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--scan-interval=frog",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--scan-interval must be a positive integer"
+        )
 
     def test_scan_interval_negative(self):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--scan-interval=-1",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--scan-interval must be a positive integer"
+        )
 
     def test_scan_interval_zero(self):
         with self.assertRaises(usage.UsageError) as ctx:
             parse_cli(
                 "add",
-                "--name", "test",
-                "--author", "test",
+                "--name",
+                "test",
+                "--author",
+                "test",
                 "--scan-interval=0",
-                self.temp.path
+                self.temp.path,
             )
-        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
+        self.assertEqual(
+            str(ctx.exception), "--scan-interval must be a positive integer"
+        )
 
 
 class ClientEndpoint(SyncTestCase):
@@ -720,36 +718,38 @@ class ClientEndpoint(SyncTestCase):
     def setUp(self):
         super(ClientEndpoint, self).setUp()
         self.basedir = FilePath(self.mktemp())
-        self.nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
-        )
+        self.nodedir = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
 
     def test_convert_tcp(self):
         """
         a 'tcp:'-style endpoint can be autoconverted
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None)
+        config_d = magic_folder_initialize(
+            self.basedir, u"tcp:5555", self.nodedir.path, None
+        )
         self.assertThat(
             config_d,
             succeeded(
                 MatchesStructure(
                     api_client_endpoint=Equals(u"tcp:127.0.0.1:5555"),
                 )
-            )
+            ),
         )
 
     def test_convert_tcp_host(self):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None)
+        config_d = magic_folder_initialize(
+            self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None
+        )
         self.assertThat(
             config_d,
             succeeded(
                 MatchesStructure(
                     api_client_endpoint=Equals(u"tcp:127.1.2.3:5555"),
                 )
-            )
+            ),
         )
 
     def test_convert_fail(self):
@@ -763,14 +763,16 @@ class ClientEndpoint(SyncTestCase):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None)
+        config_d = magic_folder_initialize(
+            self.basedir, u"unix:/var/run/x", self.nodedir.path, None
+        )
         self.assertThat(
             config_d,
             succeeded(
                 MatchesStructure(
                     api_client_endpoint=Equals(u"unix:/var/run/x"),
                 )
-            )
+            ),
         )
 
     def test_set_client_endpoint(self):
@@ -784,16 +786,10 @@ class ClientEndpoint(SyncTestCase):
             u"tcp:localhost:1234",
         )
         config.api_client_endpoint = u"tcp:localhost:5555"
-        self.assertThat(
-            config.api_client_endpoint,
-            Equals(u"tcp:localhost:5555")
-        )
+        self.assertThat(config.api_client_endpoint, Equals(u"tcp:localhost:5555"))
         # confirm the actual database has changed by loading again
         config2 = load_global_configuration(self.basedir)
-        self.assertThat(
-            config2.api_client_endpoint,
-            Equals(u"tcp:localhost:5555")
-        )
+        self.assertThat(config2.api_client_endpoint, Equals(u"tcp:localhost:5555"))
 
     def test_set_invalid_client_endpoint(self):
         """
@@ -811,18 +807,33 @@ class ClientEndpoint(SyncTestCase):
         # also confirm the database *didn't* get changed and has the
         # original value still
         config2 = load_global_configuration(self.basedir)
-        self.assertThat(
-            config2.api_client_endpoint,
-            Equals(u"tcp:localhost:1234")
-        )
+        self.assertThat(config2.api_client_endpoint, Equals(u"tcp:localhost:1234"))
 
 
 class JoinErrors(AsyncTestCase):
     def test_poll_interval(self):
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("join", "--author", "test-dummy", "--poll-interval=frog", "code", "localdir")
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+            parse_cli(
+                "join",
+                "--author",
+                "test-dummy",
+                "--poll-interval=frog",
+                "code",
+                "localdir",
+            )
+        self.assertEqual(
+            str(ctx.exception), "--poll-interval must be a positive integer"
+        )
 
         with self.assertRaises(usage.UsageError) as ctx:
-            parse_cli("join", "--author", "test-dummy", "--poll-interval=-2", "code", "localdir")
-        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+            parse_cli(
+                "join",
+                "--author",
+                "test-dummy",
+                "--poll-interval=-2",
+                "code",
+                "localdir",
+            )
+        self.assertEqual(
+            str(ctx.exception), "--poll-interval must be a positive integer"
+        )

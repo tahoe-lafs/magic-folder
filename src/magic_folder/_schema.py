@@ -9,16 +9,12 @@ This module defines the database schema used by the model interface.
     quite a lot of schema changes but which still offers us a finite bound.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
 
 MAXIMUM_UPGRADES = 1000
+
 
 @attr.s(frozen=True)
 class DatabaseSchemaTooNew(Exception):
@@ -27,12 +23,12 @@ class DatabaseSchemaTooNew(Exception):
 
     This version of the software cannot use this version of the database.
     """
+
     software_version = attr.ib()
     database_version = attr.ib()
 
     def __str__(self):
         return repr(self)
-
 
 
 def change_user_version(cursor, get_new_version):
@@ -45,6 +41,7 @@ def change_user_version(cursor, get_new_version):
 
     :see: https://www.sqlite.org/pragma.html#pragma_user_version
     """
+
     def get_version(cursor):
         cursor.execute("PRAGMA [user_version]")
         [(version,)] = cursor.fetchall()
@@ -75,6 +72,7 @@ class SchemaUpgrade(object):
     :ivar list[unicode] statements: A list of statements to execute to
         complete this upgrade.
     """
+
     statements = attr.ib(validator=attr.validators.instance_of(list))
 
     def run(self, cursor):
@@ -89,6 +87,7 @@ class SchemaUpgrade(object):
         for statement in self.statements:
             cursor.execute(statement)
         change_user_version(cursor, lambda old: old + 1)
+
 
 @attr.s
 class Schema(object):
@@ -110,6 +109,7 @@ class Schema(object):
         element in the list is the upgrade to run against the empty version 0
         of the schema.
     """
+
     upgrades = attr.ib()
 
     @property

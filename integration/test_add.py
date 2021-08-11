@@ -32,10 +32,7 @@ def test_add(request, reactor, alice):
     assert mf_config["name"] == "test"
     assert mf_config["author_name"] == "laptop"
     expected_keys = ["stash_path", "author_private_key"]
-    assert all(
-        k in mf_config
-        for k in expected_keys
-    )
+    assert all(k in mf_config for k in expected_keys)
 
 
 @pytest_twisted.inlineCallbacks

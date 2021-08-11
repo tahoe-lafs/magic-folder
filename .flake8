@@ -9,7 +9,6 @@ extend-ignore =
 extend-exclude =
     # Generated file
     src/magic_folder/_version.py
-    setup.py: E402
     # Due to side-effects, we have imports interleaved with code
     src/magic_folder/__init__.py: E402
     src/magic_folder/test/__init__.py: E402

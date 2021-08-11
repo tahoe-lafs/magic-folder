@@ -1,75 +1,36 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-
-import os
 import json
+import os
 
 import attr
-
-from nacl.signing import (
-    VerifyKey,
-)
-from nacl.encoding import (
-    Base32Encoder,
-)
-
-from autobahn.twisted.resource import (
-    WebSocketResource,
-)
-
+from autobahn.twisted.resource import WebSocketResource
+from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 from eliot import write_failure
 from eliot.twisted import inline_callbacks
-
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
-)
-from twisted.application.internet import (
-    StreamServerEndpointService,
-)
-from twisted.web.server import (
-    Site,
-)
-from twisted.web import (
-    http,
-)
-from twisted.web.resource import (
-    Resource,
-)
-
 from hyperlink import DecodedURL
+from klein import Klein
+from nacl.encoding import Base32Encoder
+from nacl.signing import VerifyKey
+from twisted.application.internet import StreamServerEndpointService
+from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.python.filepath import FilePath
+from twisted.web import http
+from twisted.web.resource import Resource
+from twisted.web.server import Site
 from werkzeug.exceptions import HTTPException
 from werkzeug.routing import RequestRedirect
 
-from klein import Klein
-
-from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
-
 from .common import APIError
-from .status import (
-    StatusFactory,
-    IStatus,
-)
-from .snapshot import (
-    create_author,
-)
+from .snapshot import create_author
+from .status import IStatus, StatusFactory
 from .util.capabilities import is_readonly_directory_cap
-from .util.file import (
-    ns_to_seconds,
-)
+from .util.file import ns_to_seconds
 
 
 def _ensure_utf8_bytes(value):
     if isinstance(value, unicode):
-        return value.encode('utf-8')
+        return value.encode("utf-8")
     return value
 
 
@@ -107,6 +68,7 @@ class BearerTokenAuthorization(Resource, object):
     :ivar (IO bytes) _get_auth_token: A function that returns the correct
         authentication token.
     """
+
     _resource = attr.ib()
     _get_auth_token = attr.ib()
 
@@ -144,6 +106,7 @@ class BearerTokenAuthorization(Resource, object):
         # Don't let anything through that isn't authorized.
         return Unauthorized()
 
+
 def _load_json(body):
     """
     Load json from body, raising :py:`APIError` on failure.
@@ -153,6 +116,7 @@ def _load_json(body):
     except ValueError as e:
         raise APIError.from_exception(http.BAD_REQUEST, e, prefix="Could not load JSON")
 
+
 @attr.s
 class APIv1(object):
     """
@@ -161,6 +125,7 @@ class APIv1(object):
     :ivar GlobalConfigDatabase _global_config: The global configuration for
         this Magic Folder service.
     """
+
     _global_config = attr.ib()
     _global_service = attr.ib()  # MagicFolderService instance
     _status_service = attr.ib(validator=attr.validators.provides(IStatus))
@@ -187,7 +152,7 @@ class APIv1(object):
         # we can work around this be decoding the path here.
         # [1] https://github.com/pallets/werkzeug/issues/2157
         # [2] checked in magic_folder.test.test_web.RedirectTests.test_werkzeug_issue_2157_fix
-        location = DecodedURL.from_text(exc.new_url.decode('utf-8'))
+        location = DecodedURL.from_text(exc.new_url.decode("utf-8"))
         location = location.encoded_url.replace(path=location.path).to_text()
         request.setHeader("location", location)
         _application_json(request)
@@ -208,9 +173,7 @@ class APIv1(object):
             # We skip these, since we have our own content.
             if header in ("content-length", "content-type"):
                 continue
-            request.setHeader(
-                _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
-            )
+            request.setHeader(_ensure_utf8_bytes(header), _ensure_utf8_bytes(value))
         _application_json(request)
         return json.dumps({"reason": exc.description})
 
@@ -238,11 +201,11 @@ class APIv1(object):
         data = _load_json(body)
 
         yield self._global_service.create_folder(
-            data['name'],
-            data['author_name'],
-            FilePath(data['local_path']),
-            data['poll_interval'],
-            data['scan_interval'],
+            data["name"],
+            data["author_name"],
+            FilePath(data["local_path"]),
+            data["poll_interval"],
+            data["scan_interval"],
         )
 
         _application_json(request)
@@ -267,7 +230,7 @@ class APIv1(object):
         _application_json(request)
         returnValue(b"{}")
 
-    @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
+    @app.route("/magic-folder/<string:folder_name>/participants", methods=["GET"])
     @inlineCallbacks
     def list_participants(self, request, folder_name):
         """
@@ -289,7 +252,7 @@ class APIv1(object):
         _application_json(request)
         returnValue(json.dumps(reply).encode("utf8"))
 
-    @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
+    @app.route("/magic-folder/<string:folder_name>/participants", methods=["POST"])
     @inlineCallbacks
     def add_participant(self, request, folder_name):
         """
@@ -310,9 +273,13 @@ class APIv1(object):
             # "public_key_base32",
         }
         if set(participant.keys()) != required_keys:
-            raise _InputError("Require input: {}".format(", ".join(sorted(required_keys))))
+            raise _InputError(
+                "Require input: {}".format(", ".join(sorted(required_keys)))
+            )
         if set(participant["author"].keys()) != required_author_keys:
-            raise _InputError("'author' requires: {}".format(", ".join(sorted(required_author_keys))))
+            raise _InputError(
+                "'author' requires: {}".format(", ".join(sorted(required_author_keys)))
+            )
 
         author = create_author(
             participant["author"]["name"],
@@ -328,14 +295,13 @@ class APIv1(object):
         if not is_readonly_directory_cap(personal_dmd_cap):
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
-
         yield folder_service.add_participant(author, personal_dmd_cap)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
         returnValue(b"{}")
 
-    @app.route("/snapshot", methods=['GET'])
+    @app.route("/snapshot", methods=["GET"])
     def list_all_sanpshots(self, request):
         """
         Respond with all of the snapshots for all of the files in all of the
@@ -344,7 +310,7 @@ class APIv1(object):
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
-    @app.route("/magic-folder/<string:folder_name>/scan", methods=['PUT'])
+    @app.route("/magic-folder/<string:folder_name>/scan", methods=["PUT"])
     @inline_callbacks
     def scan_folder(self, request, folder_name):
         folder_service = self._global_service.get_folder_service(folder_name)
@@ -358,7 +324,7 @@ class APIv1(object):
         _application_json(request)
         returnValue(b"{}")
 
-    @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
+    @app.route("/magic-folder/<string:folder_name>/snapshot", methods=["POST"])
     @inlineCallbacks
     def add_snapshot(self, request, folder_name):
         """
@@ -379,39 +345,44 @@ class APIv1(object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        include_secret_information = int(
+            request.args.get("include_secret_information", [0])[0]
+        )
         _application_json(request)  # set reply headers
 
         def get_folder_info(name, mf):
             info = {
-                u"name": name,
-                u"author": {
-                    u"name": mf.author.name,
-                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                "name": name,
+                "author": {
+                    "name": mf.author.name,
+                    "verify_key": mf.author.verify_key.encode(Base32Encoder),
                 },
-                u"stash_path": mf.stash_path.path,
-                u"magic_path": mf.magic_path.path,
-                u"poll_interval": mf.poll_interval,
-                u"scan_interval": mf.scan_interval,
-                u"is_admin": mf.is_admin(),
+                "stash_path": mf.stash_path.path,
+                "magic_path": mf.magic_path.path,
+                "poll_interval": mf.poll_interval,
+                "scan_interval": mf.scan_interval,
+                "is_admin": mf.is_admin(),
             }
             if include_secret_information:
-                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
-                info[u"collective_dircap"] = mf.collective_dircap
-                info[u"upload_dircap"] = mf.upload_dircap
+                info["author"]["signing_key"] = mf.author.signing_key.encode(
+                    Base32Encoder
+                )
+                info["collective_dircap"] = mf.collective_dircap
+                info["upload_dircap"] = mf.upload_dircap
             return info
 
         def all_folder_configs():
             for name in sorted(self._global_config.list_magic_folders()):
                 yield (name, self._global_config.get_magic_folder(name))
 
-        return json.dumps({
-            name: get_folder_info(name, config)
-            for name, config
-            in all_folder_configs()
-        })
+        return json.dumps(
+            {
+                name: get_folder_info(name, config)
+                for name, config in all_folder_configs()
+            }
+        )
 
-    @app.route("/magic-folder/<string:folder_name>/file-status", methods=['GET'])
+    @app.route("/magic-folder/<string:folder_name>/file-status", methods=["GET"])
     def folder_file_status(self, request, folder_name):
         """
         Render status information for every file in a given folder
@@ -419,17 +390,20 @@ class APIv1(object):
         _application_json(request)  # set reply headers
         folder_config = self._global_config.get_magic_folder(folder_name)
 
-        return json.dumps([
-            {
-                "relpath": relpath,
-                "mtime": ns_to_seconds(ps.mtime_ns),
-                "last-updated": ns_to_seconds(last_updated_ns),
-                "last-upload-duration": float(upload_duration_ns) / 1000000000.0 if upload_duration_ns else None,
-                "size": ps.size,
-            }
-            for relpath, ps, last_updated_ns, upload_duration_ns
-            in folder_config.get_all_current_snapshot_pathstates()
-        ])
+        return json.dumps(
+            [
+                {
+                    "relpath": relpath,
+                    "mtime": ns_to_seconds(ps.mtime_ns),
+                    "last-updated": ns_to_seconds(last_updated_ns),
+                    "last-upload-duration": float(upload_duration_ns) / 1000000000.0
+                    if upload_duration_ns
+                    else None,
+                    "size": ps.size,
+                }
+                for relpath, ps, last_updated_ns, upload_duration_ns in folder_config.get_all_current_snapshot_pathstates()
+            ]
+        )
 
 
 class _InputError(APIError):
@@ -437,11 +411,13 @@ class _InputError(APIError):
     Local errors with our input validation to report back to HTTP
     clients.
     """
+
     def __init__(self, reason):
         super(_InputError, self).__init__(code=http.BAD_REQUEST, reason=reason)
 
+
 def _application_json(request):
-    request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
+    request.responseHeaders.setRawHeaders("content-type", ["application/json"])
 
 
 def _list_all_snapshots(global_config):
@@ -492,9 +468,7 @@ def _list_all_path_snapshots(folder_config, snapshot_path):
     """
     top_snapshot = folder_config.get_local_snapshot(snapshot_path)
     snapshots = list(
-        _snapshot_to_json(snapshot)
-        for snapshot
-        in _flatten_snapshots(top_snapshot)
+        _snapshot_to_json(snapshot) for snapshot in _flatten_snapshots(top_snapshot)
     )
     return snapshots
 
@@ -524,12 +498,12 @@ def _snapshot_to_json(snapshot):
         represents the given snapshot.
     """
     result = {
-        u"type": u"local",
+        "type": "local",
         # XXX Probably want to populate parents with something ...
-        u"parents": [],
-        u"content-path": snapshot.content_path.path,
-        u"identifier": unicode(snapshot.identifier),
-        u"author": snapshot.author.to_remote_author().to_json(),
+        "parents": [],
+        "content-path": snapshot.content_path.path,
+        "identifier": unicode(snapshot.identifier),
+        "author": snapshot.author.to_remote_author().to_json(),
     }
     return result
 
@@ -539,6 +513,7 @@ class Unauthorized(Resource):
     An ``Unauthorized`` resource renders an HTTP *UNAUTHORIZED* response for
     all requests it handles (including for child resources of itself).
     """
+
     isLeaf = True
 
     def render(self, request):
@@ -553,7 +528,9 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, status_service):
+def magic_folder_web_service(
+    web_endpoint, global_config, global_service, get_auth_token, status_service
+):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -590,7 +567,7 @@ def _is_authorized(request, get_auth_token):
     :return bool: True if and only if the given request contains the required
         authorization materials.
     """
-    authorization = request.requestHeaders.getRawHeaders(u"authorization")
+    authorization = request.requestHeaders.getRawHeaders("authorization")
     if authorization is None or len(authorization) == 0:
         return False
     if len(authorization) > 1:

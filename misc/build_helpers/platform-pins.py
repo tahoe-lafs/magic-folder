@@ -24,10 +24,13 @@ from twisted.python.filepath import FilePath
 
 
 class Options(usage.Options):
-    synopsis = "Usage: platform-pins.py [--remove] BASE_REQUIREMENTS PLATFORM_REQUIREMENTS"
+    synopsis = (
+        "Usage: platform-pins.py [--remove] BASE_REQUIREMENTS PLATFORM_REQUIREMENTS"
+    )
     optFlags = [
         ("remove", "", "Remove platform pins."),
     ]
+
     def parseArgs(self, base_requirements, platform_requirements):
         self["base_requirements"] = FilePath(base_requirements)
         self["platform_requirements"] = FilePath(platform_requirements)
@@ -58,7 +61,9 @@ def main(base_requirements, platform_requirements, remove):
             lines.pop(0)
         new_reqs = "\n".join(lines) + "\n"
     else:
-        new_reqs = "\n".join([HEADER, "-r {}".format(platform_requirements.basename()), original_reqs])
+        new_reqs = "\n".join(
+            [HEADER, "-r {}".format(platform_requirements.basename()), original_reqs]
+        )
 
     with base_requirements.open("w") as f:
         f.write(new_reqs)
@@ -66,10 +71,11 @@ def main(base_requirements, platform_requirements, remove):
 
 if __name__ == "__main__":
     import sys
+
     config = Options()
     try:
         config.parseOptions()
     except usage.UsageError as e:
-        print('{}: {}'.format(sys.argv[0], e))
+        print("{}: {}".format(sys.argv[0], e))
         raise SystemExit(1)
     main(**config)

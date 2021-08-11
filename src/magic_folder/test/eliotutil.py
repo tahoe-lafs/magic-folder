@@ -2,11 +2,7 @@
 Tools aimed at the interaction between tests and Eliot.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 __all__ = [
     "RUN_TEST",
@@ -14,23 +10,13 @@ __all__ = [
     "eliot_logged_test",
 ]
 
-from functools import (
-    wraps,
-    partial,
-)
+from functools import partial, wraps
 
 import attr
-
-from eliot import (
-    ActionType,
-    Field,
-)
+from eliot import ActionType, Field
 from eliot.testing import capture_logging
 from eliot.twisted import DeferredContext
-
-from twisted.internet.defer import (
-    maybeDeferred,
-)
+from twisted.internet.defer import maybeDeferred
 
 _NAME = Field.for_types(
     u"name",
@@ -97,7 +83,6 @@ def eliot_logged_test(f):
             self.addCleanup(republish)
             return f(self, *a, **kw)
 
-
         # Begin an action that should comprise all messages from the decorated
         # test method.
         with RUN_TEST(name=self.id().decode("utf-8")).context() as action:
@@ -130,6 +115,7 @@ class EliotLoggedRunTest(object):
 
     :ivar _run_tests_with_factory: A factory for the other *RunTest*.
     """
+
     _run_tests_with_factory = attr.ib()
     case = attr.ib()
     handlers = attr.ib(default=None)

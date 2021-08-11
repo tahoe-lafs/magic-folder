@@ -5,117 +5,72 @@
 Tests for ``magic_folder.participants``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import os
-from json import (
-    dumps,
-)
+from json import dumps
 
-from nacl.signing import (
-    VerifyKey,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from testtools import (
-    ExpectedException,
-)
-from testtools.matchers import (
-    Always,
-    Equals,
-    StartsWith,
-    IsInstance,
-    AllMatch,
-    MatchesAll,
-    AfterPreprocessing,
-)
-
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-
-from hypothesis import (
-    given,
-    assume,
-)
+from hyperlink import DecodedURL
+from hypothesis import assume, given
 from hypothesis.strategies import (
     booleans,
-    integers,
-    tuples,
     dictionaries,
-    sampled_from,
-    one_of,
+    integers,
     just,
     lists,
+    one_of,
+    sampled_from,
+    tuples,
 )
+from nacl.signing import VerifyKey
+from testtools import ExpectedException
+from testtools.matchers import (
+    AfterPreprocessing,
+    AllMatch,
+    Always,
+    Equals,
+    IsInstance,
+    MatchesAll,
+    StartsWith,
+)
+from testtools.twistedsupport import failed, succeeded
 
-from .common import (
-    SyncTestCase,
-)
-
-from .strategies import (
-    author_names,
-    relative_paths,
-    tahoe_lafs_dir_capabilities,
-    tahoe_lafs_readonly_dir_capabilities,
-    tahoe_lafs_chk_capabilities,
-    unique_value_dictionaries,
-)
-
-from .matchers import (
-    provides,
-)
-
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
-from ..util.capabilities import (
-    to_readonly_capability,
-)
-from ..magicpath import (
-    path2magic,
-)
-from ..tahoe_client import (
-    TahoeClient,
-    create_tahoe_client,
-)
+from ..magicpath import path2magic
 from ..participants import (
     IParticipant,
     participant_from_dmd,
     participants_from_collective,
 )
-from ..snapshot import (
-    RemoteAuthor,
-    create_local_author,
+from ..snapshot import RemoteAuthor, create_local_author, format_filenode
+from ..tahoe_client import TahoeClient, create_tahoe_client
+from ..testing.web import create_fake_tahoe_root, create_tahoe_treq_client
+from ..util.capabilities import to_readonly_capability
+from ..util.encoding import normalize
+from .common import SyncTestCase
+from .matchers import provides
+from .strategies import (
+    author_names,
+    relative_paths,
+    tahoe_lafs_chk_capabilities,
+    tahoe_lafs_dir_capabilities,
+    tahoe_lafs_readonly_dir_capabilities,
+    unique_value_dictionaries,
 )
 
-from ..snapshot import (
-    format_filenode,
-)
-
-from ..util.encoding import (
-    normalize
-)
 
 class CollectiveParticipantsTests(SyncTestCase):
     """
     Tests for a participants group backed by a Tahoe-LAFS directory (a
     "collective").
     """
+
     @given(
-        sampled_from([
-            b"",
-            b"URI:CHK:::0:0:0",
-        ]),
+        sampled_from(
+            [
+                b"",
+                b"URI:CHK:::0:0:0",
+            ]
+        ),
     )
     def test_invalid_upload_dirnode(self, upload_dircap):
         """
@@ -135,10 +90,12 @@ class CollectiveParticipantsTests(SyncTestCase):
             )
 
     @given(
-        sampled_from([
-            b"",
-            b"URI:SSK::",
-        ]),
+        sampled_from(
+            [
+                b"",
+                b"URI:SSK::",
+            ]
+        ),
     )
     def test_invalid_collective_dirnode(self, collective_dirnode):
         """
@@ -188,19 +145,24 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        root._uri.data[rw_collective_dircap] = dumps([
-            u"dirnode",
-            {u"children": {
-                name: format_filenode(cap, {})
-                for (name, cap)
-                in collective_contents.items()
-            }},
-        ])
+        root._uri.data[rw_collective_dircap] = dumps(
+            [
+                u"dirnode",
+                {
+                    u"children": {
+                        name: format_filenode(cap, {})
+                        for (name, cap) in collective_contents.items()
+                    }
+                },
+            ]
+        )
 
-        root._uri.data[upload_dircap] = dumps([
-            u"dirnode",
-            {u"children": {}},
-        ])
+        root._uri.data[upload_dircap] = dumps(
+            [
+                u"dirnode",
+                {u"children": {}},
+            ]
+        )
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -227,7 +189,7 @@ class CollectiveParticipantsTests(SyncTestCase):
                         # collective at the top.
                         lambda ps: len({p for p in ps if p.is_self}),
                         Equals(1),
-                    )
+                    ),
                 ),
             ),
         )
@@ -261,19 +223,23 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        root._uri.data[rw_collective_dircap] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    normalize(author): format_filenode(upload_dircap_ro, {}),
+        root._uri.data[rw_collective_dircap] = dumps(
+            [
+                u"dirnode",
+                {
+                    u"children": {
+                        normalize(author): format_filenode(upload_dircap_ro, {}),
+                    },
                 },
-            },
-        ])
+            ]
+        )
 
-        root._uri.data[upload_dircap] = dumps([
-            u"dirnode",
-            {u"children": {}},
-        ])
+        root._uri.data[upload_dircap] = dumps(
+            [
+                u"dirnode",
+                {u"children": {}},
+            ]
+        )
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -306,10 +272,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                     ),
                     AfterPreprocessing(
                         lambda ps: sorted(p.dircap for p in ps),
-                        Equals(sorted(
-                            to_readonly_capability(c)
-                            for c in collective_contents.values()
-                        )),
+                        Equals(
+                            sorted(
+                                to_readonly_capability(c)
+                                for c in collective_contents.values()
+                            )
+                        ),
                     ),
                     AfterPreprocessing(
                         # There should be exactly one participant that signals
@@ -318,7 +286,7 @@ class CollectiveParticipantsTests(SyncTestCase):
                         # collective at the top.
                         lambda ps: len({p for p in ps if p.is_self}),
                         Equals(1),
-                    )
+                    ),
                 ),
             ),
         )
@@ -329,7 +297,9 @@ class CollectiveParticipantsTests(SyncTestCase):
         tahoe_lafs_dir_capabilities(),
         tahoe_lafs_dir_capabilities(),
     )
-    def test_add_writable_dmd(self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd):
+    def test_add_writable_dmd(
+        self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd
+    ):
         """
         Calling ``IParticipants.add`` with a read-write Personal DMD
         reports an error.
@@ -352,11 +322,9 @@ class CollectiveParticipantsTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: str(f.value),
-                    Equals(
-                        "New participant Personal DMD must be read-only dircap"
-                    )
+                    Equals("New participant Personal DMD must be read-only dircap"),
                 )
-            )
+            ),
         )
 
     @given(
@@ -365,7 +333,9 @@ class CollectiveParticipantsTests(SyncTestCase):
         tahoe_lafs_dir_capabilities(),
         tahoe_lafs_readonly_dir_capabilities(),
     )
-    def test_add_wrong_author_type(self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd):
+    def test_add_wrong_author_type(
+        self, author, rw_collective_dircap, rw_upload_dircap, personal_dmd
+    ):
         """
         ``IParticipants.add`` called with non-RemoteAuthor instance fails.
         """
@@ -385,11 +355,9 @@ class CollectiveParticipantsTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: unicode(f.value),
-                    Equals(
-                        "Author must be a RemoteAuthor instance"
-                    )
+                    Equals("Author must be a RemoteAuthor instance"),
                 )
-            )
+            ),
         )
 
     @given(
@@ -400,9 +368,13 @@ class CollectiveParticipantsTests(SyncTestCase):
         ),
         tahoe_lafs_dir_capabilities(),
         tahoe_lafs_dir_capabilities(),
-        lists(tahoe_lafs_readonly_dir_capabilities(), min_size=2, max_size=2, unique=True),
+        lists(
+            tahoe_lafs_readonly_dir_capabilities(), min_size=2, max_size=2, unique=True
+        ),
     )
-    def test_add_duplicate(self, authors, rw_collective_dircap, rw_upload_dircap, personal_dmds):
+    def test_add_duplicate(
+        self, authors, rw_collective_dircap, rw_upload_dircap, personal_dmds
+    ):
         """
         Adding two participants with the same Personal DMD or same name
         produces an error
@@ -422,12 +394,14 @@ class CollectiveParticipantsTests(SyncTestCase):
             DecodedURL.from_text(u"http://example.invalid./"),
             http_client,
         )
-        root._uri.data[rw_collective_dircap] = dumps([
-            u"dirnode",
-            {
-                u"children": {},
-            }
-        ])
+        root._uri.data[rw_collective_dircap] = dumps(
+            [
+                u"dirnode",
+                {
+                    u"children": {},
+                },
+            ]
+        )
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -454,11 +428,9 @@ class CollectiveParticipantsTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: unicode(f.value),
-                    StartsWith(
-                        "Already have a participant with Personal DMD"
-                    )
+                    StartsWith("Already have a participant with Personal DMD"),
                 )
-            )
+            ),
         )
 
         # second participant with *different* Personal DMD but the
@@ -471,11 +443,9 @@ class CollectiveParticipantsTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: unicode(f.value),
-                    StartsWith(
-                        "Already have a participant called"
-                    )
+                    StartsWith("Already have a participant called"),
                 )
-            )
+            ),
         )
 
 
@@ -484,6 +454,7 @@ class CollectiveParticipantTests(SyncTestCase):
     Tests for a participant backed by a Magic-Folder "DMD"-style Tahoe-LAFS
     directory.
     """
+
     @given(
         author_names(),
         tahoe_lafs_dir_capabilities(),
@@ -499,7 +470,7 @@ class CollectiveParticipantTests(SyncTestCase):
                 relative_paths(),
             ),
             tuples(tahoe_lafs_chk_capabilities(), integers()),
-        )
+        ),
     )
     def test_list(self, author_name, upload_dircap, is_self, children):
         """
@@ -514,14 +485,17 @@ class CollectiveParticipantTests(SyncTestCase):
         )
 
         upload_dircap = upload_dircap.encode("ascii")
-        root._uri.data[upload_dircap] = dumps([
-            u"dirnode",
-            {u"children": {
-                path2magic(relpath): format_filenode(cap, {u"version": version})
-                for (relpath, (cap, version))
-                in children.items()
-            }},
-        ])
+        root._uri.data[upload_dircap] = dumps(
+            [
+                u"dirnode",
+                {
+                    u"children": {
+                        path2magic(relpath): format_filenode(cap, {u"version": version})
+                        for (relpath, (cap, version)) in children.items()
+                    }
+                },
+            ]
+        )
 
         participant = participant_from_dmd(
             author_name,
@@ -534,16 +508,10 @@ class CollectiveParticipantTests(SyncTestCase):
             participant.files(),
             succeeded(
                 AfterPreprocessing(
-                    lambda result: {
-                        name: f.version
-                        for (name, f)
-                        in result.items()
-                    },
-                    Equals({
-                        name: version
-                        for (name, (cap, version))
-                        in children.items()
-                    }),
+                    lambda result: {name: f.version for (name, f) in result.items()},
+                    Equals(
+                        {name: version for (name, (cap, version)) in children.items()}
+                    ),
                 ),
             ),
         )

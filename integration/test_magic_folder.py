@@ -1,12 +1,9 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from os.path import join, exists
+from os.path import exists, join
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
+
 
 def test_eliot_logs_are_written(alice, bob):
     # The integration test configuration arranges for this logging

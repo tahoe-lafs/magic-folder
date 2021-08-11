@@ -1,47 +1,20 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import json
 
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
-)
-from twisted.web.http import (
-    OK,
-    CREATED,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from treq.client import (
-    HTTPClient,
-)
-from treq.testing import (
-    StubTreq,
-)
-from eliot import (
-    start_action,
-)
-from eliot.twisted import (
-    inline_callbacks,
-)
-
 import attr
+from eliot import start_action
+from eliot.twisted import inline_callbacks
+from hyperlink import DecodedURL
+from treq.client import HTTPClient
+from treq.testing import StubTreq
+from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.web.http import CREATED, OK
 
-from .util.capabilities import (
-    is_directory_cap,
-    is_file_cap,
-)
+from .util.capabilities import is_directory_cap, is_file_cap
 
 
 def _request(http_client, method, url, **kwargs):
@@ -57,11 +30,7 @@ def _request(http_client, method, url, **kwargs):
     :param **kwargs: Any additional keyword arguments to pass along to
         ``HTTPClient``.
     """
-    return http_client.request(
-        method,
-        url.to_uri().to_text().encode("ascii"),
-        **kwargs
-    )
+    return http_client.request(method, url.to_uri().to_text().encode("ascii"), **kwargs)
 
 
 @attr.s(frozen=True)
@@ -69,6 +38,7 @@ class TahoeAPIError(Exception):
     """
     A Tahoe-LAFS HTTP API returned a failure code.
     """
+
     code = attr.ib()
     body = attr.ib()
 
@@ -87,6 +57,7 @@ class CannotCreateDirectoryError(Exception):
     """
     Failed to create a (mutable) directory.
     """
+
     tahoe_error = attr.ib()
 
     def __repr__(self):
@@ -103,6 +74,7 @@ class CannotAddDirectoryEntryError(Exception):
     """
     Failed to add a sub-directory or file to a mutable directory.
     """
+
     entry_name = attr.ib()
     tahoe_error = attr.ib()
 
@@ -162,7 +134,7 @@ class TahoeClient(object):
         :returns: bytes
         """
         resp = yield self.http_client.get(
-            self.url.add(u"t", u"json").to_uri().to_text().encode("ascii"),
+            self.url.add("t", "json").to_uri().to_text().encode("ascii"),
         )
         returnValue((yield resp.json()))
 
@@ -178,8 +150,8 @@ class TahoeClient(object):
 
         :returns: a capability-string
         """
-        post_uri = self.url.child(u"uri").replace(
-            query=[(u"t", u"mkdir-immutable")],
+        post_uri = self.url.child("uri").replace(
+            query=[("t", "mkdir-immutable")],
         )
         res = yield _request(
             self.http_client,
@@ -203,7 +175,7 @@ class TahoeClient(object):
         :return Deferred[bytes]: A Deferred which fires with the capability
             string for the new immutable object.
         """
-        put_uri = self.url.child(u"uri")
+        put_uri = self.url.child("uri")
         res = yield _request(
             self.http_client,
             b"PUT",
@@ -221,8 +193,8 @@ class TahoeClient(object):
         :return Deferred[bytes]: The write capability string for the new
             directory.
         """
-        post_uri = self.url.child(u"uri").replace(
-            query=[(u"t", u"mkdir")],
+        post_uri = self.url.child("uri").replace(
+            query=[("t", "mkdir")],
         )
         response = yield _request(
             self.http_client,
@@ -245,15 +217,21 @@ class TahoeClient(object):
 
         :param bytes dir_cap: the capability-string of the directory.
         """
-        api_uri = self.url.child(
-            u"uri",
-            dir_cap.decode("ascii"),
-        ).add(
-            u"t",
-            u"json",
-        ).to_uri().to_text().encode("ascii")
+        api_uri = (
+            self.url.child(
+                "uri",
+                dir_cap.decode("ascii"),
+            )
+            .add(
+                "t",
+                "json",
+            )
+            .to_uri()
+            .to_text()
+            .encode("ascii")
+        )
         action = start_action(
-            action_type=u"magic-folder:cli:list-dir",
+            action_type="magic-folder:cli:list-dir",
             dirnode_uri=dir_cap.decode("ascii"),
             api_uri=api_uri,
         )
@@ -267,21 +245,24 @@ class TahoeClient(object):
 
             kind, dirinfo = yield response.json()
 
-            if kind != u"dirnode":
+            if kind != "dirnode":
                 raise ValueError("Capability is a '{}' not a 'dirnode'".format(kind))
 
             action.add_success_fields(
-                children=dirinfo[u"children"],
+                children=dirinfo["children"],
             )
 
-        returnValue({
-            name: (
-                json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
-                json_metadata.get(u"metadata", {}),
-            )
-            for (name, (child_kind, json_metadata))
-            in dirinfo[u"children"].items()
-        })
+        returnValue(
+            {
+                name: (
+                    json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode(
+                        "ascii"
+                    ),
+                    json_metadata.get("metadata", {}),
+                )
+                for (name, (child_kind, json_metadata)) in dirinfo["children"].items()
+            }
+        )
 
     @inlineCallbacks
     def directory_data(self, dir_cap):
@@ -294,16 +275,20 @@ class TahoeClient(object):
         :returns dict: the JSON representing this directory
         """
         if not is_directory_cap(dir_cap):
-            raise ValueError(
-                "{} is not a directory-capability".format(dir_cap)
+            raise ValueError("{} is not a directory-capability".format(dir_cap))
+        api_uri = (
+            self.url.child(
+                "uri",
+                dir_cap.decode("ascii"),
             )
-        api_uri = self.url.child(
-            u"uri",
-            dir_cap.decode("ascii"),
-        ).add(
-            u"t",
-            u"json",
-        ).to_uri().to_text().encode("ascii")
+            .add(
+                "t",
+                "json",
+            )
+            .to_uri()
+            .to_text()
+            .encode("ascii")
+        )
 
         response = yield self.http_client.get(
             api_uri,
@@ -316,7 +301,9 @@ class TahoeClient(object):
         returnValue(dirinfo)
 
     @inlineCallbacks
-    def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
+    def add_entry_to_mutable_directory(
+        self, mutable_cap, path_name, entry_cap, replace=False
+    ):
         """
         Adds an entry to a mutable directory
 
@@ -336,16 +323,16 @@ class TahoeClient(object):
         """
 
         if replace is True:
-            replace_arg = u"true"
+            replace_arg = "true"
         elif replace is False:
-            replace_arg = u"false"
+            replace_arg = "false"
         else:
             raise TypeError("replace value should be a boolean")
 
-        post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
+        post_uri = self.url.child("uri", mutable_cap.decode("utf8"), path_name).replace(
             query=[
-                (u"t", u"uri"),
-                (u"replace", replace_arg),
+                ("t", "uri"),
+                ("replace", replace_arg),
             ],
         )
         response = yield _request(
@@ -388,13 +375,11 @@ class TahoeClient(object):
         # we further insist that this is "a file capability" because
         # the API says "_file" in it
         if not is_file_cap(cap):
-            raise ValueError(
-                "{} is not a file capability".format(cap)
-            )
+            raise ValueError("{} is not a file capability".format(cap))
 
-        query_args = [(u"uri", cap.decode("ascii"))]
+        query_args = [("uri", cap.decode("ascii"))]
 
-        get_uri = self.url.child(u"uri").replace(query=query_args)
+        get_uri = self.url.child("uri").replace(query=query_args)
         res = yield _request(
             self.http_client,
             b"GET",
@@ -416,8 +401,8 @@ class TahoeClient(object):
 
         :returns: Deferred that fires with `None`
         """
-        get_uri = self.url.child(u"uri").replace(
-            query=[(u"uri", cap.decode("ascii"))],
+        get_uri = self.url.child("uri").replace(
+            query=[("uri", cap.decode("ascii"))],
         )
         res = yield self.http_client.get(get_uri.to_text())
         if res.code != OK:

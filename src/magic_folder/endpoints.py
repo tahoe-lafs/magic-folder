@@ -2,15 +2,9 @@
 Utilities related to Twisted endpoint (and endpoint-strings)
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from twisted.internet.endpoints import (
-    _parse as twisted_endpoint_parse,
-)
+from twisted.internet.endpoints import _parse as twisted_endpoint_parse
 
 
 class CannotConvertEndpointError(Exception):

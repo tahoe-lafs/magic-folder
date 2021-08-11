@@ -5,17 +5,12 @@
 Common functions and types used by other modules.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from contextlib import contextmanager
 import unicodedata
+from contextlib import contextmanager
 
 import attr
-
 from twisted.web import http
 
 
@@ -24,12 +19,14 @@ class BadResponseCode(Exception):
     An HTTP request received a response code which does not allow an operation
     to progress further.
     """
+
     def __str__(self):
         return "Request for {!r} received unexpected response code {!r}:\n{}".format(
             self.args[0].to_text(),
             self.args[1],
             self.args[2],
         )
+
 
 class BadMetadataResponse(Exception):
     """
@@ -48,6 +45,7 @@ def does_not_have_keys(*keys):
                     invalid_keys=invalid_keys,
                 )
             )
+
     return validator
 
 
@@ -72,7 +70,7 @@ class APIError(Exception):
                 attr.validators.instance_of(dict),
                 does_not_have_keys("reason"),
             ),
-        )
+        ),
     )
 
     @classmethod

@@ -1,15 +1,9 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
+from __future__ import absolute_import, division, print_function
 
 __all__ = [
     "SyncTestCase",
     "AsyncTestCase",
     "AsyncBrokenTestCase",
-
     "flush_logged_errors",
     "skip",
     "skipIf",
@@ -19,41 +13,26 @@ __all__ = [
 import os
 import tempfile
 from functools import partial
+from socket import AF_INET
 from unittest import case as _case
-from socket import (
-    AF_INET,
-)
 
-from zope.interface import implementer
-
-from testtools import (
-    TestCase,
-    skip,
-    skipIf,
-)
+from eliot import log_call
+from testtools import TestCase, skip, skipIf
 from testtools.twistedsupport import (
-    SynchronousDeferredRunTest,
     AsynchronousDeferredRunTest,
     AsynchronousDeferredRunTestForBrokenTwisted,
+    SynchronousDeferredRunTest,
     flush_logged_errors,
 )
-
-from twisted.plugin import IPlugin
-from twisted.python.filepath import FilePath
-from twisted.internet.interfaces import (
-    IStreamServerEndpointStringParser,
-)
 from twisted.internet.endpoints import AdoptedStreamServerEndpoint
+from twisted.internet.interfaces import IStreamServerEndpointStringParser
+from twisted.plugin import IPlugin
 from twisted.python import log
+from twisted.python.filepath import FilePath
 from twisted.trial.unittest import SynchronousTestCase as _TwistedSynchronousTestCase
+from zope.interface import implementer
 
-from eliot import (
-    log_call,
-)
-
-from .eliotutil import (
-    EliotLoggedRunTest,
-)
+from .eliotutil import EliotLoggedRunTest
 
 
 class UseTestPlugins(object):
@@ -61,6 +40,7 @@ class UseTestPlugins(object):
     A fixture which enables loading Twisted plugins from the Tahoe-LAFS test
     suite.
     """
+
     @log_call
     def setUp(self):
         """
@@ -68,6 +48,7 @@ class UseTestPlugins(object):
         aggregate package.
         """
         import twisted.plugins
+
         testplugins = FilePath(__file__).sibling("plugins")
         twisted.plugins.__path__.insert(0, testplugins.path)
 
@@ -78,6 +59,7 @@ class UseTestPlugins(object):
         ``twisted.plugins`` aggregate package.
         """
         import twisted.plugins
+
         testplugins = FilePath(__file__).sibling("plugins")
         twisted.plugins.__path__.remove(testplugins.path)
 
@@ -91,6 +73,7 @@ class AdoptedServerPort(object):
     Parse an ``adopt-socket:<fd>`` endpoint description by adopting ``fd`` as
     a listening TCP port.
     """
+
     prefix = "adopt-socket"
 
     def parseStreamServer(self, reactor, fd):
@@ -131,6 +114,7 @@ class _TestCaseMixin(object):
     * Automatic cleanup of tempfile.tempdir mutation (pervasive through the
       Tahoe-LAFS test suite).
     """
+
     def setUp(self):
         # Restore the original temporary directory.  Node ``init_tempdir``
         # mangles it and many tests manage to get that method called.
@@ -142,6 +126,7 @@ class _TestCaseMixin(object):
     class _DummyCase(_case.TestCase):
         def dummy(self):
             pass
+
     _dummyCase = _DummyCase("dummy")
 
     def mktemp(self):
@@ -173,6 +158,7 @@ class SyncTestCase(_TestCaseMixin, TestCase):
     A ``TestCase`` which can run tests that may return an already-fired
     ``Deferred``.
     """
+
     run_tests_with = EliotLoggedRunTest.make_factory(
         SynchronousDeferredRunTest,
     )
@@ -183,6 +169,7 @@ class AsyncTestCase(_TestCaseMixin, TestCase):
     A ``TestCase`` which can run tests that may return a Deferred that will
     only fire if the global reactor is running.
     """
+
     run_tests_with = EliotLoggedRunTest.make_factory(
         AsynchronousDeferredRunTest.make_factory(timeout=60.0),
     )
@@ -197,6 +184,7 @@ class AsyncBrokenTestCase(_TestCaseMixin, TestCase):
     Tests which require this behavior are broken and should be fixed so they
     pass with ``AsyncTestCase``.
     """
+
     run_tests_with = EliotLoggedRunTest.make_factory(
         AsynchronousDeferredRunTestForBrokenTwisted.make_factory(timeout=60.0),
     )

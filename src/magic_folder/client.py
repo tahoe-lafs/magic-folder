@@ -1,60 +1,25 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import json
 
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
-)
-from twisted.internet.endpoints import (
-    clientFromString,
-)
-from twisted.internet.error import (
-    ConnectError,
-)
-
-from twisted.python.filepath import FilePath
-from twisted.web import (
-    http,
-)
-from twisted.web.client import (
-    Agent,
-)
-from twisted.web.iweb import (
-    IAgentEndpointFactory,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from treq.client import (
-    HTTPClient,
-)
-from treq.testing import (
-    RequestTraversalAgent,
-    StubTreq,
-)
-from zope.interface import (
-    implementer,
-)
-
 import attr
+from hyperlink import DecodedURL
+from treq.client import HTTPClient
+from treq.testing import RequestTraversalAgent, StubTreq
+from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.endpoints import clientFromString
+from twisted.internet.error import ConnectError
+from twisted.python.filepath import FilePath
+from twisted.web import http
+from twisted.web.client import Agent
+from twisted.web.iweb import IAgentEndpointFactory
+from zope.interface import implementer
 
-from .web import (
-    APIv1,
-    magic_folder_resource,
-)
-from .testing.web import (
-    _SynchronousProducer,
-)
+from .testing.web import _SynchronousProducer
+from .web import APIv1, magic_folder_resource
 
 
 class ClientError(Exception):
@@ -74,6 +39,7 @@ class MagicFolderApiError(ClientError):
     """
     A Magic Folder HTTP API returned a failure code.
     """
+
     code = attr.ib()
     reason = attr.ib()
     body = attr.ib()
@@ -131,48 +97,69 @@ class MagicFolderClient(object):
     get_api_token = attr.ib()
 
     def list_folders(self, include_secret_information=None):
-        api_url = self.base_url.child(u'v1').child(u'magic-folder')
+        api_url = self.base_url.child(u"v1").child(u"magic-folder")
         if include_secret_information:
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
         return self._authorized_request("GET", api_url)
 
     def add_snapshot(self, magic_folder, path):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'snapshot')
-        api_url = api_url.set(u'path', path)
+        api_url = self.base_url.child(u"v1", u"magic-folder", magic_folder, u"snapshot")
+        api_url = api_url.set(u"path", path)
         return self._authorized_request("POST", api_url)
 
     def add_participant(self, magic_folder, author_name, personal_dmd):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
-        body = json.dumps({
-            "author": {
-                "name": author_name,
-                # not yet
-                # "public_key_base32": author_verify_key,
-            },
-            "personal_dmd": personal_dmd,
-        })
+        api_url = self.base_url.child(
+            u"v1", u"magic-folder", magic_folder, u"participants"
+        )
+        body = json.dumps(
+            {
+                "author": {
+                    "name": author_name,
+                    # not yet
+                    # "public_key_base32": author_verify_key,
+                },
+                "personal_dmd": personal_dmd,
+            }
+        )
         return self._authorized_request("POST", api_url, body=body.encode("utf8"))
 
     def list_participants(self, magic_folder):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
+        api_url = self.base_url.child(
+            u"v1", u"magic-folder", magic_folder, u"participants"
+        )
         return self._authorized_request("GET", api_url)
 
-    def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
+    def add_folder(
+        self, magic_folder, author_name, local_path, poll_interval, scan_interval
+    ):
         # type: (unicode, unicode, FilePath, int, int) -> dict
-        api_url = self.base_url.child(u'v1').child(u'magic-folder')
-        return self._authorized_request("POST", api_url, body=json.dumps({
-            'name': magic_folder,
-            'author_name': author_name,
-            'local_path': local_path.path,
-            'poll_interval': poll_interval,
-            'scan_interval': scan_interval,
-        }, ensure_ascii=False).encode('utf-8'))
+        api_url = self.base_url.child(u"v1").child(u"magic-folder")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "name": magic_folder,
+                    "author_name": author_name,
+                    "local_path": local_path.path,
+                    "poll_interval": poll_interval,
+                    "scan_interval": scan_interval,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
 
     def scan_folder(self, magic_folder):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan')
-        return self._authorized_request("PUT", api_url, body=json.dumps({
-            "wait-for-snapshots": True,
-        }))
+        api_url = self.base_url.child(u"v1", u"magic-folder", magic_folder, u"scan")
+        return self._authorized_request(
+            "PUT",
+            api_url,
+            body=json.dumps(
+                {
+                    "wait-for-snapshots": True,
+                }
+            ),
+        )
 
     def leave_folder(self, magic_folder, really_delete_write_capability):
         # type: (unicode, bool) -> dict
@@ -205,9 +192,7 @@ class MagicFolderClient(object):
             )
 
         except ConnectError:
-            raise CannotAccessAPIError(
-                "Can't reach the magic folder daemon at all"
-            )
+            raise CannotAccessAPIError("Can't reach the magic folder daemon at all")
 
         body = yield _get_json_check_code([http.OK, http.CREATED], response)
         returnValue(body)
@@ -250,7 +235,9 @@ def create_http_client(reactor, api_client_endpoint_str):
 
 # See https://github.com/LeastAuthority/magic-folder/issues/280
 # global_service should expect/demand an Interface
-def create_testing_http_client(reactor, config, global_service, get_api_token, status_service):
+def create_testing_http_client(
+    reactor, config, global_service, get_api_token, status_service
+):
     """
     :param global_service: an object providing the API of the global
         magic-folder service
@@ -286,6 +273,7 @@ def create_magic_folder_client(reactor, config, http_client):
 
     :returns: a MagicFolderclient instance
     """
+
     def get_api_token():
         return config.api_token
 

@@ -5,40 +5,22 @@
 Functionality to interact with the participants in a magic folder.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-from zope.interface import (
-    Attribute,
-    Interface,
-    implementer,
-)
+from __future__ import absolute_import, division, print_function
 
 import attr
+from eliot.twisted import inline_callbacks
+from twisted.internet.defer import inlineCallbacks, returnValue
+from zope.interface import Attribute, Interface, implementer
 
-from twisted.internet.defer import (
-    inlineCallbacks,
-    returnValue,
+from .magicpath import magic2path, path2magic
+from .snapshot import RemoteAuthor
+from .tahoe_client import CannotAddDirectoryEntryError
+from .util.capabilities import (
+    is_directory_cap,
+    is_mutable_directory_cap,
+    is_readonly_directory_cap,
+    to_readonly_capability,
 )
-
-from eliot.twisted import (
-    inline_callbacks,
-)
-
-from .magicpath import (
-    magic2path,
-    path2magic,
-)
-from .snapshot import (
-    RemoteAuthor,
-)
-from .tahoe_client import (
-    CannotAddDirectoryEntryError,
-)
-from .util.capabilities import is_directory_cap, is_readonly_directory_cap, is_mutable_directory_cap, to_readonly_capability
 
 
 class IParticipant(Interface):
@@ -46,6 +28,7 @@ class IParticipant(Interface):
     An ``IParticipant`` provider represents a single participant in a
     particular magic folder.
     """
+
     is_self = Attribute("``True`` if this participant is us, ``False`` otherwise.")
 
     def files():
@@ -64,6 +47,7 @@ class IParticipants(Interface):
     An ``IParticipants`` provider grants access to the group of other
     participants in a particular magic folder.
     """
+
     def list():
         """
         Get all of the participants.
@@ -89,6 +73,7 @@ class IParticipants(Interface):
         :returns IParticipant: the new participant
         """
 
+
 class IWriteableParticipant(Interface):
     """
     An ``IWriteableParticipant`` provider represents a participant
@@ -100,7 +85,6 @@ class IWriteableParticipant(Interface):
         """
         Update the snapshot with the given relpath.
         """
-
 
 
 def participant_from_dmd(name, dirnode, is_self, tahoe_client):
@@ -139,7 +123,9 @@ def participants_from_collective(collective_dirnode, upload_dirnode, tahoe_clien
 
     :return: An ``IParticipants`` provider.
     """
-    return _CollectiveDirnodeParticipants(collective_dirnode, upload_dirnode, tahoe_client)
+    return _CollectiveDirnodeParticipants(
+        collective_dirnode, upload_dirnode, tahoe_client
+    )
 
 
 @implementer(IParticipants)
@@ -189,13 +175,9 @@ class _CollectiveDirnodeParticipants(object):
         IParticipants API
         """
         if not is_readonly_directory_cap(personal_dmd_cap):
-            raise ValueError(
-                "New participant Personal DMD must be read-only dircap"
-            )
+            raise ValueError("New participant Personal DMD must be read-only dircap")
         if not isinstance(author, RemoteAuthor):
-            raise ValueError(
-                "Author must be a RemoteAuthor instance"
-            )
+            raise ValueError("Author must be a RemoteAuthor instance")
         # semantically, it doesn't make sense to allow a second
         # participant with the very same Personal DMD as another (even
         # if the name/author is different). So, we check here .. but
@@ -206,7 +188,9 @@ class _CollectiveDirnodeParticipants(object):
         participants = yield self.list()
         if any(personal_dmd_cap == p.dircap for p in participants):
             raise ValueError(
-                "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
+                "Already have a participant with Personal DMD '{}'".format(
+                    personal_dmd_cap
+                )
             )
 
         # NB: we could check here if there is already a participant
@@ -231,19 +215,22 @@ class _CollectiveDirnodeParticipants(object):
         IParticipants API
         """
         result = yield self._tahoe_client.list_directory(self._collective_cap)
-        returnValue(list(
-            participant_from_dmd(
-                name,
-                dirobj,
-                self._is_self(dirobj),
-                self._tahoe_client,
+        returnValue(
+            list(
+                participant_from_dmd(
+                    name,
+                    dirobj,
+                    self._is_self(dirobj),
+                    self._tahoe_client,
+                )
+                for (name, (dirobj, metadata)) in result.items()
             )
-            for (name, (dirobj, metadata))
-            in result.items()
-        ))
+        )
 
     def _is_self(self, dirobj):
-        return to_readonly_capability(dirobj) == to_readonly_capability(self._upload_cap)
+        return to_readonly_capability(dirobj) == to_readonly_capability(
+            self._upload_cap
+        )
 
 
 @implementer(IParticipant)
@@ -263,6 +250,7 @@ class _CollectiveDirnodeParticipant(object):
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
     """
+
     name = attr.ib(validator=attr.validators.instance_of(unicode))
     dircap = attr.ib(validator=attr.validators.instance_of(bytes))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
@@ -276,11 +264,12 @@ class _CollectiveDirnodeParticipant(object):
         more details.
         """
         result = yield self._tahoe_client.list_directory(self.dircap)
-        returnValue({
-            magic2path(mangled_relpath): SnapshotEntry(child, metadata)
-            for (mangled_relpath, (child, metadata))
-            in result.items()
-        })
+        returnValue(
+            {
+                magic2path(mangled_relpath): SnapshotEntry(child, metadata)
+                for (mangled_relpath, (child, metadata)) in result.items()
+            }
+        )
 
 
 @implementer(IWriteableParticipant)
@@ -293,6 +282,7 @@ class _WriteableParticipant(object):
     :ivar bytes upload_cap: Read-write directory-capability containing this
         participant's files.
     """
+
     upload_cap = attr.ib(validator=attr.validators.instance_of(bytes))
     _tahoe_client = attr.ib(eq=False)
 
@@ -321,7 +311,6 @@ class _WriteableParticipant(object):
         )
 
 
-
 @attr.s
 class SnapshotEntry(object):
     """
@@ -333,6 +322,7 @@ class SnapshotEntry(object):
     :ivar dict metadata: Metadata associated with the file content in the
         containing directory.
     """
+
     snapshot_cap = attr.ib()
     metadata = attr.ib()
 

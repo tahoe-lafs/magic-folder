@@ -1,88 +1,53 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import io
 import json
 from tempfile import mktemp
 
+from hyperlink import DecodedURL
+from hypothesis import assume, given, note
+from hypothesis.strategies import binary, integers, just, one_of, text
+from testtools import ExpectedException
 from testtools.matchers import (
-    Equals,
-    Contains,
-    ContainsDict,
-    MatchesStructure,
     AfterPreprocessing,
     Always,
+    Contains,
+    ContainsDict,
+    Equals,
     HasLength,
+    MatchesStructure,
 )
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-from testtools import (
-    ExpectedException,
-)
+from testtools.twistedsupport import failed, succeeded
+from twisted.python.filepath import FilePath
 
-from hypothesis import (
-    assume,
-    given,
-    note,
+from magic_folder.snapshot import (
+    LocalSnapshot,
+    MissingPropertyError,
+    UnknownPropertyError,
+    create_author,
+    create_author_from_json,
+    create_local_author,
+    create_snapshot,
+    create_snapshot_from_capability,
+    format_filenode,
+    write_snapshot_to_tahoe,
 )
-from hypothesis.strategies import (
-    binary,
-    text,
-    just,
-    one_of,
-    integers,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from twisted.python.filepath import (
-    FilePath,
-)
+from magic_folder.tahoe_client import create_tahoe_client
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
-from magic_folder.testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
+from magic_folder.testing.web import create_fake_tahoe_root, create_tahoe_treq_client
 
-from .common import (
-    SyncTestCase,
-    success_result_of,
-)
-from .strategies import (
-    magic_folder_filenames,
-    remote_authors,
-    author_names,
-)
-from magic_folder.snapshot import (
-    create_local_author,
-    create_author_from_json,
-    create_author,
-    create_snapshot,
-    create_snapshot_from_capability,
-    write_snapshot_to_tahoe,
-    LocalSnapshot,
-    UnknownPropertyError,
-    MissingPropertyError,
-    format_filenode,
-)
-from magic_folder.tahoe_client import (
-    create_tahoe_client,
-)
+from .common import SyncTestCase, success_result_of
+from .strategies import author_names, magic_folder_filenames, remote_authors
+
 
 class TestRemoteAuthor(SyncTestCase):
     """
     Tests for RemoteAuthor and the related constructors, ``create_author`` and
     ``create_author_from_json``.
     """
+
     @given(remote_authors())
     def test_json_roundtrip(self, remote_author):
         """
@@ -133,6 +98,7 @@ class TestLocalSnapshot(SyncTestCase):
     Test functionality of LocalSnapshot, the representation of non-uploaded
     snapshots.
     """
+
     def setUp(self):
         super(TestLocalSnapshot, self).setUp()
         self.alice = create_local_author(u"alice")
@@ -194,10 +160,9 @@ class TestLocalSnapshot(SyncTestCase):
             d,
             failed(
                 AfterPreprocessing(
-                    str,
-                    Contains("Parent 0 is type <type 'str'> not LocalSnapshot")
+                    str, Contains("Parent 0 is type <type 'str'> not LocalSnapshot")
                 )
-            )
+            ),
         )
 
     @given(
@@ -289,6 +254,7 @@ class TestRemoteSnapshot(SyncTestCase):
     """
     Test upload and download of LocalSnapshot (creating RemoteSnapshot)
     """
+
     def setup_example(self):
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
@@ -336,16 +302,20 @@ class TestRemoteSnapshot(SyncTestCase):
         # Check whether information is preserved across these changes.
 
         downloaded_snapshot = success_result_of(
-            create_snapshot_from_capability(remote_snapshot.capability, self.tahoe_client)
+            create_snapshot_from_capability(
+                remote_snapshot.capability, self.tahoe_client
+            )
         )
 
         self.assertThat(
             downloaded_snapshot,
             MatchesStructure(
-                metadata=ContainsDict({
-                    "name": Equals(filename),
-                    "modification_time": Equals(modified_time),
-                }),
+                metadata=ContainsDict(
+                    {
+                        "name": Equals(filename),
+                        "modification_time": Equals(modified_time),
+                    }
+                ),
             ),
         )
         content_io = io.BytesIO()
@@ -397,7 +367,7 @@ class TestRemoteSnapshot(SyncTestCase):
             MatchesStructure(
                 relpath=Equals(filename),
                 parents_local=HasLength(1),
-            )
+            ),
         )
 
     @given(
@@ -459,7 +429,7 @@ class TestRemoteSnapshot(SyncTestCase):
             MatchesStructure(
                 relpath=Equals(filename),
                 parents_remote=AfterPreprocessing(len, Equals(1)),
-            )
+            ),
         )
 
         # upload snapshots[2], turning it into a RemoteSnapshot
@@ -479,7 +449,7 @@ class TestRemoteSnapshot(SyncTestCase):
             MatchesStructure(
                 metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=Equals([snapshots[1].capability]),
-            )
+            ),
         )
 
     @given(
@@ -527,25 +497,27 @@ class TestRemoteSnapshot(SyncTestCase):
             MatchesStructure(
                 metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=AfterPreprocessing(len, Equals(1)),
-            )
+            ),
         )
 
         # turn the parent into a RemoteSnapshot
         parent_snapshot = success_result_of(
-            create_snapshot_from_capability(remote_snapshot.parents_raw[0], self.tahoe_client)
+            create_snapshot_from_capability(
+                remote_snapshot.parents_raw[0], self.tahoe_client
+            )
         )
         self.assertThat(
             parent_snapshot,
             MatchesStructure(
                 metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=Equals([]),
-            )
+            ),
         )
 
     @given(
         one_of(
             just({}),
-            just({"snapshot_version": 2**31 - 1}),
+            just({"snapshot_version": 2 ** 31 - 1}),
             just({"snapshot_version": "foo"}),
         )
     )
@@ -574,7 +546,8 @@ class TestRemoteSnapshot(SyncTestCase):
         raw_snapshot_data = {
             u"content": format_filenode(content_cap),
             u"metadata": format_filenode(
-                metadata_caps[0], {
+                metadata_caps[0],
+                {
                     u"magic_folder": {
                         u"author_signature": u"not valid",
                     },
@@ -591,8 +564,11 @@ class TestRemoteSnapshot(SyncTestCase):
         # it should fail
         snapshot_d = create_snapshot_from_capability(snapshot_cap[0], self.tahoe_client)
 
-        self.assertThat(snapshot_d, failed(
-            MatchesStructure(
-                value=AfterPreprocessing(str, Contains("snapshot_version")),
-            )
-        ))
+        self.assertThat(
+            snapshot_d,
+            failed(
+                MatchesStructure(
+                    value=AfterPreprocessing(str, Contains("snapshot_version")),
+                )
+            ),
+        )

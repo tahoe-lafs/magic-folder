@@ -2,14 +2,8 @@
 # magic_folder package hierarchy at all.  It lives in twisted.plugins.  Thus,
 # we must use absolute imports for anything we want from magic_folder.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from magic_folder.test.common import (
-    AdoptedServerPort,
-)
+from magic_folder.test.common import AdoptedServerPort
 
 adoptedEndpointParser = AdoptedServerPort()
