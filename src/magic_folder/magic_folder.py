@@ -130,13 +130,13 @@ class MagicFolder(service.MultiService):
             uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=DownloaderService.from_config(
+                clock=reactor,
                 name=name,
                 config=mf_config,
                 participants=participants,
                 status=folder_status,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(
-                    reactor,
                     LocalMagicFolderFilesystem(
                         mf_config.magic_path,
                         mf_config.stash_path,

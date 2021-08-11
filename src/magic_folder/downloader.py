@@ -261,7 +261,6 @@ class MagicFolderUpdater(object):
     "Relevant" here means all parents unless we find a common
     ancestor.
     """
-    _clock = attr.ib(validator=provides(IReactorTime))
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
@@ -608,6 +607,7 @@ class DownloaderService(service.MultiService):
     RemoteSnapshot capabilities to download.
     """
 
+    _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
     _config = attr.ib()
     _participants = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
@@ -616,11 +616,12 @@ class DownloaderService(service.MultiService):
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, clock, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """
         return cls(
+            clock,
             config,
             participants,
             status,
@@ -635,6 +636,7 @@ class DownloaderService(service.MultiService):
             self._config.poll_interval,
             self._loop,
         )
+        self._scanner.clock = self._clock
         self._scanner.setServiceParent(self)
 
     def _loop(self):

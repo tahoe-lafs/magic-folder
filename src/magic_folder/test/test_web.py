@@ -925,7 +925,7 @@ class ScanFolderTests(SyncTestCase):
                 if delay == 0:
                     f(*args, **kwargs)
                 else:
-                    super(Clock, self).callLater(delay, f, *args, **kwargs)
+                    super(ImmediateClock, self).callLater(delay, f, *args, **kwargs)
 
         self.clock = ImmediateClock()
 
