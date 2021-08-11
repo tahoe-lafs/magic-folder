@@ -431,6 +431,20 @@ class APIv1(object):
             in folder_config.get_all_current_snapshot_pathstates()
         ])
 
+    @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
+    def folder_tahoe_objects(self, request, folder_name):
+        """
+        Renders a list of all the object-sizes of all Tahoe objects a
+        given magic-folder currently cares about. This is, for each
+        Snapshot: the Snapshot capability, the metadata capability and
+        the content capability.
+        """
+        _application_json(request)  # set reply headers
+        folder_config = self._global_config.get_magic_folder(folder_name)
+
+        sizes = [] # FIXME
+        return json.dumps(sizes)
+
 
 class _InputError(APIError):
     """

@@ -126,9 +126,11 @@ from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
+    remote_snapshots,
 )
 from ..util.capabilities import (
     to_readonly_capability,
+    cap_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -1969,6 +1971,73 @@ class FileStatusTests(SyncTestCase):
                                 "last-upload-duration": None,
                             },
                         ]),
+                    )
+                ),
+            )
+        )
+
+
+class TahoeObjectsTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/tahoe-objects` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_one_item(self, remote_snap):
+        """
+        Appropriate information is returned when we have one file in our
+        config/db
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "jenni",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_downloaded_snapshot(
+            "foo",
+            remote_snap,
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        expected_sizes = [
+            cap_size(cap)
+            for cap in [
+                    remote_snap.capability,
+                    remote_snap.content_cap,
+                    remote_snap.metadata_cap,
+            ]
+        ]
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "tahoe-objects"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals(expected_sizes),
                     )
                 ),
             )
