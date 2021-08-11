@@ -1,38 +1,17 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from functools import partial
 import json
+from collections import defaultdict
+from functools import partial
 
-from six import string_types
 import attr
-from collections import (
-    defaultdict,
-)
-
-from zope.interface import (
-    Interface,
-    implementer,
-)
+from autobahn.twisted.websocket import WebSocketServerFactory, WebSocketServerProtocol
+from six import string_types
+from twisted.application import service
+from zope.interface import Interface, implementer
 from zope.interface.interface import Method
 
-from autobahn.twisted.websocket import (
-    WebSocketServerFactory,
-    WebSocketServerProtocol,
-)
-
-from twisted.application import (
-    service,
-)
-
-from .util.file import (
-    seconds_to_ns,
-    ns_to_seconds,
-)
+from .util.file import ns_to_seconds, seconds_to_ns
 
 
 class IStatus(Interface):
@@ -132,6 +111,7 @@ class StatusFactory(WebSocketServerFactory):
     Instantiates server-side StatusProtocol instances when clients
     connect.
     """
+
     protocol = StatusProtocol
 
     def __init__(self, status):
@@ -177,6 +157,7 @@ class PublicError(object):
     avoiding jargon and technical details (except where immediately
     relevant). This is used by the IStatus API.
     """
+
     timestamp = attr.ib(validator=attr.validators.instance_of((float, int, long)))
     summary = attr.ib(validator=attr.validators.instance_of(unicode))
 
@@ -223,7 +204,9 @@ class WebSocketStatusService(service.Service):
     _last_state = attr.ib(default=None)
 
     # current live state
-    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
+    _folders = attr.ib(
+        default=attr.Factory(lambda: defaultdict(_create_blank_folder_state))
+    )
 
     def client_connected(self, protocol):
         """
@@ -252,12 +235,10 @@ class WebSocketStatusService(service.Service):
         state.
         """
         upload_activity = any(
-            len(folder["uploads"])
-            for folder in self._folders.values()
+            len(folder["uploads"]) for folder in self._folders.values()
         )
         download_activity = any(
-            len(folder["downloads"])
-            for folder in self._folders.values()
+            len(folder["downloads"]) for folder in self._folders.values()
         )
 
         def folder_data_for(name):
@@ -267,23 +248,24 @@ class WebSocketStatusService(service.Service):
                     "modified": timestamp,
                     "last-updated": last_updated,
                 }
-                for relpath, timestamp, last_updated
-                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+                for relpath, timestamp, last_updated in self._config.get_magic_folder(
+                    name
+                ).get_recent_remotesnapshot_paths(30)
             ]
             uploads = [
                 upload
                 for upload in sorted(
-                        self._folders.get(name, {}).get("uploads", {}).values(),
-                        key=lambda u: u.get("queued-at", 0),
-                        reverse=True,
+                    self._folders.get(name, {}).get("uploads", {}).values(),
+                    key=lambda u: u.get("queued-at", 0),
+                    reverse=True,
                 )
             ]
             downloads = [
                 download
                 for download in sorted(
-                        self._folders.get(name, {}).get("downloads", {}).values(),
-                        key=lambda d: d.get("queued-at", 0),
-                        reverse=True,
+                    self._folders.get(name, {}).get("downloads", {}).values(),
+                    key=lambda d: d.get("queued-at", 0),
+                    reverse=True,
                 )
             ]
             return {
@@ -296,15 +278,17 @@ class WebSocketStatusService(service.Service):
                 "recent": most_recent,
             }
 
-        return json.dumps({
-            "state": {
-                "synchronizing": upload_activity or download_activity,
-                "folders": {
-                    name: folder_data_for(name)
-                    for name in self._config.list_magic_folders()
+        return json.dumps(
+            {
+                "state": {
+                    "synchronizing": upload_activity or download_activity,
+                    "folders": {
+                        name: folder_data_for(name)
+                        for name in self._config.list_magic_folders()
+                    },
                 }
             }
-        }).encode("utf8")
+        ).encode("utf8")
 
     def _maybe_update_clients(self):
         """
@@ -340,7 +324,9 @@ class WebSocketStatusService(service.Service):
             message,
         )
         self._folders[folder]["errors"].insert(0, err)
-        self._folders[folder]["errors"] = self._folders[folder]["errors"][:self.max_errors]
+        self._folders[folder]["errors"] = self._folders[folder]["errors"][
+            : self.max_errors
+        ]
         self._maybe_update_clients()
 
     def upload_queued(self, folder, relpath):
@@ -394,6 +380,7 @@ class _ProxyDescriptor(object):
     """
     Descriptor that returns ``partial(self.<original>.<method>, self.<relative>)``.
     """
+
     original = attr.ib(validator=attr.validators.instance_of(unicode))
     relative = attr.ib(validator=attr.validators.instance_of(unicode))
     method = attr.ib(validator=attr.validators.instance_of(string_types))
@@ -406,6 +393,7 @@ class _ProxyDescriptor(object):
             getattr(original, self.method),
             getattr(oself, self.relative),
         )
+
 
 def relative_proxy_for(iface, original, relative):
     """
@@ -422,6 +410,7 @@ def relative_proxy_for(iface, original, relative):
         pass as the first argument to methods of the interface, when
         the name of the first argument matches.
     """
+
     def decorator(cls):
         for name, method in iface.namesAndDescriptions():
             if not isinstance(method, Method):
@@ -429,6 +418,7 @@ def relative_proxy_for(iface, original, relative):
             if method.positional[0] == relative:
                 setattr(cls, name, _ProxyDescriptor(original, relative, name))
         return cls
+
     return decorator
 
 
@@ -439,5 +429,6 @@ class FolderStatus(object):
     Wrapper around an :py:`IStatus` implementation that automatically passes
     the ``folder`` argument.
     """
+
     folder = attr.ib(validator=attr.validators.instance_of(unicode))
     _status = attr.ib(validator=attr.validators.provides(IStatus))

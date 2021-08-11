@@ -1,31 +1,9 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
-
-from hypothesis import (
-    assume,
-    given,
-)
-from hypothesis.strategies import (
-    binary,
-    lists,
-    data,
-)
-
-from twisted.python.filepath import (
-    FilePath,
-)
-
-from twisted.internet import (
-    defer,
-    reactor,
-)
-
+from eliot import Message
+from hypothesis import assume, given
+from hypothesis.strategies import binary, data, lists
 from testtools.matchers import (
     AfterPreprocessing,
     Always,
@@ -33,43 +11,20 @@ from testtools.matchers import (
     HasLength,
     MatchesStructure,
 )
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-
-from eliot import (
-    Message,
-)
+from testtools.twistedsupport import failed, succeeded
+from twisted.internet import defer, reactor
+from twisted.python.filepath import FilePath
 
 from ..common import APIError
-from ..magic_folder import (
-    LocalSnapshotService,
-    LocalSnapshotCreator,
-)
-from ..snapshot import (
-    create_local_author,
-)
-from ..config import (
-    create_global_configuration,
-    create_testing_configuration,
-)
-from ..status import (
-    FolderStatus,
-    WebSocketStatusService,
-)
-from ..util.file import (
-    seconds_to_ns,
-)
-from .common import (
-    SyncTestCase,
-)
+from ..config import create_global_configuration, create_testing_configuration
+from ..magic_folder import LocalSnapshotCreator, LocalSnapshotService
+from ..snapshot import create_local_author
+from ..status import FolderStatus, WebSocketStatusService
+from ..util.file import seconds_to_ns
+from .common import SyncTestCase
 from .matchers import matches_failure
-from .strategies import (
-    path_segments,
-    relative_paths,
-    absolute_paths,
-)
+from .strategies import absolute_paths, path_segments, relative_paths
+
 
 @attr.s
 class MemorySnapshotCreator(object):
@@ -79,17 +34,20 @@ class MemorySnapshotCreator(object):
     :ivar [FilePath] processed: All of the paths passed to ``store_local_snapshot``,
         in the order they were passed.
     """
+
     processed = attr.ib(default=attr.Factory(list))
 
     def store_local_snapshot(self, path):
         Message.log(
-            message_type=u"memory-snapshot-creator:store-local-snapshot",
+            message_type="memory-snapshot-creator:store-local-snapshot",
             path=path.path,
         )
         self.processed.append(path)
 
+
 class MemoryUploaderService(object):
     upload_requested = False
+
     def perform_upload(self):
         self.upload_requested = True
         return defer.Deferred()
@@ -99,6 +57,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
     """
     Tests for ``LocalSnapshotService``.
     """
+
     def setup_example(self):
         """
         Hypothesis-invoked hook to create per-example state.
@@ -132,7 +91,6 @@ class LocalSnapshotServiceTests(SyncTestCase):
             uploader_service=self.uploader_service,
         )
 
-
     @given(relative_paths(), binary())
     def test_add_single_file(self, relative_path, content):
         """
@@ -149,23 +107,16 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        self.assertThat(
-            self.snapshot_service.stopService(),
-            succeeded(Always())
-        )
+        self.assertThat(self.snapshot_service.stopService(), succeeded(Always()))
 
         self.assertThat(
             self.snapshot_creator.processed,
             Equals([to_add]),
         )
 
-        self.assertThat(
-            self.uploader_service.upload_requested,
-            Equals(True)
-        )
+        self.assertThat(self.uploader_service.upload_requested, Equals(True))
 
-    @given(lists(path_segments(), unique=True),
-           data())
+    @given(lists(path_segments(), unique=True), data())
     def test_add_multiple_files(self, filenames, data):
         """
         Add a bunch of files one by one and check whether the operation is
@@ -192,15 +143,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        self.assertThat(
-            self.snapshot_service.stopService(),
-            succeeded(Always())
-        )
+        self.assertThat(self.snapshot_service.stopService(), succeeded(Always()))
 
-        self.assertThat(
-            sorted(self.snapshot_creator.processed),
-            Equals(sorted(files))
-        )
+        self.assertThat(sorted(self.snapshot_creator.processed), Equals(sorted(files)))
 
     @given(relative_paths())
     def test_add_file_not_a_filepath(self, relative_path):
@@ -232,10 +177,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.add_file(to_add),
             failed(
-                matches_failure(
-                    APIError,
-                    "expected a regular file, .* is a directory"
-                ),
+                matches_failure(APIError, "expected a regular file, .* is a directory"),
             ),
         )
 
@@ -263,9 +205,10 @@ class LocalSnapshotCreatorTests(SyncTestCase):
     Tests for ``LocalSnapshotCreator``, responsible for creating the local
     snapshots and storing them in the database.
     """
+
     def setUp(self):
         super(LocalSnapshotCreatorTests, self).setUp()
-        self.author = create_local_author(u"alice")
+        self.author = create_local_author("alice")
 
     def setup_example(self):
         """
@@ -275,18 +218,18 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         self.temp = FilePath(self.mktemp()).asTextMode("utf-8")
         self.global_db = create_global_configuration(
             self.temp.child(b"global-db"),
-            u"tcp:12345",
+            "tcp:12345",
             self.temp.child(b"tahoe-node"),
-            u"tcp:localhost:1234",
+            "tcp:localhost:1234",
         )
-        self.magic = self.temp.child(u"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
         self.db = self.global_db.create_magic_folder(
-            u"some-folder",
+            "some-folder",
             self.magic,
             self.author,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            "URI:DIR2-RO:aaa:bbb",
+            "URI:DIR2:ccc:ddd",
             60,
             None,
         )
@@ -298,8 +241,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             tahoe_client=None,
         )
 
-    @given(lists(path_segments(), unique=True),
-           data())
+    @given(lists(path_segments(), unique=True), data())
     def test_create_snapshots(self, filenames, data_strategy):
         """
         Create a list of filenames and random content as input and for each
@@ -316,8 +258,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         for (file, filename, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.store_local_snapshot(file),
-                succeeded(Always())
+                self.snapshot_creator.store_local_snapshot(file), succeeded(Always())
             )
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
@@ -331,13 +272,16 @@ class LocalSnapshotCreatorTests(SyncTestCase):
                 path_state,
                 MatchesStructure(
                     size=Equals(len(content)),
-                    mtime_ns=Equals(seconds_to_ns(file.asBytesMode("utf-8").getModificationTime())),
-                )
+                    mtime_ns=Equals(
+                        seconds_to_ns(file.asBytesMode("utf-8").getModificationTime())
+                    ),
+                ),
             )
 
-    @given(content1=binary(min_size=1),
-           content2=binary(min_size=1),
-           filename=path_segments(),
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=path_segments(),
     )
     def test_create_snapshot_twice(self, filename, content1, content2):
         """
@@ -367,7 +311,5 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         self.assertThat(
             stored_snapshot2.parents_local[0],
-            MatchesStructure(
-                content_path=Equals(stored_snapshot1.content_path)
-            )
+            MatchesStructure(content_path=Equals(stored_snapshot1.content_path)),
         )

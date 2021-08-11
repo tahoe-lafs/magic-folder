@@ -1,23 +1,11 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import json
 
-from twisted.python.filepath import (
-    FilePath,
-)
-
 import pytest_twisted
-
-from eliot.twisted import (
-    inline_callbacks,
-)
-from eliot import (
-    start_action,
-)
+from eliot import start_action
+from eliot.twisted import inline_callbacks
+from twisted.python.filepath import FilePath
 
 from . import util
 
@@ -26,6 +14,7 @@ from . import util
 # we need the eliot decorator too so that start_action works properly;
 # the pytest decorator actually only "marks" the function
 
+
 @inline_callbacks
 @pytest_twisted.inlineCallbacks
 def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
@@ -33,7 +22,11 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
     'magic-folder list' happy-path works
     """
 
-    with start_action(action_type=u"integration:test_list:zelda", include_args=[], include_result=False):
+    with start_action(
+        action_type=u"integration:test_list:zelda",
+        include_args=[],
+        include_result=False,
+    ):
         zelda = yield util.MagicFolderEnabledNode.create(
             reactor,
             tahoe_venv,
@@ -48,9 +41,12 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
         )
 
     output = yield util._magic_folder_runner(
-        reactor, request, "zelda",
+        reactor,
+        request,
+        "zelda",
         [
-            "--config", zelda.magic_config_directory,
+            "--config",
+            zelda.magic_config_directory,
             "list",
         ],
     )
@@ -60,20 +56,28 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
     magic_dir.makedirs()
 
     output = yield util._magic_folder_runner(
-        reactor, request, "zelda",
+        reactor,
+        request,
+        "zelda",
         [
-            "--config", zelda.magic_config_directory,
+            "--config",
+            zelda.magic_config_directory,
             "add",
-            "--author", "laptop",
-            "--name", "workstuff",
+            "--author",
+            "laptop",
+            "--name",
+            "workstuff",
             magic_dir.path,
         ],
     )
 
     output = yield util._magic_folder_runner(
-        reactor, request, "zelda",
+        reactor,
+        request,
+        "zelda",
         [
-            "--config", zelda.magic_config_directory,
+            "--config",
+            zelda.magic_config_directory,
             "list",
             "--json",
         ],

@@ -17,54 +17,26 @@ be pushed upstream eventually but not so quickly that we have to submit a PR
 to Tahoe-LAFS every few days.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
+import hashlib
 import json
 import time
 
-import hashlib
-
+import allmydata.uri
 import attr
-
+from allmydata.interfaces import IDirnodeURI
+from allmydata.util import base32
 from hyperlink import DecodedURL
-
-from twisted.web.resource import (
-    Resource,
-)
-from twisted.web.iweb import (
-    IBodyProducer,
-)
-from twisted.web import (
-    http,
-)
-
-from twisted.internet.defer import (
-    succeed,
-)
-
-from ..util.encoding import normalize
-
-from treq.client import (
-    HTTPClient,
-    FileBodyProducer,
-)
-from treq.testing import (
-    RequestTraversalAgent,
-)
+from treq.client import FileBodyProducer, HTTPClient
+from treq.testing import RequestTraversalAgent
+from twisted.internet.defer import succeed
+from twisted.web import http
+from twisted.web.iweb import IBodyProducer
+from twisted.web.resource import Resource
 from zope.interface import implementer
 
-import allmydata.uri
-from allmydata.interfaces import (
-    IDirnodeURI,
-)
-from allmydata.util import (
-    base32,
-)
-
+from ..util.encoding import normalize
 
 __all__ = (
     "create_fake_tahoe_root",
@@ -100,6 +72,7 @@ class _FakeTahoeWelcome(Resource, object):
     """
     Welcome page. This only renders the ?t=json case.
     """
+
     isLeaf = True
 
     def render_GET(self, request):
@@ -109,36 +82,37 @@ class _FakeTahoeWelcome(Resource, object):
         """
         assert "t" in request.args, "must pass ?t= query argument"
         assert request.args["t"][0] == "json", "must pass ?t=json query argument"
-        return json.dumps({
-            "introducers": {
-                "statuses": ["Fake test status"]
-            },
-            "servers": [
-                {
-                    "connection_status": "Connected to localhost:-1 via tcp",
-                    "nodeid": "v0-ehyafwjjwck2x2rsmwhsojcynfdzzn66xxyso5ev2joyughw47dq",
-                    "last_received_data": time.time(),
-                    "version": "tahoe-lafs/1.15.1",
-                    "available_space": 1234567890,
-                    "nickname": "node0",
-                },
-            ]
-        }).encode("utf8")
+        return json.dumps(
+            {
+                "introducers": {"statuses": ["Fake test status"]},
+                "servers": [
+                    {
+                        "connection_status": "Connected to localhost:-1 via tcp",
+                        "nodeid": "v0-ehyafwjjwck2x2rsmwhsojcynfdzzn66xxyso5ev2joyughw47dq",
+                        "last_received_data": time.time(),
+                        "version": "tahoe-lafs/1.15.1",
+                        "available_space": 1234567890,
+                        "nickname": "node0",
+                    },
+                ],
+            }
+        ).encode("utf8")
 
 
 KNOWN_CAPABILITIES = [
     getattr(allmydata.uri, t).BASE_STRING
     for t in dir(allmydata.uri)
-    if hasattr(getattr(allmydata.uri, t), 'BASE_STRING')
+    if hasattr(getattr(allmydata.uri, t), "BASE_STRING")
 ]
 MUTABLE_CAPABILITIES = [
-    b'URI:DIR2:',
-    b'URI:DIR2-RO:',
-    b'URI:SSK:',
-    b'URI:SSK-RO:',
-    b'URI:MDMF:',
-    b'URI:MDMF-RO:',
+    b"URI:DIR2:",
+    b"URI:DIR2-RO:",
+    b"URI:SSK:",
+    b"URI:SSK-RO:",
+    b"URI:MDMF:",
+    b"URI:MDMF-RO:",
 ]
+
 
 def capability_generator(kind):
     """
@@ -305,7 +279,9 @@ class _FakeTahoeUriHandler(Resource, object):
         data = request.content.read()
         fresh, cap = self.add_data("URI:CHK:", data)
         if fresh:
-            request.setResponseCode(http.CREATED)  # real code does this for brand-new files
+            request.setResponseCode(
+                http.CREATED
+            )  # real code does this for brand-new files
         else:
             request.setResponseCode(http.OK)  # replaced/modified files
         return cap
@@ -328,9 +304,7 @@ class _FakeTahoeUriHandler(Resource, object):
         try:
             dir_raw_data = self.data[dircap]
         except KeyError:
-            raise Exception(
-                "No directory for '{}'".format(dircap)
-            )
+            raise Exception("No directory for '{}'".format(dircap))
 
         content_cap = request.content.read().decode("utf8")
         content = allmydata.uri.from_string(content_cap.encode("ascii"))
@@ -356,7 +330,11 @@ class _FakeTahoeUriHandler(Resource, object):
 
         dir_data = json.loads(dir_raw_data)
         if path in dir_data[1]["children"]:
-            replace = request.args.get(b"replace", [b""])[0].lower() in (b"true", b"1", b"on")
+            replace = request.args.get(b"replace", [b""])[0].lower() in (
+                b"true",
+                b"1",
+                b"on",
+            )
             if not replace:
                 request.setResponseCode(http.BAD_REQUEST)
                 return b""
@@ -377,12 +355,14 @@ class _FakeTahoeUriHandler(Resource, object):
         # series of net-strings but are returned from the GET API
         # shaped like the below:
         data = {} if not raw_data else json.loads(raw_data)
-        return json.dumps([
-            "dirnode",
-            {
-                "children": data,
-            }
-        ])
+        return json.dumps(
+            [
+                "dirnode",
+                {
+                    "children": data,
+                },
+            ]
+        )
 
     def _add_immutable_directory(self, raw_data):
         return self.add_data(
@@ -409,7 +389,7 @@ class _FakeTahoeUriHandler(Resource, object):
         return cap
 
     def render_GET(self, request):
-        uri = DecodedURL.from_text(request.uri.decode('utf8'))
+        uri = DecodedURL.from_text(request.uri.decode("utf8"))
         capability = None
         for arg, value in uri.query:
             if arg == u"uri":
@@ -466,9 +446,7 @@ class _FakeTahoeUriHandler(Resource, object):
         """
         raw_data = self.data[capability]
         if not raw_data:
-            raise Exception(
-                u"No child '{}' in empty directory".format(child_name)
-            )
+            raise Exception(u"No child '{}' in empty directory".format(child_name))
         dir_data = json.loads(raw_data)
         try:
             child_cap = dir_data[1]["children"][child_name][1]["ro_uri"]
@@ -521,9 +499,7 @@ class _SynchronousProducer(object):
             body = body._inputFile.read()
 
         if not isinstance(body, bytes):
-            raise ValueError(
-                "'body' must be bytes not '{}'".format(type(body))
-            )
+            raise ValueError("'body' must be bytes not '{}'".format(type(body)))
         self.body = body
         self.length = len(body)
 

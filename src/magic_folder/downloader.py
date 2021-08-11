@@ -2,71 +2,27 @@
 Classes and services relating to the operation of the Downloader
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
 from collections import deque
 
 import attr
-from attr.validators import (
-    provides,
-    instance_of,
-)
+from attr.validators import instance_of, provides
+from eliot import Message, log_call, start_action, write_failure
+from eliot.twisted import inline_callbacks
+from twisted.application import internet, service
+from twisted.internet.defer import DeferredLock, returnValue, succeed
+from twisted.internet.interfaces import IReactorTime
+from twisted.python.filepath import FilePath
+from zope.interface import Interface, implementer
 
-from zope.interface import (
-    Interface,
-    implementer,
-)
-
-from eliot.twisted import (
-    inline_callbacks,
-)
-from eliot import (
-    log_call,
-    Message,
-    start_action,
-    write_failure,
-)
-
-from twisted.application import (
-    service,
-    internet,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.internet.defer import (
-    DeferredLock,
-    returnValue,
-    succeed,
-)
-from twisted.internet.interfaces import (
-    IReactorTime,
-)
-
-from .config import (
-    MagicFolderConfig,
-)
+from .config import MagicFolderConfig
 from .participants import IWriteableParticipant
-from .snapshot import (
-    create_snapshot_from_capability,
-)
-from .util.file import (
-    PathState,
-    get_pathinfo,
-    seconds_to_ns,
-)
-from .util.twisted import (
-    exclusively,
-)
-from .status import (
-    FolderStatus,
-)
+from .snapshot import create_snapshot_from_capability
+from .status import FolderStatus
+from .util.file import PathState, get_pathinfo, seconds_to_ns
+from .util.twisted import exclusively
 
 
 @attr.s
@@ -89,6 +45,7 @@ class RemoteSnapshotCacheService(service.Service):
     Note: we *could* keep all this in our database .. but then we have
     to evict things from it at some point.
     """
+
     folder_config = attr.ib()
     tahoe_client = attr.ib()
     # We maintain the invariant that either these snapshots are closed
@@ -120,8 +77,9 @@ class RemoteSnapshotCacheService(service.Service):
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
         """
-        with start_action(action_type="cache-service:locate_snapshot",
-                          capability=snapshot_cap) as t:
+        with start_action(
+            action_type="cache-service:locate_snapshot", capability=snapshot_cap
+        ) as t:
             try:
                 snapshot = self._cached_snapshots[snapshot_cap]
                 t.add_success_fields(cached=True)
@@ -145,9 +103,11 @@ class RemoteSnapshotCacheService(service.Service):
             self.tahoe_client,
         )
         self._cached_snapshots[snapshot_cap] = snapshot
-        Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata['name'],
-                    capability=snapshot.capability)
+        Message.log(
+            message_type="remote-cache:cached",
+            relpath=snapshot.metadata["name"],
+            capability=snapshot.capability,
+        )
 
         # breadth-first traversal of the parents
         q = deque([snapshot])
@@ -184,7 +144,9 @@ class RemoteSnapshotCacheService(service.Service):
         #   only incrementally adds to the ancestors of the remote
         # - for checking in the other direction, we can skip checking parents of any ancestors that are
         #   also ancestors of our remotesnapshot
-        assert child_cap in self._cached_snapshots is not None, "Remote should be cached already"
+        assert (
+            child_cap in self._cached_snapshots is not None
+        ), "Remote should be cached already"
         snapshot = self._cached_snapshots[child_cap]
 
         q = deque([snapshot])
@@ -247,8 +209,6 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
-
-
 @attr.s
 class MagicFolderUpdater(object):
     """
@@ -261,11 +221,12 @@ class MagicFolderUpdater(object):
     "Relevant" here means all parents unless we find a common
     ancestor.
     """
+
     _clock = attr.ib(validator=provides(IReactorTime))
     _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
     _config = attr.ib(validator=instance_of(MagicFolderConfig))
     _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
+    tahoe_client = attr.ib()  # validator=instance_of(TahoeClient))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _write_participant = attr.ib(validator=provides(IWriteableParticipant))
     _lock = attr.ib(init=False, factory=DeferredLock)
@@ -294,10 +255,11 @@ class MagicFolderUpdater(object):
         """
         conflict_path = relpath + ".conflict-{}".format(snapshot.author.name)
 
-        with start_action(action_type="downloader:updater:process",
-                          relpath=relpath,
-                          capability=snapshot.capability,
-                          ) as action:
+        with start_action(
+            action_type="downloader:updater:process",
+            relpath=relpath,
+            capability=snapshot.capability,
+        ) as action:
             local_path = self._config.magic_path.preauthChild(relpath)
 
             # see if we have existing local or remote snapshots for
@@ -344,14 +306,18 @@ class MagicFolderUpdater(object):
                     # "If the new snapshot is a descendant of the client's
                     # existing snapshot, then this update is an 'overwrite'"
 
-                    ancestor = self._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
+                    ancestor = self._remote_cache.is_ancestor_of(
+                        remote_cap, snapshot.capability
+                    )
                     action.add_success_fields(ancestor=ancestor)
 
                     if not ancestor:
                         # if the incoming remotesnapshot is actually an
                         # ancestor of _our_ snapshot, then we have nothing
                         # to do because we are newer
-                        if self._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
+                        if self._remote_cache.is_ancestor_of(
+                            snapshot.capability, remote_cap
+                        ):
                             return
                         action.add_success_fields(conflict_reason="no-ancestor")
                         is_conflict = True
@@ -359,19 +325,23 @@ class MagicFolderUpdater(object):
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
+                assert (
+                    not local_snap and not remote_cap
+                ), "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
             self._status.download_started(relpath)
             try:
                 with start_action(
-                    action_type=u"downloader:updater:content-to-staging",
+                    action_type="downloader:updater:content-to-staging",
                     relpath=relpath,
                     capability=snapshot.capability,
                 ):
                     try:
-                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot.content_cap, self.tahoe_client)
+                        staged = yield self._magic_fs.download_content_to_staging(
+                            relpath, snapshot.content_cap, self.tahoe_client
+                        )
                     except Exception:
                         self._status.error_occurred(
                             "Failed to download snapshot for '{}'.".format(relpath)
@@ -411,7 +381,9 @@ class MagicFolderUpdater(object):
                     # FIXME note conflict internally
                 else:
                     try:
-                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
+                        path_state = self._magic_fs.mark_overwrite(
+                            relpath, snapshot.metadata["modification_time"], staged
+                        )
                     except OSError as e:
                         self._status.error_occurred(
                             "Failed to overwrite file '{}': {}".format(relpath, str(e))
@@ -456,14 +428,19 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         import hashlib
+
         h = hashlib.sha256()
         h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
-        with staged_path.open('wb') as f:
+        with staged_path.open("wb") as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
 
-    @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
+    @log_call(
+        action_type="downloader:filesystem:mark-overwrite",
+        include_args=[],
+        include_result=False,
+    )
     def mark_overwrite(self, relpath, mtime, staged_content):
         """
         This snapshot is an overwrite. Move it from the staging area over
@@ -479,7 +456,7 @@ class LocalMagicFolderFilesystem(object):
         # and the FilePath.  Probably *should* do that but just doing this for
         # now...  Maybe it should be /easier/ to do that?
         Message.log(
-            message_type=u"downloader:filesystem:mark-overwrite",
+            message_type="downloader:filesystem:mark-overwrite",
             content_relpath=relpath,
             staged_content_path=staged_content.path,
         )
@@ -492,7 +469,7 @@ class LocalMagicFolderFilesystem(object):
             tmp = local_path.temporarySibling(b".snaptmp")
             local_path.moveTo(tmp)
             Message.log(
-                message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
+                message_type="downloader:filesystem:mark-overwrite:set-aside-existing",
                 source_path=local_path.path,
                 target_path=tmp.path,
             )
@@ -505,7 +482,7 @@ class LocalMagicFolderFilesystem(object):
         # the later if the mtime and size match.
         staged_path_state = get_pathinfo(staged_content).state
         with start_action(
-            action_type=u"downloader:filesystem:mark-overwrite:emplace",
+            action_type="downloader:filesystem:mark-overwrite:emplace",
             content_final_path=local_path.path,
         ):
             staged_content.moveTo(local_path)
@@ -521,7 +498,7 @@ class LocalMagicFolderFilesystem(object):
 
         if tmp is not None:
             with start_action(
-                action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
+                action_type="downloader:filesystem:mark-overwrite:dispose-existing",
             ):
                 # FIXME: We should verify that this moved file has
                 # the same (except ctime) state as the the previous snapshot
@@ -569,9 +546,7 @@ class InMemoryMagicFolderFilesystem(object):
         self._staged_content = {}
 
     def download_content_to_staging(self, relpath, file_cap, tahoe_client):
-        self.actions.append(
-            ("download", relpath, file_cap)
-        )
+        self.actions.append(("download", relpath, file_cap))
         marker = object()
         self._staged_content[marker] = file_cap
         return succeed(marker)
@@ -595,9 +570,7 @@ class InMemoryMagicFolderFilesystem(object):
         )
 
     def mark_delete(self, relpath, remote_snapshot):
-        self.actions.append(
-            ("delete", relpath, remote_snapshot)
-        )
+        self.actions.append(("delete", relpath, remote_snapshot))
 
 
 @attr.s
@@ -616,7 +589,16 @@ class DownloaderService(service.MultiService):
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(
+        cls,
+        name,
+        config,
+        participants,
+        status,
+        remote_snapshot_cache,
+        folder_updater,
+        tahoe_client,
+    ):
         """
         Create a DownloaderService from the MagicFolder configuration.
         """
@@ -675,7 +657,9 @@ class DownloaderService(service.MultiService):
             relpath=relpath,
             remote_cap=snapshot_cap,
         ):
-            snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
+            snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(
+                snapshot_cap
+            )
             # if this remote matches what we believe to be the
             # latest, there is nothing to do .. otherwise, we
             # have to figure out what to do
@@ -685,5 +669,7 @@ class DownloaderService(service.MultiService):
                 our_snapshot_cap = None
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
-                    yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+                    yield self._remote_snapshot_cache.get_snapshot_from_capability(
+                        our_snapshot_cap
+                    )
                 yield self._folder_updater.add_remote_snapshot(relpath, snapshot)

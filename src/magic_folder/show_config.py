@@ -5,24 +5,13 @@
 Implements the magic-folder init command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import sys
-from json import (
-    dumps,
-)
+from json import dumps
 
-from nacl.encoding import (
-    Base32Encoder,
-)
-
-from twisted.internet.defer import (
-    succeed,
-)
+from nacl.encoding import Base32Encoder
+from twisted.internet.defer import succeed
 
 
 def magic_folder_show_config(config, stdout=None):

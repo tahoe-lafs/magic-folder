@@ -1,62 +1,25 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import json
-from io import (
-    StringIO,
-)
-
-from twisted.internet.interfaces import (
-    IStreamServerEndpoint,
-)
-from twisted.internet.defer import (
-    succeed,
-    failure,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from zope.interface import (
-    implementer,
-)
+from io import StringIO
 
 import attr
+from testtools import ExpectedException
+from testtools.matchers import ContainsDict, Equals
+from twisted.internet.defer import failure, succeed
+from twisted.internet.interfaces import IStreamServerEndpoint
+from twisted.python.filepath import FilePath
+from zope.interface import implementer
 
-from testtools import (
-    ExpectedException,
-)
-from testtools.matchers import (
-    Equals,
-    ContainsDict,
-)
-from .common import (
-    AsyncTestCase,
-    SyncTestCase,
-)
-from .fixtures import (
-    NodeDirectory,
-)
-from ..config import (
-    load_global_configuration,
-)
-from ..endpoints import (
-    CannotConvertEndpointError,
-)
-from magic_folder.util.observer import (
-    ListenObserver,
-)
-from magic_folder.initialize import (
-    magic_folder_initialize,
-)
-from magic_folder.migrate import (
-    magic_folder_migrate,
-)
-from magic_folder.show_config import (
-    magic_folder_show_config,
-)
+from magic_folder.initialize import magic_folder_initialize
+from magic_folder.migrate import magic_folder_migrate
+from magic_folder.show_config import magic_folder_show_config
+from magic_folder.util.observer import ListenObserver
+
+from ..config import load_global_configuration
+from ..endpoints import CannotConvertEndpointError
+from .common import AsyncTestCase, SyncTestCase
+from .fixtures import NodeDirectory
 
 
 @attr.s
@@ -85,7 +48,6 @@ class TestListenObserver(AsyncTestCase):
 
         self.assertFalse(d0.called)
         self.assertFalse(d1.called)
-
 
         result = obs.listen("not actually a factory")
         self.assertTrue(result.called)
@@ -225,9 +187,11 @@ class TestShowConfig(SyncTestCase):
         )
         self.assertThat(
             json.loads(stdout.getvalue()),
-            ContainsDict({
-                u'api_endpoint': Equals(u'tcp:1234'),
-                u'tahoe_node_directory': Equals(self.node_dir.path.path),
-                u'magic_folders': Equals({}),
-            })
+            ContainsDict(
+                {
+                    u"api_endpoint": Equals(u"tcp:1234"),
+                    u"tahoe_node_directory": Equals(self.node_dir.path.path),
+                    u"magic_folders": Equals({}),
+                }
+            ),
         )

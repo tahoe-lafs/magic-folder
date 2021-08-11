@@ -1,19 +1,14 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 """
 Turn Twisted endpoint description strings into HTTP(S) URLs.
 """
 
-from hyperlink import (
-    URL,
-)
+from hyperlink import URL
+
 
 def endpoint_description_to_http_api_root(endpoint_description):
     """

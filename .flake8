@@ -1,13 +1,19 @@
 [flake8]
 extend-ignore =
-    # existing errors
-    E30,E501,
-    E124,E26,E401,E402,E731
+    # Handled by black
+    E203,E501,
     # flake8-future-import '__future__ import "..." present'
-    FI5
+    FI5,
     # flake8-future-import '__future__ import "unicode_literals" missing'
-    FI14
-extend-exclude = src/magic_folder/_version.py
+    FI14,
+extend-exclude =
+    # Generated file
+    src/magic_folder/_version.py
+    # Due to side-effects, we have imports interleaved with code
+    src/magic_folder/__init__.py: E402
+    src/magic_folder/test/__init__.py: E402
+    # The default sphinx docs use multiple ## for comments
+    docs/conf.py: E265
 # flake8-future-import options
 min-version = 2.7
 require-code = true

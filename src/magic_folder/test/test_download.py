@@ -1,113 +1,65 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 """
 Tests relating generally to magic_folder.downloader
 """
 
-import io
 import base64
+import io
 import time
+from json import dumps, loads
+
+from eliot.twisted import inline_callbacks
+from hyperlink import DecodedURL
+from hypothesis import given
 from mock import Mock
-
-from json import (
-    dumps,
-    loads,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from eliot.twisted import (
-    inline_callbacks,
-)
-
 from testtools.matchers import (
+    AfterPreprocessing,
+    Always,
+    ContainsDict,
+    Equals,
     MatchesAll,
     MatchesListwise,
     MatchesStructure,
-    Always,
-    Equals,
-    ContainsDict,
-    AfterPreprocessing,
 )
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-from hypothesis import (
-    given,
-)
+from testtools.twistedsupport import failed, succeeded
+from treq.testing import StringStubbingResource, StubTreq
 from twisted.internet import reactor
-from twisted.internet.task import (
-    deferLater,
-    Clock,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from treq.testing import (
-    StubTreq,
-    StringStubbingResource,
-)
+from twisted.internet.defer import inlineCallbacks
+from twisted.internet.task import Clock, deferLater
+from twisted.python.filepath import FilePath
 
-from ..config import (
-    create_testing_configuration,
-)
+from ..config import create_testing_configuration
 from ..downloader import (
-    RemoteSnapshotCacheService,
-    MagicFolderUpdater,
-    InMemoryMagicFolderFilesystem,
     DownloaderService,
+    InMemoryMagicFolderFilesystem,
+    MagicFolderUpdater,
+    RemoteSnapshotCacheService,
 )
-from ..magic_folder import (
-    MagicFolder,
-)
+from ..magic_folder import MagicFolder
+from ..participants import participants_from_collective
 from ..snapshot import (
-    create_local_author,
     RemoteSnapshot,
-    sign_snapshot,
-    format_filenode,
+    create_local_author,
     create_snapshot,
+    format_filenode,
+    sign_snapshot,
     write_snapshot_to_tahoe,
 )
-from ..status import (
-    FolderStatus,
-    WebSocketStatusService,
-)
-from ..tahoe_client import (
-    create_tahoe_client,
-)
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
-from ..participants import (
-    participants_from_collective,
-)
+from ..status import FolderStatus, WebSocketStatusService
+from ..tahoe_client import create_tahoe_client
+from ..testing.web import create_fake_tahoe_root, create_tahoe_treq_client
 from ..util.file import PathState, get_pathinfo, seconds_to_ns
-from .common import (
-    SyncTestCase,
-    AsyncTestCase,
-)
+from .common import AsyncTestCase, SyncTestCase
 from .matchers import matches_flushed_traceback
-from .strategies import (
-    tahoe_lafs_immutable_dir_capabilities,
-)
+from .strategies import tahoe_lafs_immutable_dir_capabilities
 
 
 class CacheTests(SyncTestCase):
     """
     Tests for ``RemoteSnapshotCacheService``
     """
+
     def setup_example(self):
         self.author = create_local_author("alice")
         self.magic_path = FilePath(self.mktemp())
@@ -148,8 +100,7 @@ class CacheTests(SyncTestCase):
         Trying to cache a non-existent capability produces an error
         """
         self.assertThat(
-            self.cache.get_snapshot_from_capability(remote_cap),
-            failed(Always())
+            self.cache.get_snapshot_from_capability(remote_cap), failed(Always())
         )
 
     def test_cache_single(self):
@@ -167,45 +118,47 @@ class CacheTests(SyncTestCase):
         _, content_cap = self.root.add_data("URI:CHK:", b"content\n" * 1000)
         _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))
 
-        data = dumps([
-            "dirnode",
-            {
-                "mutable": False,
-                "children": {
-                    "content": [
-                        "filenode",
-                        {
-                            "format": "CHK",
-                            "ro_uri": content_cap,
-                            "mutable": False,
-                            "metadata": {},
-                            "size": 4704
-                        }
-                    ],
-                    "metadata": [
-                        "filenode",
-                        {
-                            "format": "CHK",
-                            "ro_uri": metadata_cap,
-                            "mutable": False,
-                            "metadata": {
-                                "magic_folder": {
-                                    "author_signature": base64.b64encode(
-                                        sign_snapshot(
-                                            self.author,
-                                            relpath,
-                                            content_cap,
-                                            metadata_cap
-                                        ).signature
-                                    ),
-                                }
+        data = dumps(
+            [
+                "dirnode",
+                {
+                    "mutable": False,
+                    "children": {
+                        "content": [
+                            "filenode",
+                            {
+                                "format": "CHK",
+                                "ro_uri": content_cap,
+                                "mutable": False,
+                                "metadata": {},
+                                "size": 4704,
                             },
-                            "size": 246
-                        }
-                    ]
-                }
-            }
-        ])
+                        ],
+                        "metadata": [
+                            "filenode",
+                            {
+                                "format": "CHK",
+                                "ro_uri": metadata_cap,
+                                "mutable": False,
+                                "metadata": {
+                                    "magic_folder": {
+                                        "author_signature": base64.b64encode(
+                                            sign_snapshot(
+                                                self.author,
+                                                relpath,
+                                                content_cap,
+                                                metadata_cap,
+                                            ).signature
+                                        ),
+                                    }
+                                },
+                                "size": 246,
+                            },
+                        ],
+                    },
+                },
+            ]
+        )
         _, cap = self.root.add_data("URI:DIR2-CHK:", data)
 
         # we've set up some fake data; lets see if the cache service
@@ -214,13 +167,15 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": Equals([]),
-                        "name": Equals(relpath),
-                    }),
+                    metadata=ContainsDict(
+                        {
+                            "snapshot_version": Equals(1),
+                            "parents": Equals([]),
+                            "name": Equals(relpath),
+                        }
+                    ),
                 )
-            )
+            ),
         )
 
     def test_cache_parents(self):
@@ -239,51 +194,53 @@ class CacheTests(SyncTestCase):
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
-            content_data = u"content {}\n".format(who).encode("utf8") * 1000
+            content_data = "content {}\n".format(who).encode("utf8") * 1000
             content_cap = self.root.add_data("URI:CHK:", content_data)[1]
             metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))[1]
 
             _, cap = self.root.add_data(
                 "URI:DIR2-CHK:",
-                dumps([
-                    "dirnode",
-                    {
-                        "mutable": False,
-                        "children": {
-                            "content": [
-                                "filenode",
-                                {
-                                    "format": "CHK",
-                                    "ro_uri": content_cap,
-                                    "mutable": False,
-                                    "metadata": {},
-                                    "size": 4704
-                                }
-                            ],
-                            "metadata": [
-                                "filenode",
-                                {
-                                    "format": "CHK",
-                                    "ro_uri": metadata_cap,
-                                    "mutable": False,
-                                    "metadata": {
-                                        "magic_folder": {
-                                            "author_signature": base64.b64encode(
-                                                sign_snapshot(
-                                                    self.author,
-                                                    relpath,
-                                                    content_cap,
-                                                    metadata_cap
-                                                ).signature
-                                            ),
-                                        }
+                dumps(
+                    [
+                        "dirnode",
+                        {
+                            "mutable": False,
+                            "children": {
+                                "content": [
+                                    "filenode",
+                                    {
+                                        "format": "CHK",
+                                        "ro_uri": content_cap,
+                                        "mutable": False,
+                                        "metadata": {},
+                                        "size": 4704,
                                     },
-                                    "size": 246
-                                }
-                            ]
-                        }
-                    }
-                ])
+                                ],
+                                "metadata": [
+                                    "filenode",
+                                    {
+                                        "format": "CHK",
+                                        "ro_uri": metadata_cap,
+                                        "mutable": False,
+                                        "metadata": {
+                                            "magic_folder": {
+                                                "author_signature": base64.b64encode(
+                                                    sign_snapshot(
+                                                        self.author,
+                                                        relpath,
+                                                        content_cap,
+                                                        metadata_cap,
+                                                    ).signature
+                                                ),
+                                            }
+                                        },
+                                        "size": 246,
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                ),
             )
             parents = [cap]
             if genesis is None:
@@ -294,13 +251,15 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(genesis),
             succeeded(
                 MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": Equals([]),
-                        "name": Equals(relpath),
-                    }),
+                    metadata=ContainsDict(
+                        {
+                            "snapshot_version": Equals(1),
+                            "parents": Equals([]),
+                            "name": Equals(relpath),
+                        }
+                    ),
                 )
-            )
+            ),
         )
         # we should have a single snapshot cached
         self.assertThat(
@@ -314,13 +273,15 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals(relpath),
-                    }),
+                    metadata=ContainsDict(
+                        {
+                            "snapshot_version": Equals(1),
+                            "parents": AfterPreprocessing(len, Equals(1)),
+                            "name": Equals(relpath),
+                        }
+                    ),
                 )
-            )
+            ),
         )
         # we should have cached all the snapshots now
         self.assertThat(
@@ -336,13 +297,15 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals(relpath),
-                    }),
+                    metadata=ContainsDict(
+                        {
+                            "snapshot_version": Equals(1),
+                            "parents": AfterPreprocessing(len, Equals(1)),
+                            "name": Equals(relpath),
+                        }
+                    ),
                 )
-            )
+            ),
         )
         self.cache.tahoe_client.assert_not_called()
 
@@ -378,35 +341,39 @@ class UpdateTests(AsyncTestCase):
         # create the two Personal DMDs in Tahoe
         _, self.personal_cap = self.root.add_data(
             "URI:DIR2:",
-            dumps([
-                "dirnode",
-                {
-                    "children": {}
-                },
-            ]).encode("utf8"),
+            dumps(
+                [
+                    "dirnode",
+                    {"children": {}},
+                ]
+            ).encode("utf8"),
         )
         _, self.other_personal_cap = self.root.add_data(
             "URI:DIR2:",
-            dumps([
-                "dirnode",
-                {
-                    "children": {},
-                },
-            ]).encode("utf8"),
+            dumps(
+                [
+                    "dirnode",
+                    {
+                        "children": {},
+                    },
+                ]
+            ).encode("utf8"),
         )
 
         # create the Collective DMD with both alice and zara
         _, self.collective_cap = self.root.add_data(
             "URI:DIR2:",
-            dumps([
-                "dirnode",
-                {
-                    "children": {
-                        self.author.name: format_filenode(self.personal_cap),
-                        self.other.name: format_filenode(self.other_personal_cap),
-                    }
-                },
-            ]).encode("utf8"),
+            dumps(
+                [
+                    "dirnode",
+                    {
+                        "children": {
+                            self.author.name: format_filenode(self.personal_cap),
+                            self.other.name: format_filenode(self.other_personal_cap),
+                        }
+                    },
+                ]
+            ).encode("utf8"),
         )
 
         # create our configuration and a magic-folder using the
@@ -454,10 +421,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
         )
 
-        remote_snap = yield write_snapshot_to_tahoe(local_snap, self.other, self.tahoe_client)
+        remote_snap = yield write_snapshot_to_tahoe(
+            local_snap, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap.capability.encode("utf8"),
         )
 
@@ -492,10 +461,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
         )
 
-        remote_snap = yield write_snapshot_to_tahoe(local_snap, self.other, self.tahoe_client)
+        remote_snap = yield write_snapshot_to_tahoe(
+            local_snap, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap.capability.encode("utf8"),
         )
 
@@ -527,10 +498,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
         )
 
-        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        remote_snap0 = yield write_snapshot_to_tahoe(
+            local_snap0, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap0.capability.encode("utf8"),
         )
 
@@ -543,10 +516,12 @@ class UpdateTests(AsyncTestCase):
             parents=[local_snap0],
             modified_time=modified_time,
         )
-        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        remote_snap1 = yield write_snapshot_to_tahoe(
+            local_snap1, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap1.capability.encode("utf8"),
             replace=True,
         )
@@ -571,9 +546,8 @@ class UpdateTests(AsyncTestCase):
                     mtime_ns=seconds_to_ns(modified_time),
                     size=len(content1),
                 ),
-            )
+            ),
         )
-
 
     @inlineCallbacks
     def test_multi_update(self):
@@ -591,10 +565,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
         )
 
-        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        remote_snap0 = yield write_snapshot_to_tahoe(
+            local_snap0, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap0.capability.encode("utf8"),
         )
 
@@ -606,10 +582,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
             parents=[local_snap0],
         )
-        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        remote_snap1 = yield write_snapshot_to_tahoe(
+            local_snap1, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap1.capability.encode("utf8"),
             replace=True,
         )
@@ -632,10 +610,12 @@ class UpdateTests(AsyncTestCase):
             self.state_path,
             parents=[remote_snap1],
         )
-        remote_snap2 = yield write_snapshot_to_tahoe(local_snap2, self.other, self.tahoe_client)
+        remote_snap2 = yield write_snapshot_to_tahoe(
+            local_snap2, self.other, self.tahoe_client
+        )
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
-            u"foo",
+            "foo",
             remote_snap2.capability.encode("utf8"),
             replace=True,
         )
@@ -699,7 +679,7 @@ class ConflictTests(AsyncTestCase):
             return (200, {}, b"{}")
 
         tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
+            DecodedURL.from_text("http://invalid./"),
             StubTreq(StringStubbingResource(get_resource_for)),
         )
         particiapnts = participants_from_collective(
@@ -753,10 +733,17 @@ class ConflictTests(AsyncTestCase):
 
         self.assertThat(
             self.filesystem.actions,
-            Equals([
-                ("download", "foo", remote0.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
-            ])
+            Equals(
+                [
+                    ("download", "foo", remote0.content_cap),
+                    (
+                        "conflict",
+                        "foo",
+                        "foo.conflict-{}".format(self.carol.name),
+                        remote0.content_cap,
+                    ),
+                ]
+            ),
         )
 
     @inline_callbacks
@@ -776,9 +763,15 @@ class ConflictTests(AsyncTestCase):
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
-        self.alice_config.store_downloaded_snapshot("foo", parent, PathState(
-            mtime_ns=0, ctime_ns=0, size=len(parent_content),
-        ))
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            parent,
+            PathState(
+                mtime_ns=0,
+                ctime_ns=0,
+                size=len(parent_content),
+            ),
+        )
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
@@ -801,10 +794,12 @@ class ConflictTests(AsyncTestCase):
 
         self.assertThat(
             self.filesystem.actions,
-            Equals([
-                ("download", "foo", remote0.content_cap),
-                ("overwrite", "foo", remote0.content_cap),
-            ])
+            Equals(
+                [
+                    ("download", "foo", remote0.content_cap),
+                    ("overwrite", "foo", remote0.content_cap),
+                ]
+            ),
         )
 
     @inline_callbacks
@@ -816,7 +811,7 @@ class ConflictTests(AsyncTestCase):
 
         remotes = []
 
-        for letter in 'abcd':
+        for letter in "abcd":
             parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
             parent = RemoteSnapshot(
                 author=self.alice,
@@ -829,9 +824,15 @@ class ConflictTests(AsyncTestCase):
             remotes.append(parent)
 
         # set "our" parent to the oldest one
-        self.alice_config.store_downloaded_snapshot("foo", remotes[0], PathState(
-            mtime_ns=0, ctime_ns=0, size=len("dummy"),
-        ))
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            remotes[0],
+            PathState(
+                mtime_ns=0,
+                ctime_ns=0,
+                size=len("dummy"),
+            ),
+        )
 
         # we've 'seen' this file before so we must have the path locally
         self.alice_magic_path.child("foo").setContent(b"dummy")
@@ -843,10 +844,12 @@ class ConflictTests(AsyncTestCase):
         # we have a common ancestor so this should be an update
         self.assertThat(
             self.filesystem.actions,
-            Equals([
-                ("download", "foo", youngest.content_cap),
-                ("overwrite", "foo", youngest.content_cap),
-            ])
+            Equals(
+                [
+                    ("download", "foo", youngest.content_cap),
+                    ("overwrite", "foo", youngest.content_cap),
+                ]
+            ),
         )
 
     @inline_callbacks
@@ -855,7 +858,7 @@ class ConflictTests(AsyncTestCase):
         Give the updater a remote update with no ancestors
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("a" * 26, "a" * 52)
         parent = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -865,7 +868,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("b" * 26, "b" * 52)
         child = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -875,7 +878,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
-        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
+        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("z" * 26, "z" * 52)
         other = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -887,9 +890,15 @@ class ConflictTests(AsyncTestCase):
 
         # so "alice" has "other" already
         self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_downloaded_snapshot("foo", other, PathState(
-            mtime_ns=0, ctime_ns=0, size=len("whatever"),
-        ))
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            other,
+            PathState(
+                mtime_ns=0,
+                ctime_ns=0,
+                size=len("whatever"),
+            ),
+        )
 
         # ...child->parent aren't related to "other"
         yield self.updater.add_remote_snapshot("foo", child)
@@ -897,10 +906,17 @@ class ConflictTests(AsyncTestCase):
         # so, no common ancestor: a conflict
         self.assertThat(
             self.filesystem.actions,
-            Equals([
-                ("download", "foo", child.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
-            ])
+            Equals(
+                [
+                    ("download", "foo", child.content_cap),
+                    (
+                        "conflict",
+                        "foo",
+                        "foo.conflict-{}".format(self.alice.name),
+                        child.content_cap,
+                    ),
+                ]
+            ),
         )
 
     @inline_callbacks
@@ -909,7 +925,7 @@ class ConflictTests(AsyncTestCase):
         An update that's older than our local one
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("a" * 26, "a" * 52)
         parent = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -919,7 +935,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("b" * 26, "b" * 52)
         child = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -931,19 +947,21 @@ class ConflictTests(AsyncTestCase):
 
         # so "alice" has "child" already
         self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_downloaded_snapshot("foo", child, PathState(
-            mtime_ns=0, ctime_ns=0, size=len("whatever"),
-        ))
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            child,
+            PathState(
+                mtime_ns=0,
+                ctime_ns=0,
+                size=len("whatever"),
+            ),
+        )
 
         # we update with the parent (so, it's old)
         yield self.updater.add_remote_snapshot("foo", parent)
 
         # so we should do nothing
-        self.assertThat(
-            self.filesystem.actions,
-            Equals([
-            ])
-        )
+        self.assertThat(self.filesystem.actions, Equals([]))
 
     @inline_callbacks
     def test_update_filesystem_error(self):
@@ -951,7 +969,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to write to the filesystem
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("a" * 26, "a" * 52)
         parent = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -966,6 +984,7 @@ class ConflictTests(AsyncTestCase):
             cause the filesystem to fail to write due to a permissions problem
             """
             raise OSError(13, "Permission denied")
+
         self.filesystem.mark_overwrite = permissions_suck
 
         # set up a collective for 'alice' to pull an update from
@@ -982,8 +1001,12 @@ class ConflictTests(AsyncTestCase):
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
-        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
-        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+        yield tahoe_client.add_entry_to_mutable_directory(
+            collective, "carol", carol_personal
+        )
+        yield tahoe_client.add_entry_to_mutable_directory(
+            carol_personal, "foo", parent.capability
+        )
 
         alice_participants = participants_from_collective(
             collective,
@@ -1007,27 +1030,39 @@ class ConflictTests(AsyncTestCase):
         # status system should report our error
         self.assertThat(
             loads(self.status._marshal_state()),
-            ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": Equals([
+            ContainsDict(
+                {
+                    "state": ContainsDict(
+                        {
+                            "folders": ContainsDict(
                                 {
-                                    "timestamp": int(self.status._clock.seconds()),
-                                    "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
-                                },
-                            ]),
-                        }),
-                    }),
-                }),
-            })
+                                    "default": ContainsDict(
+                                        {
+                                            "errors": Equals(
+                                                [
+                                                    {
+                                                        "timestamp": int(
+                                                            self.status._clock.seconds()
+                                                        ),
+                                                        "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
+                                                    },
+                                                ]
+                                            ),
+                                        }
+                                    ),
+                                }
+                            ),
+                        }
+                    ),
+                }
+            ),
         )
 
         self.assertThat(
             self.eliot_logger.flush_tracebacks(OSError),
-            MatchesListwise([
-                matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")
-            ]),
+            MatchesListwise(
+                [matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")]
+            ),
         )
 
     @inline_callbacks
@@ -1036,7 +1071,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to download some content
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format("a" * 26, "a" * 52)
         parent = RemoteSnapshot(
             author=self.alice,
             metadata={"modification_time": 0},
@@ -1051,6 +1086,7 @@ class ConflictTests(AsyncTestCase):
             download fails for some reason
             """
             raise Exception("something bad")
+
         self.filesystem.download_content_to_staging = network_is_out
 
         # set up a collective for 'alice' to pull an update from
@@ -1067,8 +1103,12 @@ class ConflictTests(AsyncTestCase):
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
-        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
-        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+        yield tahoe_client.add_entry_to_mutable_directory(
+            collective, "carol", carol_personal
+        )
+        yield tahoe_client.add_entry_to_mutable_directory(
+            carol_personal, "foo", parent.capability
+        )
 
         alice_participants = participants_from_collective(
             collective,
@@ -1092,25 +1132,35 @@ class ConflictTests(AsyncTestCase):
         # status system should report our error
         self.assertThat(
             loads(self.status._marshal_state()),
-            ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": Equals([
+            ContainsDict(
+                {
+                    "state": ContainsDict(
+                        {
+                            "folders": ContainsDict(
                                 {
-                                    "timestamp": int(self.status._clock.seconds()),
-                                    "summary": "Failed to download snapshot for 'foo'.",
-                                },
-                            ]),
-                        }),
-                    }),
-                }),
-            })
+                                    "default": ContainsDict(
+                                        {
+                                            "errors": Equals(
+                                                [
+                                                    {
+                                                        "timestamp": int(
+                                                            self.status._clock.seconds()
+                                                        ),
+                                                        "summary": "Failed to download snapshot for 'foo'.",
+                                                    },
+                                                ]
+                                            ),
+                                        }
+                                    ),
+                                }
+                            ),
+                        }
+                    ),
+                }
+            ),
         )
 
         self.assertThat(
             self.eliot_logger.flush_tracebacks(Exception),
-            MatchesListwise([
-                matches_flushed_traceback(Exception, "something bad")
-            ]),
+            MatchesListwise([matches_flushed_traceback(Exception, "something bad")]),
         )

@@ -1,39 +1,18 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 from contextlib import contextmanager
 
-from six.moves import (
-    StringIO as MixedIO,
-)
-from twisted.python import usage
-from twisted.python.usage import (
-    UsageError,
-)
-from twisted.internet.defer import (
-    returnValue,
-)
-from twisted.internet.task import Cooperator
-
 import attr
-
-from eliot import (
-    start_action,
-)
+from eliot import start_action
 from eliot.twisted import inline_callbacks
+from six.moves import StringIO as MixedIO
+from twisted.internet.defer import returnValue
+from twisted.internet.task import Cooperator
+from twisted.python import usage
+from twisted.python.usage import UsageError
 
-from ...cli import (
-    MagicFolderCommand,
-    run_magic_folder_options,
-)
-from ...api_cli import (
-    MagicFolderApiCommand,
-    run_magic_folder_api_options,
-)
-
+from ...api_cli import MagicFolderApiCommand, run_magic_folder_api_options
+from ...cli import MagicFolderCommand, run_magic_folder_options
 
 
 @contextmanager
@@ -49,6 +28,7 @@ def _pump_client(http_client):
     :param treq.client.HTTPClient http_client:
         An HTTP Client wrapping a :py:`treq.testing.RequestTraversalAgent`.
     """
+
     def pump():
         while True:
             http_client._agent.flush()
@@ -62,6 +42,7 @@ def _pump_client(http_client):
         task.stop()
         coop.stop()
 
+
 def _subclass_of(base):
     """
     Construct an attrs validator that raises :py:`TypeError` is not a subclass
@@ -71,6 +52,7 @@ def _subclass_of(base):
 
     :return Callable[[Any, attr.Attribute, Any], None]: An attrs validator.
     """
+
     def validator(inst, attr, value):
         if not issubclass(value, base):
             raise TypeError(
@@ -94,9 +76,9 @@ class Command(object):
     :ivar Callable[[usage.Options], Deferred[None]] entry_point:
         The function to pass the options to.
     """
+
     options = attr.ib(validator=_subclass_of(usage.Options))
     entry_point = attr.ib(validator=attr.validators.is_callable())
-
 
 
 @attr.s(frozen=True)
@@ -107,6 +89,7 @@ class ProcessOutcome(object):
 
     def succeeded(self):
         return self.code == 0
+
 
 @inline_callbacks
 def _run_cli(command, argv, global_config=None, http_client=None):
@@ -157,11 +140,14 @@ def _run_cli(command, argv, global_config=None, http_client=None):
             stderr=options.stderr.getvalue(),
         )
 
-    returnValue(ProcessOutcome(
-        options.stdout.getvalue(),
-        options.stderr.getvalue(),
-        result,
-    ))
+    returnValue(
+        ProcessOutcome(
+            options.stdout.getvalue(),
+            options.stderr.getvalue(),
+            result,
+        )
+    )
+
 
 def cli(argv, global_config=None, http_client=None):
     """
@@ -183,6 +169,7 @@ def cli(argv, global_config=None, http_client=None):
     """
     command = Command(MagicFolderCommand, run_magic_folder_options)
     return _run_cli(command, argv, global_config, http_client)
+
 
 def api_cli(argv, global_config=None, http_client=None):
     """

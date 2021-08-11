@@ -230,7 +230,6 @@ class MagicFolderService(MultiService):
                 reason="scan_interval must be positive integer or null",
             )
 
-
         # create our author
         author = create_local_author(author_name)
 

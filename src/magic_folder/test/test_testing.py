@@ -15,55 +15,26 @@ after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
 this code can be deleted.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
-from twisted.web.http import (
-    GONE,
-)
-
-from allmydata.uri import (
-    from_string,
-    CHKFileURI,
-)
-from magic_folder.testing.web import (
-    create_tahoe_treq_client,
-    capability_generator,
-)
-from magic_folder.tahoe_client import (
-    create_tahoe_client,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from hypothesis import (
-    given,
-)
-from hypothesis.strategies import (
-    binary,
-)
-
-from testtools import (
-    TestCase,
-)
+from allmydata.uri import CHKFileURI, from_string
+from hyperlink import DecodedURL
+from hypothesis import given
+from hypothesis.strategies import binary
+from testtools import TestCase
 from testtools.matchers import (
+    AfterPreprocessing,
     Always,
     Equals,
     IsInstance,
     MatchesStructure,
-    AfterPreprocessing,
 )
-from testtools.twistedsupport import (
-    succeeded,
-)
+from testtools.twistedsupport import succeeded
+from twisted.internet.defer import inlineCallbacks
+from twisted.web.http import GONE
+
+from magic_folder.tahoe_client import create_tahoe_client
+from magic_folder.testing.web import capability_generator, create_tahoe_treq_client
 
 
 class FakeWebTest(TestCase):
@@ -110,6 +81,7 @@ class FakeWebTest(TestCase):
 
             round_trip_content = yield resp.content()
             self.assertEqual(content, round_trip_content)
+
         self.assertThat(
             do_test(),
             succeeded(Always()),
@@ -132,15 +104,12 @@ class FakeWebTest(TestCase):
 
             cap_raw = yield resp.content()
             self.assertThat(
-                cap_raw,
-                AfterPreprocessing(
-                    from_string,
-                    IsInstance(CHKFileURI)
-                )
+                cap_raw, AfterPreprocessing(from_string, IsInstance(CHKFileURI))
             )
 
             resp = yield http_client.put("http://example.com/uri", content)
             self.assertThat(resp.code, Equals(200))
+
         self.assertThat(
             do_test(),
             succeeded(Always()),
@@ -155,7 +124,9 @@ class FakeWebTest(TestCase):
         http_client = create_tahoe_treq_client()
         cap_gen = capability_generator("URI:CHK:")
 
-        uri = DecodedURL.from_text(u"http://example.com/uri?uri={}".format(next(cap_gen)))
+        uri = DecodedURL.from_text(
+            u"http://example.com/uri?uri={}".format(next(cap_gen))
+        )
         resp = http_client.get(uri.to_uri().to_text())
 
         self.assertThat(
@@ -164,7 +135,7 @@ class FakeWebTest(TestCase):
                 MatchesStructure(
                     code=Equals(GONE),
                 )
-            )
+            ),
         )
 
     def test_download_no_arg(self):
@@ -177,14 +148,7 @@ class FakeWebTest(TestCase):
         uri = DecodedURL.from_text(u"http://example.com/uri/")
         resp = http_client.get(uri.to_uri().to_text())
 
-        self.assertThat(
-            resp,
-            succeeded(
-                MatchesStructure(
-                    code=Equals(400)
-                )
-            )
-        )
+        self.assertThat(resp, succeeded(MatchesStructure(code=Equals(400))))
 
     @inlineCallbacks
     def test_add_directory_entry(self):
@@ -216,7 +180,7 @@ class FakeWebTest(TestCase):
                 MatchesStructure(
                     code=Equals(200),
                 )
-            )
+            ),
         )
         self.assertThat(
             resp.result.content(),

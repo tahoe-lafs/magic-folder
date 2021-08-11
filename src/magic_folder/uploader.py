@@ -1,68 +1,33 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import time
+
 import attr
-
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.application import (
-    service,
-)
+from eliot import ActionType, Message, MessageType, write_traceback
+from eliot.twisted import inline_callbacks
+from twisted.application import service
 from twisted.internet.defer import (
-    Deferred,
-    DeferredQueue,
-    DeferredLock,
     CancelledError,
-    maybeDeferred,
+    Deferred,
+    DeferredLock,
+    DeferredQueue,
     inlineCallbacks,
+    maybeDeferred,
 )
-from twisted.internet.task import (
-    LoopingCall,
-)
+from twisted.internet.task import LoopingCall
+from twisted.python.filepath import FilePath
 from twisted.web import http
-from zope.interface import (
-    Interface,
-    implementer,
-)
-from eliot import (
-    Message,
-    ActionType,
-    MessageType,
-    write_traceback,
-)
-from eliot.twisted import (
-    inline_callbacks,
-)
-from .common import APIError
-from .util.eliotutil import (
-    RELPATH,
-    log_call_deferred,
-)
-from .util.twisted import (
-    exclusively,
-)
-from .snapshot import (
-    LocalAuthor,
-    write_snapshot_to_tahoe,
-    create_snapshot,
-)
-from .status import (
-    FolderStatus,
-)
-from .tahoe_client import (
-    TahoeAPIError,
-)
-from .config import (
-    MagicFolderConfig,
-)
-from .participants import IWriteableParticipant
-from .util.file import get_pathinfo
+from zope.interface import Interface, implementer
 
+from .common import APIError
+from .config import MagicFolderConfig
+from .participants import IWriteableParticipant
+from .snapshot import LocalAuthor, create_snapshot, write_snapshot_to_tahoe
+from .status import FolderStatus
+from .tahoe_client import TahoeAPIError
+from .util.eliotutil import RELPATH, log_call_deferred
+from .util.file import get_pathinfo
+from .util.twisted import exclusively
 
 SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
     u"magic-folder:local-snapshot-creator:processing-item",
@@ -100,8 +65,11 @@ class LocalSnapshotCreator(object):
     When given the db and the author instance, this class that actually
     creates a local snapshot and stores it in the database.
     """
+
     _db = attr.ib()  # our database
-    _author = attr.ib(validator=attr.validators.instance_of(LocalAuthor))  # LocalAuthor instance
+    _author = attr.ib(
+        validator=attr.validators.instance_of(LocalAuthor)
+    )  # LocalAuthor instance
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _tahoe_client = attr.ib()
@@ -119,7 +87,7 @@ class LocalSnapshotCreator(object):
         # duplicate snapshots if scanning doesn't wait for snapshotting to
         # complete.
 
-        with path.asBytesMode("utf-8").open('rb') as input_stream:
+        with path.asBytesMode("utf-8").open("rb") as input_stream:
             # Query the db to check if there is an existing local
             # snapshot for the file being added.
             # If so, we use that as the parent.
@@ -157,7 +125,7 @@ class LocalSnapshotCreator(object):
                     snapshot_stash_dir=self._stash_dir,
                     parents=parents,
                     raw_remote_parents=raw_remote,
-                    #FIXME from path_info
+                    # FIXME from path_info
                     modified_time=int(path.asBytesMode("utf8").getModificationTime()),
                 )
 
@@ -166,6 +134,7 @@ class LocalSnapshotCreator(object):
                 self._db.store_local_snapshot(snapshot)
                 self._db.store_currentsnapshot_state(relpath, path_info.state)
 
+
 @attr.s
 @implementer(service.IService)
 class LocalSnapshotService(service.Service):
@@ -173,6 +142,7 @@ class LocalSnapshotService(service.Service):
     When told about local files (that must exist in `.magic_path` or below) we
     deliver it to the snapshot creator.
     """
+
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
@@ -228,16 +198,14 @@ class LocalSnapshotService(service.Service):
         :raises: TypeError if the input is not a FilePath.
         """
         if not isinstance(path, FilePath):
-            raise TypeError(
-                "argument must be a FilePath"
-            )
+            raise TypeError("argument must be a FilePath")
 
         try:
             # check that "path" is a descendant of magic_path
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
             self._status.upload_queued(relpath)
         except ValueError:
-            ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
+            ADD_FILE_FAILURE.log(relpath=path.path)  # FIXME relpath
             raise APIError(
                 reason=u"The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
@@ -249,9 +217,11 @@ class LocalSnapshotService(service.Service):
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if path.asBytesMode('utf-8').isdir():
+        if path.asBytesMode("utf-8").isdir():
             raise APIError(
-                reason=u"expected a regular file, {!r} is a directory".format(path.path),
+                reason=u"expected a regular file, {!r} is a directory".format(
+                    path.path
+                ),
                 code=http.NOT_ACCEPTABLE,
             )
 
@@ -266,6 +236,7 @@ class IRemoteSnapshotCreator(Interface):
     An object that can create remote snapshots representing the same
     information as some local snapshots that already exist.
     """
+
     def upload_local_snapshots():
         """
         Find local uncommitted snapshots and commit them to the grid.
@@ -287,7 +258,9 @@ class RemoteSnapshotCreator(object):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _local_author = attr.ib()
     _tahoe_client = attr.ib()
-    _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
+    _write_participant = attr.ib(
+        validator=attr.validators.provides(IWriteableParticipant)
+    )
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
     def initialize_upload_status(self):
@@ -325,7 +298,9 @@ class RemoteSnapshotCreator(object):
                     self._status.upload_started(relpath)
                     yield self._upload_some_snapshots(relpath)
             except TahoeAPIError as e:
-                self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
+                self._status.error_occurred(
+                    u"Failed to upload to Tahoe. code={}".format(e.code)
+                )
                 write_traceback()
                 # note: we will re-try on the next upload pass, after one scan_interval
             except Exception:
@@ -346,10 +321,12 @@ class RemoteSnapshotCreator(object):
             self._local_author,
             self._tahoe_client,
         )
-        Message.log(message_type="snapshot:metadata",
-                    metadata=remote_snapshot.metadata,
-                    relpath=relpath,
-                    capability=remote_snapshot.capability)
+        Message.log(
+            message_type="snapshot:metadata",
+            metadata=remote_snapshot.metadata,
+            relpath=relpath,
+            capability=remote_snapshot.capability,
+        )
 
         # if we crash here, we'll retry and re-upload (hopefully
         # de-duplication works for the content at laest) the
@@ -358,7 +335,9 @@ class RemoteSnapshotCreator(object):
         # At this point, remote snapshot creation successful for
         # the given relpath.
         # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(relpath, remote_snapshot, upload_started_at)
+        yield self._config.store_uploaded_snapshot(
+            relpath, remote_snapshot, upload_started_at
+        )
 
         # if we crash here, there's an inconsistency between our
         # remote and local state: we believe the version is X but
@@ -437,9 +416,7 @@ class UploaderService(service.Service):
         self._remote_snapshot_creator.initialize_upload_status()
 
         # do a looping call that polls the db for LocalSnapshots.
-        self._processing_loop = LoopingCall(
-            self.perform_upload
-        )
+        self._processing_loop = LoopingCall(self.perform_upload)
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
 

@@ -5,20 +5,17 @@
 Implements ```magic-folder list``` command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import json
 
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
+from twisted.internet.defer import inlineCallbacks
+
 
 @inlineCallbacks
-def magic_folder_list(reactor, config, client, output, as_json=False, include_secret_information=False):
+def magic_folder_list(
+    reactor, config, client, output, as_json=False, include_secret_information=False
+):
     """
     List folders associated with a node.
 

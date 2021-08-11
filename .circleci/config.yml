@@ -151,6 +151,24 @@ jobs:
       - store_test_results:
           path: "junit/"
 
+  lint-py3:
+    docker:
+      - auth: *DOCKERHUB_AUTH
+        image: "circleci/python:3"
+
+    steps:
+      - "checkout"
+
+      - run:
+          name: "Install tox"
+          command: |
+            pip install --user tox
+
+      - run:
+          name: "Static-ish code checks"
+          command: |
+            ~/.local/bin/tox -e codechecks
+
   debian-10: &DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH

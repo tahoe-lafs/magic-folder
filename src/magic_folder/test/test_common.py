@@ -5,50 +5,22 @@
 Tests for ``magic_folder.test.common``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import os
 import os.path
-from sys import (
-    modules,
-)
-from stat import (
-    S_IWUSR,
-    S_IWGRP,
-    S_IWOTH,
-)
+from stat import S_IWGRP, S_IWOTH, S_IWUSR
+from sys import modules
+from unittest import TestCase
 
-from unittest import (
-    TestCase,
-)
-
-from testtools import (
-    ExpectedException,
-)
-from testtools.matchers import (
-    Not,
-    Contains,
-    Equals,
-)
-
-from .common import (
-    SyncTestCase,
-    skipIf
-)
-from ..common import (
-    atomic_makedirs,
-)
-
-from twisted.python.filepath import (
-    Permissions,
-    FilePath,
-)
-
+from testtools import ExpectedException
+from testtools.matchers import Contains, Equals, Not
 from twisted.python import runtime
+from twisted.python.filepath import FilePath, Permissions
+
+from ..common import atomic_makedirs
+from .common import SyncTestCase, skipIf
+
 
 def get_synctestcase():
     # Hide this in a function so the test runner doesn't discover it and try
@@ -56,12 +28,15 @@ def get_synctestcase():
     class Tests(SyncTestCase):
         def test_foo(self):
             pass
+
     return Tests("test_foo")
+
 
 class SyncTestCaseTests(TestCase):
     """
     Tests for ``magic_folder.test.common.SyncTestCase``.
     """
+
     def test_mktemp_bytes(self):
         """
         ``SyncTestCase.mktemp`` returns ``bytes``.
@@ -107,7 +82,9 @@ class SyncTestCaseTests(TestCase):
             "Expected parent of {!r} to be a directory".format(tmp),
         )
 
-    @skipIf(runtime.platformType == "win32", "windows does not have unix-like permissions")
+    @skipIf(
+        runtime.platformType == "win32", "windows does not have unix-like permissions"
+    )
     def test_parent_writeable(self):
         """
         ``SyncTestCase.mktemp`` returns a path the parent of which is writeable
@@ -134,6 +111,7 @@ class SyncTestCaseTests(TestCase):
             "Expected {!r} not to exist".format(tmp),
         )
 
+
 def is_sublist(needle, haystack):
     """
     Determine if a list exists as a sublist of another list.
@@ -144,7 +122,7 @@ def is_sublist(needle, haystack):
         ``haystack``.
     """
     for i in range(len(haystack) - len(needle)):
-        if needle == haystack[i:i + len(needle)]:
+        if needle == haystack[i : i + len(needle)]:
             return True
     return False
 
@@ -153,6 +131,7 @@ class OtherTests(SyncTestCase):
     """
     Tests for other behaviors that don't obviously fit anywhere better.
     """
+
     def test_allmydata_test_not_loaded(self):
         """
         ``allmydata.test`` makes Hypothesis profile changes that are not
@@ -177,10 +156,7 @@ class TestAtomicMakedirs(SyncTestCase):
         temp = FilePath(self.mktemp())
         with atomic_makedirs(temp):
             pass
-        self.assertThat(
-            temp.exists(),
-            Equals(True)
-        )
+        self.assertThat(temp.exists(), Equals(True))
 
     def test_exception(self):
         """
@@ -190,7 +166,4 @@ class TestAtomicMakedirs(SyncTestCase):
         with ExpectedException(RuntimeError, "just testing"):
             with atomic_makedirs(temp):
                 raise RuntimeError("just testing")
-        self.assertThat(
-            temp.exists(),
-            Equals(False)
-        )
+        self.assertThat(temp.exists(), Equals(False))

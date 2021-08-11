@@ -1,81 +1,44 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import json
-from six.moves import (
-    StringIO,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.python.usage import (
-    UsageError,
-)
-from twisted.internet.task import (
-    Clock,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
-from hyperlink import (
-    DecodedURL,
-)
-from testtools.matchers import (
-    AfterPreprocessing,
-    Equals,
-    StartsWith,
-    Contains,
-    IsInstance,
-)
-from testtools.twistedsupport import (
-    failed,
-)
-from treq.testing import (
-    RequestSequence,
-    StringStubbingResource,
-    StubTreq,
-)
+
 from autobahn.twisted.testing import (
-    create_memory_agent,
     MemoryReactorClockResolver,
+    create_memory_agent,
     create_pumper,
 )
-from nacl.encoding import (
-    HexEncoder,
+from hyperlink import DecodedURL
+from nacl.encoding import HexEncoder
+from six.moves import StringIO
+from testtools.matchers import (
+    AfterPreprocessing,
+    Contains,
+    Equals,
+    IsInstance,
+    StartsWith,
 )
+from testtools.twistedsupport import failed
+from treq.testing import RequestSequence, StringStubbingResource, StubTreq
+from twisted.internet.defer import inlineCallbacks
+from twisted.internet.task import Clock
+from twisted.python.filepath import FilePath
+from twisted.python.usage import UsageError
 
-from ..client import (
-    create_magic_folder_client,
-    MagicFolderClient,
-    CannotAccessAPIError,
-)
 from ..api_cli import (
+    MagicFolderApiCommand,
     dispatch_magic_folder_api_command,
     run_magic_folder_api_options,
-    MagicFolderApiCommand,
 )
+from ..client import CannotAccessAPIError, MagicFolderClient, create_magic_folder_client
 from ..config import (
-    create_testing_configuration,
-    create_global_configuration,
     GlobalConfigDatabase,
+    create_global_configuration,
+    create_testing_configuration,
 )
-from ..status import (
-    StatusFactory,
-    WebSocketStatusService,
-)
-from ..snapshot import (
-    create_local_author,
-    LocalSnapshot,
-    RemoteSnapshot,
-)
+from ..snapshot import LocalSnapshot, RemoteSnapshot, create_local_author
+from ..status import StatusFactory, WebSocketStatusService
 from ..util.file import PathState
-from .common import (
-    AsyncTestCase,
-)
+from .common import AsyncTestCase
 
 
 class TestApiAddSnapshot(AsyncTestCase):
@@ -87,14 +50,15 @@ class TestApiAddSnapshot(AsyncTestCase):
     correct HTTP API is invoked .. (other tests confirm the correct
     operation of the APIs themselves).
     """
-    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    url = DecodedURL.from_text("http://invalid./v1/")
 
     def setUp(self):
         super(TestApiAddSnapshot, self).setUp()
         self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
         )
 
     @inlineCallbacks
@@ -106,23 +70,31 @@ class TestApiAddSnapshot(AsyncTestCase):
         stderr = StringIO()
 
         # 2-tuples of "expected request" and the corresponding reply
-        request_sequence = RequestSequence([
-            # ((method, url, params, headers, data), (code, headers, body)),
-            (
-                (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
-                 {b"path": [b"foo"]},
-                 {
-                     b'Host': [b'invalid.'],
-                     b'Content-Length': [b'0'],
-                     b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
-                     b'Accept-Encoding': [b'gzip']
-                 },
-                 b""),
-                (200, {}, b"{}")
-            ),
-        ])
+        request_sequence = RequestSequence(
+            [
+                # ((method, url, params, headers, data), (code, headers, body)),
+                (
+                    (
+                        b"post",
+                        self.url.child("magic-folder", "default", "snapshot")
+                        .to_text()
+                        .encode("utf8"),
+                        {b"path": [b"foo"]},
+                        {
+                            b"Host": [b"invalid."],
+                            b"Content-Length": [b"0"],
+                            b"Connection": [b"close"],
+                            b"Authorization": [
+                                b"Bearer " + self.global_config.api_token
+                            ],
+                            b"Accept-Encoding": [b"gzip"],
+                        },
+                        b"",
+                    ),
+                    (200, {}, b"{}"),
+                ),
+            ]
+        )
         http_client = StubTreq(
             StringStubbingResource(
                 request_sequence,
@@ -135,21 +107,21 @@ class TestApiAddSnapshot(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
-                ["--config", self.magic_config.path, "add-snapshot",
-                 "--file", "foo",
-                 "--folder", "default"],
+                [
+                    "--config",
+                    self.magic_config.path,
+                    "add-snapshot",
+                    "--file",
+                    "foo",
+                    "--folder",
+                    "default",
+                ],
                 stdout=stdout,
                 stderr=stderr,
                 client=client,
             )
-        self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("{}")
-        )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stdout.getvalue().strip(), Equals("{}"))
+        self.assertThat(stderr.getvalue().strip(), Equals(""))
 
     @inlineCallbacks
     def test_bad_file(self):
@@ -160,23 +132,31 @@ class TestApiAddSnapshot(AsyncTestCase):
         stderr = StringIO()
 
         # 2-tuples of "expected request" and the corresponding reply
-        request_sequence = RequestSequence([
-            # ((method, url, params, headers, data), (code, headers, body)),
-            (
-                (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
-                 {b"path": [b"../../../foo"]},
-                 {
-                     b'Host': [b'invalid.'],
-                     b'Content-Length': [b'0'],
-                     b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
-                     b'Accept-Encoding': [b'gzip']
-                 },
-                 b""),
-                (406, {}, b'{"reason": "a really good one"}')
-            ),
-        ])
+        request_sequence = RequestSequence(
+            [
+                # ((method, url, params, headers, data), (code, headers, body)),
+                (
+                    (
+                        b"post",
+                        self.url.child("magic-folder", "default", "snapshot")
+                        .to_text()
+                        .encode("utf8"),
+                        {b"path": [b"../../../foo"]},
+                        {
+                            b"Host": [b"invalid."],
+                            b"Content-Length": [b"0"],
+                            b"Connection": [b"close"],
+                            b"Authorization": [
+                                b"Bearer " + self.global_config.api_token
+                            ],
+                            b"Accept-Encoding": [b"gzip"],
+                        },
+                        b"",
+                    ),
+                    (406, {}, b'{"reason": "a really good one"}'),
+                ),
+            ]
+        )
         http_client = StubTreq(
             StringStubbingResource(
                 request_sequence,
@@ -191,20 +171,22 @@ class TestApiAddSnapshot(AsyncTestCase):
         with self.assertRaises(SystemExit):
             with request_sequence.consume(self.fail):
                 yield dispatch_magic_folder_api_command(
-                    ["--config", self.magic_config.path, "add-snapshot",
-                     "--file", "../../../foo",
-                     "--folder", "default"],
+                    [
+                        "--config",
+                        self.magic_config.path,
+                        "add-snapshot",
+                        "--file",
+                        "../../../foo",
+                        "--folder",
+                        "default",
+                    ],
                     stdout=stdout,
                     stderr=stderr,
                     client=client,
                 )
+        self.assertThat(stdout.getvalue().strip(), Equals(""))
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("")
-        )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals('{"reason": "a really good one"}')
+            stderr.getvalue().strip(), Equals('{"reason": "a really good one"}')
         )
 
 
@@ -212,19 +194,29 @@ class TestMagicApi(AsyncTestCase):
     """
     Tests related to 'magic-folder-api' in general
     """
-    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    url = DecodedURL.from_text("http://invalid./v1/")
 
     def test_load_config(self):
         """
         Correctly loads existing configuration
         """
         basedir = FilePath(self.mktemp())
-        create_global_configuration(basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1")
+        create_global_configuration(
+            basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1"
+        )
         options = MagicFolderApiCommand()
-        options.parseOptions([
-            "--config", basedir.path,
-            "add-snapshot", "--file", "foo", "--folder", "asdf",
-        ])
+        options.parseOptions(
+            [
+                "--config",
+                basedir.path,
+                "add-snapshot",
+                "--file",
+                "foo",
+                "--folder",
+                "asdf",
+            ]
+        )
         self.assertThat(
             options.config,
             IsInstance(GlobalConfigDatabase),
@@ -248,10 +240,17 @@ class TestMagicApi(AsyncTestCase):
         """
         options = MagicFolderApiCommand()
         with self.assertRaises(UsageError):
-            options.parseOptions([
-                "--config", self.mktemp(),
-                "add-snapshot", "--file", "foo", "--folder", "asdf",
-            ])
+            options.parseOptions(
+                [
+                    "--config",
+                    self.mktemp(),
+                    "add-snapshot",
+                    "--file",
+                    "foo",
+                    "--folder",
+                    "asdf",
+                ]
+            )
             options.config  # accessing the config fails; it can't be loaded
 
     def test_no_subcommand(self):
@@ -260,9 +259,12 @@ class TestMagicApi(AsyncTestCase):
         """
         options = MagicFolderApiCommand()
         with self.assertRaises(UsageError):
-            options.parseOptions([
-                "--config", self.mktemp(),
-            ])
+            options.parseOptions(
+                [
+                    "--config",
+                    self.mktemp(),
+                ]
+            )
 
     @inlineCallbacks
     def test_empty_command_prints_help(self):
@@ -273,14 +275,8 @@ class TestMagicApi(AsyncTestCase):
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command([], stdout=stdout)
 
-        self.assertThat(
-            stdout.getvalue(),
-            Contains("Error: must specify a subcommand")
-        )
-        self.assertThat(
-            stdout.getvalue(),
-            Contains("Usage: magic-folder-api")
-        )
+        self.assertThat(stdout.getvalue(), Contains("Error: must specify a subcommand"))
+        self.assertThat(stdout.getvalue(), Contains("Usage: magic-folder-api"))
 
     def test_version(self):
         """
@@ -299,14 +295,15 @@ class TestMagicApi(AsyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: isinstance(f.value, SystemExit) and f.value.code,
-                    Equals(0)
+                    Equals(0),
                 )
-            )
+            ),
         )
         from .. import __version__
+
         self.assertThat(
             stdout.getvalue().strip(),
-            Equals("magic-folder-api version {}".format(__version__))
+            Equals("magic-folder-api version {}".format(__version__)),
         )
 
     def test_no_file_arg(self):
@@ -326,13 +323,12 @@ class TestMagicApi(AsyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: isinstance(f.value, SystemExit) and f.value.code,
-                    Equals(1)
+                    Equals(1),
                 )
-            )
+            ),
         )
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("Error: --file / -f is required")
+            stdout.getvalue().strip(), Equals("Error: --file / -f is required")
         )
 
     def test_no_folder_arg(self):
@@ -352,13 +348,12 @@ class TestMagicApi(AsyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda f: isinstance(f.value, SystemExit) and f.value.code,
-                    Equals(1)
+                    Equals(1),
                 )
-            )
+            ),
         )
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("Error: --folder / -n is required")
+            stdout.getvalue().strip(), Equals("Error: --folder / -n is required")
         )
 
     @inlineCallbacks
@@ -373,7 +368,7 @@ class TestMagicApi(AsyncTestCase):
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
         )
         http_client = StubTreq(None)
@@ -386,32 +381,31 @@ class TestMagicApi(AsyncTestCase):
         # simulate a failure to connect
 
         def error(*args, **kw):
-            raise CannotAccessAPIError(
-                "Can't reach the magic folder daemon at all"
-            )
+            raise CannotAccessAPIError("Can't reach the magic folder daemon at all")
+
         client.add_snapshot = error
 
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
-                ["--config", basedir.path, "add-snapshot",
-                 "--file", "foo",
-                 "--folder", "default"],
+                [
+                    "--config",
+                    basedir.path,
+                    "add-snapshot",
+                    "--file",
+                    "foo",
+                    "--folder",
+                    "default",
+                ],
                 stdout=stdout,
                 stderr=stderr,
                 client=client,
             )
-        self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stdout.getvalue().strip(), Equals(""))
         self.assertThat(
             stderr.getvalue().strip(),
-            Contains("Error: Can't reach the magic folder daemon")
+            Contains("Error: Can't reach the magic folder daemon"),
         )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Contains("tcp:127.0.0.1:-1")
-        )
+        self.assertThat(stderr.getvalue().strip(), Contains("tcp:127.0.0.1:-1"))
 
     @inlineCallbacks
     def test_api_error(self):
@@ -425,28 +419,34 @@ class TestMagicApi(AsyncTestCase):
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
         )
 
         # 2-tuples of "expected request" and the corresponding reply
-        request_sequence = RequestSequence([
-            # ((method, url, params, headers, data), (code, headers, body)),
-            (
-                (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
-                 {b"path": [b"foo"]},
-                 {
-                     b'Host': [b'invalid.'],
-                     b'Content-Length': [b'0'],
-                     b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + global_config.api_token],
-                     b'Accept-Encoding': [b'gzip']
-                 },
-                 b""),
-                (406, {}, b'{"reason": "an explanation"}')
-            ),
-        ])
+        request_sequence = RequestSequence(
+            [
+                # ((method, url, params, headers, data), (code, headers, body)),
+                (
+                    (
+                        b"post",
+                        self.url.child("magic-folder", "default", "snapshot")
+                        .to_text()
+                        .encode("utf8"),
+                        {b"path": [b"foo"]},
+                        {
+                            b"Host": [b"invalid."],
+                            b"Content-Length": [b"0"],
+                            b"Connection": [b"close"],
+                            b"Authorization": [b"Bearer " + global_config.api_token],
+                            b"Accept-Encoding": [b"gzip"],
+                        },
+                        b"",
+                    ),
+                    (406, {}, b'{"reason": "an explanation"}'),
+                ),
+            ]
+        )
         http_client = StubTreq(
             StringStubbingResource(
                 request_sequence,
@@ -461,20 +461,22 @@ class TestMagicApi(AsyncTestCase):
         with self.assertRaises(SystemExit):
             with request_sequence.consume(self.fail):
                 yield dispatch_magic_folder_api_command(
-                    ["--config", basedir.path, "add-snapshot",
-                     "--file", "foo",
-                     "--folder", "default"],
+                    [
+                        "--config",
+                        basedir.path,
+                        "add-snapshot",
+                        "--file",
+                        "foo",
+                        "--folder",
+                        "default",
+                    ],
                     stdout=stdout,
                     stderr=stderr,
                     client=client,
                 )
+        self.assertThat(stdout.getvalue().strip(), Equals(""))
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("")
-        )
-        self.assertThat(
-            json.loads(stderr.getvalue()),
-            Equals({"reason": "an explanation"})
+            json.loads(stderr.getvalue()), Equals({"reason": "an explanation"})
         )
 
     @inlineCallbacks
@@ -489,7 +491,7 @@ class TestMagicApi(AsyncTestCase):
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
             "tcp:127.0.0.1:-1",
         )
         http_client = StubTreq(None)
@@ -504,24 +506,27 @@ class TestMagicApi(AsyncTestCase):
 
         def error(*args, **kw):
             raise the_bad_stuff
+
         client.add_snapshot = error
 
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
-                ["--config", basedir.path, "add-snapshot",
-                 "--file", "foo",
-                 "--folder", "default"],
+                [
+                    "--config",
+                    basedir.path,
+                    "add-snapshot",
+                    "--file",
+                    "foo",
+                    "--folder",
+                    "default",
+                ],
                 stdout=stdout,
                 stderr=stderr,
                 client=client,
             )
+        self.assertThat(stdout.getvalue().strip(), Equals(""))
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("")
-        )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Contains("Error: {}".format(the_bad_stuff))
+            stderr.getvalue().strip(), Contains("Error: {}".format(the_bad_stuff))
         )
 
 
@@ -535,7 +540,7 @@ class TestDumpState(AsyncTestCase):
         self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
         )
 
     @inlineCallbacks
@@ -588,41 +593,45 @@ class TestDumpState(AsyncTestCase):
         options = MagicFolderApiCommand()
         options.stdout = StringIO()
         options.stderr = StringIO()
-        options.parseOptions([
-            b"--config", self.magic_config.path,
-            b"dump-state",
-            b"--folder", b"test",
-        ])
+        options.parseOptions(
+            [
+                b"--config",
+                self.magic_config.path,
+                b"dump-state",
+                b"--folder",
+                b"test",
+            ]
+        )
         options._config = self.global_config
         yield run_magic_folder_api_options(options)
 
-        self.assertThat(
-            options.stderr.getvalue(),
-            Equals("")
-        )
+        self.assertThat(options.stderr.getvalue(), Equals(""))
         stdout_lines_no_whitespace = [
-            line.strip()
-            for line in options.stdout.getvalue().splitlines()
+            line.strip() for line in options.stdout.getvalue().splitlines()
         ]
 
         local_uuid = config.get_local_snapshot("foo").identifier
 
         self.assertThat(
             stdout_lines_no_whitespace,
-            Equals([
-                config.name,
-                "author: zara {}".format(author.signing_key.verify_key.encode(encoder=HexEncoder)),
-                "stash_path: {}".format(config.stash_path.path),
-                "magic_path: {}".format(config.magic_path.path),
-                "collective: URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
-                "local snapshots:",
-                "foo: {}".format(local_uuid),
-                "remote snapshots:",
-                "bar:",
-                "cap: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
-                "mtime: 0",
-                "size: 0",
-            ])
+            Equals(
+                [
+                    config.name,
+                    "author: zara {}".format(
+                        author.signing_key.verify_key.encode(encoder=HexEncoder)
+                    ),
+                    "stash_path: {}".format(config.stash_path.path),
+                    "magic_path: {}".format(config.magic_path.path),
+                    "collective: URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+                    "local snapshots:",
+                    "foo: {}".format(local_uuid),
+                    "remote snapshots:",
+                    "bar:",
+                    "cap: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+                    "mtime: 0",
+                    "size: 0",
+                ]
+            ),
         )
 
 
@@ -631,14 +640,15 @@ class TestApiParticipants(AsyncTestCase):
     Tests related to 'magic-folder-api add-participant' and
     'magic-folder-api list-participants'
     """
-    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    url = DecodedURL.from_text("http://invalid./v1/")
 
     def setUp(self):
         super(TestApiParticipants, self).setUp()
         self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
         )
 
     @inlineCallbacks
@@ -652,22 +662,23 @@ class TestApiParticipants(AsyncTestCase):
         # missing --personal-dmd
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
-                ["--config", self.magic_config.path, "add-participant",
-                 "--folder", "default",
-                 "--author-name", "amaya",
+                [
+                    "--config",
+                    self.magic_config.path,
+                    "add-participant",
+                    "--folder",
+                    "default",
+                    "--author-name",
+                    "amaya",
                 ],
                 stdout=stdout,
                 stderr=stderr,
                 client=None,
             )
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("Error: --personal-dmd / -p is required")
+            stdout.getvalue().strip(), Equals("Error: --personal-dmd / -p is required")
         )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stderr.getvalue().strip(), Equals(""))
 
     @inlineCallbacks
     def test_add_participant(self):
@@ -678,31 +689,40 @@ class TestApiParticipants(AsyncTestCase):
         stderr = StringIO()
 
         # 2-tuples of "expected request" and the corresponding reply
-        request_sequence = RequestSequence([
-            # ((method, url, params, headers, data), (code, headers, body)),
-            (
-                # expected request
-                (b"post",
-                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
-                 {},
-                 {
-                     b'Host': [b'invalid.'],
-                     b'Content-Length': [b'149'],
-                     b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
-                     b'Accept-Encoding': [b'gzip']
-                 },
-                 json.dumps({
-                     "personal_dmd": "URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328",
-                     "author": {
-                         "name": "amaya",
-                     }
-                 }).encode("utf8")
+        request_sequence = RequestSequence(
+            [
+                # ((method, url, params, headers, data), (code, headers, body)),
+                (
+                    # expected request
+                    (
+                        b"post",
+                        self.url.child("magic-folder", "default", "participants")
+                        .to_text()
+                        .encode("utf8"),
+                        {},
+                        {
+                            b"Host": [b"invalid."],
+                            b"Content-Length": [b"149"],
+                            b"Connection": [b"close"],
+                            b"Authorization": [
+                                b"Bearer " + self.global_config.api_token
+                            ],
+                            b"Accept-Encoding": [b"gzip"],
+                        },
+                        json.dumps(
+                            {
+                                "personal_dmd": "URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328",
+                                "author": {
+                                    "name": "amaya",
+                                },
+                            }
+                        ).encode("utf8"),
+                    ),
+                    # expected response
+                    (200, {}, b"{}"),
                 ),
-                # expected response
-                (200, {}, b"{}"),
-            ),
-        ])
+            ]
+        )
         http_client = StubTreq(
             StringStubbingResource(
                 request_sequence,
@@ -715,23 +735,23 @@ class TestApiParticipants(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
-                ["--config", self.magic_config.path, "add-participant",
-                 "--folder", "default",
-                 "--author-name", "amaya",
-                 "--personal-dmd", 'URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328',
+                [
+                    "--config",
+                    self.magic_config.path,
+                    "add-participant",
+                    "--folder",
+                    "default",
+                    "--author-name",
+                    "amaya",
+                    "--personal-dmd",
+                    "URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328",
                 ],
                 stdout=stdout,
                 stderr=stderr,
                 client=client,
             )
-        self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("{}")
-        )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stdout.getvalue().strip(), Equals("{}"))
+        self.assertThat(stderr.getvalue().strip(), Equals(""))
 
     @inlineCallbacks
     def test_list_participants_missing_arg(self):
@@ -744,20 +764,19 @@ class TestApiParticipants(AsyncTestCase):
         # --folder missing
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
-                ["--config", self.magic_config.path, "list-participants",
+                [
+                    "--config",
+                    self.magic_config.path,
+                    "list-participants",
                 ],
                 stdout=stdout,
                 stderr=stderr,
                 client=None,
             )
         self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("Error: --folder / -n is required")
+            stdout.getvalue().strip(), Equals("Error: --folder / -n is required")
         )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stderr.getvalue().strip(), Equals(""))
 
     @inlineCallbacks
     def test_list_participants(self):
@@ -768,25 +787,32 @@ class TestApiParticipants(AsyncTestCase):
         stderr = StringIO()
 
         # 2-tuples of "expected request" and the corresponding reply
-        request_sequence = RequestSequence([
-            # ((method, url, params, headers, data), (code, headers, body)),
-            (
-                # expected request
-                (b"get",
-                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
-                 {},
-                 {
-                     b'Host': [b'invalid.'],
-                     b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
-                     b'Accept-Encoding': [b'gzip']
-                 },
-                 b"",
+        request_sequence = RequestSequence(
+            [
+                # ((method, url, params, headers, data), (code, headers, body)),
+                (
+                    # expected request
+                    (
+                        b"get",
+                        self.url.child("magic-folder", "default", "participants")
+                        .to_text()
+                        .encode("utf8"),
+                        {},
+                        {
+                            b"Host": [b"invalid."],
+                            b"Connection": [b"close"],
+                            b"Authorization": [
+                                b"Bearer " + self.global_config.api_token
+                            ],
+                            b"Accept-Encoding": [b"gzip"],
+                        },
+                        b"",
+                    ),
+                    # expected response
+                    (200, {}, b"{}"),
                 ),
-                # expected response
-                (200, {}, b"{}"),
-            ),
-        ])
+            ]
+        )
         http_client = StubTreq(
             StringStubbingResource(
                 request_sequence,
@@ -799,35 +825,34 @@ class TestApiParticipants(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
-                ["--config", self.magic_config.path, "list-participants",
-                 "--folder", "default",
+                [
+                    "--config",
+                    self.magic_config.path,
+                    "list-participants",
+                    "--folder",
+                    "default",
                 ],
                 stdout=stdout,
                 stderr=stderr,
                 client=client,
             )
-        self.assertThat(
-            stdout.getvalue().strip(),
-            Equals("{}")
-        )
-        self.assertThat(
-            stderr.getvalue().strip(),
-            Equals("")
-        )
+        self.assertThat(stdout.getvalue().strip(), Equals("{}"))
+        self.assertThat(stderr.getvalue().strip(), Equals(""))
 
 
 class TestApiMonitor(AsyncTestCase):
     """
     Tests related to 'magic-folder-api monitor'
     """
-    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    url = DecodedURL.from_text("http://invalid./v1/")
 
     def setUp(self):
         super(TestApiMonitor, self).setUp()
         self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
-            FilePath(u"/no/tahoe/node-directory"),
+            FilePath("/no/tahoe/node-directory"),
         )
         self.reactor = MemoryReactorClockResolver()
         self.pumper = create_pumper()
@@ -837,9 +862,7 @@ class TestApiMonitor(AsyncTestCase):
         )
         self.factory = StatusFactory(self.service)
         self.agent = create_memory_agent(
-            self.reactor,
-            self.pumper,
-            lambda: self.factory.buildProtocol(None)
+            self.reactor, self.pumper, lambda: self.factory.buildProtocol(None)
         )
         return self.pumper.start()
 
@@ -856,8 +879,11 @@ class TestApiMonitor(AsyncTestCase):
         stderr = StringIO()
 
         yield dispatch_magic_folder_api_command(
-            ["--config", self.magic_config.path, "monitor",
-             "--once",
+            [
+                "--config",
+                self.magic_config.path,
+                "monitor",
+                "--once",
             ],
             stdout=stdout,
             stderr=stderr,
@@ -868,10 +894,12 @@ class TestApiMonitor(AsyncTestCase):
 
         self.assertThat(
             json.loads(stdout.getvalue()),
-            Equals({
-                'state': {
-                    'folders': {},
-                    'synchronizing': False,
+            Equals(
+                {
+                    "state": {
+                        "folders": {},
+                        "synchronizing": False,
+                    }
                 }
-            }),
+            ),
         )

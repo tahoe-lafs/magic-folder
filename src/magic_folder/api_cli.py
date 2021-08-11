@@ -1,43 +1,19 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-import sys
 import json
+import sys
 from collections import deque
 
 import humanize
-
-from twisted.internet.task import (
-    react,
-)
-
-from autobahn.twisted.websocket import (
-    WebSocketClientProtocol,
-    create_client_agent,
-)
-
+from autobahn.twisted.websocket import WebSocketClientProtocol, create_client_agent
+from twisted.internet.defer import inlineCallbacks, maybeDeferred
+from twisted.internet.task import react
 from twisted.python import usage
-from twisted.internet.defer import (
-    maybeDeferred,
-    inlineCallbacks,
-)
 
-from .cli import (
-    BaseOptions,
-    to_unicode,
-)
-from .client import (
-    CannotAccessAPIError,
-    MagicFolderApiError,
-)
-from .util.file import (
-    ns_to_seconds_float,
-)
+from .cli import BaseOptions, to_unicode
+from .client import CannotAccessAPIError, MagicFolderApiError
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
+from .util.file import ns_to_seconds_float
 
 
 class AddSnapshotOptions(usage.Options):
@@ -48,9 +24,9 @@ class AddSnapshotOptions(usage.Options):
 
     def postOptions(self):
         # required args
-        if self['file'] is None:
+        if self["file"] is None:
             raise usage.UsageError("--file / -f is required")
-        if self['folder'] is None:
+        if self["folder"] is None:
             raise usage.UsageError("--folder / -n is required")
 
 
@@ -61,20 +37,26 @@ def add_snapshot(options):
     magic-folder.
     """
     res = yield options.parent.client.add_snapshot(
-        options['folder'].decode("utf8"),
-        options['file'].decode("utf8"),
+        options["folder"].decode("utf8"),
+        options["file"].decode("utf8"),
     )
     print("{}".format(res), file=options.stdout)
 
 
 class DumpStateOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder whose state to dump", to_unicode),
+        (
+            "folder",
+            "n",
+            None,
+            "Name of the magic-folder whose state to dump",
+            to_unicode,
+        ),
     ]
 
     def postOptions(self):
         # required args
-        if self['folder'] is None:
+        if self["folder"] is None:
             raise usage.UsageError("--folder / -n is required")
 
 
@@ -82,12 +64,10 @@ def dump_state(options):
     """
     Dump the database / state for a particular folder
     """
-    from nacl.encoding import (
-        HexEncoder,
-    )
+    from nacl.encoding import HexEncoder
 
     global_config = options.parent.config
-    config = global_config.get_magic_folder(options['folder'])
+    config = global_config.get_magic_folder(options["folder"])
 
     author_info = "  author: {name} {public_key}".format(
         name=config.author.name,
@@ -111,7 +91,12 @@ def dump_state(options):
             q.extend(s.parents_local)
         print("    {}: {}".format(relpath, parents[:-4]), file=options.stdout)
     print("  remote snapshots:", file=options.stdout)
-    for relpath, ps, last_update, upload_duration in config.get_all_current_snapshot_pathstates():
+    for (
+        relpath,
+        ps,
+        last_update,
+        upload_duration,
+    ) in config.get_all_current_snapshot_pathstates():
         try:
             cap = config.get_remotesnapshot(relpath)
         except KeyError:
@@ -126,15 +111,28 @@ def dump_state(options):
             # resolution beyond 'seconds' so that speed calculations
             # (e.g. on small files) are more accurate.
             duration = ns_to_seconds_float(upload_duration)
-            print("        upload time: {}".format(humanize.naturaldelta(duration)), file=options.stdout)
-            print("        upload speed: {}/s".format(humanize.naturalsize(ps.size / duration)), file=options.stdout)
+            print(
+                "        upload time: {}".format(humanize.naturaldelta(duration)),
+                file=options.stdout,
+            )
+            print(
+                "        upload speed: {}/s".format(
+                    humanize.naturalsize(ps.size / duration)
+                ),
+                file=options.stdout,
+            )
 
 
 class AddParticipantOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to add a participant to"),
         ("author-name", "a", None, "Name of the new participant"),
-        ("personal-dmd", "p", None, "Read-capability of the participant's Personal DMD"),
+        (
+            "personal-dmd",
+            "p",
+            None,
+            "Read-capability of the participant's Personal DMD",
+        ),
         # not yet
         # ("author-verify-key", "k", None, "Base32-encoded verify key of the new participant"),
     ]
@@ -156,9 +154,9 @@ def add_participant(options):
     Add one new participant to an existing magic-folder
     """
     res = yield options.parent.client.add_participant(
-        options['folder'].decode("utf8"),
-        options['author-name'].decode("utf8"),
-        options['personal-dmd'].decode("utf8"),
+        options["folder"].decode("utf8"),
+        options["author-name"].decode("utf8"),
+        options["personal-dmd"].decode("utf8"),
     )
     print("{}".format(res), file=options.stdout)
 
@@ -183,14 +181,20 @@ def list_participants(options):
     List all participants in a magic-folder
     """
     res = yield options.parent.client.list_participants(
-        options['folder'].decode("utf8"),
+        options["folder"].decode("utf8"),
     )
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
 class ScanFolderOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder participants to scan", to_unicode),
+        (
+            "folder",
+            "n",
+            None,
+            "Name of the magic-folder participants to scan",
+            to_unicode,
+        ),
     ]
 
     def postOptions(self):
@@ -201,9 +205,10 @@ class ScanFolderOptions(usage.Options):
             if self[arg] is None:
                 raise usage.UsageError(error)
 
+
 def scan_folder(options):
     return options.parent.client.scan_folder(
-        options['folder'],
+        options["folder"],
     )
 
 
@@ -249,8 +254,8 @@ def monitor(options):
         },
         lambda: StatusProtocol(
             output=options.parent.stdout,
-            single_message=options['once'],
-        )
+            single_message=options["once"],
+        ),
     )
     yield proto.is_closed
 
@@ -260,20 +265,47 @@ class MagicFolderApiCommand(BaseOptions):
     """
     top-level command (entry-point is "magic-folder-api")
     """
+
     _websocket_agent = None  # initialized (at most once) in get_websocket_agent()
 
     def get_websocket_agent(self):
         if self._websocket_agent is None:
             from twisted.internet import reactor
+
             self._websocket_agent = create_client_agent(reactor)
         return self._websocket_agent
 
     subCommands = [
-        ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
-        ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
-        ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
-        ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
-        ["scan-folder", None, ScanFolderOptions, "Scan for local changes in a magic-folder."],
+        [
+            "add-snapshot",
+            None,
+            AddSnapshotOptions,
+            "Add a Snapshot of a file to a magic-folder.",
+        ],
+        [
+            "dump-state",
+            None,
+            DumpStateOptions,
+            "Dump the local state of a magic-folder.",
+        ],
+        [
+            "add-participant",
+            None,
+            AddParticipantOptions,
+            "Add a Participant to a magic-folder.",
+        ],
+        [
+            "list-participants",
+            None,
+            ListParticipantsOptions,
+            "List all Participants in a magic-folder.",
+        ],
+        [
+            "scan-folder",
+            None,
+            ScanFolderOptions,
+            "Scan for local changes in a magic-folder.",
+        ],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [
@@ -297,15 +329,18 @@ class MagicFolderApiCommand(BaseOptions):
         Display magic-folder version and exit.
         """
         from . import __version__
+
         print("magic-folder-api version {}".format(__version__), file=self.stdout)
         sys.exit(0)
 
     def postOptions(self):
-        if not hasattr(self, 'subOptions'):
+        if not hasattr(self, "subOptions"):
             raise usage.UsageError("must specify a subcommand")
 
     def getSynopsis(self):
-        return "Usage: magic-folder-api [global-options] <subcommand> [subcommand-options]"
+        return (
+            "Usage: magic-folder-api [global-options] <subcommand> [subcommand-options]"
+        )
 
     def getUsage(self, width=None):
         t = usage.Options.getUsage(self, width)
@@ -317,8 +352,9 @@ class MagicFolderApiCommand(BaseOptions):
 
 
 @inlineCallbacks
-def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None,
-                                      websocket_agent=None, config=None):
+def dispatch_magic_folder_api_command(
+    args, stdout=None, stderr=None, client=None, websocket_agent=None, config=None
+):
     """
     Run a magic-folder-api command with the given args
 
@@ -394,7 +430,7 @@ def run_magic_folder_api_options(options):
 
     # we want to let exceptions out to the top level if --debug is on
     # because this gives better stack-traces
-    if options['debug']:
+    if options["debug"]:
         yield maybeDeferred(main_func, so)
 
     else:
@@ -403,8 +439,11 @@ def run_magic_folder_api_options(options):
 
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
-            print(u"Error: {}".format(e), file=options.stderr)
-            print(u"   Attempted access via {}".format(options.config.api_client_endpoint), file=options.stderr)
+            print("Error: {}".format(e), file=options.stderr)
+            print(
+                "   Attempted access via {}".format(options.config.api_client_endpoint),
+                file=options.stderr,
+            )
             raise SystemExit(1)
 
         except MagicFolderApiError as e:
@@ -413,7 +452,7 @@ def run_magic_folder_api_options(options):
             raise SystemExit(2)
 
         except Exception as e:
-            print(u"Error: {}".format(e), file=options.stderr)
+            print("Error: {}".format(e), file=options.stderr)
             raise SystemExit(3)
 
 
@@ -426,9 +465,10 @@ def _entry():
 
     def main(reactor):
         return dispatch_magic_folder_api_command(sys.argv[1:])
+
     return react(main)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # this allows one to run this like "python -m magic_folder.api_cli"
     _entry()

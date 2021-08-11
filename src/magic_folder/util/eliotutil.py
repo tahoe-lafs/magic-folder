@@ -5,16 +5,18 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
 import inspect
 import json
 import os
+from functools import wraps
+from json import loads
+from logging import INFO, Handler, getLogger
+from sys import stdout
 
+import attr
+from attr.validators import optional, provides
 from eliot import (
     Action,
     Field,
@@ -28,51 +30,14 @@ from eliot import (
     start_task,
     write_traceback,
 )
-from eliot.twisted import inline_callbacks
-
-from logging import (
-    INFO,
-    Handler,
-    getLogger,
-)
-
-from eliot.twisted import (
-    DeferredContext,
-)
-from twisted.logger import (
-    ILogObserver,
-    eventAsJSON,
-    globalLogPublisher,
-)
-
-from twisted.internet.defer import (
-    maybeDeferred,
-)
-from twisted.python import usage
-
-from functools import wraps
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.python.logfile import (
-    LogFile,
-)
-
-from sys import (
-    stdout,
-)
+from eliot.twisted import DeferredContext, inline_callbacks
 from twisted.application.service import Service
-from zope.interface import (
-    implementer,
-)
-
-import attr
-from attr.validators import (
-    optional,
-    provides,
-)
-
-from json import loads
+from twisted.internet.defer import maybeDeferred
+from twisted.logger import ILogObserver, eventAsJSON, globalLogPublisher
+from twisted.python import usage
+from twisted.python.filepath import FilePath
+from twisted.python.logfile import LogFile
+from zope.interface import implementer
 
 try:
     # unwrap was introduced in python 3.4
@@ -89,9 +54,11 @@ def validateInstanceOf(t):
     """
     Return an Eliot validator that requires values to be instances of ``t``.
     """
+
     def validator(v):
         if not isinstance(v, t):
             raise ValidationError("{} not an instance of {}".format(v, t))
+
     return validator
 
 
@@ -130,9 +97,11 @@ def validateSetMembership(s):
     """
     Return an Eliot validator that requires values to be elements of ``s``.
     """
+
     def validator(v):
         if v not in s:
             raise ValidationError("{} not in {}".format(v, s))
+
     return validator
 
 
@@ -207,7 +176,7 @@ class _EliotLogging(Service):
     )
     task_fields = attr.ib(
         default=None,
-        validator=attr.validators.optional(attr.validators.instance_of(dict))
+        validator=attr.validators.optional(attr.validators.instance_of(dict)),
     )
     task = attr.ib(
         init=False,
@@ -242,12 +211,14 @@ class _EliotLogging(Service):
             remove_destination(dest)
         return Service.stopService(self)
 
+
 @implementer(ILogObserver)
 @attr.s(frozen=True)
 class _TwistedLoggerToEliotObserver(object):
     """
     An ``ILogObserver`` which re-publishes events as Eliot messages.
     """
+
     logger = attr.ib(default=None, validator=optional(provides(ILogger)))
 
     def _observe(self, event):
@@ -258,11 +229,7 @@ class _TwistedLoggerToEliotObserver(object):
         # twisted.python.log) don't have this so make it optional.
         flattened.pop(u"log_logger", None)
 
-        Message.new(
-            message_type=u"eliot:twisted",
-            **flattened
-        ).write(self.logger)
-
+        Message.new(message_type=u"eliot:twisted", **flattened).write(self.logger)
 
     # The actual ILogObserver interface uses this.
     __call__ = _observe
@@ -278,7 +245,7 @@ class _StdlibLoggingToEliotHandler(Handler):
             message_type=u"eliot:stdlib",
             log_level=record.levelname,
             logger=record.name,
-            message=record.getMessage()
+            message=record.getMessage(),
         ).write(self.logger)
 
         if record.exc_info:
@@ -315,18 +282,12 @@ class _DestinationParser(object):
         try:
             parser = getattr(self, u"_parse_{}".format(kind))
         except AttributeError:
-            raise ValueError(
-                u"Unknown destination description: {}".format(description)
-            )
+            raise ValueError(u"Unknown destination description: {}".format(description))
         else:
             return parser(kind, args)
 
     def _get_arg(self, arg_name, default, arg_list):
-        return dict(
-            arg.split(u"=", 1)
-            for arg
-            in arg_list
-        ).get(
+        return dict(arg.split(u"=", 1) for arg in arg_list).get(
             arg_name,
             default,
         )
@@ -340,7 +301,9 @@ class _DestinationParser(object):
         # approximately @.
         if u"@" in arg_text:
             raise ValueError(
-                u"Unsupported escape character (@) in destination text ({!r}).".format(arg_text),
+                u"Unsupported escape character (@) in destination text ({!r}).".format(
+                    arg_text
+                ),
             )
         arg_list = arg_text.split(u",")
         path_name = arg_list.pop(0)
@@ -348,16 +311,21 @@ class _DestinationParser(object):
             get_file = lambda: stdout
         else:
             path = FilePath(path_name)
-            rotate_length = int(self._get_arg(
-                u"rotate_length",
-                1024 * 1024 * 1024,
-                arg_list,
-            ))
-            max_rotated_files = int(self._get_arg(
-                u"max_rotated_files",
-                10,
-                arg_list,
-            ))
+            rotate_length = int(
+                self._get_arg(
+                    u"rotate_length",
+                    1024 * 1024 * 1024,
+                    arg_list,
+                )
+            )
+            max_rotated_files = int(
+                self._get_arg(
+                    u"max_rotated_files",
+                    10,
+                    arg_list,
+                )
+            )
+
             def get_file():
                 path.parent().makedirs(ignoreExistingDirectory=True)
                 return LogFile(
@@ -366,7 +334,9 @@ class _DestinationParser(object):
                     rotateLength=rotate_length,
                     maxRotatedFiles=max_rotated_files,
                 )
+
         return lambda reactor: FileDestination(get_file())
+
 
 _parse_destination_description = _DestinationParser().parse
 

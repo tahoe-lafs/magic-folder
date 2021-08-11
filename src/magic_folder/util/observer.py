@@ -1,19 +1,8 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-from twisted.internet.interfaces import (
-    IStreamServerEndpoint,
-)
-from twisted.internet.defer import (
-    succeed,
-    Deferred,
-)
+from __future__ import absolute_import, division, print_function
 
 import attr
-
+from twisted.internet.defer import Deferred, succeed
+from twisted.internet.interfaces import IStreamServerEndpoint
 from zope.interface import implementer
 
 
@@ -24,6 +13,7 @@ class ListenObserver(object):
     Calls .listen on the given endpoint and allows observers to be
     notified when that listen succeeds (or fails).
     """
+
     _endpoint = attr.ib()
     _observers = attr.ib(default=attr.Factory(list))
     _listened_result = attr.ib(default=None)

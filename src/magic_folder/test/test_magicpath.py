@@ -5,46 +5,21 @@
 Tests for ``magic_folder.magicpath``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from os.path import (
-    join,
-)
+from os.path import join
 
-from hypothesis import (
-    given,
-    assume,
-)
-from hypothesis.strategies import (
-    sampled_from,
-    lists,
-    randoms,
-)
+from hypothesis import assume, given
+from hypothesis.strategies import lists, randoms, sampled_from
+from testtools.matchers import AfterPreprocessing, Equals
 
-from testtools.matchers import (
-    AfterPreprocessing,
-    Equals,
-)
-
-from .common import (
-    SyncTestCase,
-)
-
+from ..magicpath import magic2path, path2magic, should_ignore_file
+from .common import SyncTestCase
 from .strategies import (
+    absolute_paths,
     path_segments,
     path_segments_without_dotfiles,
     relative_paths,
-    absolute_paths,
-)
-
-from ..magicpath import (
-    path2magic,
-    magic2path,
-    should_ignore_file,
 )
 
 
@@ -52,6 +27,7 @@ class MagicPath(SyncTestCase):
     """
     Tests for handling of paths related to the contents of Magic Folders.
     """
+
     @given(relative_paths())
     def test_roundtrip(self, path):
         """
@@ -105,9 +81,7 @@ class MagicPath(SyncTestCase):
         assume(u"/." not in path)
         assume(
             not any(
-                path.endswith(suffix)
-                for suffix
-                in [u".backup", u".tmp", u".conflict"]
+                path.endswith(suffix) for suffix in [u".backup", u".tmp", u".conflict"]
             )
         )
         self.assertThat(

@@ -5,44 +5,29 @@
 Tests for ``magic_folder.web``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from distutils.version import StrictVersion
-from json import (
-    loads,
-    dumps,
-)
+from json import dumps, loads
 
-from hyperlink import (
-    DecodedURL,
-)
-
-from hypothesis import (
-    given,
-    assume,
-    example,
-)
-
+import werkzeug
+from hyperlink import DecodedURL
+from hypothesis import assume, example, given
 from hypothesis.strategies import (
-    lists,
-    text,
     binary,
-    integers,
     dictionaries,
+    integers,
+    lists,
     sampled_from,
+    text,
 )
-
+from nacl.encoding import Base32Encoder
 from testtools.matchers import (
     AfterPreprocessing,
     AllMatch,
+    Contains,
     ContainsDict,
     Equals,
-    Contains,
     IsInstance,
     MatchesAny,
     MatchesDict,
@@ -50,12 +35,12 @@ from testtools.matchers import (
     MatchesPredicate,
     StartsWith,
 )
-from testtools.twistedsupport import (
-    succeeded,
-    has_no_result,
-)
-
+from testtools.twistedsupport import has_no_result, succeeded
+from treq.testing import StubTreq
 from twisted.internet.defer import Deferred
+from twisted.internet.task import Clock
+from twisted.python import runtime
+from twisted.python.filepath import FilePath
 from twisted.web.http import (
     BAD_REQUEST,
     CONFLICT,
@@ -68,67 +53,30 @@ from twisted.web.http import (
     OK,
     UNAUTHORIZED,
 )
-from twisted.internet.task import Clock
-from twisted.web.resource import (
-    Resource,
-)
-from twisted.web.static import (
-    Data,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.python import runtime
+from twisted.web.resource import Resource
+from twisted.web.static import Data
 
-from nacl.encoding import (
-    Base32Encoder,
-)
-
-from treq.testing import (
-    StubTreq,
-)
-
-import werkzeug
-
-from .common import (
-    skipIf,
-    SyncTestCase,
-)
+from ..client import authorized_request, url_to_bytes
+from ..util.capabilities import to_readonly_capability
+from ..util.file import PathState, seconds_to_ns
+from ..web import APIv1, magic_folder_resource
+from .common import SyncTestCase, skipIf
 from .fixtures import MagicFolderNode
 from .matchers import (
-    matches_response,
     header_contains,
     is_hex_uuid,
-    matches_flushed_traceback
+    matches_flushed_traceback,
+    matches_response,
 )
-
 from .strategies import (
-    path_segments,
-    folder_names,
-    relative_paths,
-    tokens,
     author_names,
-)
-
-from ..web import (
-    magic_folder_resource,
-    APIv1,
-)
-from ..util.file import (
-    PathState,
-    seconds_to_ns,
-)
-from ..client import (
-    authorized_request,
-    url_to_bytes,
-)
-from .strategies import (
-    tahoe_lafs_readonly_dir_capabilities,
-    tahoe_lafs_dir_capabilities,
+    folder_names,
+    path_segments,
+    relative_paths,
     tahoe_lafs_chk_capabilities,
-)
-from ..util.capabilities import (
-    to_readonly_capability,
+    tahoe_lafs_dir_capabilities,
+    tahoe_lafs_readonly_dir_capabilities,
+    tokens,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -141,6 +89,7 @@ class AuthorizationTests(SyncTestCase):
     """
     Tests for the authorization requirements for resources beneath ``/v1``.
     """
+
     @given(
         good_token=tokens(),
         bad_tokens=lists(tokens()),
@@ -172,7 +121,7 @@ class AuthorizationTests(SyncTestCase):
 
         root = magic_folder_resource(get_auth_token, Resource())
         treq = StubTreq(root)
-        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
+        url = DecodedURL.from_text("http://example.invalid./v1").child(*child_segments)
         encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
@@ -180,9 +129,8 @@ class AuthorizationTests(SyncTestCase):
         headers = {}
         if bad_tokens:
             headers[b"Authorization"] = list(
-                u"Bearer {}".format(bad_token).encode("ascii")
-                for bad_token
-                in bad_tokens
+                "Bearer {}".format(bad_token).encode("ascii")
+                for bad_token in bad_tokens
             )
 
         self.assertThat(
@@ -214,6 +162,7 @@ class AuthorizationTests(SyncTestCase):
         :param bytes content: The bytes we expect to see on a successful
             request.
         """
+
         def get_auth_token():
             return auth_token
 
@@ -236,13 +185,13 @@ class AuthorizationTests(SyncTestCase):
         )
 
         treq = StubTreq(root)
-        url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
+        url = DecodedURL.from_text("http://example.invalid./v1").child(*child_segments)
         encoded_url = url_to_bytes(url)
 
         # A request with no token at all or the wrong token should receive an
         # unauthorized response.
         headers = {
-            b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+            b"Authorization": "Bearer {}".format(auth_token).encode("ascii"),
         }
 
         self.assertThat(
@@ -257,6 +206,7 @@ class AuthorizationTests(SyncTestCase):
                 ),
             ),
         )
+
 
 def treq_for_folders(
     reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
@@ -290,11 +240,12 @@ class MagicFolderTests(SyncTestCase):
     """
     Tests for ``/v1/magic-folder``.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     def setUp(self):
         super(MagicFolderTests, self).setUp()
-        self.author_name = u"alice"
+        self.author_name = "alice"
 
     @given(
         sampled_from([b"PUT", b"PATCH", b"DELETE", b"OPTIONS"]),
@@ -340,19 +291,29 @@ class MagicFolderTests(SyncTestCase):
         )
 
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
-                'name': folder_name,
-                'author_name': self.author_name,
-                'local_path': folder_path.path,
-                'poll_interval': 60,
-                'scan_interval': None,
-            })),
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url,
+                dumps(
+                    {
+                        "name": folder_name,
+                        "author_name": self.author_name,
+                        "local_path": folder_path.path,
+                        "poll_interval": 60,
+                        "scan_interval": None,
+                    }
+                ),
+            ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
-                    headers_matcher=header_contains({
-                        u"Content-Type": Equals([u"application/json"]),
-                    }),
+                    headers_matcher=header_contains(
+                        {
+                            "Content-Type": Equals(["application/json"]),
+                        }
+                    ),
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({}),
@@ -381,13 +342,21 @@ class MagicFolderTests(SyncTestCase):
         )
 
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
-                'name': folder_name,
-                'author_name': self.author_name,
-                'local_path': folder_path.path,
-                'poll_interval': 60,
-                'scan_interval': None,
-            })),
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"POST",
+                self.url,
+                dumps(
+                    {
+                        "name": folder_name,
+                        "author_name": self.author_name,
+                        "local_path": folder_path.path,
+                        "poll_interval": 60,
+                        "scan_interval": None,
+                    }
+                ),
+            ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
@@ -433,16 +402,24 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** that has a negative
         scan_interval fails with NOT ACCEPTABLE.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(
+            object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False
+        )
         self.assertThat(
             authorized_request(
-                treq, AUTH_TOKEN, "POST", self.url, dumps({
-                    'name': 'valid',
-                    'author_name': 'author',
-                    'local_path': 'foo',
-                    'poll_interval': 60,
-                    'scan_interval': -123,
-                })
+                treq,
+                AUTH_TOKEN,
+                "POST",
+                self.url,
+                dumps(
+                    {
+                        "name": "valid",
+                        "author_name": "author",
+                        "local_path": "foo",
+                        "poll_interval": 60,
+                        "scan_interval": -123,
+                    }
+                ),
             ),
             succeeded(
                 matches_response(
@@ -451,7 +428,9 @@ class MagicFolderTests(SyncTestCase):
                         loads,
                         MatchesDict(
                             {
-                                "reason": StartsWith("scan_interval must be positive integer or null"),
+                                "reason": StartsWith(
+                                    "scan_interval must be positive integer or null"
+                                ),
                             }
                         ),
                     ),
@@ -490,8 +469,7 @@ class MagicFolderTests(SyncTestCase):
             AUTH_TOKEN,
             {
                 name: magic_folder_config(self.author_name, path_u)
-                for (name, path_u)
-                in folders.items()
+                for (name, path_u) in folders.items()
             },
             False,
         )
@@ -506,27 +484,32 @@ class MagicFolderTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
-                    headers_matcher=header_contains({
-                        u"Content-Type": Equals([u"application/json"]),
-                    }),
+                    headers_matcher=header_contains(
+                        {
+                            "Content-Type": Equals(["application/json"]),
+                        }
+                    ),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({
-                            name: {
-                                u"name": name,
-                                u"author": {
-                                    u"name": config.author.name,
-                                    u"verify_key": config.author.verify_key.encode(Base32Encoder),
-                                },
-                                u"magic_path": config.magic_path.path,
-                                u"stash_path": config.stash_path.path,
-                                u"poll_interval": config.poll_interval,
-                                u"scan_interval": config.scan_interval,
-                                u"is_admin": config.is_admin(),
+                        Equals(
+                            {
+                                name: {
+                                    "name": name,
+                                    "author": {
+                                        "name": config.author.name,
+                                        "verify_key": config.author.verify_key.encode(
+                                            Base32Encoder
+                                        ),
+                                    },
+                                    "magic_path": config.magic_path.path,
+                                    "stash_path": config.stash_path.path,
+                                    "poll_interval": config.poll_interval,
+                                    "scan_interval": config.scan_interval,
+                                    "is_admin": config.is_admin(),
+                                }
+                                for name, config in expected_folders.items()
                             }
-                            for name, config
-                            in expected_folders.items()
-                        }),
+                        ),
                     ),
                 ),
             ),
@@ -594,7 +577,9 @@ class MagicFolderInstanceTests(SyncTestCase):
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
-                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+                folder_name: magic_folder_config(
+                    self.author_name, local_path, admin=False
+                ),
             },
             False,
         )
@@ -620,7 +605,9 @@ class MagicFolderInstanceTests(SyncTestCase):
 
     # Note: It may be possible to get this test to fail on windows, using a different
     # means of causing the cleanup to fail
-    @skipIf(runtime.platformType == "win32", "windows does not have unix-like permissions")
+    @skipIf(
+        runtime.platformType == "win32", "windows does not have unix-like permissions"
+    )
     @given(
         folder_names(),
     )
@@ -638,7 +625,9 @@ class MagicFolderInstanceTests(SyncTestCase):
             basedir,
             AUTH_TOKEN,
             {
-                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+                folder_name: magic_folder_config(
+                    self.author_name, local_path, admin=False
+                ),
             },
             False,
         )
@@ -812,13 +801,14 @@ class RedirectTests(SyncTestCase):
     """
     Test for handling redirects from werkzeug.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     @skipIf(
         # The version in the nixos snapshot we are using is <1
         # so don't test redirect handling there.
         StrictVersion(werkzeug.__version__) < StrictVersion("1.0.0"),
-        "Old versions of werkzeug don't merge slashes."
+        "Old versions of werkzeug don't merge slashes.",
     )
     @given(
         folder_names(),
@@ -851,8 +841,10 @@ class RedirectTests(SyncTestCase):
         # Seee https://github.com/python-hyper/hyperlink/issues/168
         def to_iri(url_bytes):
             return DecodedURL.from_text(url_bytes.decode("utf8")).to_iri()
+
         match_url = AfterPreprocessing(
-            to_iri, Equals(dest_url.to_iri()),
+            to_iri,
+            Equals(dest_url.to_iri()),
         )
         self.assertThat(
             authorized_request(
@@ -869,20 +861,12 @@ class RedirectTests(SyncTestCase):
                     headers_matcher=header_contains(
                         {
                             "Content-Type": Equals(["application/json"]),
-                            "Location": MatchesListwise(
-                                [
-                                    match_url
-                                ]
-                            ),
+                            "Location": MatchesListwise([match_url]),
                         }
                     ),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        MatchesDict(
-                            {
-                                "location": match_url
-                            }
-                        ),
+                        MatchesDict({"location": match_url}),
                     ),
                 ),
             ),
@@ -901,18 +885,18 @@ class RedirectTests(SyncTestCase):
                 MatchesPredicate(
                     lambda rule: rule.is_leaf and not rule.alias,
                     "Rule %r is not a leaf, has an alias, or has a redirect specified. "
-                    "This will break our fix for https://github.com/pallets/werkzeug/issues/2157"
+                    "This will break our fix for https://github.com/pallets/werkzeug/issues/2157",
                 )
             ),
         )
-
 
 
 class ScanFolderTests(SyncTestCase):
     """
     Tests for scanning an existing Magic Folder.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     def setUp(self):
         super(ScanFolderTests, self).setUp()
@@ -935,7 +919,9 @@ class ScanFolderTests(SyncTestCase):
         relative_paths(),
         binary(),
     )
-    def test_wait_for_completion(self, author_name, folder_name, path_in_folder, some_content):
+    def test_wait_for_completion(
+        self, author_name, folder_name, path_in_folder, some_content
+    ):
         """
         A **PUT** request to **/v1/magic-folder/:folder-name/scan** does not receive a
         response before the snapshot has been created in the local database.
@@ -968,7 +954,7 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
+                dumps({"wait-for-snapshots": True}),
             ),
             has_no_result(),
         )
@@ -1007,7 +993,7 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
+                dumps({"wait-for-snapshots": True}),
             ),
             succeeded(
                 matches_response(
@@ -1015,7 +1001,7 @@ class ScanFolderTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({}),
-                    )
+                    ),
                 ),
             ),
         )
@@ -1047,20 +1033,22 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child("a-folder-that-doesnt-exist").child('scan'),
-                dumps({'wait-for-snapshots': True})
+                self.url.child("a-folder-that-doesnt-exist").child("scan"),
+                dumps({"wait-for-snapshots": True}),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        ContainsDict({
-                            "reason": StartsWith("No such magic-folder"),
-                        })
-                    )
+                        ContainsDict(
+                            {
+                                "reason": StartsWith("No such magic-folder"),
+                            }
+                        ),
+                    ),
                 ),
-            )
+            ),
         )
 
     @given(
@@ -1069,7 +1057,9 @@ class ScanFolderTests(SyncTestCase):
         relative_paths(),
         binary(),
     )
-    def test_scan_invalid_option(self, author_name, folder_name, path_in_folder, some_content):
+    def test_scan_invalid_option(
+        self, author_name, folder_name, path_in_folder, some_content
+    ):
         """
         An error results using /v1/magic-folder/<folder-name>/scan API without the required option.
         """
@@ -1088,14 +1078,14 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child(folder_name).child('scan'),
-                b"{}"
+                self.url.child(folder_name).child("scan"),
+                b"{}",
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
                 ),
-            )
+            ),
         )
 
 
@@ -1104,7 +1094,8 @@ class CreateSnapshotTests(SyncTestCase):
     Tests for creating a new snapshot in an existing Magic Folder using a
     **POST**.
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     @given(
         author_names(),
@@ -1112,7 +1103,9 @@ class CreateSnapshotTests(SyncTestCase):
         relative_paths(),
         binary(),
     )
-    def test_wait_for_completion(self, author, folder_name, path_in_folder, some_content):
+    def test_wait_for_completion(
+        self, author, folder_name, path_in_folder, some_content
+    ):
         """
         A **POST** request to **/v1/magic-folder/:folder-name/snapshot** does not receive a
         response before the snapshot has been created in the local database.
@@ -1144,7 +1137,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set("path", path_in_folder),
             ),
             has_no_result(),
         )
@@ -1182,7 +1175,7 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set("path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -1190,14 +1183,18 @@ class CreateSnapshotTests(SyncTestCase):
                     # instead, sometimes, if the path argument was bogus or
                     # somehow the path could not be read.
                     code_matcher=Equals(NOT_ACCEPTABLE),
-                    headers_matcher=header_contains({
-                        u"Content-Type": Equals([u"application/json"]),
-                    }),
+                    headers_matcher=header_contains(
+                        {
+                            "Content-Type": Equals(["application/json"]),
+                        }
+                    ),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        ContainsDict({
-                            u"reason": IsInstance(unicode),
-                        }),
+                        ContainsDict(
+                            {
+                                "reason": IsInstance(unicode),
+                            }
+                        ),
                     ),
                 ),
             ),
@@ -1227,8 +1224,10 @@ class CreateSnapshotTests(SyncTestCase):
         class NeverClient(object):
             def __call__(self, *args, **kw):
                 return Deferred()
+
             def __getattr__(self, *args):
                 return self
+
         node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
@@ -1247,7 +1246,7 @@ class CreateSnapshotTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
+                self.url.child(folder_name, "snapshot").set("path", path_in_folder),
             ),
             succeeded(
                 matches_response(
@@ -1261,34 +1260,48 @@ class CreateSnapshotTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"GET",
-                DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
+                DecodedURL.from_text("http://example.invalid./v1/snapshot"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
-                    headers_matcher=header_contains({
-                        u"Content-Type": Equals([u"application/json"]),
-                    }),
+                    headers_matcher=header_contains(
+                        {
+                            "Content-Type": Equals(["application/json"]),
+                        }
+                    ),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        MatchesDict({
-                            folder_name: MatchesDict({
-                                path_in_folder: MatchesListwise([
-                                    MatchesDict({
-                                        u"type": Equals(u"local"),
-                                        u"identifier": is_hex_uuid(),
-                                        # XXX It would be nice to see some
-                                        # parents if there are any.
-                                        u"parents": Equals([]),
-                                        u"content-path": AfterPreprocessing(
-                                            lambda path: FilePath(path).getContent(),
-                                            Equals(some_content),
+                        MatchesDict(
+                            {
+                                folder_name: MatchesDict(
+                                    {
+                                        path_in_folder: MatchesListwise(
+                                            [
+                                                MatchesDict(
+                                                    {
+                                                        "type": Equals("local"),
+                                                        "identifier": is_hex_uuid(),
+                                                        # XXX It would be nice to see some
+                                                        # parents if there are any.
+                                                        "parents": Equals([]),
+                                                        "content-path": AfterPreprocessing(
+                                                            lambda path: FilePath(
+                                                                path
+                                                            ).getContent(),
+                                                            Equals(some_content),
+                                                        ),
+                                                        "author": Equals(
+                                                            folder_config.author.to_remote_author().to_json()
+                                                        ),
+                                                    }
+                                                ),
+                                            ]
                                         ),
-                                        u"author": Equals(folder_config.author.to_remote_author().to_json()),
-                                    }),
-                                ]),
-                            }),
-                        }),
+                                    }
+                                ),
+                            }
+                        ),
                     ),
                 ),
             ),
@@ -1297,10 +1310,12 @@ class CreateSnapshotTests(SyncTestCase):
     @given(
         author_names(),
         folder_names(),
-        sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
+        sampled_from(["..", "foo/../..", "/tmp/foo"]),
         binary(),
     )
-    def test_create_snapshot_fails(self, author, folder_name, path_outside_folder, some_content):
+    def test_create_snapshot_fails(
+        self, author, folder_name, path_outside_folder, some_content
+    ):
         """
         A **POST** to **/v1/magic-folder/:folder-name/snapshot** with a **path** query argument
         fails if the **path** is outside the magic-folder
@@ -1323,7 +1338,9 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child(folder_name, "snapshot").set(u"path", path_outside_folder),
+                self.url.child(folder_name, "snapshot").set(
+                    "path", path_outside_folder
+                ),
             ),
             succeeded(
                 matches_response(
@@ -1352,19 +1369,21 @@ class CreateSnapshotTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 b"POST",
-                self.url.child("a-folder-that-doesnt-exist").child('snapshot'),
+                self.url.child("a-folder-that-doesnt-exist").child("snapshot"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        ContainsDict({
-                            "reason": StartsWith("No such magic-folder"),
-                        })
-                    )
+                        ContainsDict(
+                            {
+                                "reason": StartsWith("No such magic-folder"),
+                            }
+                        ),
+                    ),
                 ),
-            )
+            ),
         )
 
 
@@ -1372,7 +1391,8 @@ class ParticipantsTests(SyncTestCase):
     """
     Tests relating to the '/v1/participants/<folder>` API
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     def test_participants_no_folder(self):
         """
@@ -1401,12 +1421,14 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(NOT_FOUND),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        ContainsDict({
-                            "reason": StartsWith("No such magic-folder"),
-                        })
-                    )
+                        ContainsDict(
+                            {
+                                "reason": StartsWith("No such magic-folder"),
+                            }
+                        ),
+                    ),
                 ),
-            )
+            ),
         )
 
         self.assertThat(
@@ -1420,7 +1442,7 @@ class ParticipantsTests(SyncTestCase):
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
                 ),
-            )
+            ),
         )
 
     @given(
@@ -1462,20 +1484,19 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
-                }).encode("utf8")
+                dumps(
+                    {
+                        "author": {"name": "kelly"},
+                        "personal_dmd": personal_dmd,
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(CREATED),
-                    body_matcher=AfterPreprocessing(
-                        loads,
-                        Equals({})
-                    )
+                    body_matcher=AfterPreprocessing(loads, Equals({})),
                 )
-            )
+            ),
         )
 
         # confirm that the "list participants" API includes the added
@@ -1492,17 +1513,21 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(OK),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({
-                            u"iris": {
-                                u"personal_dmd": to_readonly_capability(folder_config.upload_dircap),
-                            },
-                            u'kelly': {
-                                u'personal_dmd': personal_dmd,
+                        Equals(
+                            {
+                                "iris": {
+                                    "personal_dmd": to_readonly_capability(
+                                        folder_config.upload_dircap
+                                    ),
+                                },
+                                "kelly": {
+                                    "personal_dmd": personal_dmd,
+                                },
                             }
-                        })
-                    )
+                        ),
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1544,10 +1569,10 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        MatchesDict({"reason": StartsWith("Could not load JSON: ")})
-                    )
+                        MatchesDict({"reason": StartsWith("Could not load JSON: ")}),
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1582,19 +1607,20 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "not-the-author": {"name": "kelly"},
-                }).encode("utf8")
+                dumps(
+                    {
+                        "not-the-author": {"name": "kelly"},
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
-                        loads,
-                        Equals({"reason": "Require input: author, personal_dmd"})
-                    )
+                        loads, Equals({"reason": "Require input: author, personal_dmd"})
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1629,20 +1655,21 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "author": {"not-the-name": "kelly"},
-                    "personal_dmd": "fake",
-                }).encode("utf8")
+                dumps(
+                    {
+                        "author": {"not-the-name": "kelly"},
+                        "personal_dmd": "fake",
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
-                        loads,
-                        Equals({"reason": "'author' requires: name"})
-                    )
+                        loads, Equals({"reason": "'author' requires: name"})
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1650,7 +1677,9 @@ class ParticipantsTests(SyncTestCase):
         folder_names(),
         tahoe_lafs_chk_capabilities(),
     )
-    def test_add_participant_personal_dmd_non_dir(self, author, folder_name, personal_dmd):
+    def test_add_participant_personal_dmd_non_dir(
+        self, author, folder_name, personal_dmd
+    ):
         """
         When a new Personal DMD is passed that is not a directory
         capability an error is produced.
@@ -1679,20 +1708,26 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
-                }).encode("utf8")
+                dumps(
+                    {
+                        "author": {"name": "kelly"},
+                        "personal_dmd": personal_dmd,
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
-                    )
+                        Equals(
+                            {
+                                "reason": "personal_dmd must be a read-only directory capability."
+                            }
+                        ),
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1700,7 +1735,9 @@ class ParticipantsTests(SyncTestCase):
         folder_names(),
         tahoe_lafs_dir_capabilities(),
     )
-    def test_add_participant_personal_dmd_writable(self, author, folder_name, personal_dmd):
+    def test_add_participant_personal_dmd_writable(
+        self, author, folder_name, personal_dmd
+    ):
         """
         If the added Personal DMD is read-write an error is signaled
         """
@@ -1728,20 +1765,26 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
-                }).encode("utf8")
+                dumps(
+                    {
+                        "author": {"name": "kelly"},
+                        "personal_dmd": personal_dmd,
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
-                    )
+                        Equals(
+                            {
+                                "reason": "personal_dmd must be a read-only directory capability."
+                            }
+                        ),
+                    ),
                 )
-            )
+            ),
         )
 
     @given(
@@ -1764,8 +1807,10 @@ class ParticipantsTests(SyncTestCase):
         class ErrorClient(object):
             def __call__(self, *args, **kw):
                 raise Exception("an unexpected error")
+
             def __getattr__(self, *args):
                 return self
+
         tahoe_client = ErrorClient()
 
         treq = treq_for_folders(
@@ -1791,18 +1836,17 @@ class ParticipantsTests(SyncTestCase):
                 matches_response(
                     code_matcher=Equals(INTERNAL_SERVER_ERROR),
                     body_matcher=AfterPreprocessing(
-                        loads,
-                        Equals({"reason": "unexpected error processing request"})
-                    )
+                        loads, Equals({"reason": "unexpected error processing request"})
+                    ),
                 )
-            )
+            ),
         )
 
         self.assertThat(
             self.eliot_logger.flushTracebacks(Exception),
-            MatchesListwise([
-                matches_flushed_traceback(Exception, "an unexpected error")
-            ]),
+            MatchesListwise(
+                [matches_flushed_traceback(Exception, "an unexpected error")]
+            ),
         )
 
     @given(
@@ -1826,8 +1870,10 @@ class ParticipantsTests(SyncTestCase):
         class ErrorClient(object):
             def __call__(self, *args, **kw):
                 raise Exception("an unexpected error")
+
             def __getattr__(self, *args):
                 return self
+
         tahoe_client = ErrorClient()
 
         treq = treq_for_folders(
@@ -1848,27 +1894,28 @@ class ParticipantsTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
-                dumps({
-                    "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
-                }).encode("utf8")
+                dumps(
+                    {
+                        "author": {"name": "kelly"},
+                        "personal_dmd": personal_dmd,
+                    }
+                ).encode("utf8"),
             ),
             succeeded(
                 matches_response(
                     code_matcher=Equals(INTERNAL_SERVER_ERROR),
                     body_matcher=AfterPreprocessing(
-                        loads,
-                        Equals({"reason": "unexpected error processing request"})
-                    )
+                        loads, Equals({"reason": "unexpected error processing request"})
+                    ),
                 )
-            )
+            ),
         )
 
         self.assertThat(
             self.eliot_logger.flushTracebacks(Exception),
-            MatchesListwise([
-                matches_flushed_traceback(Exception, "an unexpected error")
-            ]),
+            MatchesListwise(
+                [matches_flushed_traceback(Exception, "an unexpected error")]
+            ),
         )
 
 
@@ -1876,7 +1923,8 @@ class FileStatusTests(SyncTestCase):
     """
     Tests relating to the '/v1/magic-folder/<folder>/file-status` API
     """
-    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
 
     def test_empty(self):
         """
@@ -1912,11 +1960,10 @@ class FileStatusTests(SyncTestCase):
                     code_matcher=Equals(200),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals([
-                        ]),
-                    )
+                        Equals([]),
+                    ),
                 ),
-            )
+            ),
         )
 
     def test_one_item(self):
@@ -1960,16 +2007,18 @@ class FileStatusTests(SyncTestCase):
                     code_matcher=Equals(200),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals([
-                            {
-                                "mtime": 1,
-                                "size": 123,
-                                "relpath": "foo",
-                                "last-updated": 42,
-                                "last-upload-duration": None,
-                            },
-                        ]),
-                    )
+                        Equals(
+                            [
+                                {
+                                    "mtime": 1,
+                                    "size": 123,
+                                    "relpath": "foo",
+                                    "last-updated": 42,
+                                    "last-upload-duration": None,
+                                },
+                            ]
+                        ),
+                    ),
                 ),
-            )
+            ),
         )

@@ -8,15 +8,9 @@ This also does some test-only related setup.  The expectation is that this
 code will never be loaded under real usage.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from sys import (
-    stderr,
-)
+from sys import stderr
 
 from foolscap.logging.incident import IncidentQualifier
 
@@ -24,6 +18,7 @@ from foolscap.logging.incident import IncidentQualifier
 class NonQualifier(IncidentQualifier, object):
     def check_event(self, ev):
         return False
+
 
 def disable_foolscap_incidents():
     # Foolscap-0.2.9 (at least) uses "trailing delay" in its default incident
@@ -35,13 +30,15 @@ def disable_foolscap_incidents():
     # this disables the timer for the entire process: do not call this from
     # regular runtime code; only use it for unit tests that are running under
     # Trial.
-    #IncidentReporter.TRAILING_DELAY = None
+    # IncidentReporter.TRAILING_DELAY = None
     #
     # Also, using Incidents more than doubles the test time. So we just
     # disable them entirely.
     from foolscap.logging.log import theLogger
+
     iq = NonQualifier()
     theLogger.setIncidentQualifier(iq)
+
 
 # we disable incident reporting for all unit tests.
 disable_foolscap_incidents()
@@ -50,10 +47,7 @@ disable_foolscap_incidents()
 def _configure_hypothesis():
     from os import environ
 
-    from hypothesis import (
-        HealthCheck,
-        settings,
-    )
+    from hypothesis import HealthCheck, settings
 
     # if you add more profiles here, note that profile names aren't
     # namespaced in any way and Hypothesis allows profile name
@@ -89,7 +83,10 @@ def _configure_hypothesis():
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
     print("Loading Hypothesis profile {}".format(profile_name), file=stderr)
     settings.load_profile(profile_name)
+
+
 _configure_hypothesis()
 
 from eliot import to_file
+
 to_file(open("eliot.log", "w"))
