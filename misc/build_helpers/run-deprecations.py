@@ -1,23 +1,29 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-import sys, os, io, re
-from twisted.internet import reactor, protocol, task, defer
-from twisted.python.procutils import which
+import io
+import os
+import re
+import sys
+
+from twisted.internet import defer, protocol, reactor, task
 from twisted.python import usage
+from twisted.python.procutils import which
 
 # run the command with python's deprecation warnings turned on, capturing
 # stderr. When done, scan stderr for warnings, write them to a separate
 # logfile (so the buildbot can see them), and return rc=1 if there were any.
 
+
 class Options(usage.Options):
     optParameters = [
         ["warnings", None, None, "file to write warnings into at end of test run"],
-        ["package", None, None, "Python package to which to restrict warning collection"]
-        ]
+        [
+            "package",
+            None,
+            None,
+            "Python package to which to restrict warning collection",
+        ],
+    ]
 
     def parseArgs(self, command, *args):
         self["command"] = command
@@ -27,13 +33,16 @@ class Options(usage.Options):
 python run-deprecations.py [--warnings=STDERRFILE] [--package=PYTHONPACKAGE ] COMMAND ARGS..
 """
 
+
 class RunPP(protocol.ProcessProtocol):
     def outReceived(self, data):
         self.stdout.write(data)
         sys.stdout.write(data)
+
     def errReceived(self, data):
         self.stderr.write(data)
         sys.stderr.write(data)
+
     def processEnded(self, reason):
         signal = reason.value.signal
         rc = reason.value.exitCode
@@ -58,12 +67,17 @@ def make_matcher(options):
     """
     pattern = r".*\.py[oc]?:\d+: (Pending)?DeprecationWarning: .*"
     if options["package"]:
-        pattern = r".*/{}/".format(
-            re.escape(options["package"]),
-        ) + pattern
+        pattern = (
+            r".*/{}/".format(
+                re.escape(options["package"]),
+            )
+            + pattern
+        )
     expression = re.compile(pattern)
+
     def match(line):
         return expression.match(line) is not None
+
     return match
 
 
@@ -79,8 +93,9 @@ def run_command(main):
     else:
         executables = which(command)
         if not executables:
-            raise ValueError("unable to find '%s' in PATH (%s)" %
-                             (command, os.environ.get("PATH")))
+            raise ValueError(
+                "unable to find '%s' in PATH (%s)" % (command, os.environ.get("PATH"))
+            )
         exe = executables[0]
 
     env = os.environ.copy()
@@ -99,6 +114,7 @@ def run_command(main):
     # 'warnings' module or twisted.python.deprecate isn't quashing them)
     already = set()
     warnings = []
+
     def add(line):
         if line in already:
             return
@@ -108,7 +124,7 @@ def run_command(main):
     pp.stdout.seek(0)
     for line in pp.stdout.readlines():
         if match(line):
-            add(line) # includes newline
+            add(line)  # includes newline
 
     pp.stderr.seek(0)
     for line in pp.stderr.readlines():

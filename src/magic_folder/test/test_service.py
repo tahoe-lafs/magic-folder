@@ -1,50 +1,22 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from testtools.matchers import (
-    ContainsDict,
-    Contains,
-    Not,
-    AfterPreprocessing,
-    Always,
-)
-from testtools.twistedsupport import (
-    succeeded,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
+from hyperlink import DecodedURL
+from testtools.matchers import AfterPreprocessing, Always, Contains, ContainsDict, Not
+from testtools.twistedsupport import succeeded
 from twisted.internet.task import Clock
-from twisted.python.filepath import (
-    FilePath,
-)
+from twisted.python.filepath import FilePath
+
+from magic_folder.tahoe_client import create_tahoe_client
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
-from magic_folder.testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
+from magic_folder.testing.web import create_fake_tahoe_root, create_tahoe_treq_client
 
-from ..config import (
-    create_global_configuration,
-)
+from ..config import create_global_configuration
 from ..service import MagicFolderService
 from ..status import WebSocketStatusService
-from .fixtures import (
-    NodeDirectory,
-)
-from .common import (
-    SyncTestCase,
-)
-from magic_folder.tahoe_client import (
-    create_tahoe_client,
-)
+from .common import SyncTestCase
+from .fixtures import NodeDirectory
 
 
 class TestAdd(SyncTestCase):
@@ -104,14 +76,18 @@ class TestAdd(SyncTestCase):
 
         def extract_metadata(child_info):
             return child_info[1]  # ["dirnode", metadata]
+
         self.assertThat(
             metadata,
-            ContainsDict({
-                u"children": ContainsDict({
-                    u"alice": AfterPreprocessing(
-                        extract_metadata,
-                        Not(Contains("rw_uri"))
-                    )
-                }),
-            })
+            ContainsDict(
+                {
+                    u"children": ContainsDict(
+                        {
+                            u"alice": AfterPreprocessing(
+                                extract_metadata, Not(Contains("rw_uri"))
+                            )
+                        }
+                    ),
+                }
+            ),
         )

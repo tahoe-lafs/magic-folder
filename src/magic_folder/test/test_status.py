@@ -1,42 +1,20 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import json
 
-from testtools.matchers import (
-    Equals,
-)
-
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.internet.task import (
-    Clock,
-)
 from autobahn.twisted.testing import (
-    create_memory_agent,
     MemoryReactorClockResolver,
+    create_memory_agent,
     create_pumper,
 )
-from autobahn.twisted.websocket import (
-    WebSocketClientProtocol,
-)
+from autobahn.twisted.websocket import WebSocketClientProtocol
+from testtools.matchers import Equals
+from twisted.internet.task import Clock
+from twisted.python.filepath import FilePath
 
-from .common import (
-    SyncTestCase,
-    AsyncTestCase,
-)
-from ..status import (
-    StatusFactory,
-    WebSocketStatusService,
-)
-from ..config import (
-    create_testing_configuration,
-)
+from ..config import create_testing_configuration
+from ..status import StatusFactory, WebSocketStatusService
+from .common import AsyncTestCase, SyncTestCase
 
 
 class StatusServiceTests(SyncTestCase):
@@ -77,22 +55,28 @@ class StatusServiceTests(SyncTestCase):
 
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }, {
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
-                }
-            }, {
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }])
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
+                    },
+                    {
+                        "state": {
+                            "synchronizing": True,
+                            "folders": {},
+                        }
+                    },
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
+                    },
+                ]
+            ),
         )
 
     def test_offline_client(self):
@@ -114,12 +98,16 @@ class StatusServiceTests(SyncTestCase):
 
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
-                }
-            }])
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": True,
+                            "folders": {},
+                        }
+                    }
+                ]
+            ),
         )
 
     def test_disconnect(self):
@@ -137,12 +125,16 @@ class StatusServiceTests(SyncTestCase):
         self.service.client_disconnected(client)
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }])
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
+                    }
+                ]
+            ),
         )
 
         # change our state
@@ -153,17 +145,22 @@ class StatusServiceTests(SyncTestCase):
         self.service.client_connected(client)
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }, {
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
-                }
-            }])
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
+                    },
+                    {
+                        "state": {
+                            "synchronizing": True,
+                            "folders": {},
+                        }
+                    },
+                ]
+            ),
         )
 
 
@@ -190,9 +187,7 @@ class WebSocketTests(AsyncTestCase):
         )
         self.factory = StatusFactory(self.service)
         self.agent = create_memory_agent(
-            self.reactor,
-            self.pumper,
-            lambda: self.factory.buildProtocol(None)
+            self.reactor, self.pumper, lambda: self.factory.buildProtocol(None)
         )
         return self.pumper.start()
 
@@ -216,14 +211,16 @@ class WebSocketTests(AsyncTestCase):
         self.pumper._flush()
         self.assertThat(
             messages,
-            Equals([
-                {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
                     }
-                }
-            ])
+                ]
+            ),
         )
 
         # if we change the state, we should receive an update
@@ -231,20 +228,22 @@ class WebSocketTests(AsyncTestCase):
         self.pumper._flush()
         self.assertThat(
             messages,
-            Equals([
-                {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
-                    }
-                },
-                {
-                    "state": {
-                        "synchronizing": True,
-                        "folders": {},
-                    }
-                }
-            ])
+            Equals(
+                [
+                    {
+                        "state": {
+                            "synchronizing": False,
+                            "folders": {},
+                        }
+                    },
+                    {
+                        "state": {
+                            "synchronizing": True,
+                            "folders": {},
+                        }
+                    },
+                ]
+            ),
         )
 
     def test_send_message(self):
@@ -267,7 +266,9 @@ class WebSocketTests(AsyncTestCase):
         self.pumper._flush()
         self.assertThat(
             closed,
-            Equals([
-                "Unexpected incoming message",
-            ])
+            Equals(
+                [
+                    "Unexpected incoming message",
+                ]
+            ),
         )

@@ -5,87 +5,38 @@
 Tests for ``magic_folder.tahoe_client``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from functools import (
-    partial,
-)
+from functools import partial
+from io import BytesIO
+from json import dumps, loads
 
-from json import (
-    loads,
-    dumps,
-)
-
-from io import (
-    BytesIO,
-)
-
-from hyperlink import (
-    DecodedURL,
-)
-
-from hypothesis import (
-    given,
-)
-
-from hypothesis.strategies import (
-    binary,
-    text,
-    dictionaries,
-    just,
-)
-
+from hyperlink import DecodedURL
+from hypothesis import given
+from hypothesis.strategies import binary, dictionaries, just, text
 from testtools.matchers import (
-    ContainsDict,
-    MatchesPredicate,
     AfterPreprocessing,
-    IsInstance,
-    Equals,
     Always,
+    ContainsDict,
+    Equals,
+    IsInstance,
+    MatchesPredicate,
 )
+from testtools.twistedsupport import failed, succeeded
+from twisted.internet.defer import gatherResults
+from twisted.web.http import GONE
 
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-
-from twisted.internet.defer import (
-    gatherResults,
-)
-from twisted.web.http import (
-    GONE,
-)
-
-from ..tahoe_client import (
-    TahoeAPIError,
-    create_tahoe_client
-)
-
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
-
-from .common import (
-    SyncTestCase,
-)
-
+from ..tahoe_client import TahoeAPIError, create_tahoe_client
+from ..testing.web import create_fake_tahoe_root, create_tahoe_treq_client
+from .common import SyncTestCase
+from .matchers import contained_by
 from .strategies import (
     filenodes,
     tahoe_lafs_chk_capabilities,
     tahoe_lafs_dir_capabilities,
 )
 
-from .matchers import (
-    contained_by,
-)
-
-ANY_ROOT = DecodedURL.from_text(u"http://example.invalid./")
+ANY_ROOT = DecodedURL.from_text("http://example.invalid./")
 
 
 def directory_children():
@@ -95,10 +46,12 @@ def directory_children():
         filenodes().map(lambda node: ["filenode", node]),
     )
 
+
 class TahoeClientTests(SyncTestCase):
     """
     Tests for the client created by ``create_tahoe_client``.
     """
+
     def setup_client(self):
         """
         Create a fake Tahoe-LAFS web frontend and a client that will talk to it.
@@ -136,8 +89,10 @@ class TahoeClientTests(SyncTestCase):
         ``create_immutable`` returns the cap of the existing data (which is
         the same as the cap of the new data).
         """
+
         def create_it():
             return self.tahoe_client.create_immutable(data)
+
         caps = []
         self.assertThat(
             create_it().addCallback(caps.append),
@@ -196,9 +151,9 @@ class TahoeClientTests(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     lambda failure: str(failure.value),
-                    Equals("{} is not a file capability".format(cap))
+                    Equals("{} is not a file capability".format(cap)),
                 )
-            )
+            ),
         )
 
     @given(tahoe_lafs_chk_capabilities())
@@ -227,25 +182,27 @@ class TahoeClientTests(SyncTestCase):
         non-directory capability
         """
         self.setup_example()
-        data = dumps([
-            "filenode",
-            {
-                "mutable": False,
-                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "format": "CHK",
-                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "size": 6798975
-            }
-        ])
+        data = dumps(
+            [
+                "filenode",
+                {
+                    "mutable": False,
+                    "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "format": "CHK",
+                    "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "size": 6798975,
+                },
+            ]
+        )
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.list_directory(cap),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
-                    Equals("Capability is a 'filenode' not a 'dirnode'")
+                    Equals("Capability is a 'filenode' not a 'dirnode'"),
                 )
-            )
+            ),
         )
 
     def test_directory_data_wrong_kind(self):
@@ -254,25 +211,27 @@ class TahoeClientTests(SyncTestCase):
         non-directory capability
         """
         self.setup_example()
-        data = dumps([
-            "filenode",
-            {
-                "mutable": False,
-                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "format": "CHK",
-                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "size": 6798975
-            }
-        ])
+        data = dumps(
+            [
+                "filenode",
+                {
+                    "mutable": False,
+                    "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "format": "CHK",
+                    "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "size": 6798975,
+                },
+            ]
+        )
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.list_directory(cap),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
-                    Equals("Capability is a 'filenode' not a 'dirnode'")
+                    Equals("Capability is a 'filenode' not a 'dirnode'"),
                 )
-            )
+            ),
         )
 
     def test_directory_data_wrong_cap_type(self):
@@ -281,25 +240,27 @@ class TahoeClientTests(SyncTestCase):
         non-directory capability
         """
         self.setup_example()
-        data = dumps([
-            "filenode",
-            {
-                "mutable": False,
-                "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "format": "CHK",
-                "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
-                "size": 6798975
-            }
-        ])
+        data = dumps(
+            [
+                "filenode",
+                {
+                    "mutable": False,
+                    "verify_uri": "URI:CHK-Verifier:vi5xqgkyo6ns46ksq44mzqy42u:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "format": "CHK",
+                    "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
+                    "size": 6798975,
+                },
+            ]
+        )
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.directory_data(cap),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
-                    Equals("{} is not a directory-capability".format(cap))
+                    Equals("{} is not a directory-capability".format(cap)),
                 )
-            )
+            ),
         )
 
     @given(binary())
@@ -329,9 +290,7 @@ class TahoeClientTests(SyncTestCase):
             partial(self.tahoe_client.stream_capability, cap, output),
         )
 
-    @given(
-        directory_children()
-    )
+    @given(directory_children())
     def test_create_immutable_directory(self, children):
         """
         An immutable directory can be created with ``create_immutable_directory``.
@@ -377,8 +336,8 @@ class TahoeClientTests(SyncTestCase):
         )
 
     @given(
-        just("foo"), #path_segments(),
-        just(b"test"*200), #binary(),
+        just("foo"),  # path_segments(),
+        just(b"test" * 200),  # binary(),
     )
     def test_mutable_directory_add_child(self, child_name, content):
         """
@@ -397,7 +356,7 @@ class TahoeClientTests(SyncTestCase):
             child_cap,
         )
 
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
+        child_uri = ANY_ROOT.child("uri", mutable_cap.decode("utf8"), child_name)
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,
@@ -411,7 +370,9 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(child_content_d.result, Equals(content))
 
         # getting a different child fails
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
+        child_uri = ANY_ROOT.child(
+            "uri", mutable_cap.decode("utf8"), "not-the-child-name"
+        )
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,
@@ -427,9 +388,11 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(
             self.tahoe_client.get_welcome(),
             succeeded(
-                ContainsDict({
-                    "introducers": Always(),
-                    "servers": Always(),
-                })
-            )
+                ContainsDict(
+                    {
+                        "introducers": Always(),
+                        "servers": Always(),
+                    }
+                )
+            ),
         )

@@ -2,13 +2,11 @@
 
 # ./check-debugging.py src
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-import sys, re, os
+import os
+import re
+import sys
 
 ok = True
 umids = {}
@@ -18,7 +16,7 @@ for starting_point in sys.argv[1:]:
         for fn in [f for f in files if f.endswith(".py")]:
             fn = os.path.join(root, fn)
             for lineno, line in enumerate(open(fn, "r").readlines()):
-                lineno = lineno+1
+                lineno = lineno + 1
                 mo = re.search(r"\.setDebugging\(True\)", line)
                 if mo:
                     print("Do not use defer.setDebugging(True) in production")

@@ -5,34 +5,24 @@
 Implements the 'magic-folder migrate' command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.internet.defer import (
-    succeed,
-)
+from twisted.internet.defer import succeed
+from twisted.python.filepath import FilePath
 
+from .config import create_global_configuration
+from .endpoints import server_endpoint_str_to_client
+from .snapshot import create_local_author
 from .util.encoding import load_yaml
 
-from .config import (
-    create_global_configuration,
-)
-from .snapshot import (
-    create_local_author,
-)
-from .endpoints import (
-    server_endpoint_str_to_client,
-)
 
-
-def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, author_name,
-                         client_endpoint_str):
+def magic_folder_migrate(
+    config_dir,
+    listen_endpoint_str,
+    tahoe_node_directory,
+    author_name,
+    client_endpoint_str,
+):
     """
     From an existing Tahoe-LAFS 1.14.0 or earlier configuration we
     initialize a new magic-folder using the relevant configuration
@@ -72,19 +62,19 @@ def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, 
     magic_folders = load_yaml(
         tahoe_node_directory.child("private").child("magic_folders.yaml").open("r"),
     )
-    for mf_name, mf_config in magic_folders['magic-folders'].items():
+    for mf_name, mf_config in magic_folders["magic-folders"].items():
         author = create_local_author(author_name)
 
         config.create_magic_folder(
             mf_name,
-            FilePath(mf_config[u'directory']),
+            FilePath(mf_config[u"directory"]),
             author,
-            mf_config[u'collective_dircap'],
-            mf_config[u'upload_dircap'],
-            int(mf_config[u'poll_interval']),  # is this always available?
+            mf_config[u"collective_dircap"],
+            mf_config[u"upload_dircap"],
+            int(mf_config[u"poll_interval"]),  # is this always available?
             # tahoe-lafs's magic-folder implementation didn't have scan-interval
             # so use poll-interval for it as well.
-            int(mf_config[u'poll_interval']),
+            int(mf_config[u"poll_interval"]),
         )
 
     return succeed(config)

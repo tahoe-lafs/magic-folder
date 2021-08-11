@@ -5,12 +5,7 @@ Utilities for interacting with twisted.
 """
 
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from functools import wraps
 
@@ -22,6 +17,7 @@ def exclusively(maybe_f=None, lock_name="_lock"):
 
     :param str lock_name: The name of the lock attribute to use.
     """
+
     def wrap(f):
         @wraps(f)
         def wrapper(self, *args, **kwargs):

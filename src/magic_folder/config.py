@@ -4,128 +4,65 @@ Configuration and state database interaction.
 See also docs/config.rst
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 __all__ = [
     "MagicFolderConfig",
     "GlobalConfigDatabase",
-
     "endpoint_description_to_http_api_root",
     "create_global_configuration",
     "load_global_configuration",
 ]
 
-from os import (
-    urandom,
-)
-from base64 import (
-    urlsafe_b64encode,
-)
 import hashlib
+import sqlite3
 import time
+from base64 import urlsafe_b64encode
+from functools import partial
+from itertools import chain
+from os import urandom
+from uuid import UUID
 from weakref import WeakValueDictionary
 
-from hyperlink import (
-    DecodedURL,
-)
-
-from functools import (
-    partial,
-)
-from itertools import (
-    chain,
-)
-
-from uuid import (
-    UUID,
-)
-
 import attr
-from attr.validators import (
-    provides,
-    instance_of,
-)
+from attr.validators import instance_of, provides
+from eliot import ActionType, Field
+from hyperlink import DecodedURL
+from nacl.encoding import Base32Encoder
+from nacl.signing import SigningKey
+from twisted.internet.endpoints import clientFromString, serverFromString
+from twisted.python.compat import nativeString
+from twisted.python.filepath import FilePath
+from twisted.web import http
+from zope.interface import Interface, implementer
 
-import sqlite3
-
-from nacl.signing import (
-    SigningKey,
-)
-from nacl.encoding import (
-    Base32Encoder,
-)
-
-from twisted.internet.endpoints import (
-    serverFromString,
-    clientFromString,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.python.compat import (
-    nativeString,
-)
-from twisted.web import (
-    http,
-)
-
-from zope.interface import (
-    implementer,
-    Interface,
-)
-
-from .snapshot import (
-    LocalAuthor,
-    LocalSnapshot,
-)
+# Export this here since GlobalConfigDatabase is what it's for.
+from ._endpoint_parser import endpoint_description_to_http_api_root
+from ._schema import Schema, SchemaUpgrade
 from .common import (
     APIError,
     NoSuchMagicFolder,
     atomic_makedirs,
     valid_magic_folder_name,
 )
-from ._schema import (
-    SchemaUpgrade,
-    Schema,
-)
+from .snapshot import LocalAuthor, LocalSnapshot
+from .util.capabilities import is_directory_cap, is_readonly_directory_cap
+from .util.database import LockableDatabase, with_cursor
+from .util.eliotutil import RELPATH, validateSetMembership
+from .util.file import PathState, ns_to_seconds, seconds_to_ns
 
-# Export this here since GlobalConfigDatabase is what it's for.
-from ._endpoint_parser import (
-    endpoint_description_to_http_api_root,
-)
-
-from eliot import (
-    ActionType,
-    Field,
-)
-
-from .util.capabilities import is_readonly_directory_cap, is_directory_cap
-from .util.database import with_cursor, LockableDatabase
-from .util.eliotutil import (
-    RELPATH,
-    validateSetMembership,
-)
-from .util.file import (
-    PathState,
-    ns_to_seconds,
-    seconds_to_ns,
-)
-
-_global_config_schema = Schema([
-    SchemaUpgrade([
-        """
+_global_config_schema = Schema(
+    [
+        SchemaUpgrade(
+            [
+                """
         CREATE TABLE magic_folders
         (
             name          TEXT PRIMARY KEY,  -- UTF8 name of this folder
             location      TEXT               -- UTF8 path to this folder's configuration/state
         );
         """,
-        """
+                """
         CREATE TABLE config
         (
             api_endpoint TEXT,                -- Twisted server-string for our HTTP API
@@ -133,12 +70,16 @@ _global_config_schema = Schema([
             api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
         );
         """,
-    ])
-])
+            ]
+        )
+    ]
+)
 
-_magicfolder_config_schema = Schema([
-    SchemaUpgrade([
-        """
+_magicfolder_config_schema = Schema(
+    [
+        SchemaUpgrade(
+            [
+                """
         CREATE TABLE config
         (
             author_name          TEXT PRIMARY KEY,  -- UTF8 name of the author
@@ -151,7 +92,7 @@ _magicfolder_config_schema = Schema([
             scan_interval        INTEGER CHECK ([scan_interval] > 0) -- seconds
         )
         """,
-        """
+                """
         CREATE TABLE [local_snapshots]
         (
             -- A random, unique identifier for this particular snapshot.
@@ -165,7 +106,7 @@ _magicfolder_config_schema = Schema([
             [content_path]     TEXT
         )
         """,
-        """
+                """
         CREATE TABLE [local_snapshot_metadata]
         (
             -- The identifier of the snapshot which this metadata row belongs to.
@@ -182,7 +123,7 @@ _magicfolder_config_schema = Schema([
             FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
         )
         """,
-        """
+                """
         CREATE TABLE [local_snapshot_parent]
         (
             -- The identifier of the snapshot to which this parent belongs.
@@ -217,7 +158,7 @@ _magicfolder_config_schema = Schema([
             FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
         )
         """,
-        """
+                """
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
@@ -232,38 +173,40 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
-    ]),
-])
+            ]
+        ),
+    ]
+)
 
 
 ## XXX "parents_local" should be IDs of other local_snapshots, not
 ## sure how to do that w/o docs here
 
 DELETE_SNAPSHOTS = ActionType(
-    u"config:state-db:delete-local-snapshot-entry",
+    "config:state-db:delete-local-snapshot-entry",
     [RELPATH],
     [],
-    u"Delete the row corresponding to the given path from the local snapshot table.",
+    "Delete the row corresponding to the given path from the local snapshot table.",
 )
 
 FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
-    u"config:state-db:get-remote-snapshot-entry",
+    "config:state-db:get-remote-snapshot-entry",
     [RELPATH],
     [],
-    u"Delete the row corresponding to the given path from the local snapshot table.",
+    "Delete the row corresponding to the given path from the local snapshot table.",
 )
 _INSERT_OR_UPDATE = Field.for_types(
-    u"insert_or_update",
+    "insert_or_update",
     [unicode],
-    u"An indication of whether the record for this upload was new or an update to a previous entry.",
-    validateSetMembership({u"insert", u"update"}),
+    "An indication of whether the record for this upload was new or an update to a previous entry.",
+    validateSetMembership({"insert", "update"}),
 )
 
 STORE_OR_UPDATE_SNAPSHOTS = ActionType(
-    u"config:state-db:update-snapshot-entry",
+    "config:state-db:update-snapshot-entry",
     [RELPATH],
     [_INSERT_OR_UPDATE],
-    u"Persist local snapshot object of a relative path in the magic-folder db.",
+    "Persist local snapshot object of a relative path in the magic-folder db.",
 )
 
 
@@ -274,12 +217,14 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
+
 @attr.s(auto_exc=True, frozen=True)
 class LocalSnapshotMissingParent(Exception):
     """
     An attempt was made to store a local snapshot whose parents aren't in
     the local database.
     """
+
     parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
 
 
@@ -294,8 +239,9 @@ class RemoteSnapshotWithoutPathState(Exception):
     relpath = attr.ib(validator=attr.validators.instance_of(unicode))
 
 
-def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
-                                api_client_endpoint_str):
+def create_global_configuration(
+    basedir, api_endpoint_str, tahoe_node_directory, api_client_endpoint_str
+):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
@@ -317,13 +263,9 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # only accepts "str" .. so we have to convert on py2. When we
     # support python3 this check only needs to happen on py2
     if not isinstance(api_endpoint_str, unicode):
-        raise ValueError(
-            "'api_endpoint_str' must be unicode"
-        )
+        raise ValueError("'api_endpoint_str' must be unicode")
     if not isinstance(api_client_endpoint_str, unicode):
-        raise ValueError(
-            "'api_client_endpoint_str' must be unicode"
-        )
+        raise ValueError("'api_client_endpoint_str' must be unicode")
     api_endpoint_str = nativeString(api_endpoint_str)
     api_client_endpoint_str = nativeString(api_client_endpoint_str)
     # check that the endpoints are valid (will raise exception if not)
@@ -337,19 +279,17 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     try:
         basedir.makedirs()
     except OSError as e:
-        raise ValueError(
-            "'{}' already exists: {}".format(basedir.path, e)
-        )
+        raise ValueError("'{}' already exists: {}".format(basedir.path, e))
 
     # explain what is in this directory
     with basedir.child(b"README").open("wb") as f:
         f.write(
-            u"This is a Magic Folder daemon configuration\n"
-            u"\n"
-            u"To find out more you can run a command like:\n"
-            u"\n"
-            u"    magic-folder --config {} --help\n"
-            u"\n".format(basedir.asTextMode("utf8").path).encode("utf8")
+            "This is a Magic Folder daemon configuration\n"
+            "\n"
+            "To find out more you can run a command like:\n"
+            "\n"
+            "    magic-folder --config {} --help\n"
+            "\n".format(basedir.asTextMode("utf8").path).encode("utf8")
         )
 
     # set up the configuration database
@@ -362,7 +302,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         cursor = connection.cursor()
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str),
         )
 
     config = GlobalConfigDatabase(
@@ -370,7 +310,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         database=connection,
         token_provider=FilesystemTokenProvider(
             basedir.child(b"api_token"),
-        )
+        ),
     )
     # make sure we have an API token
     config.rotate_api_token()
@@ -401,7 +341,7 @@ def create_testing_configuration(basedir, tahoe_node_directory):
         cursor = connection.cursor()
         cursor.execute(
             "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str),
         )
 
     tokens = MemoryTokenProvider()
@@ -448,7 +388,7 @@ def load_global_configuration(basedir):
         database=connection,
         token_provider=FilesystemTokenProvider(
             basedir.child("api_token"),
-        )
+        ),
     )
 
 
@@ -476,6 +416,7 @@ class SQLite3DatabaseLocation(object):
     A helper to allow a connection to a SQLite3 database on a filesystem or
     in-memory.
     """
+
     location = attr.ib()
 
     @classmethod
@@ -587,11 +528,13 @@ def _get_parents(cursor, relpath):
     parent_rows = cursor.fetchall()
     parents = {}
     for (snapshot_identifier, index, local_only, parent_identifier) in parent_rows:
-        parents.setdefault(snapshot_identifier, []).append((
-            index,
-            local_only,
-            parent_identifier,
-        ))
+        parents.setdefault(snapshot_identifier, []).append(
+            (
+                index,
+                local_only,
+                parent_identifier,
+            )
+        )
     for parent in parents.values():
         parent.sort()
 
@@ -616,7 +559,9 @@ def _find_leaf_snapshot(leaf_candidates, parents):
     :return unicode: The identifier of the leaf snapshot.
     """
     to_discard = set()
-    for (ignored, local_only, parent_identifier) in chain.from_iterable(parents.values()):
+    for (ignored, local_only, parent_identifier) in chain.from_iterable(
+        parents.values()
+    ):
         if local_only:
             # Allow a parent to be discarded more than once in case we have
             # snapshots that share a parent.
@@ -650,8 +595,7 @@ def _get_remote_parents(identifier, parents):
     """
     return list(
         parent_identifier
-        for (ignored, only_local, parent_identifier)
-        in parents.get(identifier, [])
+        for (ignored, only_local, parent_identifier) in parents.get(identifier, [])
         if not only_local
     )
 
@@ -672,13 +616,14 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     """
     return list(
         construct_parent_snapshot(parent_identifier)
-        for (ignored, only_local, parent_identifier)
-        in parents.get(identifier, [])
+        for (ignored, only_local, parent_identifier) in parents.get(identifier, [])
         if only_local
     )
 
 
-def _construct_local_snapshot(identifier, relpath, author, content_paths, metadata, parents):
+def _construct_local_snapshot(
+    identifier, relpath, author, content_paths, metadata, parents
+):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
 
@@ -726,22 +671,23 @@ class MagicFolderConfig(object):
     """
     Low-level access to a single magic-folder's configuration
     """
+
     name = attr.ib()
     _database = attr.ib(converter=LockableDatabase)  # sqlite3 Connection
     _get_current_timestamp = attr.ib(default=time.time)
 
     @classmethod
     def initialize(
-            cls,
-            name,
-            db_location,
-            author,
-            stash_path,
-            collective_dircap,
-            upload_dircap,
-            magic_path,
-            poll_interval,
-            scan_interval,
+        cls,
+        name,
+        db_location,
+        author,
+        stash_path,
+        collective_dircap,
+        upload_dircap,
+        magic_path,
+        poll_interval,
+        scan_interval,
     ):
         """
         Create the database state for a new Magic Folder and return a
@@ -894,7 +840,11 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, snapshot.content_path.asTextMode("utf-8").path),
+                (
+                    unicode(snapshot.identifier),
+                    snapshot.relpath,
+                    snapshot.content_path.asTextMode("utf-8").path,
+                ),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -911,8 +861,7 @@ class MagicFolderConfig(object):
             """,
             list(
                 (unicode(snapshot.identifier), k, v)
-                for (k, v)
-                in snapshot.metadata.items()
+                for (k, v) in snapshot.metadata.items()
             ),
         )
         # Associate all of the parents with it.  First remote, then local.
@@ -973,13 +922,14 @@ class MagicFolderConfig(object):
             relpath=relpath,
         )
         with action:
-            cursor.execute("DELETE FROM [local_snapshots]"
-                           " WHERE [name]=?",
-                           (relpath,))
-
+            cursor.execute(
+                "DELETE FROM [local_snapshots]" " WHERE [name]=?", (relpath,)
+            )
 
     @with_cursor
-    def store_uploaded_snapshot(self, cursor, relpath, remote_snapshot, upload_started_at):
+    def store_uploaded_snapshot(
+        self, cursor, relpath, remote_snapshot, upload_started_at
+    ):
         """
         Store the remote snapshot cap of a snapshot that we uploaded.
 
@@ -1039,7 +989,15 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?)",
-                    (relpath, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
+                    (
+                        relpath,
+                        snapshot_cap,
+                        path_state.mtime_ns,
+                        path_state.ctime_ns,
+                        path_state.size,
+                        now_ns,
+                        None,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1047,7 +1005,15 @@ class MagicFolderConfig(object):
                     "UPDATE current_snapshots"
                     " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?"
                     " WHERE [name]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
+                    (
+                        snapshot_cap,
+                        path_state.mtime_ns,
+                        path_state.ctime_ns,
+                        path_state.size,
+                        now_ns,
+                        None,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1068,7 +1034,13 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
-                    (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    (
+                        relpath,
+                        path_state.mtime_ns,
+                        path_state.ctime_ns,
+                        path_state.size,
+                        now_ns,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1076,7 +1048,13 @@ class MagicFolderConfig(object):
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
                     " WHERE [name]=?",
-                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
+                    (
+                        path_state.mtime_ns,
+                        path_state.ctime_ns,
+                        path_state.size,
+                        now_ns,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1129,9 +1107,10 @@ class MagicFolderConfig(object):
             relpath=relpath,
         )
         with action:
-            cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [name]=?",
-                           (relpath,))
+            cursor.execute(
+                "SELECT snapshot_cap FROM current_snapshots" " WHERE [name]=?",
+                (relpath,),
+            )
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return row[0].encode("utf-8")
@@ -1273,6 +1252,7 @@ class FilesystemTokenProvider(object):
     """
     Keep a token on the filesystem
     """
+
     api_token_path = attr.ib(validator=instance_of(FilePath))
     _api_token = attr.ib(default=None)
 
@@ -1295,7 +1275,7 @@ class FilesystemTokenProvider(object):
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
         self._api_token = urlsafe_b64encode(urandom(32))
-        with self.api_token_path.open('wb') as f:
+        with self.api_token_path.open("wb") as f:
             f.write(self._api_token)
         return self._api_token
 
@@ -1303,7 +1283,7 @@ class FilesystemTokenProvider(object):
         """
         Internal helper. Reads the token file into _api_token
         """
-        with self.api_token_path.open('rb') as f:
+        with self.api_token_path.open("rb") as f:
             self._api_token = f.read()
 
 
@@ -1313,6 +1293,7 @@ class MemoryTokenProvider(object):
     """
     Keep an in-memory token.
     """
+
     _api_token = attr.ib(default=None)
 
     def get(self):
@@ -1343,6 +1324,7 @@ class GlobalConfigDatabase(object):
         We do this so we have only a single :py:`sqlite3.Connection` to the
         underlying state db.
     """
+
     # where magic-folder state goes
     basedir = attr.ib(validator=instance_of(FilePath))
     database = attr.ib(validator=instance_of(sqlite3.Connection))
@@ -1377,7 +1359,7 @@ class GlobalConfigDatabase(object):
         _validate_listen_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("UPDATE config SET api_endpoint=?", (ep_string, ))
+            cursor.execute("UPDATE config SET api_endpoint=?", (ep_string,))
 
     @property
     def api_client_endpoint(self):
@@ -1394,7 +1376,7 @@ class GlobalConfigDatabase(object):
         _validate_connect_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
+            cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string,))
 
     @property
     def tahoe_client_url(self):
@@ -1453,7 +1435,9 @@ class GlobalConfigDatabase(object):
             pass
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT name, location FROM magic_folders WHERE name=?", (name, ))
+            cursor.execute(
+                "SELECT name, location FROM magic_folders WHERE name=?", (name,)
+            )
             data = cursor.fetchone()
             if data is None:
                 raise NoSuchMagicFolder(name)
@@ -1481,8 +1465,8 @@ class GlobalConfigDatabase(object):
         """
         h = hashlib.sha256()
         h.update(name.encode("utf8"))
-        hashed_name = urlsafe_b64encode(h.digest()).decode('ascii')
-        return self.basedir.child(u"folder-{}".format(hashed_name))
+        hashed_name = urlsafe_b64encode(h.digest()).decode("ascii")
+        return self.basedir.child("folder-{}".format(hashed_name))
 
     def remove_magic_folder(self, name):
         """
@@ -1509,18 +1493,16 @@ class GlobalConfigDatabase(object):
         # state-path.
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT location FROM magic_folders WHERE name=?", (name, ))
+            cursor.execute("SELECT location FROM magic_folders WHERE name=?", (name,))
             folders = cursor.fetchall()
             if not folders:
-                raise ValueError(
-                    "No magic-folder named '{}'".format(name)
-                )
-            (state_path, ) = folders[0]
+                raise ValueError("No magic-folder named '{}'".format(name))
+            (state_path,) = folders[0]
         cleanup_dirs.append(FilePath(state_path))
 
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("DELETE FROM magic_folders WHERE name=?", (name, ))
+            cursor.execute("DELETE FROM magic_folders WHERE name=?", (name,))
 
         # Now that we have removed the entry for the folder from the database,
         # we remove the `MagicFolderConfig` instance from the cache. Since it
@@ -1593,25 +1575,27 @@ class GlobalConfigDatabase(object):
             )
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name, ))
+            cursor.execute("SELECT name FROM magic_folders WHERE name=?", (name,))
             if len(cursor.fetchall()):
                 raise APIError(
                     code=http.CONFLICT,
-                    reason="Already have a magic-folder named '{}'".format(name)
+                    reason="Already have a magic-folder named '{}'".format(name),
                 )
         if not magic_path.asBytesMode("utf-8").exists():
             raise APIError(
                 code=http.BAD_REQUEST,
-                reason="'{}' does not exist".format(magic_path.path)
+                reason="'{}' does not exist".format(magic_path.path),
             )
         state_path = self._get_state_path(name).asTextMode("utf-8")
         if state_path.asBytesMode("utf-8").exists():
             raise APIError(
                 code=http.INTERNAL_SERVER_ERROR,
-                reason="magic-folder state directory '{}' already exists".format(state_path.path)
+                reason="magic-folder state directory '{}' already exists".format(
+                    state_path.path
+                ),
             )
 
-        stash_path = state_path.child(u"stash").asTextMode("utf-8")
+        stash_path = state_path.child("stash").asTextMode("utf-8")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
             mfc = MagicFolderConfig.initialize(
@@ -1631,7 +1615,7 @@ class GlobalConfigDatabase(object):
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
-                    (name, state_path.asTextMode("utf-8").path)
+                    (name, state_path.asTextMode("utf-8").path),
                 )
 
         return mfc
@@ -1642,6 +1626,7 @@ def _validate_listen_endpoint_str(ep_string):
     confirm we have a valid endpoint-string
     """
     from twisted.internet import reactor
+
     # XXX so, having the reactor here sucks...but not a lot of options
     # since serverFromString is the only way to validate an
     # endpoint-string
@@ -1653,6 +1638,7 @@ def _validate_connect_endpoint_str(ep_string):
     confirm we have a valid client-type endpoint-string
     """
     from twisted.internet import reactor
+
     # XXX so, having the reactor here sucks...but not a lot of options
     # since serverFromString is the only way to validate an
     # endpoint-string

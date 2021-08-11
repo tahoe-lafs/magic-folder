@@ -1,12 +1,7 @@
 # Copyright 2021 The Magic-Folder Developers
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import unicodedata
 

@@ -1,14 +1,8 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-from os.path import join
-from json import (
-    loads,
-)
 import base64
+from json import loads
+from os.path import join
 
 import pytest_twisted
 
@@ -27,22 +21,30 @@ def test_daemon_inititialize(request, reactor, temp_filepath):
     tahoe_dir = temp_filepath.child("tahoe")
     tahoe_dir.makedirs()
     tahoe_dir.child("tahoe.cfg").setContent("# a fake config\n")
-    tahoe_dir.child("node.url").setContent('http://localhost:1234/')
+    tahoe_dir.child("node.url").setContent("http://localhost:1234/")
 
     yield util._magic_folder_runner(
-        reactor, request, "daemon",
+        reactor,
+        request,
+        "daemon",
         [
-            "--config", node_dir.path,
+            "--config",
+            node_dir.path,
             "init",
-            "--listen-endpoint", "tcp:1234",
-            "--node-directory", tahoe_dir.path,
+            "--listen-endpoint",
+            "tcp:1234",
+            "--node-directory",
+            tahoe_dir.path,
         ],
     )
 
     output = yield util._magic_folder_runner(
-        reactor, request, "daemon",
+        reactor,
+        request,
+        "daemon",
         [
-            "--config", node_dir.path,
+            "--config",
+            node_dir.path,
             "show-config",
         ],
     )
@@ -70,20 +72,29 @@ def test_daemon_migrate(request, reactor, alice, temp_filepath):
         f.write("magic-folders: {}\n")
 
     yield util._magic_folder_runner(
-        reactor, request, "migrate",
+        reactor,
+        request,
+        "migrate",
         [
-            "--config", node_dir.path,
+            "--config",
+            node_dir.path,
             "migrate",
-            "--listen-endpoint", "tcp:1234",
-            "--node-directory", alice.node_directory,
-            "--author", "test",
+            "--listen-endpoint",
+            "tcp:1234",
+            "--node-directory",
+            alice.node_directory,
+            "--author",
+            "test",
         ],
     )
 
     output = yield util._magic_folder_runner(
-        reactor, request, "migrate",
+        reactor,
+        request,
+        "migrate",
         [
-            "--config", node_dir.path,
+            "--config",
+            node_dir.path,
             "show-config",
         ],
     )

@@ -1,91 +1,40 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import io
-
-from json import (
-    dumps,
-    loads,
-)
+from json import dumps, loads
+from re import escape
 
 import attr
+from hypothesis import given
+from hypothesis.strategies import binary, lists
+from testtools import ExpectedException
+from testtools.matchers import Always, Equals, MatchesPredicate
+from testtools.twistedsupport import succeeded
+from twisted.internet import task
+from twisted.python.filepath import FilePath
+from twisted.web.resource import ErrorPage
+from zope.interface import implementer
 
-from re import (
-    escape,
-)
+from magic_folder.tahoe_client import TahoeAPIError
 
-from zope.interface import (
-    implementer,
-)
-
-from testtools.matchers import (
-    MatchesPredicate,
-    Always,
-    Equals,
-)
-from testtools import (
-    ExpectedException,
-)
-from testtools.twistedsupport import (
-    succeeded,
-)
-from hypothesis import (
-    given,
-)
-from hypothesis.strategies import (
-    binary,
-    lists,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.web.resource import (
-    ErrorPage,
-)
-from ..uploader import (
-    IRemoteSnapshotCreator,
-    UploaderService,
-)
-from ..snapshot import (
-    create_local_author,
-    create_snapshot,
-)
-from ..magicpath import (
-    path2magic,
-)
+from ..magicpath import path2magic
+from ..snapshot import create_local_author, create_snapshot
+from ..uploader import IRemoteSnapshotCreator, UploaderService
 from ..util.capabilities import is_immutable_directory_cap, to_verify_capability
 from ..util.file import PathState
-from twisted.internet import task
-
-from .common import (
-    SyncTestCase,
-)
-from .strategies import (
-    path_segments,
-    relative_paths,
-    tahoe_lafs_dir_capabilities,
-)
-
-from .fixtures import (
-    RemoteSnapshotCreatorFixture,
-)
-
-from magic_folder.tahoe_client import (
-    TahoeAPIError,
-)
+from .common import SyncTestCase
+from .fixtures import RemoteSnapshotCreatorFixture
+from .strategies import path_segments, relative_paths, tahoe_lafs_dir_capabilities
 
 
 class RemoteSnapshotCreatorTests(SyncTestCase):
     """
     Tests for ``RemoteSnapshotCreator``.
     """
+
     def setUp(self):
         super(RemoteSnapshotCreatorTests, self).setUp()
-        self.author = create_local_author(u"alice")
+        self.author = create_local_author("alice")
 
     @given(
         relpath=relative_paths(),
@@ -98,20 +47,24 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-        f = self.useFixture(RemoteSnapshotCreatorFixture(
-            temp=FilePath(self.mktemp()),
-            author=self.author,
-            upload_dircap=upload_dircap,
-        ))
+        f = self.useFixture(
+            RemoteSnapshotCreatorFixture(
+                temp=FilePath(self.mktemp()),
+                author=self.author,
+                upload_dircap=upload_dircap,
+            )
+        )
         config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
         # can link files into it.
-        f.root._uri.data[upload_dircap] = dumps([
-            u"dirnode",
-            {u"children": {}},
-        ])
+        f.root._uri.data[upload_dircap] = dumps(
+            [
+                "dirnode",
+                {"children": {}},
+            ]
+        )
 
         # create a local snapshot
         data = io.BytesIO(content)
@@ -149,19 +102,21 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
-            loads(f.root._uri.data[upload_dircap])[1][u"children"],
-            Equals({
-                path2magic(relpath): [
-                    u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
-                        u"verify_uri": to_verify_capability(remote_snapshot_cap),
-                        u"mutable": False,
-                        u"format": u"CHK",
-                    },
-                ],
-            }),
+            loads(f.root._uri.data[upload_dircap])[1]["children"],
+            Equals(
+                {
+                    path2magic(relpath): [
+                        "dirnode",
+                        {
+                            "ro_uri": remote_snapshot_cap.decode("utf-8"),
+                            "verify_uri": to_verify_capability(remote_snapshot_cap),
+                            "mutable": False,
+                            "format": "CHK",
+                        },
+                    ],
+                }
+            ),
         )
-
 
         # test whether we got a capability
         self.assertThat(
@@ -192,12 +147,14 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         """
         broken_root = ErrorPage(500, "It's broken.", "It's broken.")
 
-        f = self.useFixture(RemoteSnapshotCreatorFixture(
-            temp=FilePath(self.mktemp()),
-            author=self.author,
-            root=broken_root,
-            upload_dircap=upload_dircap,
-        ))
+        f = self.useFixture(
+            RemoteSnapshotCreatorFixture(
+                temp=FilePath(self.mktemp()),
+                author=self.author,
+                root=broken_root,
+                upload_dircap=upload_dircap,
+            )
+        )
         config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
 
@@ -257,6 +214,7 @@ class UploaderServiceTests(SyncTestCase):
     """
     Tests for ``UploaderService``.
     """
+
     def setUp(self):
         super(UploaderServiceTests, self).setUp()
         self.poll_interval = 1

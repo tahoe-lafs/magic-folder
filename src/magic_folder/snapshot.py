@@ -4,48 +4,23 @@
 """
 Functions and types that implement snapshots
 """
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
+import base64
+import json
 import os
 import time
-import json
-import base64
 from tempfile import mkstemp
-from uuid import (
-    UUID,
-    uuid4,
-)
+from uuid import UUID, uuid4
+
 import attr
-
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.internet.defer import (
-    returnValue,
-)
-from twisted.web.client import (
-    FileBodyProducer,
-)
-
-from eliot import (
-    start_action,
-    register_exception_extractor,
-)
-from eliot.twisted import (
-    inline_callbacks,
-)
-
-from nacl.signing import (
-    SigningKey,
-    VerifyKey,
-)
-from nacl.encoding import (
-    Base64Encoder,
-)
+from eliot import register_exception_extractor, start_action
+from eliot.twisted import inline_callbacks
+from nacl.encoding import Base64Encoder
+from nacl.signing import SigningKey, VerifyKey
+from twisted.internet.defer import returnValue
+from twisted.python.filepath import FilePath
+from twisted.web.client import FileBodyProducer
 
 from .util.encoding import normalize
 
@@ -86,6 +61,7 @@ class LocalAuthor(object):
 
     :ivar nacl.signing.SigningKey signing_key: author's private key
     """
+
     name = attr.ib(validator=[attr.validators.instance_of(unicode)])
     signing_key = attr.ib(validator=[attr.validators.instance_of(SigningKey)])
 
@@ -228,7 +204,13 @@ def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capa
     return local_author.signing_key.sign(data_to_sign)
 
 
-def verify_snapshot_signature(remote_author, alleged_signature, content_capability, metadata_capability, snapshot_name):
+def verify_snapshot_signature(
+    remote_author,
+    alleged_signature,
+    content_capability,
+    metadata_capability,
+    snapshot_name,
+):
     """
     Verify the given snapshot.
 
@@ -257,6 +239,7 @@ class LocalSnapshot(object):
     :ivar [bytes] parents_remote: The capability strings of snapshots that are
         known to exist remotely.
     """
+
     relpath = attr.ib()
     author = attr.ib()
     metadata = attr.ib()
@@ -289,14 +272,12 @@ class LocalSnapshot(object):
 
         def _serialized_dict(local_snapshot):
             serialized = {
-                'relpath': local_snapshot.relpath,
-                'metadata': local_snapshot.metadata,
-                'identifier': unicode(local_snapshot.identifier),
-                'content_path': local_snapshot.content_path.path,
-                'parents_local': [
-                    _serialized_dict(parent)
-                    for parent
-                    in local_snapshot.parents_local
+                "relpath": local_snapshot.relpath,
+                "metadata": local_snapshot.metadata,
+                "identifier": unicode(local_snapshot.identifier),
+                "content_path": local_snapshot.content_path.path,
+                "parents_local": [
+                    _serialized_dict(parent) for parent in local_snapshot.parents_local
                 ],
             }
 
@@ -304,7 +285,7 @@ class LocalSnapshot(object):
 
         serialized = _serialized_dict(self)
 
-        return (json.dumps(serialized))
+        return json.dumps(serialized)
 
     @classmethod
     def from_json(cls, serialized, author):
@@ -331,8 +312,7 @@ class LocalSnapshot(object):
                 content_path=FilePath(snapshot_dict["content_path"]),
                 parents_local=[
                     deserialize_dict(parent, author)
-                    for parent
-                    in snapshot_dict["parents_local"]
+                    for parent in snapshot_dict["parents_local"]
                 ],
             )
 
@@ -404,15 +384,15 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # (A key advantage is not even trying to deserialize anything
         # that's not verified by a signature).
         metadata_cap = snapshot["metadata"][1]["ro_uri"]
-        author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
+        author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"][
+            "author_signature"
+        ]
 
         metadata_json = yield tahoe_client.download_file(metadata_cap)
         metadata = json.loads(metadata_json)
 
         if "snapshot_version" not in metadata:
-            raise Exception(
-                "No 'snapshot_version' in snapshot metadata"
-            )
+            raise Exception("No 'snapshot_version' in snapshot metadata")
         if metadata["snapshot_version"] != SNAPSHOT_VERSION:
             raise Exception(
                 "Unknown snapshot_version '{}' (not '{}')".format(
@@ -446,8 +426,15 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 
 @inline_callbacks
-def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=None,
-                    raw_remote_parents=None, modified_time=None):
+def create_snapshot(
+    relpath,
+    author,
+    data_producer,
+    snapshot_stash_dir,
+    parents=None,
+    raw_remote_parents=None,
+    modified_time=None,
+):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -475,9 +462,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
         parents = []
 
     if not isinstance(author, LocalAuthor):
-        raise ValueError(
-            "create_snapshot 'author' must be a LocalAuthor instance"
-        )
+        raise ValueError("create_snapshot 'author' must be a LocalAuthor instance")
 
     # separate the two kinds of parents we can have (LocalSnapshot or
     # RemoteSnapshot)
@@ -499,7 +484,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     if raw_remote_parents:
         parents_remote.extend(raw_remote_parents)
 
-    chunk_size = 1024*1024  # 1 MiB
+    chunk_size = 1024 * 1024  # 1 MiB
     chunks_per_yield = 100
 
     # 1. create a temp-file in our stash area
@@ -566,7 +551,6 @@ def format_filenode(cap, metadata=None):
     ]
 
 
-
 @inline_callbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """
@@ -591,11 +575,11 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # "actually does it", including re-tries etc. Currently, this
     # function is both of those.
 
-    parents_raw = [] # raw capability strings
+    parents_raw = []  # raw capability strings
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent)#.capability)
+            parents_raw.append(parent)  # .capability)
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
@@ -606,9 +590,13 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         # first.
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
-            parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
+            parent_remote_snapshot = yield write_snapshot_to_tahoe(
+                parent, author_key, tahoe_client
+            )
             parents_raw.append(parent_remote_snapshot.capability)
-            snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
+            snapshot.parents_local.remove(
+                parent
+            )  # the shallow-copy to_upload not affected
 
     # upload the content itself
     content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
@@ -619,18 +607,15 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "name": snapshot.relpath,
         "author": snapshot.author.to_remote_author().to_json(),
         "modification_time": snapshot.metadata["mtime"],
-        "parents": [
-            parent_cap.encode("utf8")
-            for parent_cap in parents_raw
-        ]
+        "parents": [parent_cap.encode("utf8") for parent_cap in parents_raw],
     }
-    metadata_cap = yield tahoe_client.create_immutable(
-        json.dumps(snapshot_metadata)
-    )
+    metadata_cap = yield tahoe_client.create_immutable(json.dumps(snapshot_metadata))
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
-    author_signature = sign_snapshot(author_key, snapshot.relpath, content_cap, metadata_cap)
+    author_signature = sign_snapshot(
+        author_key, snapshot.relpath, content_cap, metadata_cap
+    )
     author_signature_base64 = base64.b64encode(author_signature.signature)
 
     # create the actual snapshot: an immutable directory with
@@ -641,7 +626,8 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     data = {
         u"content": format_filenode(content_cap, snapshot.metadata),
         u"metadata": format_filenode(
-            metadata_cap, {
+            metadata_cap,
+            {
                 u"magic_folder": {
                     u"author_signature": author_signature_base64,
                 },
@@ -668,6 +654,7 @@ class TahoeWriteException(Exception):
     """
     Something went wrong while doing a `tahoe put`.
     """
+
     def __init__(self, code, body):
         self.code = code
         self.body = body
@@ -680,4 +667,6 @@ class TahoeWriteException(Exception):
 
 
 # log exception caused while doing a tahoe put API
-register_exception_extractor(TahoeWriteException, lambda e: {"code": e.code, "body": e.body})
+register_exception_extractor(
+    TahoeWriteException, lambda e: {"code": e.code, "body": e.body}
+)

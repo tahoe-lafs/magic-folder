@@ -1,68 +1,31 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
+from __future__ import absolute_import, division, print_function
 
-import sys
-import time
 import json
 import os
-from os import mkdir
-from io import BytesIO
-from os.path import exists, join
-from six.moves import StringIO
+import sys
+import time
 from functools import partial
+from io import BytesIO
+from os import mkdir
+from os.path import exists, join
 
 import attr
-from psutil import Process
-
-from twisted.internet.defer import (
-    returnValue,
-    Deferred,
-)
-from twisted.internet.task import (
-    deferLater,
-)
-from twisted.internet.protocol import (
-    ProcessProtocol,
-)
-from twisted.internet.error import (
-    ProcessExitedAlready,
-    ProcessDone,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-
-import treq
-
-from eliot import (
-    Message,
-    current_action,
-    start_action,
-    start_task,
-)
-from eliot.twisted import (
-    inline_callbacks,
-)
-
-from allmydata.util.configutil import (
-    get_config,
-    set_config,
-    write_config,
-)
-from allmydata import client
-
 import pytest_twisted
+import treq
+from allmydata import client
+from allmydata.util.configutil import get_config, set_config, write_config
+from eliot import Message, current_action, start_action, start_task
+from eliot.twisted import inline_callbacks
+from psutil import Process
+from six.moves import StringIO
+from twisted.internet.defer import Deferred, returnValue
+from twisted.internet.error import ProcessDone, ProcessExitedAlready
+from twisted.internet.protocol import ProcessProtocol
+from twisted.internet.task import deferLater
+from twisted.python.filepath import FilePath
 
-from magic_folder.cli import (
-    MagicFolderCommand,
-    run_magic_folder_options,
-)
-from magic_folder.config import (
-    load_global_configuration,
-)
+from magic_folder.cli import MagicFolderCommand, run_magic_folder_options
+from magic_folder.config import load_global_configuration
 from magic_folder.util.eliotutil import log_inline_callbacks
 
 
@@ -82,6 +45,7 @@ class MagicFolderEnabledNode(object):
        action, rather than the test action, since the process likely continues
        until after the test ends.
     """
+
     reactor = attr.ib()
     request = attr.ib()
     base_dir = attr.ib()
@@ -106,7 +70,9 @@ class MagicFolderEnabledNode(object):
 
     def global_config(self):
         if self._global_config is None:
-            self._global_config = load_global_configuration(FilePath(self.magic_config_directory))
+            self._global_config = load_global_configuration(
+                FilePath(self.magic_config_directory)
+            )
         return self._global_config
 
     @property
@@ -116,17 +82,17 @@ class MagicFolderEnabledNode(object):
     @classmethod
     @inline_callbacks
     def create(
-            cls,
-            reactor,
-            tahoe_venv,
-            request,
-            base_dir,
-            introducer_furl,
-            flog_gatherer,
-            name,
-            tahoe_web_port,
-            magic_folder_web_port,
-            storage,
+        cls,
+        reactor,
+        tahoe_venv,
+        request,
+        base_dir,
+        introducer_furl,
+        flog_gatherer,
+        name,
+        tahoe_web_port,
+        magic_folder_web_port,
+        storage,
     ):
         """
         Launch the two processes and return a new ``MagicFolderEnabledNode``
@@ -151,7 +117,9 @@ class MagicFolderEnabledNode(object):
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
-        with start_task(action_type=u"integration:magic-folder-node", node=name).context() as action:
+        with start_task(
+            action_type=u"integration:magic-folder-node", node=name
+        ).context() as action:
             # We want to last until the session fixture using it ends (so we
             # can capture output from every process associated to this node).
             # Thus we use `.context()` above so this with-block doesn't finish
@@ -210,7 +178,7 @@ class MagicFolderEnabledNode(object):
         if self.magic_folder is None:
             return
         try:
-            self.magic_folder.signalProcess('TERM')
+            self.magic_folder.signalProcess("TERM")
             yield self.magic_folder.proto.exited
             self.magic_folder = None
         except ProcessExitedAlready:
@@ -246,7 +214,14 @@ class MagicFolderEnabledNode(object):
 
     # magic-folder CLI API helpers
 
-    def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None):
+    def add(
+        self,
+        folder_name,
+        magic_directory,
+        author=None,
+        poll_interval=5,
+        scan_interval=None,
+    ):
         """
         magic-folder add
         """
@@ -294,11 +269,15 @@ class MagicFolderEnabledNode(object):
                 folder_config.database.close()
 
         return _magic_folder_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "leave",
-                "--name", folder_name,
+                "--name",
+                folder_name,
                 "--really-delete-write-capability",
             ],
         )
@@ -308,9 +287,12 @@ class MagicFolderEnabledNode(object):
         magic-folder show-config
         """
         return _magic_folder_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "show-config",
             ],
         ).addCallback(json.loads)
@@ -320,7 +302,8 @@ class MagicFolderEnabledNode(object):
         magic-folder list
         """
         args = [
-            "--config", self.magic_config_directory,
+            "--config",
+            self.magic_config_directory,
             "list",
             "--json",
         ]
@@ -328,7 +311,9 @@ class MagicFolderEnabledNode(object):
             args.append("--include-secret-information")
 
         return _magic_folder_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             args,
         ).addCallback(json.loads)
 
@@ -337,12 +322,17 @@ class MagicFolderEnabledNode(object):
         magic-folder-api add-snapshot
         """
         return _magic_folder_api_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "add-snapshot",
-                "--folder", folder_name,
-                "--file", relpath,
+                "--folder",
+                folder_name,
+                "--file",
+                relpath,
             ],
         )
 
@@ -351,11 +341,15 @@ class MagicFolderEnabledNode(object):
         magic-folder-api scan-folder
         """
         return _magic_folder_api_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "scan-folder",
-                "--folder", folder_name,
+                "--folder",
+                folder_name,
             ],
         )
 
@@ -364,13 +358,19 @@ class MagicFolderEnabledNode(object):
         magic-folder-api add-participant
         """
         return _magic_folder_api_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "add-participant",
-                "--folder", folder_name,
-                "--author", author_name,
-                "--personal-dmd", personal_dmd,
+                "--folder",
+                folder_name,
+                "--author",
+                author_name,
+                "--personal-dmd",
+                personal_dmd,
             ],
         )
 
@@ -379,11 +379,15 @@ class MagicFolderEnabledNode(object):
         magic-folder-api dump-state
         """
         return _magic_folder_api_runner(
-            self.reactor, self.request, self.name,
+            self.reactor,
+            self.request,
+            self.name,
             [
-                "--config", self.magic_config_directory,
+                "--config",
+                self.magic_config_directory,
                 "dump-state",
-                "--folder", folder_name,
+                "--folder",
+                folder_name,
             ],
         )
 
@@ -407,6 +411,7 @@ class _CollectOutputProtocol(ProcessProtocol):
     self.output, and callback's on done with all of it after the
     process exits (for any reason).
     """
+
     def __init__(self):
         self.done = Deferred()
         self.output = StringIO()
@@ -435,6 +440,7 @@ class _DumpOutputProtocol(ProcessProtocol):
     """
     Internal helper.
     """
+
     def __init__(self, f):
         self.done = Deferred()
         self._out = f if f is not None else sys.stdout
@@ -464,6 +470,7 @@ class EliotLogStream(object):
 
     :ivar Callable[[str], None] _fallback: A function to call with non-JSON log lines.
     """
+
     _fallback = attr.ib()
     _eliot_buffer = attr.ib(init=False, default=b"")
 
@@ -472,7 +479,7 @@ class EliotLogStream(object):
         # eliot.Message to add its default fields.
         from eliot._output import _DEFAULT_LOGGER as logger
 
-        lines = (self._eliot_buffer + data).split(b'\n')
+        lines = (self._eliot_buffer + data).split(b"\n")
         self._eliot_buffer = lines.pop(-1)
         for line in lines:
             try:
@@ -484,13 +491,7 @@ class EliotLogStream(object):
 
 
 def run_service(
-    reactor,
-    request,
-    action_fields,
-    magic_text,
-    executable,
-    args,
-    cwd=None
+    reactor, request, action_fields, magic_text, executable, args, cwd=None
 ):
     """
     Start a service, and capture the output from the service in an eliot
@@ -512,12 +513,14 @@ def run_service(
 
     :return Deferred[IProcessTransport]: The started process.
     """
-    with start_action(args=args, executable=executable, **action_fields).context() as ctx:
+    with start_action(
+        args=args, executable=executable, **action_fields
+    ).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
         magic_seen = protocol.magic_seen
 
         env = os.environ.copy()
-        env['PYTHONUNBUFFERED'] = '1'
+        env["PYTHONUNBUFFERED"] = "1"
         process = reactor.spawnProcess(
             protocol,
             executable,
@@ -525,11 +528,14 @@ def run_service(
             path=cwd,
             # Twisted on Windows doesn't support customizing FDs
             # _MagicTextProtocol will collect eliot logs from FD 3 and stderr.
-            childFDs={1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
+            childFDs={1: "r", 2: "r", 3: "r"} if sys.platform != "win32" else None,
             env=env,
         )
-        request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
+        request.addfinalizer(
+            partial(_cleanup_service_process, process, protocol.exited, ctx)
+        )
         return magic_seen.addCallback(lambda ignored: process)
+
 
 def run_tahoe_service(
     reactor,
@@ -561,12 +567,18 @@ def run_tahoe_service(
     # on windows, "tahoe start" means: run forever in the foreground,
     # but on linux it means daemonize. "tahoe run" is consistent
     # between platforms.
-    executable, args = _tahoe_runner_args(tahoe_venv, [
-        '--eliot-destination', 'file:{}/logs/eliot.json'.format(node_dir),
-        'run',
-        node_dir,
-    ])
-    d = run_service(reactor, request, action_fields, magic_text, executable, args, cwd=cwd)
+    executable, args = _tahoe_runner_args(
+        tahoe_venv,
+        [
+            "--eliot-destination",
+            "file:{}/logs/eliot.json".format(node_dir),
+            "run",
+            node_dir,
+        ],
+    )
+    d = run_service(
+        reactor, request, action_fields, magic_text, executable, args, cwd=cwd
+    )
     return d.addCallback(TahoeProcess, node_dir=node_dir)
 
 
@@ -653,16 +665,19 @@ def _cleanup_service_process(process, exited, action):
     """
     try:
         with action.context():
+
             def report(m):
                 Message.log(message_type="integration:cleanup", message=m)
                 print(m)
+
             report("signaling {} with TERM".format(process.pid))
-            process.signalProcess('TERM')
+            process.signalProcess("TERM")
             report("signaled, blocking on exit")
             pytest_twisted.blockon(exited)
             report("exited, goodbye")
     except ProcessExitedAlready:
         pass
+
 
 @inline_callbacks
 def _package_runner(reactor, request, action_fields, package, other_args):
@@ -671,13 +686,10 @@ def _package_runner(reactor, request, action_fields, package, other_args):
 
     Gathers coverage of the command, if requested for pytest.
     """
-    with start_action(
-        args=other_args,
-        **action_fields
-    ) as action:
+    with start_action(args=other_args, **action_fields) as action:
         proto = _CollectOutputProtocol()
 
-        if request.config.getoption('coverage'):
+        if request.config.getoption("coverage"):
             prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
         else:
             prelude = [sys.executable, "-m", package]
@@ -699,8 +711,8 @@ def _magic_folder_runner(reactor, request, name, other_args):
     Launch a ``magic_folder`` sub-command and return the output.
     """
     action_fields = {
-            "action_type": "integration:magic-folder:run-cli",
-            "node": name,
+        "action_type": "integration:magic-folder:run-cli",
+        "node": name,
     }
     return _package_runner(
         reactor,
@@ -727,9 +739,10 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
         other_args,
     )
 
+
 def _tahoe_runner_args(tahoe_venv, other_args):
     tahoe_python = str(tahoe_venv.python)
-    args = [tahoe_python, '-m', 'allmydata.scripts.runner']
+    args = [tahoe_python, "-m", "allmydata.scripts.runner"]
     args.extend(other_args)
     return tahoe_python, args
 
@@ -783,46 +796,63 @@ class TahoeProcess(object):
 
 
 @inline_callbacks
-def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_gatherer, name, web_port,
-                 storage=True,
-                 magic_text=None,
-                 needed=2,
-                 happy=3,
-                 total=4):
+def _create_node(
+    reactor,
+    tahoe_venv,
+    request,
+    base_dir,
+    introducer_furl,
+    flog_gatherer,
+    name,
+    web_port,
+    storage=True,
+    magic_text=None,
+    needed=2,
+    happy=3,
+    total=4,
+):
     """
     Helper to create a single node, run it and return the instance
     spawnProcess returned (ITransport)
     """
     node_dir = join(base_dir, name)
     if web_port is None:
-        web_port = ''
+        web_port = ""
     if not exists(node_dir):
         print("creating", node_dir)
         mkdir(node_dir)
         done_proto = _ProcessExitedProtocol()
         args = [
-            'create-node',
-            '--nickname', name,
-            '--introducer', introducer_furl,
-            '--hostname', 'localhost',
-            '--listen', 'tcp',
-            '--webport', web_port,
-            '--shares-needed', unicode(needed),
-            '--shares-happy', unicode(happy),
-            '--shares-total', unicode(total),
-            '--helper',
+            "create-node",
+            "--nickname",
+            name,
+            "--introducer",
+            introducer_furl,
+            "--hostname",
+            "localhost",
+            "--listen",
+            "tcp",
+            "--webport",
+            web_port,
+            "--shares-needed",
+            unicode(needed),
+            "--shares-happy",
+            unicode(happy),
+            "--shares-total",
+            unicode(total),
+            "--helper",
         ]
         if not storage:
-            args.append('--no-storage')
+            args.append("--no-storage")
         args.append(node_dir)
 
         _tahoe_runner(done_proto, reactor, tahoe_venv, request, args)
         yield done_proto.done
 
         if flog_gatherer:
-            config_path = join(node_dir, 'tahoe.cfg')
+            config_path = join(node_dir, "tahoe.cfg")
             config = get_config(config_path)
-            set_config(config, 'node', 'log_gatherer.furl', flog_gatherer)
+            set_config(config, "node", "log_gatherer.furl", flog_gatherer)
             write_config(config_path, config)
 
     magic_text = "client running"
@@ -830,9 +860,10 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
         "action_type": u"integration:tahoe-node:service",
         "node": name,
     }
-    process = yield run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, node_dir)
+    process = yield run_tahoe_service(
+        reactor, request, action_fields, magic_text, tahoe_venv, node_dir
+    )
     returnValue(process)
-
 
 
 class UnwantedFileException(Exception):
@@ -840,6 +871,7 @@ class UnwantedFileException(Exception):
     While waiting for some files to appear, some undesired files
     appeared instead (or in addition).
     """
+
     def __init__(self, unwanted):
         super(UnwantedFileException, self).__init__(
             u"Unwanted file appeared: {}".format(
@@ -852,6 +884,7 @@ class ExpectedFileMismatchException(Exception):
     """
     A file or files we wanted weren't found within the timeout.
     """
+
     def __init__(self, path, timeout):
         super(ExpectedFileMismatchException, self).__init__(
             u"Contents of '{}' mismatched after {}s".format(path, timeout),
@@ -863,11 +896,11 @@ class ExpectedFileUnfoundException(Exception):
     A file or files we expected to find didn't appear within the
     timeout.
     """
+
     def __init__(self, path, timeout):
         super(ExpectedFileUnfoundException, self).__init__(
             u"Didn't find '{}' after {}s".format(path, timeout),
         )
-
 
 
 class FileShouldVanishException(Exception):
@@ -875,11 +908,11 @@ class FileShouldVanishException(Exception):
     A file or files we expected to disappear did not within the
     timeout
     """
+
     def __init__(self, path, timeout):
         super(FileShouldVanishException, self).__init__(
             u"'{}' still exists after {}s".format(path, timeout),
         )
-
 
 
 @log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
@@ -894,12 +927,13 @@ def await_file_contents(path, contents, timeout=15):
         the timeout.
     """
     from twisted.internet import reactor
+
     start_time = reactor.seconds()
     while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             try:
-                with open(path, 'r') as f:
+                with open(path, "r") as f:
                     current = f.read()
             except IOError:
                 print("IOError; trying again")
@@ -909,8 +943,8 @@ def await_file_contents(path, contents, timeout=15):
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
                 if len(contents) < 80:
-                    print("  wanted: {}".format(contents.replace('\n', ' ')))
-                    print("     got: {}".format(current.replace('\n', ' ')))
+                    print("  wanted: {}".format(contents.replace("\n", " ")))
+                    print("     got: {}".format(current.replace("\n", " ")))
                 Message.log(
                     message_type=u"integration:await-file-contents:mismatched",
                     got=current,
@@ -924,6 +958,7 @@ def await_file_contents(path, contents, timeout=15):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
 
+
 @inline_callbacks
 def ensure_file_not_created(path, timeout=15):
     """
@@ -933,6 +968,7 @@ def ensure_file_not_created(path, timeout=15):
     :raises UnwantedFileException: if the file appears before the timeout.
     """
     from twisted.internet import reactor
+
     start_time = reactor.seconds()
     while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
@@ -949,7 +985,7 @@ def await_files_exist(paths, timeout=15, await_all=False):
     """
     start_time = time.time()
     while time.time() - start_time < timeout:
-        print("  waiting for: {}".format(' '.join(paths)))
+        print("  waiting for: {}".format(" ".join(paths)))
         found = [p for p in paths if exists(p)]
         print("found: {}".format(found))
         if await_all:
@@ -960,9 +996,9 @@ def await_files_exist(paths, timeout=15, await_all=False):
                 return found
         sleep(1)
     if await_all:
-        nice_paths = ' and '.join(paths)
+        nice_paths = " and ".join(paths)
     else:
-        nice_paths = ' or '.join(paths)
+        nice_paths = " or ".join(paths)
     raise ExpectedFileUnfoundException(nice_paths, timeout)
 
 
@@ -992,9 +1028,7 @@ def _check_status(response):
     Check the response code is a 2xx (raise an exception otherwise)
     """
     if response.code < 200 or response.code >= 300:
-        raise ValueError(
-            "Expected a 2xx code, got {}".format(response.code)
-        )
+        raise ValueError("Expected a 2xx code, got {}".format(response.code))
 
 
 @inline_callbacks
@@ -1027,11 +1061,12 @@ def sleep(timeout):
     greenlet.
     """
     from twisted.internet import reactor as _reactor
+
     pytest_twisted.blockon(twisted_sleep(_reactor, timeout))
 
 
 @inline_callbacks
-def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
+def await_client_ready(reactor, tahoe, timeout=10, liveness=60 * 2):
     """
     Uses the status API to wait for a client-type node (in `tahoe`, a
     `TahoeProcess` instance usually from a fixture e.g. `alice`) to be
@@ -1054,14 +1089,14 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
             yield twisted_sleep(reactor, 1)
             continue
 
-        if len(js['servers']) == 0:
+        if len(js["servers"]) == 0:
             print("waiting because no servers at all")
             yield twisted_sleep(reactor, 1)
             continue
         server_times = [
-            server['last_received_data']
-            for server in js['servers']
-            if server['last_received_data'] is not None
+            server["last_received_data"]
+            for server in js["servers"]
+            if server["last_received_data"] is not None
         ]
 
         # check that all times are 'recent enough'
@@ -1097,10 +1132,13 @@ def _init_magic_folder(reactor, request, base_dir, name, web_port):
     config_dir = join(base_dir, "magic-daemon-{}".format(name))
 
     args = [
-        "--config", config_dir,
+        "--config",
+        config_dir,
         "init",
-        "--node-directory", node_dir,
-        "--listen-endpoint", web_port,
+        "--node-directory",
+        node_dir,
+        "--listen-endpoint",
+        web_port,
     ]
     return _magic_folder_runner(reactor, request, name, args)
 
@@ -1120,37 +1158,52 @@ def _run_magic_folder(reactor, request, base_dir, name):
 
     magic_text = "Completed initial Magic Folder setup"
 
-    coverage = request.config.getoption('coverage')
+    coverage = request.config.getoption("coverage")
+
     def optional(flag, elements):
         if flag:
             return elements
         return []
 
-    args = [
-        sys.executable,
-        "-m",
-    ] + optional(coverage, [
-        "coverage",
-        "run",
-        "-m",
-    ]) + [
-        "magic_folder",
-    ] + optional(coverage, [
-        "--coverage",
-    ]) + [
-        "--config",
-        config_dir,
-        # run_service will collect eliot logs from FD 3 and stderr.
-        "--eliot-fd",
-        "3" if sys.platform != "win32" else "2",
-        "--debug",
-        "--eliot-task-fields",
-        json.dumps({
-            "action_type": "magic-folder:service",
-            "node": name,
-        }),
-        "run",
-    ]
+    args = (
+        [
+            sys.executable,
+            "-m",
+        ]
+        + optional(
+            coverage,
+            [
+                "coverage",
+                "run",
+                "-m",
+            ],
+        )
+        + [
+            "magic_folder",
+        ]
+        + optional(
+            coverage,
+            [
+                "--coverage",
+            ],
+        )
+        + [
+            "--config",
+            config_dir,
+            # run_service will collect eliot logs from FD 3 and stderr.
+            "--eliot-fd",
+            "3" if sys.platform != "win32" else "2",
+            "--debug",
+            "--eliot-task-fields",
+            json.dumps(
+                {
+                    "action_type": "magic-folder:service",
+                    "node": name,
+                }
+            ),
+            "run",
+        ]
+    )
     action_fields = {
         "action_type": u"integration:magic-folder:service",
         "node": name,
@@ -1169,10 +1222,13 @@ def _run_magic_folder(reactor, request, base_dir, name):
 def _pair_magic_folder(reactor, alice_invite, alice, bob):
     print("Joining bob to magic-folder")
     yield _command(
-        "--node-directory", bob.node_directory,
+        "--node-directory",
+        bob.node_directory,
         "join",
-        "--author", "bob",
-        "--poll-interval", "1",
+        "--author",
+        "bob",
+        "--poll-interval",
+        "1",
         alice_invite,
         bob.magic_directory,
     )
@@ -1197,17 +1253,28 @@ def _generate_invite(reactor, inviter, invitee_name):
     with start_action(action_type=u"{}:create".format(action_prefix)):
         print("Creating magic-folder for {}".format(inviter.node_directory))
         yield _command(
-            "--node-directory", inviter.node_directory,
+            "--node-directory",
+            inviter.node_directory,
             "create",
-            "--poll-interval", "2", "magik:", inviter.name, inviter.magic_directory,
+            "--poll-interval",
+            "2",
+            "magik:",
+            inviter.name,
+            inviter.magic_directory,
         )
 
     with start_action(action_type=u"{}:invite".format(action_prefix)) as a:
-        print("Inviting '{}' to magic-folder for {}".format(invitee_name, inviter.node_directory))
+        print(
+            "Inviting '{}' to magic-folder for {}".format(
+                invitee_name, inviter.node_directory
+            )
+        )
         invite = yield _command(
-            "--node-directory", inviter.node_directory,
+            "--node-directory",
+            inviter.node_directory,
             "invite",
-            "magik:", invitee_name,
+            "magik:",
+            invitee_name,
         )
         a.add_success_fields(invite=invite)
 
@@ -1216,7 +1283,6 @@ def _generate_invite(reactor, inviter, invitee_name):
         # crappy for the tests -- can we fix it in magic-folder?)
         yield inviter.restart_magic_folder()
     returnValue(invite)
-
 
 
 @inline_callbacks

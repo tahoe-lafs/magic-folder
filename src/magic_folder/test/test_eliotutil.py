@@ -2,60 +2,36 @@
 Tests for ``magic_folder.test.eliotutil``.
 """
 
-from __future__ import (
-    unicode_literals,
-    print_function,
-    absolute_import,
-    division,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from sys import stdout
 import logging
+from sys import stdout
 
-from fixtures import (
-    TempDir,
-)
-from testtools import (
-    TestCase,
-)
+from eliot import FileDestination, Message
+from eliot.testing import assertHasAction, capture_logging
+from eliot.twisted import DeferredContext
+from fixtures import TempDir
+from testtools import TestCase
 from testtools.matchers import (
+    AfterPreprocessing,
+    Equals,
     Is,
     IsInstance,
     MatchesStructure,
-    Equals,
-    AfterPreprocessing,
 )
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-
-from eliot import (
-    Message,
-    FileDestination,
-)
-from eliot.twisted import DeferredContext
-from eliot.testing import (
-    capture_logging,
-    assertHasAction,
-)
-
-from twisted.internet.defer import (
-    succeed,
-)
-from twisted.internet.task import deferLater
+from testtools.twistedsupport import failed, succeeded
 from twisted.internet import reactor
+from twisted.internet.defer import succeed
+from twisted.internet.task import deferLater
 
 from ..util.eliotutil import (
+    _EliotLogging,
+    _parse_destination_description,
     log_call_deferred,
     log_inline_callbacks,
-    _parse_destination_description,
-    _EliotLogging,
 )
-from .common import (
-    SyncTestCase,
-    AsyncTestCase,
-)
+from .common import AsyncTestCase, SyncTestCase
+
 
 class EliotLoggedTestTests(AsyncTestCase):
     def test_returns_none(self):
@@ -76,11 +52,11 @@ class EliotLoggedTestTests(AsyncTestCase):
         return d.result
 
 
-
 class ParseDestinationDescriptionTests(SyncTestCase):
     """
     Tests for ``_parse_destination_description``.
     """
+
     def test_stdout(self):
         """
         A ``file:`` description with a path of ``-`` causes logs to be written to
@@ -91,7 +67,6 @@ class ParseDestinationDescriptionTests(SyncTestCase):
             _parse_destination_description("file:-")(reactor),
             Equals(FileDestination(stdout)),
         )
-
 
     def test_regular_file(self):
         """
@@ -122,6 +97,7 @@ class EliotLoggingTests(TestCase):
     """
     Tests for ``_EliotLogging``.
     """
+
     def test_stdlib_event_relayed(self):
         """
         An event logged using the stdlib logging module is delivered to the Eliot
@@ -157,30 +133,37 @@ class EliotLoggingTests(TestCase):
         self.addCleanup(service.stopService)
 
         from twisted.logger import Logger
+
         Logger().critical("oh no")
         self.assertThat(
             collected,
             AfterPreprocessing(
-                len, Equals(1),
+                len,
+                Equals(1),
             ),
         )
+
 
 class LogCallDeferredTests(TestCase):
     """
     Tests for ``log_call_deferred``.
     """
+
     @capture_logging(
-        lambda self, logger:
-        assertHasAction(self, logger, u"the-action", succeeded=True),
+        lambda self, logger: assertHasAction(
+            self, logger, "the-action", succeeded=True
+        ),
     )
     def test_return_value(self, logger):
         """
         The decorated function's return value is passed through.
         """
         result = object()
-        @log_call_deferred(action_type=u"the-action")
+
+        @log_call_deferred(action_type="the-action")
         def f():
             return result
+
         self.assertThat(f(), succeeded(Is(result)))
 
     @capture_logging(
@@ -232,18 +215,22 @@ class LogCallDeferredTests(TestCase):
         f("value", object())
 
     @capture_logging(
-        lambda self, logger:
-        assertHasAction(self, logger, u"the-action", succeeded=False),
+        lambda self, logger: assertHasAction(
+            self, logger, "the-action", succeeded=False
+        ),
     )
     def test_raise_exception(self, logger):
         """
         An exception raised by the decorated function is passed through.
         """
+
         class Result(Exception):
             pass
-        @log_call_deferred(action_type=u"the-action")
+
+        @log_call_deferred(action_type="the-action")
         def f():
             raise Result()
+
         self.assertThat(
             f(),
             failed(

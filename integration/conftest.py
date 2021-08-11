@@ -7,13 +7,13 @@ from os import environ, listdir, mkdir
 from os.path import exists, join
 
 import attr
-from twisted.python.filepath import FilePath
 import pytest
 import pytest_twisted
 from eliot import log_call, start_task, to_file
 from foolscap.furl import decode_furl
 from pathlib2 import Path
 from twisted.internet.error import ProcessTerminated
+from twisted.python.filepath import FilePath
 
 from .util import (
     MagicFolderEnabledNode,
@@ -28,33 +28,39 @@ from .util import (
     sleep,
 )
 
-
 # pytest customization hooks
+
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--coverage", action="store_true", dest="coverage",
+        "--coverage",
+        action="store_true",
+        dest="coverage",
         help="Collect coverage statistics",
     )
     parser.addoption(
-        "--tahoe-tox-env", dest="tahoe_tox_env",
+        "--tahoe-tox-env",
+        dest="tahoe_tox_env",
         help="A tox env to run tahoe from.",
         default="tahoe1_15",
     )
     parser.addoption(
-        "--gather-foolscap-logs", action="store_true", dest="gather_foolscap_logs",
+        "--gather-foolscap-logs",
+        action="store_true",
+        dest="gather_foolscap_logs",
         help="Gather foolscap logs from tahoe processes.",
         default=False,
     )
 
-@pytest.fixture(autouse=True, scope='session')
+
+@pytest.fixture(autouse=True, scope="session")
 def eliot_logging():
     with open("eliot.log", "w") as f:
         to_file(f)
         yield
 
 
-@pytest.fixture(autouse=True, scope='function')
+@pytest.fixture(autouse=True, scope="function")
 def eliot_log_test(request):
     with start_task(action_type="integration:pytest", test=str(request.node.nodeid)):
         yield
@@ -67,16 +73,17 @@ def eliot_log_test(request):
 # little careful they're not stepping on toes etc :/
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 @log_call(action_type=u"integration:reactor", include_result=False)
 def reactor():
     # this is a fixture in case we might want to try different
     # reactors for some reason.
     from twisted.internet import reactor as _reactor
+
     return _reactor
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 @log_call(action_type=u"integration:base_dir", include_args=[])
 def base_dir(tmp_path_factory):
     """
@@ -90,7 +97,7 @@ def base_dir(tmp_path_factory):
     return str(base)
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def temp_filepath(tmp_path):
     """
     Fixture that returns a per test function temporary directory represented
@@ -117,7 +124,7 @@ class VirtualEnv(object):
         """
         The directory containing executables of the virtual environment.
         """
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             return self.base_dir.joinpath("Scripts")
         else:
             return self.base_dir.joinpath("bin")
@@ -133,7 +140,7 @@ class VirtualEnv(object):
         """
         The python executable of the virtualenv.
         """
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             return self.bin("python.exe")
         else:
             return self.bin("python")
@@ -146,7 +153,7 @@ class VirtualEnv(object):
 # option to specify tahoe-version and have multiple separate runs
 # (which looks better in CI anyway).
 @pytest.fixture(
-    scope='session',
+    scope="session",
 )
 def tahoe_venv(request, reactor):
     """
@@ -165,68 +172,86 @@ def tahoe_venv(request, reactor):
     pytest_twisted.blockon(out_protocol.done)
 
     output = subprocess.check_output(
-        [sys.executable, "-m", "tox", "-e", request.config.getoption("tahoe_tox_env"), "--showconfig"],
+        [
+            sys.executable,
+            "-m",
+            "tox",
+            "-e",
+            request.config.getoption("tahoe_tox_env"),
+            "--showconfig",
+        ],
         env=environ,
     )
 
     parser = ConfigParser(strict=False)
     parser.read_string(output.decode("utf-8"))
 
-    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
+    venv_dir = parser.get("testenv:{}".format(tahoe_env), "envdir")
 
     return VirtualEnv(Path(venv_dir))
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def flog_binary(tahoe_venv):
     return str(tahoe_venv.bin("flogtool"))
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def flog_gatherer(reactor, base_dir, tahoe_venv, flog_binary, request):
     if not request.config.getoption("gather_foolscap_logs"):
         return ""
 
     with start_task(action_type=u"integration:flog_gatherer"):
         out_protocol = _CollectOutputProtocol()
-        gather_dir = join(base_dir, 'flog_gather')
+        gather_dir = join(base_dir, "flog_gather")
         reactor.spawnProcess(
             out_protocol,
             flog_binary,
             (
-                u'flogtool', u'create-gatherer',
-                u'--location', u'tcp:localhost:3117',
-                u'--port', u'3117',
+                u"flogtool",
+                u"create-gatherer",
+                u"--location",
+                u"tcp:localhost:3117",
+                u"--port",
+                u"3117",
                 gather_dir,
-            )
+            ),
         )
         pytest_twisted.blockon(out_protocol.done)
 
         magic_text = "Gatherer waiting at"
-        executable = str(tahoe_venv.bin('twistd'))
+        executable = str(tahoe_venv.bin("twistd"))
         args = (
-            'twistd', '--nodaemon', '--python',
-            join(gather_dir, 'gatherer.tac'),
+            "twistd",
+            "--nodaemon",
+            "--python",
+            join(gather_dir, "gatherer.tac"),
         )
         action_fields = {
             "action_type": u"integration:flog-gatherer:service",
         }
         pytest_twisted.blockon(
-            run_service(reactor, request, action_fields, magic_text, executable, args, cwd=gather_dir)
+            run_service(
+                reactor,
+                request,
+                action_fields,
+                magic_text,
+                executable,
+                args,
+                cwd=gather_dir,
+            )
         )
 
         def cleanup():
-            flog_file = 'integration.flog_dump'
-            flog_protocol = _DumpOutputProtocol(open(flog_file, 'w'))
-            flogs = [x for x in listdir(gather_dir) if x.endswith('.flog')]
+            flog_file = "integration.flog_dump"
+            flog_protocol = _DumpOutputProtocol(open(flog_file, "w"))
+            flogs = [x for x in listdir(gather_dir) if x.endswith(".flog")]
 
             print("Dumping {} flogtool logfiles to '{}'".format(len(flogs), flog_file))
             reactor.spawnProcess(
                 flog_protocol,
                 flog_binary,
-                (
-                    'flogtool', 'dump', join(gather_dir, flogs[0])
-                ),
+                ("flogtool", "dump", join(gather_dir, flogs[0])),
             )
             print("Waiting for flogtool to complete")
             try:
@@ -237,24 +262,26 @@ def flog_gatherer(reactor, base_dir, tahoe_venv, flog_binary, request):
 
         request.addfinalizer(cleanup)
 
-        with open(join(gather_dir, 'log_gatherer.furl'), 'r') as f:
+        with open(join(gather_dir, "log_gatherer.furl"), "r") as f:
             furl = f.read().strip()
         return furl
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def introducer(reactor, tahoe_venv, base_dir, flog_gatherer, request):
     with start_task(action_type=u"integration:introducer").context():
-        config = '''
+        config = """
 [node]
 nickname = introducer0
 web.port = 4560
 log_gatherer.furl = {log_furl}
 tub.port = tcp:9321
 tub.location = tcp:localhost:9321
-'''.format(log_furl=flog_gatherer)
+""".format(
+            log_furl=flog_gatherer
+        )
 
-        intro_dir = join(base_dir, 'introducer')
+        intro_dir = join(base_dir, "introducer")
         print("making introducer", intro_dir)
 
         if not exists(intro_dir):
@@ -266,34 +293,36 @@ tub.location = tcp:localhost:9321
                 tahoe_venv,
                 request,
                 (
-                    'create-introducer',
-                    '--listen=tcp',
-                    '--hostname=localhost',
+                    "create-introducer",
+                    "--listen=tcp",
+                    "--hostname=localhost",
                     intro_dir,
                 ),
             )
             pytest_twisted.blockon(done_proto.done)
 
         # over-write the config file with our stuff
-        with open(join(intro_dir, 'tahoe.cfg'), 'w') as f:
+        with open(join(intro_dir, "tahoe.cfg"), "w") as f:
             f.write(config)
 
-        magic_text = 'introducer running'
+        magic_text = "introducer running"
         action_fields = {
             "action_type": u"integration:introducer:service",
         }
         return pytest_twisted.blockon(
-            run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, intro_dir)
+            run_tahoe_service(
+                reactor, request, action_fields, magic_text, tahoe_venv, intro_dir
+            )
         )
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def introducer_furl(introducer, base_dir):
-    furl_fname = join(base_dir, 'introducer', 'private', 'introducer.furl')
+    furl_fname = join(base_dir, "introducer", "private", "introducer.furl")
     while not exists(furl_fname):
         print("Don't see {} yet".format(furl_fname))
-        sleep(.1)
-    furl = open(furl_fname, 'r').read()
+        sleep(0.1)
+    furl = open(furl_fname, "r").read()
     # Make sure it is valid.
     _, location, _ = decode_furl(furl)
     if location == []:
@@ -301,7 +330,7 @@ def introducer_furl(introducer, base_dir):
     return furl
 
 
-@pytest.fixture(scope='function', autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def magic_folder_nodes(request):
     nodes = {
         name: fixture
@@ -311,10 +340,10 @@ def magic_folder_nodes(request):
     return nodes
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     try:
-        mkdir(join(base_dir, 'magic-alice'))
+        mkdir(join(base_dir, "magic-alice"))
     except OSError:
         pass
 
@@ -335,10 +364,10 @@ def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request
     return node
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     try:
-        mkdir(join(base_dir, 'magic-bob'))
+        mkdir(join(base_dir, "magic-bob"))
     except OSError:
         pass
 
@@ -357,7 +386,8 @@ def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
         )
     )
 
-@pytest.fixture(scope='session')
+
+@pytest.fixture(scope="session")
 def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
         MagicFolderEnabledNode.create(
@@ -374,22 +404,19 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
         )
     )
 
-@pytest.fixture(scope='session')
+
+@pytest.fixture(scope="session")
 @log_call(action_type=u"integration:alice:invite", include_args=["base_dir"])
 def alice_invite(reactor, alice, base_dir):
-    invite = pytest_twisted.blockon(
-        _generate_invite(reactor, alice, "bob")
-    )
+    invite = pytest_twisted.blockon(_generate_invite(reactor, alice, "bob"))
     return invite
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 @log_call(
     action_type=u"integration:magic_folder",
     include_args=["alice_invite"],
 )
 def magic_folder(reactor, alice_invite, alice, bob):
     print("pairing magic-folder")
-    return pytest_twisted.blockon(
-        _pair_magic_folder(reactor, alice_invite, alice, bob)
-    )
+    return pytest_twisted.blockon(_pair_magic_folder(reactor, alice_invite, alice, bob))

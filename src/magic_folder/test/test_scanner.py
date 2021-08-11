@@ -136,9 +136,7 @@ class FindUpdatesTests(SyncTestCase):
             parents_raw=[],
             content_cap="URI:CHK:",
         )
-        self.config.store_downloaded_snapshot(
-            relpath, snap, get_pathinfo(local).state
-        )
+        self.config.store_downloaded_snapshot(relpath, snap, get_pathinfo(local).state)
 
         files = []
         self.assertThat(
@@ -238,7 +236,9 @@ class FindUpdatesTests(SyncTestCase):
             MatchesListwise(
                 [
                     MatchesStructure(
-                        summary=MatchesRegex("File .* was a file, and now is a directory.")
+                        summary=MatchesRegex(
+                            "File .* was a file, and now is a directory."
+                        )
                     ),
                 ]
             ),

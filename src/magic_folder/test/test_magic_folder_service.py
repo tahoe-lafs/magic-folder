@@ -6,86 +6,36 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
-from __future__ import (
-    absolute_import,
-    print_function,
-    division,
-)
+from __future__ import absolute_import, division, print_function
+
 import json
-from hyperlink import (
-    DecodedURL,
-)
-from twisted.python.filepath import (
-    FilePath,
-)
-from twisted.application.service import (
-    Service,
-    MultiService,
-)
+
+from hyperlink import DecodedURL
+from hypothesis import find, given
+from hypothesis.strategies import binary, integers, just, sampled_from
+from testtools.matchers import Always, ContainsDict, Equals, Is
+from testtools.twistedsupport import succeeded
+from twisted.application.service import MultiService, Service
 from twisted.internet import task
-from hypothesis import (
-    given,
-    find,
-)
-from hypothesis.strategies import (
-    binary,
-    integers,
-    just,
-    sampled_from,
-)
-from testtools.matchers import (
-    Is,
-    Always,
-    Equals,
-    ContainsDict,
-)
-from testtools.twistedsupport import (
-    succeeded,
-)
-from ..magic_folder import (
-    MagicFolder,
-    LocalSnapshotService,
-)
-from ..magicpath import (
-    path2magic,
-)
-from ..config import (
-    create_global_configuration,
-    create_testing_configuration,
-)
-from ..status import (
-    FolderStatus,
-    WebSocketStatusService,
-)
-from ..snapshot import (
-    create_local_author,
-)
-from ..tahoe_client import (
-    create_tahoe_client,
-)
+from twisted.python.filepath import FilePath
 
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
+from ..config import create_global_configuration, create_testing_configuration
+from ..magic_folder import LocalSnapshotService, MagicFolder
+from ..magicpath import path2magic
+from ..snapshot import create_local_author
+from ..status import FolderStatus, WebSocketStatusService
+from ..tahoe_client import create_tahoe_client
+from ..testing.web import create_fake_tahoe_root, create_tahoe_treq_client
+from .common import SyncTestCase
+from .strategies import folder_names, local_authors, relative_paths
+from .test_local_snapshot import MemorySnapshotCreator, MemoryUploaderService
 
-from .common import (
-    SyncTestCase,
-)
-from .strategies import (
-    relative_paths,
-    local_authors,
-    folder_names,
-)
-from .test_local_snapshot import (
-    MemorySnapshotCreator,
-    MemoryUploaderService,
-)
 
 class MagicFolderServiceTests(SyncTestCase):
     """
     Tests for ``MagicFolder``.
     """
+
     def test_local_snapshot_service_child(self):
         """
         ``MagicFolder`` adds the service given as ``LocalSnapshotService`` to
@@ -251,10 +201,12 @@ class MagicFolderServiceTests(SyncTestCase):
 
 LOCAL_AUTHOR = find(local_authors(), lambda x: True)
 
+
 class MagicFolderFromConfigTests(SyncTestCase):
     """
     Tests for ``MagicFolder.from_config``.
     """
+
     @given(
         folder_names(),
         relative_paths(),
@@ -264,13 +216,13 @@ class MagicFolderFromConfigTests(SyncTestCase):
         binary(),
     )
     def test_uploader_service(
-            self,
-            name,
-            file_path,
-            author,
-            collective_cap_kind,
-            poll_interval,
-            content,
+        self,
+        name,
+        file_path,
+        author,
+        collective_cap_kind,
+        poll_interval,
+        content,
     ):
         """
         ``MagicFolder.from_config`` creates an ``UploaderService`` which will
@@ -282,24 +234,28 @@ class MagicFolderFromConfigTests(SyncTestCase):
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
         tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(U"http://example.invalid./"),
+            DecodedURL.from_text(u"http://example.invalid./"),
             http_client,
         )
 
         ignored, upload_dircap = root.add_mutable_data(
             b"URI:DIR2:",
-            json.dumps([
-                u"dirnode",
-                {u"children": {}},
-            ]),
+            json.dumps(
+                [
+                    u"dirnode",
+                    {u"children": {}},
+                ]
+            ),
         )
 
         ignored, collective_dircap = root.add_mutable_data(
             collective_cap_kind,
-            json.dumps([
-                u"dirnode",
-                {u"children": {}},
-            ]),
+            json.dumps(
+                [
+                    u"dirnode",
+                    {u"children": {}},
+                ]
+            ),
         )
 
         basedir = FilePath(self.mktemp()).asTextMode("utf-8")
