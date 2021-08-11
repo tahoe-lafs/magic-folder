@@ -31,8 +31,6 @@ from hypothesis.strategies import (
     binary,
     integers,
     just,
-    none,
-    one_of,
     sampled_from,
 )
 from testtools.matchers import (
@@ -81,6 +79,7 @@ from .strategies import (
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator,
+    MemoryUploaderService,
 )
 
 class MagicFolderServiceTests(SyncTestCase):
@@ -155,6 +154,7 @@ class MagicFolderServiceTests(SyncTestCase):
             mf_config,
             local_snapshot_creator,
             folder_status,
+            MemoryUploaderService(),
         )
 
         tahoe_client = object()
@@ -218,6 +218,7 @@ class MagicFolderServiceTests(SyncTestCase):
             config,
             local_snapshot_creator,
             folder_status,
+            uploader_service=Service(),
         )
 
         # create RemoteSnapshotCreator and UploaderService
@@ -260,7 +261,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
         just(LOCAL_AUTHOR),
         sampled_from([b"URI:DIR2:", b"URI:DIR2-RO:"]),
         integers(min_value=1, max_value=10000),
-        one_of(integers(min_value=1, max_value=10000), none()),
         binary(),
     )
     def test_uploader_service(
@@ -270,7 +270,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
             author,
             collective_cap_kind,
             poll_interval,
-            scan_interval,
             content,
     ):
         """
@@ -278,6 +277,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
         upload snapshots using the given Tahoe client object.
         """
         reactor = task.Clock()
+        scan_interval = None
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -353,8 +353,7 @@ class MagicFolderFromConfigTests(SyncTestCase):
             Equals(name),
         )
 
-        # add a file. This won't actually add a file until we advance
-        # the clock.
+        # add a file.
         d = magic_folder.local_snapshot_service.add_file(
             target_path,
         )
@@ -366,15 +365,6 @@ class MagicFolderFromConfigTests(SyncTestCase):
 
         def children():
             return json.loads(root._uri.data[upload_dircap])[1][u"children"]
-
-        reactor.advance(poll_interval - 1)
-
-        self.assertThat(
-            children(),
-            Equals({}),
-        )
-
-        reactor.advance(1)
 
         self.assertThat(
             children(),

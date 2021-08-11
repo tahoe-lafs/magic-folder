@@ -1084,7 +1084,7 @@ class MagicFolderConfig(object):
     def get_all_snapshot_paths(self, cursor):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
-        (i.e. that have been downloaded at least once).
+        (i.e. that have been downloaded or uploaded at least once).
         """
         cursor.execute("SELECT [name] FROM [current_snapshots]")
         rows = cursor.fetchall()

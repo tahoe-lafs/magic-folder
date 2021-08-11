@@ -16,7 +16,10 @@ from twisted.application import (
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
+    DeferredLock,
     CancelledError,
+    maybeDeferred,
+    inlineCallbacks,
 )
 from twisted.internet.task import (
     LoopingCall,
@@ -40,6 +43,9 @@ from .util.eliotutil import (
     RELPATH,
     log_call_deferred,
 )
+from .util.twisted import (
+    exclusively,
+)
 from .snapshot import (
     LocalAuthor,
     write_snapshot_to_tahoe,
@@ -47,6 +53,9 @@ from .snapshot import (
 )
 from .status import (
     FolderStatus,
+)
+from .tahoe_client import (
+    TahoeAPIError,
 )
 from .config import (
     MagicFolderConfig,
@@ -167,6 +176,7 @@ class LocalSnapshotService(service.Service):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+    _uploader_service = attr.ib()
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -186,6 +196,8 @@ class LocalSnapshotService(service.Service):
                 (path, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     yield self._snapshot_creator.store_local_snapshot(path)
+                    # We explicitly don't wait to upload the snapshot.
+                    self._uploader_service.perform_upload()
                     d.callback(None)
             except CancelledError:
                 break
@@ -298,7 +310,6 @@ class RemoteSnapshotCreator(object):
         Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
         format to LocalSnapshot objects and commit them into the grid.
         """
-
         # get the paths for the LocalSnapshot objects in the db
         localsnapshot_paths = self._config.get_all_localsnapshot_paths()
 
@@ -313,17 +324,14 @@ class RemoteSnapshotCreator(object):
                 with action:
                     self._status.upload_started(relpath)
                     yield self._upload_some_snapshots(relpath)
-            except Exception:
-                # XXX this existing comment is wrong; there are many
-                # reasons we could receive an Exception here not just
-                # "Tahoe is gone" ...
-                # Unable to reach Tahoe storage nodes because of network
-                # errors or because the tahoe storage nodes are
-                # offline. Retry?
+            except TahoeAPIError as e:
+                self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
                 write_traceback()
-            finally:
+                # note: we will re-try on the next upload pass, after one scan_interval
+            except Exception:
+                write_traceback()
+            else:
                 self._status.upload_finished(relpath)
-
 
     @inline_callbacks
     def _upload_some_snapshots(self, relpath):
@@ -415,6 +423,7 @@ class UploaderService(service.Service):
         self._clock = clock
         self._poll_interval = poll_interval
         self._remote_snapshot_creator = remote_snapshot_creator
+        self._lock = DeferredLock()  # implicitly required by @exclusively()
 
     def startService(self):
         """
@@ -429,10 +438,18 @@ class UploaderService(service.Service):
 
         # do a looping call that polls the db for LocalSnapshots.
         self._processing_loop = LoopingCall(
-            self._remote_snapshot_creator.upload_local_snapshots,
+            self.perform_upload
         )
         self._processing_loop.clock = self._clock
         self._processing = self._processing_loop.start(self._poll_interval, now=True)
+
+    @exclusively
+    @inlineCallbacks
+    def perform_upload(self):
+        """
+        Do an upload unless we are already doing one.
+        """
+        yield maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
 
     def stopService(self):
         """

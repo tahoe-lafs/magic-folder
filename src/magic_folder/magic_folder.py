@@ -92,6 +92,17 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             tahoe_client=tahoe_client,
         )
+        uploader_service = UploaderService.from_config(
+            clock=reactor,
+            config=mf_config,
+            remote_snapshot_creator=RemoteSnapshotCreator(
+                config=mf_config,
+                local_author=mf_config.author,
+                tahoe_client=tahoe_client,
+                write_participant=participants.writer,
+                status=folder_status,
+            ),
+        )
         local_snapshot_service = LocalSnapshotService(
             mf_config,
             LocalSnapshotCreator(
@@ -102,6 +113,7 @@ class MagicFolder(service.MultiService):
                 tahoe_client,
             ),
             status=folder_status,
+            uploader_service=uploader_service,
         )
         scanner_service = ScannerService.from_config(
             reactor,
@@ -115,17 +127,7 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             name=name,
             local_snapshot_service=local_snapshot_service,
-            uploader_service=UploaderService.from_config(
-                clock=reactor,
-                config=mf_config,
-                remote_snapshot_creator=RemoteSnapshotCreator(
-                    config=mf_config,
-                    local_author=mf_config.author,
-                    tahoe_client=tahoe_client,
-                    write_participant=participants.writer,
-                    status=folder_status,
-                ),
-            ),
+            uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=DownloaderService.from_config(
                 name=name,

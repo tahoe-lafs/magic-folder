@@ -55,6 +55,7 @@ from testtools.twistedsupport import (
     has_no_result,
 )
 
+from twisted.internet.defer import Deferred
 from twisted.web.http import (
     BAD_REQUEST,
     CONFLICT,
@@ -1020,7 +1021,7 @@ class ScanFolderTests(SyncTestCase):
         )
 
         folder_config = node.global_config.get_magic_folder(folder_name)
-        snapshot_paths = folder_config.get_all_localsnapshot_paths()
+        snapshot_paths = folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
             Equals({path_in_folder}),
@@ -1221,11 +1222,19 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
+        # Pass a tahoe client that never responds, so the created
+        # snapshot is not uploaded.
+        class NeverClient(object):
+            def __call__(self, *args, **kw):
+                return Deferred()
+            def __getattr__(self, *args):
+                return self
         node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
+            tahoe_client=NeverClient(),
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.

@@ -162,7 +162,7 @@ class APIv1(object):
         this Magic Folder service.
     """
     _global_config = attr.ib()
-    _global_service = attr.ib()
+    _global_service = attr.ib()  # MagicFolderService instance
     _status_service = attr.ib(validator=attr.validators.provides(IStatus))
 
     app = Klein()
