@@ -707,7 +707,6 @@ class ConflictTests(AsyncTestCase):
         )
         self.status = WebSocketStatusService(reactor, self._global_config)
         self.updater = MagicFolderUpdater(
-            clock=Clock(),
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
@@ -995,6 +994,7 @@ class ConflictTests(AsyncTestCase):
         # instead just call _loop() because we just want a single
         # scan.
         top_service = DownloaderService(
+            Clock(),
             self.alice_config,
             alice_participants,
             self.updater._status,
@@ -1080,6 +1080,7 @@ class ConflictTests(AsyncTestCase):
         # instead just call _loop() because we just want a single
         # scan.
         top_service = DownloaderService(
+            Clock(),
             self.alice_config,
             alice_participants,
             self.updater._status,
