@@ -1185,9 +1185,10 @@ class CreateSnapshotTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    # Maybe this could be BAD_REQUEST instead, sometimes, if
-                    # the path argument was bogus somehow.
-                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    # Maybe this could be BAD_REQUEST or INTERNAL_SERVER_ERROR
+                    # instead, sometimes, if the path argument was bogus or
+                    # somehow the path could not be read.
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                     headers_matcher=header_contains({
                         u"Content-Type": Equals([u"application/json"]),
                     }),

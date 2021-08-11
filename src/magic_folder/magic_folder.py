@@ -7,9 +7,11 @@ from __future__ import (
 
 import six
 
-from twisted.python.filepath import FilePath
+from twisted.python.filepath import FilePath, InsecurePath
 from twisted.internet import defer
+from twisted.internet.defer import Deferred
 from twisted.application import service
+from twisted.web import http
 
 from eliot import (
     Field,
@@ -17,6 +19,7 @@ from eliot import (
     MessageType,
 )
 
+from .common import APIError
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -36,6 +39,7 @@ from .downloader import (
     LocalMagicFolderFilesystem,
 )
 from .participants import (
+    IParticipant,
     participants_from_collective,
 )
 from .scanner import (
@@ -189,6 +193,36 @@ class MagicFolder(service.MultiService):
             been snapshotted.
         """
         return self.scanner_service.scan_once()
+
+    def participants(self):
+        # type: () -> Deferred[list[IParticipant]]
+        """
+        List all participants of this folder
+        """
+        return self._participants.list()
+
+    def add_participant(self, author, participant_directory):
+        return self._participants.add(author, participant_directory)
+
+    def add_snapshot(self, relative_path):
+        # type: (unicode) -> Deferred[None]
+        """
+        Create a new snapshot of the given file.
+        """
+
+        # preauthChild allows path-separators in the "path" (i.e. not
+        # just a single path-segment). That is precisely what we want
+        # here, though. It sill does not allow the path to "jump out"
+        # of the base magic_path -- that is, an InsecurePath error
+        # will result if you pass an absolute path outside the folder
+        # or a relative path that reaches up too far.
+        try:
+            path = self.config.magic_path.preauthChild(relative_path)
+        except InsecurePath as e:
+            return defer.fail(
+                APIError.from_exception(http.NOT_ACCEPTABLE, e)
+            )
+        return self.local_snapshot_service.add_file(path)
 
 
 _NICKNAME = Field.for_types(
