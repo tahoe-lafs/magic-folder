@@ -45,6 +45,7 @@ from testtools.matchers import (
     Contains,
     IsInstance,
     MatchesAny,
+    MatchesAll,
     MatchesDict,
     MatchesListwise,
     MatchesPredicate,
@@ -130,7 +131,6 @@ from .strategies import (
 )
 from ..util.capabilities import (
     to_readonly_capability,
-    cap_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -2016,15 +2016,6 @@ class TahoeObjectsTests(SyncTestCase):
             PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
         )
 
-        expected_sizes = [
-            cap_size(cap)
-            for cap in [
-                    remote_snap.capability,
-                    remote_snap.content_cap,
-                    remote_snap.metadata_cap,
-            ]
-        ]
-
         self.assertThat(
             authorized_request(
                 node.http_client,
@@ -2037,7 +2028,10 @@ class TahoeObjectsTests(SyncTestCase):
                     code_matcher=Equals(200),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals(expected_sizes),
+                        MatchesAll(
+                            Contains(123),
+                            AfterPreprocessing(len, Equals(5)),
+                        )
                     )
                 ),
             )

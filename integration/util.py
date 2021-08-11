@@ -34,8 +34,10 @@ from twisted.internet.error import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.web.client import Agent
 
 import treq
+from treq.client import HTTPClient
 
 from eliot import (
     Message,
@@ -60,9 +62,11 @@ from magic_folder.cli import (
     MagicFolderCommand,
     run_magic_folder_options,
 )
+from magic_folder.client import create_http_client, create_magic_folder_client
 from magic_folder.config import (
     load_global_configuration,
 )
+from magic_folder.tahoe_client import create_tahoe_client
 from magic_folder.util.eliotutil import log_inline_callbacks
 
 
@@ -95,6 +99,8 @@ class MagicFolderEnabledNode(object):
     magic_folder_web_port = attr.ib()
 
     _global_config = attr.ib(init=False, default=None)
+    _client = attr.ib(init=False, default=None)
+    _tahoe_client = attr.ib(init=False, default=None)
 
     @property
     def node_directory(self):
@@ -108,6 +114,27 @@ class MagicFolderEnabledNode(object):
         if self._global_config is None:
             self._global_config = load_global_configuration(FilePath(self.magic_config_directory))
         return self._global_config
+
+    def client(self):
+        global_config = self.global_config()
+        if self._client is None:
+            http_client = create_http_client(
+                self.reactor, global_config.api_client_endpoint
+            )
+            self._client = create_magic_folder_client(
+                self.reactor,
+                global_config,
+                http_client,
+            )
+        return self._client
+
+    def tahoe_client(self):
+        if self._tahoe_client is None:
+            self._tahoe_client = create_tahoe_client(
+                self.global_config().tahoe_client_url,
+                HTTPClient(Agent(self.reactor))
+            )
+        return self._tahoe_client
 
     @property
     def magic_directory(self):
@@ -291,7 +318,7 @@ class MagicFolderEnabledNode(object):
                 folder_name, None
             )
             if folder_config is not None:
-                folder_config.database.close()
+                folder_config._database.close()
 
         return _magic_folder_runner(
             self.reactor, self.request, self.name,

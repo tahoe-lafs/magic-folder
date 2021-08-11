@@ -195,9 +195,7 @@ The list is ordered from most-recent to least-recent timestamp.
 GET `/v1/magic-folder/<folder-name>/tahoe-objects`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Returns a list of integers representing the sizes of all individual capabilities that this folder is using.
-That means a size for each Snapshot capability and its corresponding metadata capability and content capability.
-The list is flat; if there are 2 Snapshots on the grid this will return 6 integers.
+Returns a list of integers representing the estimated sizes of all tahoe objects this folder will uses when it has finished synchronizing.
 
 
 Status API

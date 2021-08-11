@@ -432,18 +432,18 @@ class APIv1(object):
         ])
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
+    @inline_callbacks
     def folder_tahoe_objects(self, request, folder_name):
         """
-        Renders a list of all the object-sizes of all Tahoe objects a
-        given magic-folder currently cares about. This is, for each
-        Snapshot: the Snapshot capability, the metadata capability and
-        the content capability.
+        Returns a list of the estimated object-sizes of all Tahoe objects a
+        given magic-folder will have when it has finished syncing.
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_service = self._global_service.get_folder_service(folder_name)
 
-        sizes = [] # FIXME
-        return json.dumps(sizes)
+        sizes = yield folder_service.estimate_grid_size()
+
+        returnValue(json.dumps(sizes))
 
 
 class _InputError(APIError):

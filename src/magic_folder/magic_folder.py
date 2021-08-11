@@ -5,11 +5,13 @@ from __future__ import (
     unicode_literals,
 )
 
+from typing import List
+
 import six
 
 from twisted.python.filepath import FilePath, InsecurePath
 from twisted.internet import defer
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import Deferred, returnValue
 from twisted.application import service
 from twisted.web import http
 
@@ -18,6 +20,7 @@ from eliot import (
     ActionType,
     MessageType,
 )
+from eliot.twisted import inline_callbacks
 
 from .common import APIError
 from .util.eliotutil import (
@@ -221,10 +224,57 @@ class MagicFolder(service.MultiService):
         try:
             path = self.config.magic_path.preauthChild(relative_path)
         except InsecurePath as e:
-            return defer.fail(
-                APIError.from_exception(http.NOT_ACCEPTABLE, e)
-            )
+            return defer.fail(APIError.from_exception(http.NOT_ACCEPTABLE, e))
         return self.local_snapshot_service.add_file(path)
+
+    @inline_callbacks
+    def estimate_grid_size(self):
+        # type: () -> List[int]
+        """
+        Returns a list of the estimated object-sizes of all Tahoe objects a
+        given magic-folder will have when it has finished syncing.
+        """
+        file_sizes = {
+            relpath: pathstate.size
+            for relpath, pathstate, last_updated_ns, upload_duration_ns in self.config.get_all_current_snapshot_pathstates()
+        }
+
+        participants = yield self.participants()
+        # The author name of a snapshot can be that of any participant.
+        # We conservatively use the maximum length anywhere we have an author name.
+        max_author_len = max((len(part.name) for part in participants))
+
+        sizes = []
+        for relpath, size in file_sizes.items():
+            # For each file in the folder, we have three tahoe objects:
+            # the metadata cap, the content cap and the snapshot cap.
+            sizes.extend(
+                [
+                    # approximate size of metadata cap with one parent
+                    275 + len(relpath) + max_author_len,
+                    # approximate size of snapshot cap
+                    # This is a immutable dircap, with a fixed content,
+                    # ignoring the tahoe-metdata which can vary a few bytes in
+                    # size.
+                    420,
+                    # The size of the actual content
+                    size,
+                ]
+            )
+        personal_dmd_size = (
+            # Each child entry is ~250 bytes + path, when the entries point at immutable directories.
+            sum((len(relpath) + 250 for relpath in file_sizes.keys()))
+        )
+        collective_dmd_size = (
+            # Each child entry is ~250 bytes + path, when the entries point at mutable directories.
+            sum((len(part.name) + 240 for part in participants))
+        )
+        # There is a copy of the personal DMD for each participant.
+        # If all of the DMDs are up-to-date, they will have the same size.
+        sizes.extend([personal_dmd_size] * len(participants))
+        sizes.append(collective_dmd_size)
+
+        returnValue(sizes)
 
 
 _NICKNAME = Field.for_types(

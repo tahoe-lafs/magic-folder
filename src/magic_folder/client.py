@@ -188,6 +188,13 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
+    def tahoe_objects(self, magic_folder):
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"tahoe-objects")
+        return self._authorized_request(
+            "GET",
+            api_url,
+        )
+
     @inlineCallbacks
     def _authorized_request(self, method, url, body=b""):
         """
