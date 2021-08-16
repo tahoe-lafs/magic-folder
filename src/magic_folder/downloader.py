@@ -297,8 +297,6 @@ class MagicFolderUpdater(object):
                           relpath=relpath,
                           capability=snapshot.capability,
                           ) as action:
-            relpath = magic2path(snapshot.name)
-
             # if we're already conflicted, no further processing
             if self._config.list_conflicts_for(snapshot.name):
                 action.add_success_fields(is_conflict=True)

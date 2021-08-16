@@ -160,7 +160,7 @@ _magicfolder_config_schema = Schema([
 
             -- The relative path of the file this snapshot is for,
             -- UTF-8-encoded.
-            [name]             TEXT,
+            [relpath]          TEXT,
 
             -- A local filesystem path where the content can be found.
             [content_path]     TEXT
@@ -222,7 +222,7 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]             TEXT PRIMARY KEY, -- relative file path in UTF-8
+            [realpath]         TEXT PRIMARY KEY, -- snapshot name (mangled path) in UTF-8
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
@@ -521,7 +521,7 @@ def _get_snapshots(cursor, relpath):
         FROM
             [local_snapshots]
         WHERE
-            [name] = ?
+            [relpath] = ?
         """,
         (relpath,),
     )
@@ -551,7 +551,7 @@ def _get_metadata(cursor, relpath):
         WHERE
             [metadata].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
         (relpath,),
     )
@@ -588,7 +588,7 @@ def _get_parents(cursor, relpath):
         WHERE
             [parents].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
         (relpath,),
     )
@@ -898,7 +898,7 @@ class MagicFolderConfig(object):
             cursor.execute(
                 """
                 INSERT INTO
-                    [local_snapshots] ([identifier], [name], [content_path])
+                    [local_snapshots] ([identifier], [relpath], [content_path])
                 VALUES
                     (?, ?, ?)
                 """,
@@ -966,7 +966,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [local_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -982,7 +982,7 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("DELETE FROM [local_snapshots]"
-                           " WHERE [name]=?",
+                           " WHERE [relpath]=?",
                            (relpath,))
 
     @with_cursor
@@ -1016,7 +1016,7 @@ class MagicFolderConfig(object):
                 SET
                     snapshot_cap=?, last_updated_ns=?, upload_duration_ns=?
                 WHERE
-                    [name]=?
+                    [relpath]=?
                 """,
                 (snapshot_cap, now_ns, duration_ns, relpath),
             )
@@ -1044,7 +1044,7 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
+                    "INSERT INTO current_snapshots (relpath, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?)",
                     (relpath, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
@@ -1053,7 +1053,7 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "UPDATE current_snapshots"
                     " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?"
-                    " WHERE [name]=?",
+                    " WHERE [relpath]=?",
                     (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
@@ -1073,7 +1073,7 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size, last_updated_ns)"
+                    "INSERT INTO current_snapshots (relpath, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
                     (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
                 )
@@ -1082,7 +1082,7 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
-                    " WHERE [name]=?",
+                    " WHERE [relpath]=?",
                     (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
@@ -1093,7 +1093,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded or uploaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [current_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [current_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -1108,7 +1108,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, last_updated_ns
+                relpath, mtime_ns, last_updated_ns
             FROM
                 [current_snapshots]
             ORDER BY
@@ -1137,7 +1137,7 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [name]=?",
+                           " WHERE [relpath]=?",
                            (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
@@ -1162,7 +1162,7 @@ class MagicFolderConfig(object):
         with action:
             cursor.execute(
                 "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
-                " WHERE [name]=?",
+                " WHERE [relpath]=?",
                 (relpath,),
             )
             row = cursor.fetchone()
@@ -1183,7 +1183,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
+                relpath, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
             FROM
                 current_snapshots
             ORDER BY
@@ -1225,9 +1225,9 @@ class MagicFolderConfig(object):
             return conflicts
 
     @with_cursor
-    def list_conflicts_for(self, cursor, name):
+    def list_conflicts_for(self, cursor, relpath):
         """
-        :param text name: snapshot name
+        :param text relpath: snapshot relpath
 
         :returns dict: map of relpaths to a list of the author-names of
             all participants that conflict with that path.
@@ -1240,9 +1240,9 @@ class MagicFolderConfig(object):
                 FROM
                     conflicted_files
                 WHERE
-                    name=?
+                    relpath=?
                 """,
-                (name, ),
+                (relpath, ),
             )
             rows = cursor.fetchall()
             if not rows:
@@ -1250,14 +1250,14 @@ class MagicFolderConfig(object):
             return [row[0] for row in rows]
 
     @with_cursor
-    def add_conflict(self, cursor, name, author):
+    def add_conflict(self, cursor, relpath, author):
         """
         Add a new conflicting author
 
-        :param text name: The name of an existing snapshot
-        :param text author: The name of an existing participant
+        :param text relpath: The relpath of an existing snapshot
+        :param text author: The relpath of an existing participant
         """
-        with start_action(action_type="config:state-db:add-conflict", name=name):
+        with start_action(action_type="config:state-db:add-conflict", relpath=relpath):
             cursor.execute(
                 """
                 SELECT
@@ -1265,38 +1265,38 @@ class MagicFolderConfig(object):
                 FROM
                     conflicted_files
                 WHERE
-                    name=? AND conflict_author=?
+                    relpath=? AND conflict_author=?
                 """,
-                (name, author),
+                (relpath, author),
             )
             if cursor.fetchall():
                 return
             cursor.execute(
                 """
                 INSERT INTO
-                    conflicted_files (name, conflict_author)
+                    conflicted_files (relpath, conflict_author)
                 VALUES
                     (?,?)
                 """,
-                (name, author),
+                (relpath, author),
             )
 
     @with_cursor
-    def resolve_conflict(self, cursor, name):
+    def resolve_conflict(self, cursor, relpath):
         """
         Delete all conflicts for a given Snapshot.
 
-        :param text name: The name of an existing Snapshot.
+        :param text relpath: The relpath of an existing Snapshot.
         """
-        with start_action(action_type="config:state-db:resolve-conflict", name=name):
+        with start_action(action_type="config:state-db:resolve-conflict", relpath=relpath):
             cursor.execute(
                 """
                 DELETE FROM
                     conflicted_files
                 WHERE
-                    name=?
+                    relpath=?
                 """,
-                (name, ),
+                (relpath, ),
             )
 
     @property
