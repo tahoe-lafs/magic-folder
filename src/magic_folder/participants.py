@@ -30,6 +30,7 @@ from eliot.twisted import (
 
 from .magicpath import (
     magic2path,
+    path2magic,
 )
 from .snapshot import (
     RemoteAuthor,
@@ -88,6 +89,19 @@ class IParticipants(Interface):
         :returns IParticipant: the new participant
         """
 
+class IWriteableParticipant(Interface):
+    """
+    An ``IWriteableParticipant`` provider represents a participant
+    in a particular magic-folder that we have write-access to.
+    """
+
+    @inlineCallbacks
+    def update_snapshot(relpath, capability):
+        """
+        Update the snapshot with the given relpath.
+        """
+
+
 
 def participant_from_dmd(name, dirnode, is_self, tahoe_client):
     """
@@ -134,6 +148,13 @@ class _CollectiveDirnodeParticipants(object):
     _collective_cap = attr.ib()
     _upload_cap = attr.ib()
     _tahoe_client = attr.ib(hash=None)
+    writer = attr.ib(
+        init=False,
+        default=attr.Factory(
+            lambda self: _WriteableParticipant(self._upload_cap, self._tahoe_client),
+            takes_self=True,
+        ),
+    )
 
     @_collective_cap.validator
     def _any_dirnode(self, attribute, value):
@@ -250,31 +271,69 @@ class _CollectiveDirnodeParticipant(object):
     @inline_callbacks
     def files(self):
         """
-        List the children of the directory node, decode their paths, and return a
+        List the snapshots of this participant, decode their paths, and return a
         Deferred which fires with a dictionary mapping all of the paths to
         more details.
         """
         result = yield self._tahoe_client.list_directory(self.dircap)
         returnValue({
-            magic2path(encoded_relpath_u): FolderFile(child, metadata)
-            for (encoded_relpath_u, (child, metadata))
+            magic2path(mangled_relpath): SnapshotEntry(child, metadata)
+            for (mangled_relpath, (child, metadata))
             in result.items()
         })
 
 
+@implementer(IWriteableParticipant)
+@attr.s(frozen=True, order=False)
+class _WriteableParticipant(object):
+    """
+    An ``IWriteableParticipant`` implementation backed by a Tahoe-LAFS directory node
+    (a DMD).
+
+    :ivar bytes upload_cap: Read-write directory-capability containing this
+        participant's files.
+    """
+    upload_cap = attr.ib(validator=attr.validators.instance_of(bytes))
+    _tahoe_client = attr.ib(eq=False)
+
+    @upload_cap.validator
+    def _mutable_dirnode(self, attribute, value):
+        """
+        The Upload DMD must be a writable directory capability
+        """
+        if is_mutable_directory_cap(value):
+            return
+        raise TypeError(
+            "Upload dirnode was {!r}, must be a read-write directory node.".format(
+                value,
+            ),
+        )
+
+    def update_snapshot(self, relpath, capability):
+        """
+        Update the snapshot with the given relpath.
+        """
+        return self._tahoe_client.add_entry_to_mutable_directory(
+            self.upload_cap.encode("ascii"),
+            path2magic(relpath),
+            capability.encode("ascii"),
+            replace=True,
+        )
+
+
+
 @attr.s
-class FolderFile(object):
+class SnapshotEntry(object):
     """
     A file associated with some metadata in a particular container (such as a
     Tahoe-LAFS directory node).
 
-    :ivar allmydata.interfaces.IFilesystemNode node: The Tahoe-LAFS node for
-        the underlying file content.
+    :ivar unicode snapshot_cap: The capability for the underlying snapshot
 
     :ivar dict metadata: Metadata associated with the file content in the
         containing directory.
     """
-    node = attr.ib()
+    snapshot_cap = attr.ib()
     metadata = attr.ib()
 
     @property

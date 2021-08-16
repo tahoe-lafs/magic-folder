@@ -32,10 +32,6 @@ def load_requirements(filename):
 install_requires = load_requirements("base.in")
 test_requires = load_requirements("test.in")
 
-setup_requires = [
-    'setuptools >= 28.8.0, <45',  # for PEP-440 style versions
-]
-
 from setuptools import find_packages, setup
 from setuptools import Command
 
@@ -103,7 +99,6 @@ setup(name="magic_folder",
       package_data={"magic_folder": ["ported-modules.txt"],
                     },
       include_package_data=True,
-      setup_requires=setup_requires,
       entry_points={
           "console_scripts": [
               "magic-folder = magic_folder.cli:_entry",
