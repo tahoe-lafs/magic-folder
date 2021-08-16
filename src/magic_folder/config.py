@@ -238,10 +238,12 @@ _magicfolder_config_schema = Schema([
         --- on disk, our representation is canonical as the filesystem is part of the API)
         CREATE TABLE [conflicted_files]
         (
-            [name]             TEXT NOT NULL,    -- mangled name in UTF-8
-            [conflict_author]  TEXT NOT NULL     -- another participant who conflicts
+            [relpath]          TEXT NOT NULL,      -- mangled name in UTF-8
+            [conflict_author]  TEXT NOT NULL,      -- another participant who conflicts
+            PRIMARY KEY(relpath, conflict_author)  -- unique rows
         )
-        --- note that a single name may appear more than once if there are multiple conflicts
+        --- note that a single relpath may appear more than once if there are multiple
+        --- conflicts (i.e. multiple other devices conflict)
         """
     ]),
 ])
