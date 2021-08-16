@@ -741,8 +741,10 @@ class ConflictTests(AsyncTestCase):
             raw_remote_parents=None,
         )
         # if we have a local, we must have the path locally
-        self.alice_magic_path.child("foo").setContent(local0_content)
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent(local0_content)
         self.alice_config.store_local_snapshot(local0)
+        self.alice_config.store_currentsnapshot_state("foo", get_pathinfo(local_path).state)
 
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
@@ -775,9 +777,10 @@ class ConflictTests(AsyncTestCase):
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
-        self.alice_config.store_downloaded_snapshot("foo", parent, PathState(
-            mtime_ns=0, ctime_ns=0, size=len(parent_content),
-        ))
+        # we've 'seen' this file before so we must have the path locally
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent(parent_content)
+        self.alice_config.store_downloaded_snapshot("foo", parent, get_pathinfo(local_path).state)
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
@@ -789,8 +792,6 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
-        # we've 'seen' this file before so we must have the path locally
-        self.alice_magic_path.child("foo").setContent(parent_content)
 
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
@@ -828,12 +829,10 @@ class ConflictTests(AsyncTestCase):
             remotes.append(parent)
 
         # set "our" parent to the oldest one
-        self.alice_config.store_downloaded_snapshot("foo", remotes[0], PathState(
-            mtime_ns=0, ctime_ns=0, size=len("dummy"),
-        ))
-
+        local_path = self.alice_magic_path.child("foo")
         # we've 'seen' this file before so we must have the path locally
-        self.alice_magic_path.child("foo").setContent(b"dummy")
+        local_path.setContent(b"dummy")
+        self.alice_config.store_downloaded_snapshot("foo", remotes[0], get_pathinfo(local_path).state)
 
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
@@ -929,10 +928,9 @@ class ConflictTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[child_cap] = child
 
         # so "alice" has "child" already
-        self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_downloaded_snapshot("foo", child, PathState(
-            mtime_ns=0, ctime_ns=0, size=len("whatever"),
-        ))
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent("whatever")
+        self.alice_config.store_downloaded_snapshot("foo", child, get_pathinfo(local_path).state)
 
         # we update with the parent (so, it's old)
         yield self.updater.add_remote_snapshot("foo", parent)

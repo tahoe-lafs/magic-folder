@@ -299,8 +299,15 @@ class MagicFolderUpdater(object):
                           ) as action:
             local_path = self._config.magic_path.preauthChild(relpath)
 
+            # TODO: We should be able to get all this info from a single
+            # database request
             # see if we have existing local or remote snapshots for
             # this relpath already
+            try:
+                current_pathstate = self._config.get_currentsnapshot_pathstate(relpath)
+            except KeyError:
+                current_pathstate = None
+
             try:
                 remote_cap = self._config.get_remotesnapshot(relpath)
                 # w/ no KeyError we have seen this before
@@ -316,6 +323,10 @@ class MagicFolderUpdater(object):
             except KeyError:
                 local_snap = None
 
+            assert current_pathstate is None or (
+                local_snap is not None or remote_cap is not None
+            ), "current_snapshots table is inconsistent"
+
             # note: if local_snap and remote_cap are both non-None
             # then remote_cap should already be the ancestor of
             # local_snap by definition.
@@ -325,18 +336,28 @@ class MagicFolderUpdater(object):
             # XXX not dealing with deletes yet
 
             is_conflict = False
-            local_timestamp = None
-            if local_path.exists():
-                local_timestamp = local_path.getModificationTime()
-                # there is a file here already .. if we have any
-                # LocalSnapshots for this relpath, then we've got local
-                # edits and it must be a conflict. If we have nothing
-                # in our remotesnapshot database then we've just not
-                # made a LocalSnapshot yet (so it's still a conflict).
-                if local_snap is not None or remote_cap is None:
+            local_pathinfo = get_pathinfo(local_path)
+            if local_pathinfo.exists:
+                # We have a conflict if:
+                # - the currently recorded snapshot is remote and is neither an
+                #   ancestor (update) or descendant (no-op) of the remote
+                #   snapshot we are evaluating.
+                if (
+                    # the file exists locally and we haven't recorded a
+                    # pathstate corresponding to snapshot of it
+                    current_pathstate is None
+                    # the pathstate on disk does not match the pathstate of the
+                    # currently recorded snapshot
+                    or current_pathstate != local_pathinfo.state
+                    # the currently recorded snapshot is local
+                    or local_snap is not None
+                    # we've never recorded a remote snapshot (so the local file
+                    # must have an unrelated history to the remote snapshot we
+                    # are considering)
+                    or remote_cap is None
+                ):
                     is_conflict = True
                     action.add_success_fields(conflict_reason="existing-file-no-remote")
-
                 else:
                     assert remote_cap != snapshot.capability, "already match"
 
@@ -358,7 +379,7 @@ class MagicFolderUpdater(object):
             else:
                 # there is no local file
                 # XXX we don't handle deletes yet
-                assert not local_snap and not remote_cap, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
+                assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
@@ -396,15 +417,8 @@ class MagicFolderUpdater(object):
                 # local changes to get overwritten. Currently, that
                 # window is the 3 python statements between here and
                 # ".mark_overwrite()"
-                last_minute_change = False
-                if local_timestamp is None:
-                    if local_path.exists():
-                        last_minute_change = True
-                else:
-                    local_path.changed()
-                    if local_path.getModificationTime() != local_timestamp:
-                        last_minute_change = True
-                if last_minute_change:
+                if local_pathinfo != get_pathinfo(local_path):
+                    # The file changed since we started processing this item
                     action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                     # FIXME note conflict internally
