@@ -158,11 +158,15 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                                 relpath, "a directory" if path_info.is_dir else "not"
                             )
                         )
+                    action.add_success_fields(changed_type=True)
                     return
                 if path_info.state != snapshot_state:
                     # TODO: We may also want to compare checksums here,
                     # to avoid `touch(1)` creating a new snapshot.
+                    action.add_success_fields(update=True)
                     on_new_file(path)
+                else:
+                    action.add_success_fields(update=True)
 
     return cooperator.coiterate(
         (
