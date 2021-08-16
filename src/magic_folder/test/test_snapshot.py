@@ -11,6 +11,7 @@ from tempfile import mktemp
 from testtools.matchers import (
     Equals,
     Contains,
+    ContainsDict,
     MatchesStructure,
     AfterPreprocessing,
     Always,
@@ -34,6 +35,7 @@ from hypothesis.strategies import (
     text,
     just,
     one_of,
+    integers,
 )
 
 from hyperlink import (
@@ -53,6 +55,7 @@ from magic_folder.testing.web import (
 
 from .common import (
     SyncTestCase,
+    success_result_of,
 )
 from .strategies import (
     magic_folder_filenames,
@@ -152,7 +155,7 @@ class TestLocalSnapshot(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -180,7 +183,7 @@ class TestLocalSnapshot(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -211,7 +214,7 @@ class TestLocalSnapshot(SyncTestCase):
         parents = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
@@ -224,7 +227,7 @@ class TestLocalSnapshot(SyncTestCase):
 
         data2 = io.BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
@@ -253,7 +256,7 @@ class TestLocalSnapshot(SyncTestCase):
 
         # create a local snapshot and commit it to the grid
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
@@ -268,7 +271,7 @@ class TestLocalSnapshot(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
@@ -300,8 +303,9 @@ class TestRemoteSnapshot(SyncTestCase):
     @given(
         content=binary(min_size=1),
         filename=magic_folder_filenames(),
+        modified_time=integers(min_value=0),
     )
-    def test_snapshot_roundtrip(self, content, filename):
+    def test_snapshot_roundtrip(self, content, filename, modified_time):
         """
         Create a local snapshot, write into tahoe to create a remote snapshot,
         then read back the data from the snapshot cap to recreate the remote
@@ -309,45 +313,44 @@ class TestRemoteSnapshot(SyncTestCase):
         """
         data = io.BytesIO(content)
 
-        snapshots = []
         # create LocalSnapshot
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[],
-        )
-        d.addCallback(snapshots.append)
-        self.assertThat(
-            d,
-            succeeded(Always()),
+        local_snapshot = success_result_of(
+            create_snapshot(
+                relpath=filename,
+                author=self.alice,
+                data_producer=data,
+                snapshot_stash_dir=self.stash_dir,
+                parents=[],
+                modified_time=modified_time,
+            )
         )
 
         # create remote snapshot
-        d = write_snapshot_to_tahoe(snapshots[0], self.alice, self.tahoe_client)
-        d.addCallback(snapshots.append)
-
-        self.assertThat(
-            d,
-            succeeded(Always()),
+        remote_snapshot = success_result_of(
+            write_snapshot_to_tahoe(local_snapshot, self.alice, self.tahoe_client)
         )
 
-        # snapshots[1] is a RemoteSnapshot
-        note("remote snapshot: {}".format(snapshots[1]))
+        note("remote snapshot: {}".format(remote_snapshot))
 
         # now, recreate remote snapshot from the cap string and compare with the original.
         # Check whether information is preserved across these changes.
 
-        snapshot_d = create_snapshot_from_capability(snapshots[1].capability, self.tahoe_client)
-        snapshot_d.addCallback(snapshots.append)
-        self.assertThat(snapshot_d, succeeded(Always()))
-        snapshot = snapshots[-1]
+        downloaded_snapshot = success_result_of(
+            create_snapshot_from_capability(remote_snapshot.capability, self.tahoe_client)
+        )
 
-        self.assertThat(snapshot, MatchesStructure(name=Equals(filename)))
+        self.assertThat(
+            downloaded_snapshot,
+            MatchesStructure(
+                metadata=ContainsDict({
+                    "name": Equals(filename),
+                    "modification_time": Equals(modified_time),
+                }),
+            ),
+        )
         content_io = io.BytesIO()
         self.assertThat(
-            snapshot.fetch_content(self.tahoe_client, content_io),
+            downloaded_snapshot.fetch_content(self.tahoe_client, content_io),
             succeeded(Always()),
         )
         self.assertEqual(content_io.getvalue(), content)
@@ -363,40 +366,36 @@ class TestRemoteSnapshot(SyncTestCase):
         """
         data1 = io.BytesIO(content1)
 
-        snapshots = []
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data1,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[],
-        )
-        d.addCallback(snapshots.append)
-
-        self.assertThat(
-            d,
-            succeeded(Always()),
+        local_snapshot = success_result_of(
+            create_snapshot(
+                relpath=filename,
+                author=self.alice,
+                data_producer=data1,
+                snapshot_stash_dir=self.stash_dir,
+                parents=[],
+            )
         )
 
         # now modify the same file and create a new local snapshot
         data2 = io.BytesIO(content2)
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data2,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[snapshots[0]],
+        child_snapshot = success_result_of(
+            create_snapshot(
+                relpath=filename,
+                author=self.alice,
+                data_producer=data2,
+                snapshot_stash_dir=self.stash_dir,
+                parents=[local_snapshot],
+            )
         )
-        d.addCallback(snapshots.append)
 
-        serialized = snapshots[1].to_json()
+        serialized = child_snapshot.to_json()
 
         reconstructed_local_snapshot = LocalSnapshot.from_json(serialized, self.alice)
 
         self.assertThat(
             reconstructed_local_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_local=HasLength(1),
             )
         )
@@ -417,7 +416,7 @@ class TestRemoteSnapshot(SyncTestCase):
         snapshots = []
         # create LocalSnapshot
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -444,7 +443,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # corresponding to snapshots[0]
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.alice,
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
@@ -458,7 +457,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             snapshots[2],
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_remote=AfterPreprocessing(len, Equals(1)),
             )
         )
@@ -478,7 +477,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             snapshots[3],
             MatchesStructure(
-                name=Equals(filename),
+                metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=Equals([snapshots[1].capability]),
             )
         )
@@ -494,60 +493,51 @@ class TestRemoteSnapshot(SyncTestCase):
         """
         data = io.BytesIO(content)
 
-        snapshots = []
         # create LocalSnapshot
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[],
+        local_snapshot = success_result_of(
+            create_snapshot(
+                relpath=filename,
+                author=self.alice,
+                data_producer=data,
+                snapshot_stash_dir=self.stash_dir,
+                parents=[],
+            )
         )
-        d.addCallback(snapshots.append)
-        self.assertThat(
-            d,
-            succeeded(Always()),
-        )
-
-        # snapshots[0] is a LocalSnapshot with no parents
 
         # create another LocalSnapshot with the first as parent
-        d = create_snapshot(
-            name=filename,
-            author=self.alice,
-            data_producer=data,
-            snapshot_stash_dir=self.stash_dir,
-            parents=[snapshots[0]],
-        )
-        d.addCallback(snapshots.append)
-        self.assertThat(
-            d,
-            succeeded(Always()),
+        child_snapshot = success_result_of(
+            create_snapshot(
+                relpath=filename,
+                author=self.alice,
+                data_producer=data,
+                snapshot_stash_dir=self.stash_dir,
+                parents=[local_snapshot],
+            )
         )
 
         # turn them both into RemoteSnapshots
-        d = write_snapshot_to_tahoe(snapshots[1], self.alice, self.tahoe_client)
-        d.addCallback(snapshots.append)
-        self.assertThat(d, succeeded(Always()))
+        remote_snapshot = success_result_of(
+            write_snapshot_to_tahoe(child_snapshot, self.alice, self.tahoe_client)
+        )
 
         # ...the last thing we wrote is now a RemoteSnapshot and
         # should have a single parent.
         self.assertThat(
-            snapshots[2],
+            remote_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=AfterPreprocessing(len, Equals(1)),
             )
         )
 
         # turn the parent into a RemoteSnapshot
-        d = create_snapshot_from_capability(snapshots[2].parents_raw[0], self.tahoe_client)
-        d.addCallback(snapshots.append)
-        self.assertThat(d, succeeded(Always()))
+        parent_snapshot = success_result_of(
+            create_snapshot_from_capability(remote_snapshot.parents_raw[0], self.tahoe_client)
+        )
         self.assertThat(
-            snapshots[3],
+            parent_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                metadata=ContainsDict({"name": Equals(filename)}),
                 parents_raw=Equals([]),
             )
         )

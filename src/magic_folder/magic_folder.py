@@ -7,9 +7,11 @@ from __future__ import (
 
 import six
 
-from twisted.python.filepath import FilePath
+from twisted.python.filepath import FilePath, InsecurePath
 from twisted.internet import defer
+from twisted.internet.defer import Deferred
 from twisted.application import service
+from twisted.web import http
 
 from eliot import (
     Field,
@@ -17,6 +19,7 @@ from eliot import (
     MessageType,
 )
 
+from .common import APIError
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -36,11 +39,13 @@ from .downloader import (
     LocalMagicFolderFilesystem,
 )
 from .participants import (
+    IParticipant,
     participants_from_collective,
 )
 from .scanner import (
     ScannerService,
 )
+from .status import FolderStatus
 
 if six.PY3:
     long = int
@@ -73,14 +78,30 @@ class MagicFolder(service.MultiService):
         """
         mf_config = config.get_magic_folder(name)
 
-        initial_participants = participants_from_collective(
+        folder_status = FolderStatus(name, status_service)
+
+        participants = participants_from_collective(
             mf_config.collective_dircap,
+            # FIXME: verify this corresponds to collective dircap
+            # with the right name
             mf_config.upload_dircap,
             tahoe_client
         )
+
         remote_snapshot_cache_service = RemoteSnapshotCacheService.from_config(
             config=mf_config,
             tahoe_client=tahoe_client,
+        )
+        uploader_service = UploaderService.from_config(
+            clock=reactor,
+            config=mf_config,
+            remote_snapshot_creator=RemoteSnapshotCreator(
+                config=mf_config,
+                local_author=mf_config.author,
+                tahoe_client=tahoe_client,
+                write_participant=participants.writer,
+                status=folder_status,
+            ),
         )
         local_snapshot_service = LocalSnapshotService(
             mf_config,
@@ -91,13 +112,14 @@ class MagicFolder(service.MultiService):
                 mf_config.magic_path,
                 tahoe_client,
             ),
-            status=status_service,
+            status=folder_status,
+            uploader_service=uploader_service,
         )
         scanner_service = ScannerService.from_config(
             reactor,
             mf_config,
             local_snapshot_service,
-            status_service,
+            status=folder_status,
         )
 
         return cls(
@@ -105,26 +127,16 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             name=name,
             local_snapshot_service=local_snapshot_service,
-            uploader_service=UploaderService.from_config(
-                clock=reactor,
-                config=mf_config,
-                remote_snapshot_creator=RemoteSnapshotCreator(
-                    config=mf_config,
-                    local_author=mf_config.author,
-                    tahoe_client=tahoe_client,
-                    upload_dircap=mf_config.upload_dircap,
-                    status=status_service,
-                ),
-            ),
+            uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=DownloaderService.from_config(
+                clock=reactor,
                 name=name,
                 config=mf_config,
-                participants=initial_participants,
-                status=status_service,
+                participants=participants,
+                status=folder_status,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(
-                    reactor,
                     LocalMagicFolderFilesystem(
                         mf_config.magic_path,
                         mf_config.stash_path,
@@ -132,13 +144,14 @@ class MagicFolder(service.MultiService):
                     mf_config,
                     remote_snapshot_cache_service,
                     tahoe_client,
-                    status_service,
+                    status=folder_status,
+                    write_participant=participants.writer,
                 ),
                 tahoe_client=tahoe_client,
             ),
-            status_service=status_service,
+            folder_status=folder_status,
             scanner_service=scanner_service,
-            initial_participants=initial_participants,
+            participants=participants,
             clock=reactor,
         )
 
@@ -147,16 +160,16 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, status_service, scanner_service, remote_snapshot_cache, downloader, initial_participants, clock):
+    def __init__(self, client, config, name, local_snapshot_service, uploader_service, folder_status, scanner_service, remote_snapshot_cache, downloader, 	participants, clock):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
         self.config = config  # a MagicFolderConfig instance
-        self._participants = initial_participants
+        self._participants = participants
         self.local_snapshot_service = local_snapshot_service
         self.uploader_service = uploader_service
         self.downloader_service = downloader
-        self.status_service = status_service
+        self.folder_status = folder_status
         self.scanner_service = scanner_service
         # By setting the parents these services will now start when
         # self, the top-level service, starts
@@ -165,7 +178,6 @@ class MagicFolder(service.MultiService):
         downloader.setServiceParent(self)
         local_snapshot_service.setServiceParent(self)
         uploader_service.setServiceParent(self)
-        status_service.setServiceParent(self)
         scanner_service.setServiceParent(self)
 
     def ready(self):
@@ -183,6 +195,36 @@ class MagicFolder(service.MultiService):
             been snapshotted.
         """
         return self.scanner_service.scan_once()
+
+    def participants(self):
+        # type: () -> Deferred[list[IParticipant]]
+        """
+        List all participants of this folder
+        """
+        return self._participants.list()
+
+    def add_participant(self, author, participant_directory):
+        return self._participants.add(author, participant_directory)
+
+    def add_snapshot(self, relative_path):
+        # type: (unicode) -> Deferred[None]
+        """
+        Create a new snapshot of the given file.
+        """
+
+        # preauthChild allows path-separators in the "path" (i.e. not
+        # just a single path-segment). That is precisely what we want
+        # here, though. It sill does not allow the path to "jump out"
+        # of the base magic_path -- that is, an InsecurePath error
+        # will result if you pass an absolute path outside the folder
+        # or a relative path that reaches up too far.
+        try:
+            path = self.config.magic_path.preauthChild(relative_path)
+        except InsecurePath as e:
+            return defer.fail(
+                APIError.from_exception(http.NOT_ACCEPTABLE, e)
+            )
+        return self.local_snapshot_service.add_file(path)
 
 
 _NICKNAME = Field.for_types(

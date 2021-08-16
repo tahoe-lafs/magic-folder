@@ -37,6 +37,7 @@ from twisted.internet.task import Clock
 from twisted.python.filepath import FilePath
 
 from ..client import create_testing_http_client
+from ..status import FolderStatus
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
@@ -47,6 +48,7 @@ from ..tahoe_client import (
 from ..magic_folder import (
     RemoteSnapshotCreator,
 )
+from ..participants import participants_from_collective
 from ..snapshot import create_local_author
 from ..status import (
     WebSocketStatusService,
@@ -174,13 +176,18 @@ class RemoteSnapshotCreatorFixture(Fixture):
         self.poll_interval = 1
         self.scan_interval = None
 
+        collective_dircap = u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        participants = participants_from_collective(
+            collective_dircap, self.upload_dircap, self.tahoe_client
+        )
+
         self.config = MagicFolderConfig.initialize(
             u"some-folder",
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash_path,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra",
+            self.upload_dircap,
             self.magic_path,
             self.poll_interval,
             self.scan_interval,
@@ -190,12 +197,13 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.temp.child(b"config"),
             self.temp.child(b"tahoe-node"),
         )
+        self.status = WebSocketStatusService(Clock(), self._global_config)
         self.remote_snapshot_creator = RemoteSnapshotCreator(
             config=self.config,
             local_author=self.author,
             tahoe_client=self.tahoe_client,
-            upload_dircap=self.upload_dircap,
-            status=WebSocketStatusService(Clock(), self._global_config),
+            status=FolderStatus(self.config.name, self.status),
+            write_participant=participants.writer,
         )
 
 @attr.s
@@ -323,7 +331,7 @@ class MagicFolderNode(object):
             for name in folders:
                 global_service.get_folder_service(name).startService()
 
-        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, status_service)
+        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, status_service)
 
         return cls(
             tahoe_root=tahoe_root,

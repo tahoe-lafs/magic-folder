@@ -124,7 +124,6 @@ class ListMagicFolder(AsyncTestCase):
             self.config,
             global_service,
             lambda: self.config.api_token,
-            tahoe_client,
             status_service,
         )
 
@@ -245,7 +244,6 @@ class CreateMagicFolder(AsyncTestCase):
             self.config,
             folder_service,
             lambda: self.config.api_token,
-            tahoe_client,
             status_service,
         )
 

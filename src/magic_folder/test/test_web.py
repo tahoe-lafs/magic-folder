@@ -55,6 +55,7 @@ from testtools.twistedsupport import (
     has_no_result,
 )
 
+from twisted.internet.defer import Deferred
 from twisted.web.http import (
     BAD_REQUEST,
     CONFLICT,
@@ -121,7 +122,6 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
-from ..magicpath import path2magic
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
@@ -925,7 +925,7 @@ class ScanFolderTests(SyncTestCase):
                 if delay == 0:
                     f(*args, **kwargs)
                 else:
-                    super(Clock, self).callLater(delay, f, *args, **kwargs)
+                    super(ImmediateClock, self).callLater(delay, f, *args, **kwargs)
 
         self.clock = ImmediateClock()
 
@@ -1021,10 +1021,10 @@ class ScanFolderTests(SyncTestCase):
         )
 
         folder_config = node.global_config.get_magic_folder(folder_name)
-        snapshot_paths = folder_config.get_all_localsnapshot_paths()
+        snapshot_paths = folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
-            Equals({path2magic(path_in_folder)}),
+            Equals({path_in_folder}),
         )
 
     def test_snapshot_no_folder(self):
@@ -1186,9 +1186,10 @@ class CreateSnapshotTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    # Maybe this could be BAD_REQUEST instead, sometimes, if
-                    # the path argument was bogus somehow.
-                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    # Maybe this could be BAD_REQUEST or INTERNAL_SERVER_ERROR
+                    # instead, sometimes, if the path argument was bogus or
+                    # somehow the path could not be read.
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                     headers_matcher=header_contains({
                         u"Content-Type": Equals([u"application/json"]),
                     }),
@@ -1221,11 +1222,19 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
+        # Pass a tahoe client that never responds, so the created
+        # snapshot is not uploaded.
+        class NeverClient(object):
+            def __call__(self, *args, **kw):
+                return Deferred()
+            def __getattr__(self, *args):
+                return self
         node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
+            tahoe_client=NeverClient(),
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.
