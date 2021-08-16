@@ -354,10 +354,10 @@ def status(options):
             print('Folder "{}":'.format(folder_name))
             print("  downloads: {}".format(len(folder["downloads"])))
             print("  uploads: {}".format(len(folder["uploads"])))
-            for rel, u in folder["uploads"].items():
+            for u in folder["uploads"]:
                 queue = humanize.naturaldelta(now - u["queued-at"])
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(rel, queue, start))
+                print("    {}: queued {} ago{}".format(u["name"], queue, start))
             print("  recent:")
             for f in folder["recent"]:
                 if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
