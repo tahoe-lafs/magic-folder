@@ -298,7 +298,7 @@ class MagicFolderUpdater(object):
                           capability=snapshot.capability,
                           ) as action:
             # if we're already conflicted, no further processing
-            if self._config.list_conflicts_for(snapshot.name):
+            if self._config.list_conflicts_for(relpath):
                 action.add_success_fields(is_conflict=True)
                 return
 
@@ -412,7 +412,7 @@ class MagicFolderUpdater(object):
             # filesystem.
             if is_conflict:
                 self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                self._config.add_conflict(snapshot.name, snapshot.author.name)
+                self._config.add_conflict(relpath, snapshot.author.name)
 
             else:
                 # there is a longer dance described in detail in
