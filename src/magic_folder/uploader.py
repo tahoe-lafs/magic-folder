@@ -16,13 +16,7 @@ from twisted.application import (
 from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
-    DeferredLock,
     CancelledError,
-    maybeDeferred,
-    inlineCallbacks,
-)
-from twisted.internet.task import (
-    LoopingCall,
 )
 from twisted.web import http
 from zope.interface import (
@@ -44,7 +38,7 @@ from .util.eliotutil import (
     log_call_deferred,
 )
 from .util.twisted import (
-    exclusively,
+    PeriodicService,
 )
 from .snapshot import (
     LocalAuthor,
@@ -397,12 +391,24 @@ class RemoteSnapshotCreator(object):
         yield self._config.delete_localsnapshot(relpath)
 
 
-@implementer(service.IService)
-class UploaderService(service.Service):
+@attr.s
+class UploaderService(service.MultiService):
     """
     A service that periodically polls the database for local snapshots
     and commit them into the grid.
     """
+    _clock = attr.ib()
+    _poll_interval = attr.ib()
+    _remote_snapshot_creator = attr.ib()
+    _periodic_service = attr.ib()
+
+    @_periodic_service.default
+    def _init_periodic(self):
+        return PeriodicService(
+            clock=self._clock,
+            interval=self._poll_interval,
+            callable=self._remote_snapshot_creator.upload_local_snapshots,
+        )
 
     @classmethod
     def from_config(cls, clock, config, remote_snapshot_creator):
@@ -417,47 +423,23 @@ class UploaderService(service.Service):
             remote_snapshot_creator=remote_snapshot_creator,
         )
 
-    def __init__(self, clock, poll_interval, remote_snapshot_creator):
+    def __attrs_post_init__(self):
         super(UploaderService, self).__init__()
-
-        self._clock = clock
-        self._poll_interval = poll_interval
-        self._remote_snapshot_creator = remote_snapshot_creator
-        self._lock = DeferredLock()  # implicitly required by @exclusively()
+        self._periodic_service.setServiceParent(self)
 
     def startService(self):
         """
         Start UploaderService and initiate a periodic task
         to poll for LocalSnapshots in the database.
         """
-        service.Service.startService(self)
+        super(UploaderService, self).startService()
 
         # if we started with any local snapshots already in the
         # database we must reflect this in our status service.
         self._remote_snapshot_creator.initialize_upload_status()
 
-        # do a looping call that polls the db for LocalSnapshots.
-        self._processing_loop = LoopingCall(
-            self.perform_upload
-        )
-        self._processing_loop.clock = self._clock
-        self._processing = self._processing_loop.start(self._poll_interval, now=True)
-
-    @exclusively
-    @inlineCallbacks
     def perform_upload(self):
         """
         Do an upload unless we are already doing one.
         """
-        yield maybeDeferred(self._remote_snapshot_creator.upload_local_snapshots)
-
-    def stopService(self):
-        """
-        Stop the uploader service.
-        """
-        service.Service.stopService(self)
-        d = self._processing
-        self._processing_loop.stop()
-        self._processing = None
-        self._processing_loop = None
-        return d
+        self._periodic_service.call_soon()
