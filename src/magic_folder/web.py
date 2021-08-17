@@ -439,7 +439,10 @@ class APIv1(object):
         _application_json(request)  # set reply headers
         folder_config = self._global_config.get_magic_folder(folder_name)
 
-        return json.dumps(folder_config.list_conflicts())
+        return json.dumps({
+            relpath: conflict.author_names
+            for relpath, conflict in folder_config.list_conflicts().items()
+        })
 
 
 class _InputError(APIError):

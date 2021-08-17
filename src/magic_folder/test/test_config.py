@@ -5,6 +5,7 @@ from __future__ import (
     unicode_literals,
 )
 
+import sqlite3
 from io import (
     BytesIO,
 )
@@ -71,8 +72,13 @@ from .strategies import (
     path_states,
     author_names,
 )
-from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
+from ..common import (
+    APIError,
+    InvalidMagicFolderName,
+    NoSuchMagicFolder,
+)
 from ..config import (
+    Conflict,
     LocalSnapshotMissingParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
@@ -920,9 +926,26 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": [self.author.name],
+                "foo": Conflict("URI:DIR2-CHK:", [self.author.name]),
             }),
         )
+
+    def test_add_conflict_twice(self):
+        """
+        It's an error to add the same conflict twice
+        """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_conflict(snap)
 
     def test_add_list_multi_conflict(self):
         """
@@ -951,7 +974,7 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": ["desktop", "laptop"]
+                "foo": Conflict("URI:DIR2-CHK:", ["desktop", "laptop"]),
             })
         )
 
@@ -982,7 +1005,7 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": ["laptop", "phone"],
+                "foo": Conflict("URI:DIR2-CHK:", ["laptop", "phone"]),
             }),
         )
 

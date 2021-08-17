@@ -738,6 +738,15 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
 
 
 @attr.s
+class Conflict(object):
+    """
+    Represents information about a particular conflict.
+    """
+    snapshot_cap = attr.ib()  # Tahoe URI
+    author_names = attr.ib(validator=instance_of(list))
+
+
+@attr.s
 class MagicFolderConfig(object):
     """
     Low-level access to a single magic-folder's configuration
@@ -1212,14 +1221,13 @@ class MagicFolderConfig(object):
     @with_cursor
     def list_conflicts(self, cursor):
         """
-        :returns dict: map of relpaths to a list of the author-names of
-            all participants that conflict with that path.
+        :returns dict: map of relpaths to Conflict instances
         """
         with start_action(action_type="config:state-db:list-conflicts"):
             cursor.execute(
                 """
                 SELECT
-                    relpath, conflict_author
+                    relpath, conflict_author, snapshot_cap
                 FROM
                     conflicted_files
                 """
@@ -1227,9 +1235,13 @@ class MagicFolderConfig(object):
             conflicts = dict()
             for row in cursor.fetchall():
                 try:
-                    conflicts[row[0]].append(row[1])
+                    conflicts[row[0]].author_names.append(row[1])
+                    assert row[2] == conflicts[row[0]].snapshot_cap, "Capabilities don't match"
                 except KeyError:
-                    conflicts[row[0]] = [row[1]]
+                    conflicts[row[0]] = Conflict(
+                        snapshot_cap=row[2],
+                        author_names=[row[1]],
+                    )
             return conflicts
 
     @with_cursor
@@ -1237,14 +1249,14 @@ class MagicFolderConfig(object):
         """
         :param text relpath: snapshot relpath
 
-        :returns dict: map of relpaths to a list of the author-names of
-            all participants that conflict with that path.
+        :returns list: Conflict instance, or None if there are no
+            conflicts at all for `relpath`
         """
         with start_action(action_type="config:state-db:list-conflicts"):
             cursor.execute(
                 """
                 SELECT
-                    conflict_author
+                    conflict_author, snapshot_cap
                 FROM
                     conflicted_files
                 WHERE
@@ -1255,7 +1267,12 @@ class MagicFolderConfig(object):
             rows = cursor.fetchall()
             if not rows:
                 return None
-            return [row[0] for row in rows]
+            all_caps = [row[1] for row in rows]
+            assert len(set(all_caps)) == 1, "Conflicts with different capabilities"
+            return Conflict(
+                snapshot_cap=rows[0][1],
+                author_names=[row[0] for row in rows],
+            )
 
     @with_cursor
     def add_conflict(self, cursor, snapshot):
@@ -1268,16 +1285,16 @@ class MagicFolderConfig(object):
             cursor.execute(
                 """
                 SELECT
-                    conflict_author
+                    snapshot_cap
                 FROM
                     conflicted_files
                 WHERE
-                    relpath=? AND conflict_author=?
+                    relpath=?
                 """,
-                (snapshot.relpath, snapshot.author.name),
+                (snapshot.relpath,),
             )
-            if cursor.fetchall():
-                return
+            for row in cursor.fetchall():
+                assert snapshot.capability == row[0], "conflict capability mismatch"
             cursor.execute(
                 """
                 INSERT INTO
@@ -1291,7 +1308,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def resolve_conflict(self, cursor, relpath):
         """
-        Delete all conflicts for a given Snapshot.
+        Delete all conflicts for a given Snapshot relpath.
 
         :param text relpath: The relpath of an existing Snapshot.
         """

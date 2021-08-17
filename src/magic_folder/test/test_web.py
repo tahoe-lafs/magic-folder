@@ -110,6 +110,9 @@ from .strategies import (
     author_names,
 )
 
+from ..config import (
+    Conflict,
+)
 from ..web import (
     magic_folder_resource,
     APIv1,
@@ -2071,14 +2074,12 @@ class ConflictStatusTests(SyncTestCase):
             "URI:DIR2-CHK:",
         )
 
-        # adding it twice should still result in a single conflict
-        mf_config.add_conflict(snap)
         mf_config.add_conflict(snap)
 
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals(["nelli"])
+            Equals(Conflict("URI:DIR2-CHK:", ["nelli"]))
         )
 
         # external API
