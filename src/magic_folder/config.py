@@ -20,15 +20,18 @@ __all__ = [
     "load_global_configuration",
 ]
 
+import re
+import hashlib
+import time
 from os import (
     urandom,
 )
 from base64 import (
     urlsafe_b64encode,
 )
-import hashlib
-import time
-from weakref import WeakValueDictionary
+from weakref import (
+    WeakValueDictionary,
+)
 
 from hyperlink import (
     DecodedURL,
@@ -247,6 +250,8 @@ _magicfolder_config_schema = Schema([
         """
     ]),
 ])
+
+_conflict_file_re = re.compile(r"(.*)\.conflict-(.*)")
 
 
 DELETE_SNAPSHOTS = ActionType(
@@ -1300,6 +1305,25 @@ class MagicFolderConfig(object):
                 """,
                 (relpath, ),
             )
+
+    def is_conflict_marker(self, path):
+        """
+        :param FilePath path: the filename to check
+
+        :returns bool: True if the given path is a file marking a
+            conflict (like "foo.conflict-laptop" for a file "foo"
+            conflicting with device "laptop")
+        """
+        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        m = _conflict_file_re.match(relpath)
+        if m:
+            base, author = m.group(1), m.group(2)
+            # XXX we could check our database here to see if there's
+            # _actually_ a conflict on this file currently .. but it
+            # might be extra-confusing if we "sometimes" consider a
+            # file that matches the pattern to be not-a-conflict
+            return True
+        return False
 
     @property
     @with_cursor

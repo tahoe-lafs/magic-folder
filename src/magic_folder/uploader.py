@@ -226,8 +226,9 @@ class LocalSnapshotService(service.Service):
                 "argument must be a FilePath"
             )
 
-        # XXX check if "path" _is_ a conflict-file in which case it
-        # should not be uploaded
+        # if "path" _is_ a conflict-file it should not be uploaded
+        if self._config.is_conflict_marker(path):
+            return
 
         try:
             # check that "path" is a descendant of magic_path

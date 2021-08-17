@@ -69,6 +69,7 @@ from .strategies import (
     local_snapshots,
     folder_names,
     path_states,
+    author_names,
 )
 from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
 from ..config import (
@@ -947,4 +948,21 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals(dict()),
+        )
+
+    @given(
+        relative_paths(),
+        author_names(),
+    )
+    def test_conflict_file(self, relpath, author):
+        """
+        A conflict-file is detected as one.
+        """
+        conflict_path = self.db.magic_path.preauthChild(
+            "{}.conflict-{}".format(relpath, author)
+        )
+
+        self.assertThat(
+            self.db.is_conflict_marker(conflict_path),
+            Equals(True)
         )
