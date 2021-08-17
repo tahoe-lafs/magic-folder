@@ -1105,9 +1105,8 @@ class ConflictTests(AsyncTestCase):
                 "state": ContainsDict({
                     "folders": ContainsDict({
                         "default": ContainsDict({
-                            "errors": Equals([
+                            "errors": ContainsDict([
                                 {
-                                    "timestamp": int(self.status._clock.seconds()),
                                     "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
                                 },
                             ]),
