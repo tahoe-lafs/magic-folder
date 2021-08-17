@@ -122,6 +122,10 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..snapshot import (
+    RemoteSnapshot,
+    create_local_author,
+)
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
@@ -2058,9 +2062,18 @@ class ConflictStatusTests(SyncTestCase):
             Equals(None)
         )
 
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
         # adding it twice should still result in a single conflict
-        mf_config.add_conflict("foo", "nelli")
-        mf_config.add_conflict("foo", "nelli")
+        mf_config.add_conflict(snap)
+        mf_config.add_conflict(snap)
 
         # internal API
         self.assertThat(

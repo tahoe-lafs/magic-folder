@@ -907,12 +907,20 @@ class ConflictTests(SyncTestCase):
         """
         Adding a conflict allows us to list it
         """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
 
-        self.db.add_conflict("foo", "laptop")
+        self.db.add_conflict(snap)
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": ["laptop"],
+                "foo": [self.author.name],
             }),
         )
 
@@ -921,12 +929,29 @@ class ConflictTests(SyncTestCase):
         A multiple-conflict is reflected in the list
         """
 
-        self.db.add_conflict("foo", "laptop")
-        self.db.add_conflict("foo", "phone")
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"desktop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": ["laptop", "phone"]
+                "foo": ["desktop", "laptop"]
             })
         )
 
@@ -935,8 +960,25 @@ class ConflictTests(SyncTestCase):
         A multiple-conflict is successfully deleted
         """
 
-        self.db.add_conflict("foo", "laptop")
-        self.db.add_conflict("foo", "phone")
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"phone"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
         self.assertThat(
             self.db.list_conflicts(),
             Equals({

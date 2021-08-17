@@ -412,7 +412,7 @@ class MagicFolderUpdater(object):
             # filesystem.
             if is_conflict:
                 self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                self._config.add_conflict(relpath, snapshot.author.name)
+                self._config.add_conflict(snapshot)
 
             else:
                 # there is a longer dance described in detail in
@@ -425,7 +425,7 @@ class MagicFolderUpdater(object):
                     # The file changed since we started processing this item
                     action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                    self._config.add_conflict(snapshot.name, snapshot.author.name)
+                    self._config.add_conflict(snapshot)
                 else:
                     try:
                         path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)

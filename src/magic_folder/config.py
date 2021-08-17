@@ -243,6 +243,7 @@ _magicfolder_config_schema = Schema([
         (
             [relpath]          TEXT NOT NULL,      -- mangled name in UTF-8
             [conflict_author]  TEXT NOT NULL,      -- another participant who conflicts
+            [snapshot_cap]     TEXT,               -- Tahoe URI of the snapshot that conflicted
             PRIMARY KEY(relpath, conflict_author)  -- unique rows
         )
         --- note that a single relpath may appear more than once if there are multiple
@@ -1257,14 +1258,13 @@ class MagicFolderConfig(object):
             return [row[0] for row in rows]
 
     @with_cursor
-    def add_conflict(self, cursor, relpath, author):
+    def add_conflict(self, cursor, snapshot):
         """
         Add a new conflicting author
 
-        :param text relpath: The relpath of an existing snapshot
-        :param text author: The relpath of an existing participant
+        :param RemoteSnapshot snapshot: the conflicting Snapshot
         """
-        with start_action(action_type="config:state-db:add-conflict", relpath=relpath):
+        with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
             cursor.execute(
                 """
                 SELECT
@@ -1274,18 +1274,18 @@ class MagicFolderConfig(object):
                 WHERE
                     relpath=? AND conflict_author=?
                 """,
-                (relpath, author),
+                (snapshot.relpath, snapshot.author.name),
             )
             if cursor.fetchall():
                 return
             cursor.execute(
                 """
                 INSERT INTO
-                    conflicted_files (relpath, conflict_author)
+                    conflicted_files (relpath, conflict_author, snapshot_cap)
                 VALUES
-                    (?,?)
+                    (?,?,?)
                 """,
-                (relpath, author),
+                (snapshot.relpath, snapshot.author.name, snapshot.capability),
             )
 
     @with_cursor
