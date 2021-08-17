@@ -1317,11 +1317,14 @@ class MagicFolderConfig(object):
         relpath = u"/".join(path.segmentsFrom(self.magic_path))
         m = _conflict_file_re.match(relpath)
         if m:
-            base, author = m.group(1), m.group(2)
-            # XXX we could check our database here to see if there's
-            # _actually_ a conflict on this file currently .. but it
-            # might be extra-confusing if we "sometimes" consider a
-            # file that matches the pattern to be not-a-conflict
+            # the plain relpath is .group(1)
+            # the author-name is .group(2)
+            #
+            # using the above, we could check our database here to see
+            # if there's _actually_ a conflict on this file currently
+            # .. but it might be extra-confusing if we "sometimes"
+            # consider a file that matches the pattern to be
+            # not-a-conflict
             return True
         return False
 
