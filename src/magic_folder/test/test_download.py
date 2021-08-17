@@ -624,8 +624,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content1:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
 
         # create a second update
         local_snap2 = yield create_snapshot(
@@ -650,8 +655,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content2:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
 
     @inlineCallbacks
     def test_conflicting_update(self):
