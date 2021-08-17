@@ -1233,14 +1233,14 @@ class MagicFolderConfig(object):
                 """
             )
             conflicts = dict()
-            for row in cursor.fetchall():
+            for relpath, author_name, snap_cap in cursor.fetchall():
                 try:
-                    conflicts[row[0]].author_names.append(row[1])
-                    assert row[2] == conflicts[row[0]].snapshot_cap, "Capabilities don't match"
+                    conflicts[relpath].author_names.append(author_name)
+                    assert snap_cap == conflicts[relpath].snapshot_cap, "Capabilities don't match"
                 except KeyError:
-                    conflicts[row[0]] = Conflict(
-                        snapshot_cap=row[2],
-                        author_names=[row[1]],
+                    conflicts[relpath] = Conflict(
+                        snapshot_cap=snap_cap,
+                        author_names=[author_name],
                     )
             return conflicts
 
