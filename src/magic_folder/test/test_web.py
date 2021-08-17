@@ -2079,7 +2079,7 @@ class ConflictStatusTests(SyncTestCase):
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals(Conflict("URI:DIR2-CHK:", ["nelli"]))
+            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
         )
 
         # external API

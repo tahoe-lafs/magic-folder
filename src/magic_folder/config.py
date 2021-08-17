@@ -743,7 +743,7 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_names = attr.ib(validator=instance_of(list))
+    author_name = attr.ib(validator=instance_of(unicode))
 
 
 @attr.s
@@ -1235,13 +1235,9 @@ class MagicFolderConfig(object):
             conflicts = dict()
             for relpath, author_name, snap_cap in cursor.fetchall():
                 try:
-                    conflicts[relpath].author_names.append(author_name)
-                    assert snap_cap == conflicts[relpath].snapshot_cap, "Capabilities don't match"
+                    conflicts[relpath].append(Conflict(snap_cap, author_name))
                 except KeyError:
-                    conflicts[relpath] = Conflict(
-                        snapshot_cap=snap_cap,
-                        author_names=[author_name],
-                    )
+                    conflicts[relpath] = [Conflict(snap_cap, author_name)]
             return conflicts
 
     @with_cursor
@@ -1249,8 +1245,8 @@ class MagicFolderConfig(object):
         """
         :param text relpath: snapshot relpath
 
-        :returns list: Conflict instance, or None if there are no
-            conflicts at all for `relpath`
+        :returns list: list of Conflict instances, or None if there
+            are no conflicts at all for `relpath`
         """
         with start_action(action_type="config:state-db:list-conflicts"):
             cursor.execute(
@@ -1267,12 +1263,10 @@ class MagicFolderConfig(object):
             rows = cursor.fetchall()
             if not rows:
                 return None
-            all_capabilities = [row[1] for row in rows]
-            assert len(set(all_capabilities)) == 1, "Conflicts with different capabilities"
-            return Conflict(
-                snapshot_cap=rows[0][1],
-                author_names=[row[0] for row in rows],
-            )
+            return [
+                Conflict(snap_cap, author_name)
+                for author_name, snap_cap in rows
+            ]
 
     @with_cursor
     def add_conflict(self, cursor, snapshot):
@@ -1282,22 +1276,6 @@ class MagicFolderConfig(object):
         :param RemoteSnapshot snapshot: the conflicting Snapshot
         """
         with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
-            cursor.execute(
-                """
-                SELECT
-                    snapshot_cap
-                FROM
-                    conflicted_files
-                WHERE
-                    relpath=?
-                """,
-                (snapshot.relpath,),
-            )
-            # XXX maybe there's a "database way" to keep this
-            # consistent? sqlite docs say CHECK() can't contain a
-            # sub-query though
-            for row in cursor.fetchall():
-                assert snapshot.capability == row[0], "conflict capability mismatch"
             cursor.execute(
                 """
                 INSERT INTO

@@ -440,8 +440,11 @@ class APIv1(object):
         folder_config = self._global_config.get_magic_folder(folder_name)
 
         return json.dumps({
-            relpath: conflict.author_names
-            for relpath, conflict in folder_config.list_conflicts().items()
+            relpath: [
+                conflict.author_name
+                for conflict in conflicts
+            ]
+            for relpath, conflicts in folder_config.list_conflicts().items()
         })
 
 

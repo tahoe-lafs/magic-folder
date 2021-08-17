@@ -926,7 +926,7 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": Conflict("URI:DIR2-CHK:", [self.author.name]),
+                "foo": [Conflict("URI:DIR2-CHK:", self.author.name)],
             }),
         )
 
@@ -956,7 +956,7 @@ class ConflictTests(SyncTestCase):
             "foo",
             create_local_author(u"desktop"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             [],
             "URI:DIR2-CHK:",
         )
@@ -964,7 +964,7 @@ class ConflictTests(SyncTestCase):
             "foo",
             create_local_author(u"laptop"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             [],
             "URI:DIR2-CHK:",
         )
@@ -974,7 +974,10 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": Conflict("URI:DIR2-CHK:", ["desktop", "laptop"]),
+                "foo": [
+                    Conflict("URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "desktop"),
+                    Conflict("URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "laptop"),
+                ],
             })
         )
 
@@ -1005,7 +1008,10 @@ class ConflictTests(SyncTestCase):
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": Conflict("URI:DIR2-CHK:", ["laptop", "phone"]),
+                "foo": [
+                    Conflict("URI:DIR2-CHK:", "laptop"),
+                    Conflict("URI:DIR2-CHK:", "phone"),
+                ]
             }),
         )
 
