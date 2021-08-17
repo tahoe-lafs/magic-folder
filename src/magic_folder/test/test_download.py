@@ -1096,6 +1096,10 @@ class ConflictTests(AsyncTestCase):
             self.updater,
             tahoe_client,
         )
+        # it's hard to know _precisely_ when the loop will declare the
+        # error and take the timestamp; maybe makes sense to not
+        # compare the timestamp in the marshal'd state?
+        now = int(self.status._clock.seconds())
         yield top_service._loop()
 
         # status system should report our error
@@ -1105,8 +1109,9 @@ class ConflictTests(AsyncTestCase):
                 "state": ContainsDict({
                     "folders": ContainsDict({
                         "default": ContainsDict({
-                            "errors": ContainsDict([
+                            "errors": Equals([
                                 {
+                                    "timestamp": now,
                                     "summary": "Failed to overwrite file 'foo': [Errno 13] Permission denied",
                                 },
                             ]),
