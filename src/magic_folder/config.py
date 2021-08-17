@@ -1267,8 +1267,8 @@ class MagicFolderConfig(object):
             rows = cursor.fetchall()
             if not rows:
                 return None
-            all_caps = [row[1] for row in rows]
-            assert len(set(all_caps)) == 1, "Conflicts with different capabilities"
+            all_capabilities = [row[1] for row in rows]
+            assert len(set(all_capabilities)) == 1, "Conflicts with different capabilities"
             return Conflict(
                 snapshot_cap=rows[0][1],
                 author_names=[row[0] for row in rows],
@@ -1293,6 +1293,9 @@ class MagicFolderConfig(object):
                 """,
                 (snapshot.relpath,),
             )
+            # XXX maybe there's a "database way" to keep this
+            # consistent? sqlite docs say CHECK() can't contain a
+            # sub-query though
             for row in cursor.fetchall():
                 assert snapshot.capability == row[0], "conflict capability mismatch"
             cursor.execute(
