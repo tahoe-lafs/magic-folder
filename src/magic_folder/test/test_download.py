@@ -164,7 +164,7 @@ class CacheTests(SyncTestCase):
         relpath = "foo"
         metadata = {
             "snapshot_version": 1,
-            "name": relpath,
+            "relpath": relpath,
             "author": self.author.to_remote_author().to_json(),
             "parents": [],
         }
@@ -221,7 +221,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals(relpath),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -239,7 +239,7 @@ class CacheTests(SyncTestCase):
         for who in range(5):
             metadata = {
                 "snapshot_version": 1,
-                "name": relpath,
+                "relpath": relpath,
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
@@ -301,7 +301,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals(relpath),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -321,7 +321,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals(relpath),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -343,7 +343,7 @@ class CacheTests(SyncTestCase):
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals(relpath),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -809,6 +809,7 @@ class ConflictTests(AsyncTestCase):
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
+            relpath="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
@@ -855,6 +856,7 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -870,6 +872,7 @@ class ConflictTests(AsyncTestCase):
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
+            relpath="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
@@ -905,6 +908,7 @@ class ConflictTests(AsyncTestCase):
         for letter in 'abcd':
             parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
             parent = RemoteSnapshot(
+                relpath="foo",
                 author=self.alice,
                 metadata={"modification_time": 0},
                 capability=parent_cap,
@@ -941,6 +945,7 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
@@ -951,6 +956,7 @@ class ConflictTests(AsyncTestCase):
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=child_cap,
@@ -961,6 +967,7 @@ class ConflictTests(AsyncTestCase):
 
         other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=other_cap,
@@ -995,8 +1002,9 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
-            metadata={"modification_time": 0},
+            metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -1005,8 +1013,9 @@ class ConflictTests(AsyncTestCase):
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
-            metadata={"modification_time": 0},
+            metadata={"relpath": "foo", "modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
@@ -1036,8 +1045,9 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
-            metadata={"modification_time": 0},
+            metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
@@ -1122,6 +1132,7 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,

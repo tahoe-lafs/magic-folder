@@ -405,9 +405,10 @@ def remote_snapshots(relpaths=path_segments(), authors=remote_authors()):
     """
     return builds(
         RemoteSnapshot,
+        relpath=relpaths,
         author=authors,
         metadata=fixed_dictionaries({
-            "name": relpaths,
+            "relpath": relpaths,
             "modification_time": integers(min_value=0, max_value=2**32),
         }),
         capability=tahoe_lafs_immutable_dir_capabilities(),

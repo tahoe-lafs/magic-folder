@@ -146,7 +146,7 @@ class RemoteSnapshotCacheService(service.Service):
         )
         self._cached_snapshots[snapshot_cap] = snapshot
         Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata['name'],
+                    relpath=snapshot.metadata["relpath"],
                     capability=snapshot.capability)
 
         # breadth-first traversal of the parents

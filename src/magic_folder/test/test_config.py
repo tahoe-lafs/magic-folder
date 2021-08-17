@@ -643,19 +643,18 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         )
 
     @given(
-        relative_paths(),
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_roundtrips(self, relpath, snapshot, path_state):
+    def test_remotesnapshot_roundtrips(self, snapshot, path_state):
         """
         The capability for a ``RemoteSnapshot`` added with
         ``MagicFolderConfig.store_downloaded_snapshot`` can be read back with
         ``MagicFolderConfig.get_remotesnapshot``.
         """
-        self.db.store_downloaded_snapshot(relpath, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(relpath)
-        db_path_state = self.db.get_currentsnapshot_pathstate(relpath)
+        self.db.store_downloaded_snapshot(snapshot.relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(snapshot.relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
@@ -855,8 +854,9 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         for x in range(35):
             relpath = "foo_{}".format(x)
             remote = RemoteSnapshot(
+                relpath,
                 self.author,
-                {"name": relpath, "modification_time": x},
+                {"relpath": relpath, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
                 "URI:DIR2-CHK:",

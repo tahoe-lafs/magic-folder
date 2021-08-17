@@ -569,6 +569,7 @@ class TestDumpState(AsyncTestCase):
         config.store_downloaded_snapshot(
             "bar",
             RemoteSnapshot(
+                "bar",
                 author,
                 {"modification_time": 0},
                 capability="URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
