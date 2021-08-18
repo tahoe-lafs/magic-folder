@@ -1306,12 +1306,14 @@ class ConflictTests(AsyncTestCase):
                 "state": ContainsDict({
                     "folders": ContainsDict({
                         "default": ContainsDict({
-                            "errors": Equals([
-                                {
-                                    "timestamp": int(self.status._clock.seconds()),
-                                    "summary": "Failed to download snapshot for 'foo'.",
-                                },
-                            ]),
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Failed to download snapshot for 'foo'."
+                                    )
+                                }),
+                            ),
                         }),
                     }),
                 }),
