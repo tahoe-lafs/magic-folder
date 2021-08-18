@@ -1291,7 +1291,9 @@ class MagicFolderConfig(object):
     @with_cursor
     def resolve_conflict(self, cursor, relpath):
         """
-        Delete all conflicts for a given Snapshot relpath.
+        Delete all conflicts for a given Snapshot relpath. Note that this
+        doesn't delete any conflict marker files only modifies the
+        state database.
 
         :param text relpath: The relpath of an existing Snapshot.
         """
