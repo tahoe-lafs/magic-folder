@@ -252,6 +252,8 @@ _magicfolder_config_schema = Schema([
     ]),
 ])
 
+
+# matches conflict marker files; see is_conflict_marker()
 _conflict_file_re = re.compile(r"(.*)\.conflict-(.*)")
 
 
