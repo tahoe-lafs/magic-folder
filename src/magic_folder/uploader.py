@@ -228,7 +228,9 @@ class LocalSnapshotService(service.Service):
 
         try:
             # if "path" _is_ a conflict-file it should not be uploaded
-            # (this will throw ValueError if path is outside the magic-path)
+            # This check (or the following "segmentsFrom") will throw
+            # ValueError if path is outside the magic-path .. this is
+            # desired as a check
             if self._config.is_conflict_marker(path):
                 return
 
