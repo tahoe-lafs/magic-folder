@@ -2062,7 +2062,7 @@ class ConflictStatusTests(SyncTestCase):
         # internal API for "no conflict yet"
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals(None)
+            Equals([])
         )
 
         snap = RemoteSnapshot(
