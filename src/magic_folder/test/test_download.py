@@ -471,8 +471,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content)),
+            )
+        )
 
     @inlineCallbacks
     def test_conflict(self):
@@ -510,8 +515,20 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0, lambda: None)
 
         # we should conflict
-        assert self.magic_path.child("foo.conflict-zara").getContent() == content
-        assert self.magic_path.child("foo").getContent() == original_content
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content)),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(original_content)),
+            )
+        )
 
     @inlineCallbacks
     def test_update(self):
@@ -562,8 +579,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content1:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
         self.assertThat(
             self.config.get_currentsnapshot_pathstate("foo"),
             MatchesAll(
@@ -714,8 +736,13 @@ class UpdateTests(AsyncTestCase):
             if "foo.conflict-zara" in self.magic_path.listdir():
                 break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
 
         # now we produce another update on Zara's side, which
         # shouldn't change anything locally because we're already
@@ -742,9 +769,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo.conflict-zara").getContent() != content1:
                     print("weird content")
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
-
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
 
 
 class ConflictTests(AsyncTestCase):
