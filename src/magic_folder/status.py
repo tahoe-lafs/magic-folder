@@ -267,7 +267,10 @@ class WebSocketStatusService(service.Service):
                     "relpath": relpath,
                     "modified": timestamp,
                     "last-updated": last_updated,
-                    "conflicts": mf_config.list_conflicts_for(relpath),
+                    "conflicts": [
+                        conflict.author_name
+                        for conflict in mf_config.list_conflicts_for(relpath)
+                    ],
                 }
                 for relpath, timestamp, last_updated
                 in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)

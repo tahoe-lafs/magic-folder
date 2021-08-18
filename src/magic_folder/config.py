@@ -1263,8 +1263,6 @@ class MagicFolderConfig(object):
                 (relpath, ),
             )
             rows = cursor.fetchall()
-            if not rows:
-                return None
             return [
                 Conflict(snap_cap, author_name)
                 for author_name, snap_cap in rows
