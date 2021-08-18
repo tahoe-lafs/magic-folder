@@ -1245,7 +1245,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def list_conflicts_for(self, cursor, relpath):
         """
-        :param text relpath: snapshot relpath
+        :param unicode relpath: snapshot relative path
 
         :returns list: list of Conflict instances, or None if there
             are no conflicts at all for `relpath`
