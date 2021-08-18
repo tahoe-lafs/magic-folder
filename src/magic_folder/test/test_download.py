@@ -12,7 +12,10 @@ Tests relating generally to magic_folder.downloader
 import io
 import base64
 import time
-from mock import Mock
+from mock import (
+    Mock,
+    patch,
+)
 
 from json import (
     dumps,
@@ -50,6 +53,7 @@ from twisted.internet.task import (
 )
 from twisted.internet.defer import (
     inlineCallbacks,
+    returnValue,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -774,6 +778,73 @@ class UpdateTests(AsyncTestCase):
             MatchesAll(
                 AfterPreprocessing(lambda x: x.exists(), Equals(True)),
                 AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
+
+    @inlineCallbacks
+    def test_conflict_at_last_second(self):
+        """
+        If an update to a file happens while we're downloading a file that
+        is detected as a conflict.
+        """
+
+        content0 = b"foo" * 1000
+        local_snap0 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+        )
+
+        # arrange to hook ourselves in to the "download" code-path
+        # immediately _after_ the download has occurred...
+
+        # "our" folder updater service
+        folder_updater = self.service.downloader_service._folder_updater
+        orig_method = folder_updater._magic_fs.download_content_to_staging
+
+        @inline_callbacks
+        def do_download(relpath, cap, tahoe_client):
+            """
+            wrap the "download_content_to_staging" method so we can inject a
+            last-second change to file "foo" _immediately_ after we
+            download zara's update (but before we act on it)
+            """
+            x = yield orig_method(relpath, cap, tahoe_client)
+            # put in the last-second conflict
+            self.magic_path.preauthChild(relpath).setContent("So conflicted")
+            returnValue(x)
+
+        with patch.object(folder_updater._magic_fs, "download_content_to_staging", do_download):
+            # create a change in zara's Personal DMD
+            remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+            yield self.tahoe_client.add_entry_to_mutable_directory(
+                self.other_personal_cap,
+                u"foo",
+                remote_snap0.capability.encode("utf8"),
+            )
+
+            # wait for the downloader to detect zara's change
+            for _ in range(10):
+                yield deferLater(reactor, 1.0, lambda: None)
+                if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
+                    break
+
+        # we should discover and mark this last-second conflict by
+        # keeping "our" content in "foo" and putting zara's content in
+        # a conflict-file
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals("So conflicted")),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content0)),
             )
         )
 
