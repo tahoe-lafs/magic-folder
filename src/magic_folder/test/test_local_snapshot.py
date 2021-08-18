@@ -257,6 +257,26 @@ class LocalSnapshotServiceTests(SyncTestCase):
             ),
         )
 
+    def test_conflict_marker(self):
+        """
+        A conflict-marker file is not uploaded
+        """
+        self.setup_example()  # no @given() on this test
+        foo = self.magic_path.child("foo.conflict-laptop")
+        foo.setContent("bogus")
+
+        self.assertThat(
+            self.snapshot_service.add_file(foo),
+            succeeded(Always()),
+        )
+
+        # we should ignore this add_file() update and not upload /
+        # process it
+        self.assertThat(
+            self.snapshot_creator.processed,
+            Equals([]),
+        )
+
 
 class LocalSnapshotCreatorTests(SyncTestCase):
     """
