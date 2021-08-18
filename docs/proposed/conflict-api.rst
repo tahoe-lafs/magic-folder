@@ -58,6 +58,15 @@ Returns a list (possibly empty) of local filesystem paths corresponding to each 
 Our content is in the path itself.
 The conflicting "other" content is in ``<path>.conflict-<name>`` where ``<name>`` is the petname of the participant who is provided the conflicted content.
 
+This endpoint returns a JSON dict mapping any local conflicted ``relpath`` to a list of authors.
+Following this example::
+
+    {
+        "foo": ["laptop"]
+    }
+
+This indicates that a single file ``foo`` has a conflict with a single other participant ``laptop``.
+
 
 
 ``POST /v1/magic-folder/<folder-name>/resolve-conflict

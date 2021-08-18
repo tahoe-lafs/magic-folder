@@ -20,15 +20,18 @@ __all__ = [
     "load_global_configuration",
 ]
 
+import re
+import hashlib
+import time
 from os import (
     urandom,
 )
 from base64 import (
     urlsafe_b64encode,
 )
-import hashlib
-import time
-from weakref import WeakValueDictionary
+from weakref import (
+    WeakValueDictionary,
+)
 
 from hyperlink import (
     DecodedURL,
@@ -102,6 +105,7 @@ from ._endpoint_parser import (
 from eliot import (
     ActionType,
     Field,
+    start_action,
 )
 
 from .util.capabilities import is_readonly_directory_cap, is_directory_cap
@@ -159,7 +163,7 @@ _magicfolder_config_schema = Schema([
 
             -- The relative path of the file this snapshot is for,
             -- UTF-8-encoded.
-            [name]             TEXT,
+            [relpath]          TEXT,
 
             -- A local filesystem path where the content can be found.
             [content_path]     TEXT
@@ -221,7 +225,7 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]             TEXT PRIMARY KEY, -- relative file path in UTF-8
+            [relpath]          TEXT PRIMARY KEY, -- snapshot relative-path in UTF-8
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
@@ -232,12 +236,26 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
+        """
+        --- This table represents our notion of conflicts (although they are also represented
+        --- on disk, our representation is canonical as the filesystem is part of the API)
+        CREATE TABLE [conflicted_files]
+        (
+            [relpath]          TEXT NOT NULL,      -- mangled name in UTF-8
+            [conflict_author]  TEXT NOT NULL,      -- another participant who conflicts
+            [snapshot_cap]     TEXT,               -- Tahoe URI of the snapshot that conflicted
+            PRIMARY KEY(relpath, conflict_author)  -- unique rows
+        )
+        --- note that a single relpath may appear more than once if there are multiple
+        --- conflicts (i.e. multiple other devices conflict)
+        """
     ]),
 ])
 
 
-## XXX "parents_local" should be IDs of other local_snapshots, not
-## sure how to do that w/o docs here
+# matches conflict marker files; see is_conflict_marker()
+_conflict_file_re = re.compile(r"(.*)\.conflict-(.*)")
+
 
 DELETE_SNAPSHOTS = ActionType(
     u"config:state-db:delete-local-snapshot-entry",
@@ -513,7 +531,7 @@ def _get_snapshots(cursor, relpath):
         FROM
             [local_snapshots]
         WHERE
-            [name] = ?
+            [relpath] = ?
         """,
         (relpath,),
     )
@@ -543,7 +561,7 @@ def _get_metadata(cursor, relpath):
         WHERE
             [metadata].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
         (relpath,),
     )
@@ -580,7 +598,7 @@ def _get_parents(cursor, relpath):
         WHERE
             [parents].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
         (relpath,),
     )
@@ -719,6 +737,15 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
             ),
         ),
     )
+
+
+@attr.s
+class Conflict(object):
+    """
+    Represents information about a particular conflict.
+    """
+    snapshot_cap = attr.ib()  # Tahoe URI
+    author_name = attr.ib(validator=instance_of(unicode))
 
 
 @attr.s
@@ -890,7 +917,7 @@ class MagicFolderConfig(object):
             cursor.execute(
                 """
                 INSERT INTO
-                    [local_snapshots] ([identifier], [name], [content_path])
+                    [local_snapshots] ([identifier], [relpath], [content_path])
                 VALUES
                     (?, ?, ?)
                 """,
@@ -958,7 +985,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [local_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -974,9 +1001,8 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("DELETE FROM [local_snapshots]"
-                           " WHERE [name]=?",
+                           " WHERE [relpath]=?",
                            (relpath,))
-
 
     @with_cursor
     def store_uploaded_snapshot(self, cursor, relpath, remote_snapshot, upload_started_at):
@@ -1009,7 +1035,7 @@ class MagicFolderConfig(object):
                 SET
                     snapshot_cap=?, last_updated_ns=?, upload_duration_ns=?
                 WHERE
-                    [name]=?
+                    [relpath]=?
                 """,
                 (snapshot_cap, now_ns, duration_ns, relpath),
             )
@@ -1037,7 +1063,7 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
+                    "INSERT INTO current_snapshots (relpath, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?)",
                     (relpath, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
@@ -1046,7 +1072,7 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "UPDATE current_snapshots"
                     " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?"
-                    " WHERE [name]=?",
+                    " WHERE [relpath]=?",
                     (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
@@ -1066,7 +1092,7 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size, last_updated_ns)"
+                    "INSERT INTO current_snapshots (relpath, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
                     (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
                 )
@@ -1075,7 +1101,7 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
-                    " WHERE [name]=?",
+                    " WHERE [relpath]=?",
                     (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
@@ -1086,7 +1112,7 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded or uploaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [current_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [current_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -1101,7 +1127,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, last_updated_ns
+                relpath, mtime_ns, last_updated_ns
             FROM
                 [current_snapshots]
             ORDER BY
@@ -1130,7 +1156,7 @@ class MagicFolderConfig(object):
         )
         with action:
             cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [name]=?",
+                           " WHERE [relpath]=?",
                            (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
@@ -1155,7 +1181,7 @@ class MagicFolderConfig(object):
         with action:
             cursor.execute(
                 "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
-                " WHERE [name]=?",
+                " WHERE [relpath]=?",
                 (relpath,),
             )
             row = cursor.fetchone()
@@ -1176,7 +1202,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
+                relpath, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
             FROM
                 current_snapshots
             ORDER BY
@@ -1193,6 +1219,114 @@ class MagicFolderConfig(object):
             )
             for row in cursor.fetchall()
         ]
+
+    @with_cursor
+    def list_conflicts(self, cursor):
+        """
+        :returns dict: map of relpaths to Conflict instances
+        """
+        with start_action(action_type="config:state-db:list-conflicts"):
+            cursor.execute(
+                """
+                SELECT
+                    relpath, conflict_author, snapshot_cap
+                FROM
+                    conflicted_files
+                """
+            )
+            conflicts = dict()
+            for relpath, author_name, snap_cap in cursor.fetchall():
+                try:
+                    conflicts[relpath].append(Conflict(snap_cap, author_name))
+                except KeyError:
+                    conflicts[relpath] = [Conflict(snap_cap, author_name)]
+            return conflicts
+
+    @with_cursor
+    def list_conflicts_for(self, cursor, relpath):
+        """
+        :param unicode relpath: snapshot relative path
+
+        :returns list: list of Conflict instances, or None if there
+            are no conflicts at all for `relpath`
+        """
+        with start_action(action_type="config:state-db:list-conflicts"):
+            cursor.execute(
+                """
+                SELECT
+                    conflict_author, snapshot_cap
+                FROM
+                    conflicted_files
+                WHERE
+                    relpath=?
+                """,
+                (relpath, ),
+            )
+            rows = cursor.fetchall()
+            return [
+                Conflict(snap_cap, author_name)
+                for author_name, snap_cap in rows
+            ]
+
+    @with_cursor
+    def add_conflict(self, cursor, snapshot):
+        """
+        Add a new conflicting author
+
+        :param RemoteSnapshot snapshot: the conflicting Snapshot
+        """
+        with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
+            cursor.execute(
+                """
+                INSERT INTO
+                    conflicted_files (relpath, conflict_author, snapshot_cap)
+                VALUES
+                    (?,?,?)
+                """,
+                (snapshot.relpath, snapshot.author.name, snapshot.capability),
+            )
+
+    @with_cursor
+    def resolve_conflict(self, cursor, relpath):
+        """
+        Delete all conflicts for a given Snapshot relpath. Note that this
+        doesn't delete any conflict marker files only modifies the
+        state database.
+
+        :param text relpath: The relpath of an existing Snapshot.
+        """
+        with start_action(action_type="config:state-db:resolve-conflict", relpath=relpath):
+            cursor.execute(
+                """
+                DELETE FROM
+                    conflicted_files
+                WHERE
+                    relpath=?
+                """,
+                (relpath, ),
+            )
+
+    def is_conflict_marker(self, path):
+        """
+        :param FilePath path: the filename to check
+
+        :returns bool: True if the given path is a file marking a
+            conflict (like "foo.conflict-laptop" for a file "foo"
+            conflicting with device "laptop")
+        """
+        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        m = _conflict_file_re.match(relpath)
+        if m:
+            # the plain relpath is .group(1)
+            # the author-name is .group(2)
+            #
+            # using the above, we could check our database here to see
+            # if there's _actually_ a conflict on this file currently
+            # .. but it might be extra-confusing if we "sometimes"
+            # consider a file that matches the pattern to be
+            # not-a-conflict
+            return True
+        return False
 
     @property
     @with_cursor

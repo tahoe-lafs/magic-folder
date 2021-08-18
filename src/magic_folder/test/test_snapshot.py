@@ -343,7 +343,7 @@ class TestRemoteSnapshot(SyncTestCase):
             downloaded_snapshot,
             MatchesStructure(
                 metadata=ContainsDict({
-                    "name": Equals(filename),
+                    "relpath": Equals(filename),
                     "modification_time": Equals(modified_time),
                 }),
             ),
@@ -477,7 +477,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             snapshots[3],
             MatchesStructure(
-                metadata=ContainsDict({"name": Equals(filename)}),
+                metadata=ContainsDict({"relpath": Equals(filename)}),
                 parents_raw=Equals([snapshots[1].capability]),
             )
         )
@@ -525,7 +525,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             remote_snapshot,
             MatchesStructure(
-                metadata=ContainsDict({"name": Equals(filename)}),
+                metadata=ContainsDict({"relpath": Equals(filename)}),
                 parents_raw=AfterPreprocessing(len, Equals(1)),
             )
         )
@@ -537,7 +537,7 @@ class TestRemoteSnapshot(SyncTestCase):
         self.assertThat(
             parent_snapshot,
             MatchesStructure(
-                metadata=ContainsDict({"name": Equals(filename)}),
+                metadata=ContainsDict({"relpath": Equals(filename)}),
                 parents_raw=Equals([]),
             )
         )

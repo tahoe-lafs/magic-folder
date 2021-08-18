@@ -110,6 +110,9 @@ from .strategies import (
     author_names,
 )
 
+from ..config import (
+    Conflict,
+)
 from ..web import (
     magic_folder_resource,
     APIv1,
@@ -121,6 +124,10 @@ from ..util.file import (
 from ..client import (
     authorized_request,
     url_to_bytes,
+)
+from ..snapshot import (
+    RemoteSnapshot,
+    create_local_author,
 )
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
@@ -257,6 +264,7 @@ class AuthorizationTests(SyncTestCase):
                 ),
             ),
         )
+
 
 def treq_for_folders(
     reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
@@ -1969,6 +1977,127 @@ class FileStatusTests(SyncTestCase):
                                 "last-upload-duration": None,
                             },
                         ]),
+                    )
+                ),
+            )
+        )
+
+
+class ConflictStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/conflicts` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        A folder with no conflicts reflect that in the status
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "louise",
+            local_path,
+        )
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            )
+        )
+
+    def test_one_conflict(self):
+        """
+        Appropriate information is returned when we have a conflict with
+        one author
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "marta",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        # internal API for "no conflict yet"
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([])
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        mf_config.add_conflict(snap)
+
+        # internal API
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["nelli"],
+                        }),
                     )
                 ),
             )

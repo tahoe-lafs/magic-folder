@@ -126,6 +126,7 @@ class FindUpdatesTests(SyncTestCase):
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
         snap = RemoteSnapshot(
+            relpath,
             self.author,
             metadata={
                 "modification_time": int(
@@ -160,6 +161,7 @@ class FindUpdatesTests(SyncTestCase):
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
         snap = RemoteSnapshot(
+            relpath,
             self.author,
             metadata={
                 # this remote is 2min older than our local file

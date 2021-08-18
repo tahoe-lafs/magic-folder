@@ -431,6 +431,22 @@ class APIv1(object):
             in folder_config.get_all_current_snapshot_pathstates()
         ])
 
+    @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
+    def list_conflicts(self, request, folder_name):
+        """
+        Render status information for every file in a given folder
+        """
+        _application_json(request)  # set reply headers
+        folder_config = self._global_config.get_magic_folder(folder_name)
+
+        return json.dumps({
+            relpath: [
+                conflict.author_name
+                for conflict in conflicts
+            ]
+            for relpath, conflicts in folder_config.list_conflicts().items()
+        })
+
 
 class _InputError(APIError):
     """

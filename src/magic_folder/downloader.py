@@ -146,7 +146,7 @@ class RemoteSnapshotCacheService(service.Service):
         )
         self._cached_snapshots[snapshot_cap] = snapshot
         Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata['name'],
+                    relpath=snapshot.metadata["relpath"],
                     capability=snapshot.capability)
 
         # breadth-first traversal of the parents
@@ -297,6 +297,11 @@ class MagicFolderUpdater(object):
                           relpath=relpath,
                           capability=snapshot.capability,
                           ) as action:
+            # if we're already conflicted, no further processing
+            if self._config.list_conflicts_for(relpath):
+                action.add_success_fields(is_conflict=True)
+                return
+
             local_path = self._config.magic_path.preauthChild(relpath)
 
             # TODO: We should be able to get all this info from a single
@@ -407,8 +412,7 @@ class MagicFolderUpdater(object):
             # filesystem.
             if is_conflict:
                 self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                # FIXME probably want to also record internally that
-                # this is a conflict.
+                self._config.add_conflict(snapshot)
 
             else:
                 # there is a longer dance described in detail in
@@ -421,7 +425,7 @@ class MagicFolderUpdater(object):
                     # The file changed since we started processing this item
                     action.add_success_fields(conflict_reason="last-minute-change")
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                    # FIXME note conflict internally
+                    self._config.add_conflict(snapshot)
                 else:
                     try:
                         path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)

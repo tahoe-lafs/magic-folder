@@ -261,11 +261,13 @@ class WebSocketStatusService(service.Service):
         )
 
         def folder_data_for(name):
+            mf_config = self._config.get_magic_folder(name)
             most_recent = [
                 {
                     "relpath": relpath,
                     "modified": timestamp,
                     "last-updated": last_updated,
+                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
                 }
                 for relpath, timestamp, last_updated
                 in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)

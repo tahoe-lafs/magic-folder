@@ -5,6 +5,7 @@ from __future__ import (
     unicode_literals,
 )
 
+import sqlite3
 from io import (
     BytesIO,
 )
@@ -69,9 +70,15 @@ from .strategies import (
     local_snapshots,
     folder_names,
     path_states,
+    author_names,
 )
-from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
+from ..common import (
+    APIError,
+    InvalidMagicFolderName,
+    NoSuchMagicFolder,
+)
 from ..config import (
+    Conflict,
     LocalSnapshotMissingParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
@@ -642,19 +649,18 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         )
 
     @given(
-        relative_paths(),
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_roundtrips(self, relpath, snapshot, path_state):
+    def test_remotesnapshot_roundtrips(self, snapshot, path_state):
         """
         The capability for a ``RemoteSnapshot`` added with
         ``MagicFolderConfig.store_downloaded_snapshot`` can be read back with
         ``MagicFolderConfig.get_remotesnapshot``.
         """
-        self.db.store_downloaded_snapshot(relpath, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(relpath)
-        db_path_state = self.db.get_currentsnapshot_pathstate(relpath)
+        self.db.store_downloaded_snapshot(snapshot.relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(snapshot.relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
@@ -854,8 +860,9 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         for x in range(35):
             relpath = "foo_{}".format(x)
             remote = RemoteSnapshot(
+                relpath,
                 self.author,
-                {"name": relpath, "modification_time": x},
+                {"relpath": relpath, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
                 "URI:DIR2-CHK:",
@@ -874,4 +881,159 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                     for x in range(34, 4, -1)  # newest to oldest
                 ])
             )
+        )
+
+
+class ConflictTests(SyncTestCase):
+    """
+    Test conflicts
+    """
+    def setUp(self):
+        super(ConflictTests, self).setUp()
+        self.author = create_local_author(u"desktop")
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+            60,
+        )
+
+    def test_add_list_conflict(self):
+        """
+        Adding a conflict allows us to list it
+        """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [Conflict("URI:DIR2-CHK:", self.author.name)],
+            }),
+        )
+
+    def test_add_conflict_twice(self):
+        """
+        It's an error to add the same conflict twice
+        """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_conflict(snap)
+
+    def test_add_list_multi_conflict(self):
+        """
+        A multiple-conflict is reflected in the list
+        """
+
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"desktop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            [],
+            "URI:DIR2-CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [
+                    Conflict("URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "desktop"),
+                    Conflict("URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "laptop"),
+                ],
+            })
+        )
+
+    def test_delete_multi_conflict(self):
+        """
+        A multiple-conflict is successfully deleted
+        """
+
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"phone"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:DIR2-CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [
+                    Conflict("URI:DIR2-CHK:", "laptop"),
+                    Conflict("URI:DIR2-CHK:", "phone"),
+                ]
+            }),
+        )
+
+        self.db.resolve_conflict("foo")
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals(dict()),
+        )
+
+    @given(
+        relative_paths(),
+        author_names(),
+    )
+    def test_conflict_file(self, relpath, author):
+        """
+        A conflict-file is detected as one.
+        """
+        conflict_path = self.db.magic_path.preauthChild(
+            "{}.conflict-{}".format(relpath, author)
+        )
+
+        self.assertThat(
+            self.db.is_conflict_marker(conflict_path),
+            Equals(True)
         )

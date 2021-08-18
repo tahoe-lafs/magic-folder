@@ -176,11 +176,11 @@ def create_author_from_json(data):
     return create_author(data["name"], verify_key)
 
 
-def _snapshot_signature_string(name, content_capability, metadata_capability):
+def _snapshot_signature_string(relpath, content_capability, metadata_capability):
     """
     Formats snapshot information into bytes to sign
 
-    :param unicode name: arbitrary snapshot name
+    :param unicode relpath: arbitrary snapshot name
 
     :param bytes content_capability: Tahoe immutable capability-string
 
@@ -192,16 +192,16 @@ def _snapshot_signature_string(name, content_capability, metadata_capability):
         u"magic-folder-snapshot-v1\n"
         u"{content_capability}\n"
         u"{metadata_capability}\n"
-        u"{name}\n"
+        u"{relpath}\n"
     ).format(
         content_capability=content_capability.decode("ascii"),
         metadata_capability=metadata_capability.decode("ascii"),
-        name=name,
+        relpath=relpath,
     )
     return snapshot_string.encode("utf8")
 
 
-def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capability):
+def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_capability):
     """
     Signs the given snapshot with provided author
 
@@ -221,14 +221,14 @@ def sign_snapshot(local_author, snapshot_name, content_capability, metadata_capa
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
-        snapshot_name,
+        snapshot_relpath,
         content_capability,
         metadata_capability,
     )
     return local_author.signing_key.sign(data_to_sign)
 
 
-def verify_snapshot_signature(remote_author, alleged_signature, content_capability, metadata_capability, snapshot_name):
+def verify_snapshot_signature(remote_author, alleged_signature, content_capability, metadata_capability, snapshot_relpath):
     """
     Verify the given snapshot.
 
@@ -236,7 +236,7 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
     """
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = _snapshot_signature_string(
-        snapshot_name,
+        snapshot_relpath,
         content_capability,
         metadata_capability,
     )
@@ -362,6 +362,7 @@ class RemoteSnapshot(object):
         retrieve the contents.
     """
 
+    relpath = attr.ib()
     author = attr.ib()  # any SnapshotAuthor instance
     metadata = attr.ib()
     capability = attr.ib()
@@ -421,7 +422,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
                 )
             )
 
-        name = metadata["name"]
+        relpath = metadata["relpath"]
         content_cap = snapshot["content"][1]["ro_uri"]
 
         # create SnapshotAuthor
@@ -429,13 +430,14 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
         # verify the signature
         signature = base64.b64decode(author_signature)
-        verify_snapshot_signature(author, signature, content_cap, metadata_cap, name)
+        verify_snapshot_signature(author, signature, content_cap, metadata_cap, relpath)
 
         # find all parents
         parent_caps = metadata["parents"]
 
     returnValue(
         RemoteSnapshot(
+            relpath=relpath,
             author=author,
             metadata=metadata,
             content_cap=content_cap,
@@ -616,7 +618,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # create our metadata
     snapshot_metadata = {
         "snapshot_version": SNAPSHOT_VERSION,
-        "name": snapshot.relpath,
+        "relpath": snapshot.relpath,
         "author": snapshot.author.to_remote_author().to_json(),
         "modification_time": snapshot.metadata["mtime"],
         "parents": [
@@ -655,6 +657,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # snapshot, so we shouldn't yet delete the LocalSnapshot
     returnValue(
         RemoteSnapshot(
+            relpath=snapshot.relpath,
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
             parents_raw=parents_raw,
