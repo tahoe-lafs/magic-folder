@@ -61,9 +61,6 @@ from .status import (
 from .snapshot import (
     create_author,
 )
-from .participants import (
-    participants_from_collective,
-)
 from .util.capabilities import (
     is_readonly_directory_cap,
     cap_size,
