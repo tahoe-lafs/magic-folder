@@ -54,7 +54,7 @@ class MatchesAuthorSignature(object):
             u"{name}\n"
         ).format(
             content_capability=self.remote_snapshot.content_cap,
-            name=self.remote_snapshot.name,
+            name=self.remote_snapshot.metadata['name'],
         ).encode("utf8")
 
         try:
@@ -178,6 +178,19 @@ def matches_flushed_traceback(exception, value_re=None):
     """
     def as_exc_info_tuple(message):
         return message["exception"], message["reason"], message["traceback"]
+
+    return AfterPreprocessing(
+        as_exc_info_tuple, MatchesException(exception, value_re=value_re)
+    )
+
+def matches_failure(exception, value_re=None):
+    """
+    Matches an twisted :py:`Failure` with the given exception.
+
+    See :py:`testtools.matches.MatchesException`.
+    """
+    def as_exc_info_tuple(failure):
+        return failure.type, failure.value, failure.tb
 
     return AfterPreprocessing(
         as_exc_info_tuple, MatchesException(exception, value_re=value_re)

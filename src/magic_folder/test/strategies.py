@@ -242,7 +242,7 @@ def tahoe_lafs_dir_capabilities():
     Build unicode strings which look like Tahoe-LAFS directory capability strings.
     """
     return builds(
-        lambda a, b: u"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
+        lambda a, b: b"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
         binary(min_size=16, max_size=16),
 
         binary(min_size=32, max_size=32),
@@ -399,15 +399,16 @@ def unique_value_dictionaries(keys, values, min_size=None, max_size=None):
     )
 
 
-def remote_snapshots(names=path_segments(), authors=remote_authors()):
+def remote_snapshots(relpaths=path_segments(), authors=remote_authors()):
     """
     Build ``RemoteSnapshot`` instances.
     """
     return builds(
         RemoteSnapshot,
-        name=names,
+        relpath=relpaths,
         author=authors,
         metadata=fixed_dictionaries({
+            "relpath": relpaths,
             "modification_time": integers(min_value=0, max_value=2**32),
         }),
         capability=tahoe_lafs_immutable_dir_capabilities(),
@@ -435,7 +436,7 @@ def local_snapshots():
     """
     return builds(
         LocalSnapshot,
-        name=relative_paths(),
+        relpath=relative_paths(),
         author=local_authors(),
         metadata=dictionaries(text(), text()),
         content_path=absolute_paths().map(FilePath),

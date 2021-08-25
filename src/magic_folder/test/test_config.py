@@ -5,9 +5,11 @@ from __future__ import (
     unicode_literals,
 )
 
+import sqlite3
 from io import (
     BytesIO,
 )
+import itertools
 from re import (
     escape,
 )
@@ -58,6 +60,7 @@ from .fixtures import (
     NodeDirectory,
 )
 from .strategies import (
+    relative_paths,
     path_segments,
     path_segments_without_dotfiles,
     port_numbers,
@@ -67,9 +70,15 @@ from .strategies import (
     local_snapshots,
     folder_names,
     path_states,
+    author_names,
 )
-from ..common import APIError, InvalidMagicFolderName, NoSuchMagicFolder
+from ..common import (
+    APIError,
+    InvalidMagicFolderName,
+    NoSuchMagicFolder,
+)
 from ..config import (
+    Conflict,
     LocalSnapshotMissingParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
@@ -508,7 +517,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshots = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
@@ -526,7 +535,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
@@ -544,7 +553,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.assertThat(
             reconstructed_local_snapshot,
             MatchesStructure(
-                name=Equals(filename),
+                relpath=Equals(filename),
                 parents_local=HasLength(1)
             )
         )
@@ -573,7 +582,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshots = []
 
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data1,
             snapshot_stash_dir=self.stash,
@@ -584,7 +593,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
         d = create_snapshot(
-            name=filename,
+            relpath=filename,
             author=self.author,
             data_producer=data2,
             snapshot_stash_dir=self.stash,
@@ -607,9 +616,9 @@ class StoreLocalSnapshotTests(SyncTestCase):
         snapshot's path.
         """
         self.db.store_local_snapshot(snapshot)
-        self.db.delete_localsnapshot(snapshot.name)
-        with ExpectedException(KeyError, escape(repr(snapshot.name))):
-            self.db.get_local_snapshot(snapshot.name)
+        self.db.delete_localsnapshot(snapshot.relpath)
+        with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
+            self.db.get_local_snapshot(snapshot.relpath)
 
 
 class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
@@ -649,42 +658,44 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         ``MagicFolderConfig.store_downloaded_snapshot`` can be read back with
         ``MagicFolderConfig.get_remotesnapshot``.
         """
-        self.db.store_downloaded_snapshot(snapshot.name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(snapshot.name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.name)
+        self.db.store_downloaded_snapshot(snapshot.relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(snapshot.relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
         )
 
     @given(
+        relative_paths(),
         remote_snapshots(),
         path_states(),
     )
-    def test_remotesnapshot_with_existing_state(self, snapshot, path_state):
+    def test_remotesnapshot_with_existing_state(self, relpath, snapshot, path_state):
         """
         A ``RemoveSnapshot`` can be added without path state, if existing path
         state is in the database.
         """
-        self.db.store_currentsnapshot_state(snapshot.name, path_state)
-        self.db.store_downloaded_snapshot(snapshot.name, snapshot, path_state)
-        capability = self.db.get_remotesnapshot(snapshot.name)
-        db_path_state = self.db.get_currentsnapshot_pathstate(snapshot.name)
+        self.db.store_currentsnapshot_state(relpath, path_state)
+        self.db.store_downloaded_snapshot(relpath, snapshot, path_state)
+        capability = self.db.get_remotesnapshot(relpath)
+        db_path_state = self.db.get_currentsnapshot_pathstate(relpath)
         self.assertThat(
             (capability, db_path_state),
             Equals((snapshot.capability, path_state))
         )
 
     @given(
+        relative_paths(),
         remote_snapshots(),
     )
-    def test_store_remote_without_state(self, snapshot):
+    def test_store_remote_without_state(self, relpath, snapshot):
         """
         Calling :py:`MagicFolderConfig.store_uploaded_snapshot` without a path
         state, when there isn't already corresponding path state fails.
         """
         with ExpectedException(RemoteSnapshotWithoutPathState):
-            self.db.store_uploaded_snapshot(snapshot.name, snapshot, 42)
+            self.db.store_uploaded_snapshot(relpath, snapshot, 42)
 
     @given(
         path_segments(),
@@ -716,10 +727,13 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
     @given(
         # Get two RemoteSnapshots with the same path.
         path_segments().flatmap(
-            lambda path: lists(
-                remote_snapshots(names=just(path)),
-                min_size=2,
-                max_size=2,
+            lambda path: tuples(
+                just(path),
+                lists(
+                    remote_snapshots(relpaths=just(path)),
+                    min_size=2,
+                    max_size=2,
+                ),
             ),
         ),
         path_states(),
@@ -729,7 +743,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         A ``RemoteSnapshot`` for a given path can be replaced by a new
         ``RemoteSnapshot`` for the same path, without providing path state.
         """
-        path = snapshots[0].name
+        path, snapshots = snapshots
         self.db.store_downloaded_snapshot(path, snapshots[0], path_state)
         self.db.store_uploaded_snapshot(path, snapshots[1], 42)
         capability = self.db.get_remotesnapshot(path)
@@ -742,10 +756,13 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
     @given(
         # Get two RemoteSnapshots with the same path.
         path_segments().flatmap(
-            lambda path: lists(
-                remote_snapshots(names=just(path)),
-                min_size=2,
-                max_size=2,
+            lambda path: tuples(
+                just(path),
+                lists(
+                    remote_snapshots(relpaths=just(path)),
+                    min_size=2,
+                    max_size=2,
+                ),
             ),
         ),
         lists(path_states(), min_size=2, max_size=2)
@@ -755,7 +772,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         A ``RemoteSnapshot`` for a given path can be replaced by a new
         ``RemoteSnapshot`` for the same path, when providing path state.
         """
-        path = snapshots[0].name
+        path, snapshots = snapshots
         self.db.store_downloaded_snapshot(path, snapshots[0], path_states[0])
         self.db.store_downloaded_snapshot(path, snapshots[1], path_states[1])
         capability = self.db.get_remotesnapshot(path)
@@ -847,12 +864,13 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         Add 35 RemoteSnapshots and ensure we only get 30 back from
         'recent' list.
         """
+        self.patch(self.db, '_get_current_timestamp', itertools.count().next)
         for x in range(35):
-            name = "foo_{}".format(x)
+            relpath = "foo_{}".format(x)
             remote = RemoteSnapshot(
-                name,
+                relpath,
                 self.author,
-                {"modification_time": x},
+                {"relpath": relpath, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
                 "URI:CHK:",
@@ -860,8 +878,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
-            self.db.store_currentsnapshot_state(name, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
-            self.db.store_uploaded_snapshot(name, remote, 0)
+            self.db.store_currentsnapshot_state(relpath, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
+            self.db.store_uploaded_snapshot(relpath, remote, 0)
 
         # on windows the timestamps end up being long() instead of
         # int() is why the pre-processing includes an int() on the
@@ -877,4 +895,165 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                     for x in range(34, 4, -1)  # newest to oldest
                 ])
             )
+        )
+
+
+class ConflictTests(SyncTestCase):
+    """
+    Test conflicts
+    """
+    def setUp(self):
+        super(ConflictTests, self).setUp()
+        self.author = create_local_author(u"desktop")
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+            60,
+        )
+
+    def test_add_list_conflict(self):
+        """
+        Adding a conflict allows us to list it
+        """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+
+        self.db.add_conflict(snap)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [Conflict("URI:DIR2-CHK:", self.author.name)],
+            }),
+        )
+
+    def test_add_conflict_twice(self):
+        """
+        It's an error to add the same conflict twice
+        """
+        snap = RemoteSnapshot(
+            "foo",
+            self.author,
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",  # content cap
+            "URI:CHK:",  # metadata cap
+        )
+
+        self.db.add_conflict(snap)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.add_conflict(snap)
+
+    def test_add_list_multi_conflict(self):
+        """
+        A multiple-conflict is reflected in the list
+        """
+
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"desktop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [
+                    Conflict("URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "desktop"),
+                    Conflict("URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "laptop"),
+                ],
+            })
+        )
+
+    def test_delete_multi_conflict(self):
+        """
+        A multiple-conflict is successfully deleted
+        """
+
+        snap0 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"laptop"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+        snap1 = RemoteSnapshot(
+            "foo",
+            create_local_author(u"phone"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+
+        self.db.add_conflict(snap0)
+        self.db.add_conflict(snap1)
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals({
+                "foo": [
+                    Conflict("URI:DIR2-CHK:", "laptop"),
+                    Conflict("URI:DIR2-CHK:", "phone"),
+                ]
+            }),
+        )
+
+        self.db.resolve_conflict("foo")
+        self.assertThat(
+            self.db.list_conflicts(),
+            Equals(dict()),
+        )
+
+    @given(
+        relative_paths(),
+        author_names(),
+    )
+    def test_conflict_file(self, relpath, author):
+        """
+        A conflict-file is detected as one.
+        """
+        conflict_path = self.db.magic_path.preauthChild(
+            "{}.conflict-{}".format(relpath, author)
+        )
+
+        self.assertThat(
+            self.db.is_conflict_marker(conflict_path),
+            Equals(True)
         )

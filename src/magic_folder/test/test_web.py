@@ -55,6 +55,7 @@ from testtools.twistedsupport import (
     has_no_result,
 )
 
+from twisted.internet.defer import Deferred
 from twisted.web.http import (
     BAD_REQUEST,
     CONFLICT,
@@ -109,6 +110,9 @@ from .strategies import (
     author_names,
 )
 
+from ..config import (
+    Conflict,
+)
 from ..web import (
     magic_folder_resource,
     APIv1,
@@ -121,7 +125,10 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
-from ..magicpath import path2magic
+from ..snapshot import (
+    RemoteSnapshot,
+    create_local_author,
+)
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
@@ -259,6 +266,7 @@ class AuthorizationTests(SyncTestCase):
                 ),
             ),
         )
+
 
 def treq_for_folders(
     reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
@@ -927,7 +935,7 @@ class ScanFolderTests(SyncTestCase):
                 if delay == 0:
                     f(*args, **kwargs)
                 else:
-                    super(Clock, self).callLater(delay, f, *args, **kwargs)
+                    super(ImmediateClock, self).callLater(delay, f, *args, **kwargs)
 
         self.clock = ImmediateClock()
 
@@ -1023,10 +1031,10 @@ class ScanFolderTests(SyncTestCase):
         )
 
         folder_config = node.global_config.get_magic_folder(folder_name)
-        snapshot_paths = folder_config.get_all_localsnapshot_paths()
+        snapshot_paths = folder_config.get_all_snapshot_paths()
         self.assertThat(
             snapshot_paths,
-            Equals({path2magic(path_in_folder)}),
+            Equals({path_in_folder}),
         )
 
     def test_snapshot_no_folder(self):
@@ -1188,9 +1196,10 @@ class CreateSnapshotTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    # Maybe this could be BAD_REQUEST instead, sometimes, if
-                    # the path argument was bogus somehow.
-                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    # Maybe this could be BAD_REQUEST or INTERNAL_SERVER_ERROR
+                    # instead, sometimes, if the path argument was bogus or
+                    # somehow the path could not be read.
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                     headers_matcher=header_contains({
                         u"Content-Type": Equals([u"application/json"]),
                     }),
@@ -1223,11 +1232,19 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
+        # Pass a tahoe client that never responds, so the created
+        # snapshot is not uploaded.
+        class NeverClient(object):
+            def __call__(self, *args, **kw):
+                return Deferred()
+            def __getattr__(self, *args):
+                return self
         node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
+            tahoe_client=NeverClient(),
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.
@@ -1962,6 +1979,128 @@ class FileStatusTests(SyncTestCase):
                                 "last-upload-duration": None,
                             },
                         ]),
+                    )
+                ),
+            )
+        )
+
+
+class ConflictStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/conflicts` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        A folder with no conflicts reflect that in the status
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "louise",
+            local_path,
+        )
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            )
+        )
+
+    def test_one_conflict(self):
+        """
+        Appropriate information is returned when we have a conflict with
+        one author
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "marta",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        # internal API for "no conflict yet"
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([])
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+
+        mf_config.add_conflict(snap)
+
+        # internal API
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["nelli"],
+                        }),
                     )
                 ),
             )

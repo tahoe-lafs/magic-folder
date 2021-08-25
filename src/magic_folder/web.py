@@ -26,7 +26,7 @@ from eliot import write_failure
 from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
-    InsecurePath, FilePath,
+    FilePath,
 )
 from twisted.internet.defer import (
     inlineCallbacks,
@@ -57,9 +57,6 @@ from .common import APIError
 from .status import (
     StatusFactory,
     IStatus,
-)
-from .magicpath import (
-    magic2path,
 )
 from .snapshot import (
     create_author,
@@ -171,9 +168,8 @@ class APIv1(object):
         this Magic Folder service.
     """
     _global_config = attr.ib()
-    _global_service = attr.ib()
+    _global_service = attr.ib()  # MagicFolderService instance
     _status_service = attr.ib(validator=attr.validators.provides(IStatus))
-    _tahoe_client = attr.ib()
 
     app = Klein()
 
@@ -283,14 +279,9 @@ class APIv1(object):
         """
         List all participants of this folder
         """
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_service = self._global_service.get_folder_service(folder_name)
 
-        collective = participants_from_collective(
-            folder_config.collective_dircap,
-            folder_config.upload_dircap,
-            self._tahoe_client,
-        )
-        participants = yield collective.list()
+        participants = yield folder_service.participants()
 
         reply = {
             part.name: {
@@ -310,7 +301,7 @@ class APIv1(object):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_service = self._global_service.get_folder_service(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -344,12 +335,7 @@ class APIv1(object):
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
 
-        collective = participants_from_collective(
-            folder_config.collective_dircap,
-            folder_config.upload_dircap,
-            self._tahoe_client,
-        )
-        yield collective.add(author, personal_dmd_cap)
+        yield folder_service.add_participant(author, personal_dmd_cap)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
@@ -385,30 +371,10 @@ class APIv1(object):
         Create a new Snapshot
         """
         folder_service = self._global_service.get_folder_service(folder_name)
-        folder_config = folder_service.config
 
-        path_u = request.args[b"path"][0].decode("utf-8")
+        path = request.args[b"path"][0].decode("utf-8")
 
-        # preauthChild allows path-separators in the "path" (i.e. not
-        # just a single path-segment). That is precisely what we want
-        # here, though. It sill does not allow the path to "jump out"
-        # of the base magic_path -- that is, an InsecurePath error
-        # will result if you pass an absolute path outside the folder
-        # or a relative path that reaches up too far.
-
-        try:
-            path = folder_config.magic_path.preauthChild(path_u)
-        except InsecurePath as e:
-            request.setResponseCode(http.NOT_ACCEPTABLE)
-            _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
-
-        try:
-            yield folder_service.local_snapshot_service.add_file(path)
-        except Exception as e:
-            request.setResponseCode(http.INTERNAL_SERVER_ERROR)
-            _application_json(request)
-            returnValue(json.dumps({u"reason": str(e)}))
+        yield folder_service.add_snapshot(path)
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
@@ -461,15 +427,31 @@ class APIv1(object):
 
         return json.dumps([
             {
-                "relpath": magic2path(name),
+                "relpath": relpath,
                 "mtime": ns_to_seconds(ps.mtime_ns),
                 "last-updated": ns_to_seconds(last_updated_ns),
                 "last-upload-duration": float(upload_duration_ns) / 1000000000.0 if upload_duration_ns else None,
                 "size": ps.size,
             }
-            for name, ps, last_updated_ns, upload_duration_ns
+            for relpath, ps, last_updated_ns, upload_duration_ns
             in folder_config.get_all_current_snapshot_pathstates()
         ])
+
+    @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
+    def list_conflicts(self, request, folder_name):
+        """
+        Render status information for every file in a given folder
+        """
+        _application_json(request)  # set reply headers
+        folder_config = self._global_config.get_magic_folder(folder_name)
+
+        return json.dumps({
+            relpath: [
+                conflict.author_name
+                for conflict in conflicts
+            ]
+            for relpath, conflicts in folder_config.list_conflicts().items()
+        })
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
     def folder_tahoe_objects(self, request, folder_name):
@@ -540,8 +522,7 @@ def _list_all_folder_snapshots(folder_config):
         representing all snapshots for that file.
     """
     for snapshot_path in folder_config.get_all_localsnapshot_paths():
-        relative_path = magic2path(snapshot_path)
-        yield relative_path, _list_all_path_snapshots(folder_config, snapshot_path)
+        yield snapshot_path, _list_all_path_snapshots(folder_config, snapshot_path)
 
 
 def _list_all_path_snapshots(folder_config, snapshot_path):
@@ -618,7 +599,7 @@ def unauthorized(request):
     return b""
 
 
-def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, tahoe_client, status_service):
+def magic_folder_web_service(web_endpoint, global_config, global_service, get_auth_token, status_service):
     """
     :param web_endpoint: a IStreamServerEndpoint where we should listen
 
@@ -627,13 +608,11 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :param get_auth_token: a callable that returns the current authentication token
 
-    :param TahoeClient tahoe_client: a way to access Tahoe-LAFS
-
     :param IStatus status_service: our status reporting service
 
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service, status_service, tahoe_client).app.resource()
+    v1_resource = APIv1(global_config, global_service, status_service).app.resource()
     root = magic_folder_resource(get_auth_token, v1_resource)
     return StreamServerEndpointService(
         web_endpoint,

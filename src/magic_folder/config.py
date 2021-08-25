@@ -20,15 +20,18 @@ __all__ = [
     "load_global_configuration",
 ]
 
+import re
+import hashlib
+import time
 from os import (
     urandom,
 )
 from base64 import (
     urlsafe_b64encode,
 )
-import hashlib
-import time
-from weakref import WeakValueDictionary
+from weakref import (
+    WeakValueDictionary,
+)
 
 from hyperlink import (
     DecodedURL,
@@ -102,6 +105,7 @@ from ._endpoint_parser import (
 from eliot import (
     ActionType,
     Field,
+    start_action,
 )
 
 from .util.capabilities import is_readonly_directory_cap, is_directory_cap
@@ -157,9 +161,9 @@ _magicfolder_config_schema = Schema([
             -- A random, unique identifier for this particular snapshot.
             [identifier]       TEXT PRIMARY KEY,
 
-            -- The magicpath-mangled name of the file this snapshot is for,
+            -- The relative path of the file this snapshot is for,
             -- UTF-8-encoded.
-            [name]             TEXT,
+            [relpath]          TEXT,
 
             -- A local filesystem path where the content can be found.
             [content_path]     TEXT
@@ -221,7 +225,7 @@ _magicfolder_config_schema = Schema([
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
         (
-            [name]             TEXT PRIMARY KEY, -- mangled name in UTF-8
+            [relpath]          TEXT PRIMARY KEY, -- snapshot relative-path in UTF-8
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
@@ -234,12 +238,26 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
+        """
+        --- This table represents our notion of conflicts (although they are also represented
+        --- on disk, our representation is canonical as the filesystem is part of the API)
+        CREATE TABLE [conflicted_files]
+        (
+            [relpath]          TEXT NOT NULL,      -- mangled name in UTF-8
+            [conflict_author]  TEXT NOT NULL,      -- another participant who conflicts
+            [snapshot_cap]     TEXT,               -- Tahoe URI of the snapshot that conflicted
+            PRIMARY KEY(relpath, conflict_author)  -- unique rows
+        )
+        --- note that a single relpath may appear more than once if there are multiple
+        --- conflicts (i.e. multiple other devices conflict)
+        """
     ]),
 ])
 
 
-## XXX "parents_local" should be IDs of other local_snapshots, not
-## sure how to do that w/o docs here
+# matches conflict marker files; see is_conflict_marker()
+_conflict_file_re = re.compile(r"(.*)\.conflict-(.*)")
+
 
 DELETE_SNAPSHOTS = ActionType(
     u"config:state-db:delete-local-snapshot-entry",
@@ -293,7 +311,7 @@ class RemoteSnapshotWithoutPathState(Exception):
     """
 
     folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
-    snapshot_name = attr.ib(validator=attr.validators.instance_of(unicode))
+    relpath = attr.ib(validator=attr.validators.instance_of(unicode))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -499,11 +517,11 @@ class SQLite3DatabaseLocation(object):
         return sqlite3.connect(self.location, *a, **kw)
 
 
-def _get_snapshots(cursor, name):
+def _get_snapshots(cursor, relpath):
     """
-    Load all of the snapshots associated with the given name.
+    Load all of the snapshots associated with the given relpath.
 
-    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+    :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
     :return dict[unicode, unicode]: A mapping from unicode snapshot
         identifiers to unicode snapshot content path strings.
@@ -515,22 +533,22 @@ def _get_snapshots(cursor, name):
         FROM
             [local_snapshots]
         WHERE
-            [name] = ?
+            [relpath] = ?
         """,
-        (name,),
+        (relpath,),
     )
     snapshots = cursor.fetchall()
     if len(snapshots) == 0:
-        raise KeyError(name)
+        raise KeyError(relpath)
     return dict(snapshots)
 
 
-def _get_metadata(cursor, name):
+def _get_metadata(cursor, relpath):
     """
     Load all of the metadata for all of the snapshots associated with the
-    given name.
+    given relpath.
 
-    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+    :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
     :return dict[unicode, dict[unicode, unicode]]: A mapping from unicode
         snapshot identifiers to dicts of key/value metadata associated with
@@ -545,9 +563,9 @@ def _get_metadata(cursor, name):
         WHERE
             [metadata].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
-        (name,),
+        (relpath,),
     )
     metadata_rows = cursor.fetchall()
     metadata = {}
@@ -556,12 +574,12 @@ def _get_metadata(cursor, name):
     return metadata
 
 
-def _get_parents(cursor, name):
+def _get_parents(cursor, relpath):
     """
     Load all of the parent points for all of the snapshots associated with the
-    given name.
+    given relpath.
 
-    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+    :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
     :return dict[unicode, [(int, bool, unicode)]]: A mapping from unicode
         snapshot identifiers to lists of associated parent pointer
@@ -582,9 +600,9 @@ def _get_parents(cursor, name):
         WHERE
             [parents].[snapshot_identifier] = [local_snapshots].[identifier]
         AND
-            [local_snapshots].[name] = ?
+            [local_snapshots].[relpath] = ?
         """,
-        (name,),
+        (relpath,),
     )
     parent_rows = cursor.fetchall()
     parents = {}
@@ -680,13 +698,13 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
-def _construct_local_snapshot(identifier, name, author, content_paths, metadata, parents):
+def _construct_local_snapshot(identifier, relpath, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
 
     :param unicode identifier: The identifier of the snapshot to instantiate.
 
-    :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+    :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
     :param LocalAuthor author: The author associated with the snapshot.
 
@@ -703,7 +721,7 @@ def _construct_local_snapshot(identifier, name, author, content_paths, metadata,
     """
     return LocalSnapshot(
         identifier=UUID(hex=identifier),
-        name=name,
+        relpath=relpath,
         author=author,
         content_path=FilePath(content_paths[identifier]),
         metadata=metadata.get(identifier, {}),
@@ -713,7 +731,7 @@ def _construct_local_snapshot(identifier, name, author, content_paths, metadata,
             parents,
             partial(
                 _construct_local_snapshot,
-                name=name,
+                relpath=relpath,
                 author=author,
                 content_paths=content_paths,
                 metadata=metadata,
@@ -721,6 +739,15 @@ def _construct_local_snapshot(identifier, name, author, content_paths, metadata,
             ),
         ),
     )
+
+
+@attr.s
+class Conflict(object):
+    """
+    Represents information about a particular conflict.
+    """
+    snapshot_cap = attr.ib()  # Tahoe URI
+    author_name = attr.ib(validator=instance_of(unicode))
 
 
 @attr.s
@@ -836,29 +863,29 @@ class MagicFolderConfig(object):
         return FilePath(path_raw)
 
     @with_cursor
-    def get_local_snapshot(self, cursor, name):
+    def get_local_snapshot(self, cursor, relpath):
         """
         return an instance of LocalSnapshot corresponding to
-        the given name and author. Traversing the parents
+        the given relpath and author. Traversing the parents
         would give the entire history of local snapshots.
 
-        :param unicode name: The name of the snapshot to find.  See
-            ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath of the snapshot to find.  See
+            ``LocalSnapshot.relpath``.
 
         :raise KeyError: If there is no matching snapshot for the given path.
 
-        :returns: An instance of LocalSnapshot for the given magicpath.
+        :returns: An instance of LocalSnapshot for the given path.
         """
-        # Read all the state for this name from the database.
-        snapshots = _get_snapshots(cursor, name)
-        metadata = _get_metadata(cursor, name)
-        parents = _get_parents(cursor, name)
+        # Read all the state for this relpath from the database.
+        snapshots = _get_snapshots(cursor, relpath)
+        metadata = _get_metadata(cursor, relpath)
+        parents = _get_parents(cursor, relpath)
 
         # Turn it into the desired in-memory representation.
         leaf_identifier = _find_leaf_snapshot(set(snapshots), parents)
         return _construct_local_snapshot(
             leaf_identifier,
-            name,
+            relpath,
             self._get_author.__wrapped__(self, cursor),
             snapshots,
             metadata,
@@ -892,11 +919,11 @@ class MagicFolderConfig(object):
             cursor.execute(
                 """
                 INSERT INTO
-                    [local_snapshots] ([identifier], [name], [content_path])
+                    [local_snapshots] ([identifier], [relpath], [content_path])
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.name, snapshot.content_path.asTextMode("utf-8").path),
+                (unicode(snapshot.identifier), snapshot.relpath, snapshot.content_path.asTextMode("utf-8").path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -960,46 +987,45 @@ class MagicFolderConfig(object):
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
         (i.e. that have been downloaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [local_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [local_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, name):
+    def delete_localsnapshot(self, cursor, relpath):
         """
-        remove the row corresponding to the given name from the local_snapshots table
+        remove the row corresponding to the given relpath from the local_snapshots table
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
         action = DELETE_SNAPSHOTS(
-            relpath=name,
+            relpath=relpath,
         )
         with action:
             cursor.execute("DELETE FROM [local_snapshots]"
-                           " WHERE [name]=?",
-                           (name,))
-
+                           " WHERE [relpath]=?",
+                           (relpath,))
 
     @with_cursor
-    def store_uploaded_snapshot(self, cursor, name, remote_snapshot, upload_started_at):
+    def store_uploaded_snapshot(self, cursor, relpath, remote_snapshot, upload_started_at):
         """
         Store the remote snapshot cap of a snapshot that we uploaded.
 
         This assumes that the path state was already recoreded when we stored
         the corresponding local snapshot.
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         :param float upload_started_at: Timestamp when this upload started, in seconds.
 
         :raises RemoteSnapshotWithoutPathState:
             if there is not already path state in the database for the given
-            name.
+            relpath.
         """
         # TODO: We should consider merging this with delete_localsnapshot
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=name,
+            relpath=relpath,
         )
         now_ns = seconds_to_ns(self._get_current_timestamp())
         duration_ns = now_ns - seconds_to_ns(upload_started_at)
@@ -1011,38 +1037,38 @@ class MagicFolderConfig(object):
                 SET
                     snapshot_cap=?, content_cap=?, metadata_cap=?, last_updated_ns=?, upload_duration_ns=?
                 WHERE
-                    [name]=?
+                    [relpath]=?
                 """,
                 (snapshot_cap, remote_snapshot.content_cap, remote_snapshot.metadata_cap,
-                 now_ns, duration_ns, name),
+                 now_ns, duration_ns, relpath),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
-                    folder_name=self.name, snapshot_name=name
+                    folder_name=self.name, relpath=relpath
                 )
             action.add_success_fields(insert_or_update="update")
 
     @with_cursor
-    def store_downloaded_snapshot(self, cursor, name, remote_snapshot, path_state):
+    def store_downloaded_snapshot(self, cursor, relpath, remote_snapshot, path_state):
         """
         Store the remote snapshot cap for a file that we downloaded, and
         the corresponding path state of the written file.
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         :param PathState path_state: The state of the path to record.
         :param RemoteSnapshot remote_snapshot: The snapshot to store.
         """
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=name,
+            relpath=relpath,
         )
         now_ns = seconds_to_ns(self._get_current_timestamp())
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
+                    "INSERT INTO current_snapshots (relpath, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?,?,?)",
-                    (name, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
+                    (relpath, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1053,38 +1079,38 @@ class MagicFolderConfig(object):
                     SET
                         snapshot_cap=?, metadata_cap=?, content_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?
                     WHERE
-                        [name]=?
+                        [relpath]=?
                     """,
-                    (snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, name),
+                    (snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
 
     @with_cursor
-    def store_currentsnapshot_state(self, cursor, name, path_state):
+    def store_currentsnapshot_state(self, cursor, relpath, path_state):
         """
-        Store or update the path state of the given name.
+        Store or update the path state of the given relpath.
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         :param PathState path_state: The path state to store.
         """
         action = STORE_OR_UPDATE_SNAPSHOTS(
-            relpath=name,
+            relpath=relpath,
         )
         now_ns = seconds_to_ns(self._get_current_timestamp())
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (name, mtime_ns, ctime_ns, size, last_updated_ns)"
+                    "INSERT INTO current_snapshots (relpath, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
-                    (name, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
-                    " WHERE [name]=?",
-                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, name),
+                    " WHERE [relpath]=?",
+                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1092,9 +1118,9 @@ class MagicFolderConfig(object):
     def get_all_snapshot_paths(self, cursor):
         """
         Retrieve a set of all relpaths of files that have had an entry in magic folder db
-        (i.e. that have been downloaded at least once).
+        (i.e. that have been downloaded or uploaded at least once).
         """
-        cursor.execute("SELECT [name] FROM [current_snapshots]")
+        cursor.execute("SELECT [relpath] FROM [current_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
 
@@ -1109,7 +1135,7 @@ class MagicFolderConfig(object):
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, last_updated_ns
+                relpath, mtime_ns, last_updated_ns
             FROM
                 [current_snapshots]
             ORDER BY
@@ -1122,43 +1148,43 @@ class MagicFolderConfig(object):
         return [(r[0], ns_to_seconds(r[1]), ns_to_seconds(r[2])) for r in rows]
 
     @with_cursor
-    def get_remotesnapshot(self, cursor, name):
+    def get_remotesnapshot(self, cursor, relpath):
         """
         return the cap that represents the latest remote snapshot that
         the client has recorded in the db.
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
-        :raise KeyError: If no snapshot exists for the given name.
+        :raise KeyError: If no snapshot exists for the given relpath.
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
         action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=name,
+            relpath=relpath,
         )
         with action:
             cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [name]=?",
-                           (name,))
+                           " WHERE [relpath]=?",
+                           (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return row[0].encode("utf-8")
-            raise KeyError(name)
+            raise KeyError(relpath)
 
 
     @with_cursor
-    def get_remotesnapshot_caps(self, cursor, name):
+    def get_remotesnapshot_caps(self, cursor, relpath):
         """
         return all three capabilities corresponding to a given remote snapshot
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
-        :raise KeyError: If no snapshot exists for the given name.
+        :raise KeyError: If no snapshot exists for the given relpath.
 
         :returns: A 3-tuple of (snapshot-cap, content-cap, metadata-cap)
         """
         action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=name,
+            relpath=relpath,
         )
         with action:
             cursor.execute(
@@ -1168,9 +1194,9 @@ class MagicFolderConfig(object):
                 FROM
                     current_snapshots
                 WHERE
-                    [name]=?
+                    [relpath]=?
                 """,
-                (name,)
+                (relpath,)
             )
             row = cursor.fetchone()
             if row and row[0] is not None:
@@ -1179,33 +1205,33 @@ class MagicFolderConfig(object):
                     row[1].encode("utf-8"),  # content-cap
                     row[2].encode("utf-8"),  # metadata-cap
                 )
-            raise KeyError(name)
+            raise KeyError(relpath)
 
     @with_cursor
-    def get_currentsnapshot_pathstate(self, cursor, name):
+    def get_currentsnapshot_pathstate(self, cursor, relpath):
         """
         return the timestamp of the latest remote snapshot that the client
         has recorded in the db.
 
-        :param unicode name: The name to match.  See ``LocalSnapshot.name``.
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
 
-        :raise KeyError: If no snapshot exists for the given name.
+        :raise KeyError: If no snapshot exists for the given relpath.
 
         :returns int: the timestamp of the remotesnapshot
         """
         action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=name,
+            relpath=relpath,
         )
         with action:
             cursor.execute(
                 "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
-                " WHERE [name]=?",
-                (name,),
+                " WHERE [relpath]=?",
+                (relpath,),
             )
             row = cursor.fetchone()
             if row:
                 return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
-            raise KeyError(name)
+            raise KeyError(relpath)
 
     @with_cursor
     def get_all_current_snapshot_pathstates(self, cursor):
@@ -1214,13 +1240,13 @@ class MagicFolderConfig(object):
         'current_snapshot' table.
 
         :returns Iterable[(unicode, PathState)]: an iterable of
-            3-tuples of (name, PathState instance, last-update), one for each file
+            3-tuples of (relpath, PathState instance, last-update), one for each file
             (ordered by last-updated timestamp)
         """
         cursor.execute(
             """
             SELECT
-                name, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
+                relpath, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns
             FROM
                 current_snapshots
             ORDER BY
@@ -1230,13 +1256,121 @@ class MagicFolderConfig(object):
 
         return [
             (
-                row[0],  # name
+                row[0],  # relpath
                 PathState(mtime_ns=row[1], ctime_ns=row[2], size=row[3]),
                 row[4],  # last_updated_ns
                 row[5],  # upload_duration_ns
             )
             for row in cursor.fetchall()
         ]
+
+    @with_cursor
+    def list_conflicts(self, cursor):
+        """
+        :returns dict: map of relpaths to Conflict instances
+        """
+        with start_action(action_type="config:state-db:list-conflicts"):
+            cursor.execute(
+                """
+                SELECT
+                    relpath, conflict_author, snapshot_cap
+                FROM
+                    conflicted_files
+                """
+            )
+            conflicts = dict()
+            for relpath, author_name, snap_cap in cursor.fetchall():
+                try:
+                    conflicts[relpath].append(Conflict(snap_cap, author_name))
+                except KeyError:
+                    conflicts[relpath] = [Conflict(snap_cap, author_name)]
+            return conflicts
+
+    @with_cursor
+    def list_conflicts_for(self, cursor, relpath):
+        """
+        :param unicode relpath: snapshot relative path
+
+        :returns list: list of Conflict instances, or None if there
+            are no conflicts at all for `relpath`
+        """
+        with start_action(action_type="config:state-db:list-conflicts"):
+            cursor.execute(
+                """
+                SELECT
+                    conflict_author, snapshot_cap
+                FROM
+                    conflicted_files
+                WHERE
+                    relpath=?
+                """,
+                (relpath, ),
+            )
+            rows = cursor.fetchall()
+            return [
+                Conflict(snap_cap, author_name)
+                for author_name, snap_cap in rows
+            ]
+
+    @with_cursor
+    def add_conflict(self, cursor, snapshot):
+        """
+        Add a new conflicting author
+
+        :param RemoteSnapshot snapshot: the conflicting Snapshot
+        """
+        with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
+            cursor.execute(
+                """
+                INSERT INTO
+                    conflicted_files (relpath, conflict_author, snapshot_cap)
+                VALUES
+                    (?,?,?)
+                """,
+                (snapshot.relpath, snapshot.author.name, snapshot.capability),
+            )
+
+    @with_cursor
+    def resolve_conflict(self, cursor, relpath):
+        """
+        Delete all conflicts for a given Snapshot relpath. Note that this
+        doesn't delete any conflict marker files only modifies the
+        state database.
+
+        :param text relpath: The relpath of an existing Snapshot.
+        """
+        with start_action(action_type="config:state-db:resolve-conflict", relpath=relpath):
+            cursor.execute(
+                """
+                DELETE FROM
+                    conflicted_files
+                WHERE
+                    relpath=?
+                """,
+                (relpath, ),
+            )
+
+    def is_conflict_marker(self, path):
+        """
+        :param FilePath path: the filename to check
+
+        :returns bool: True if the given path is a file marking a
+            conflict (like "foo.conflict-laptop" for a file "foo"
+            conflicting with device "laptop")
+        """
+        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        m = _conflict_file_re.match(relpath)
+        if m:
+            # the plain relpath is .group(1)
+            # the author-name is .group(2)
+            #
+            # using the above, we could check our database here to see
+            # if there's _actually_ a conflict on this file currently
+            # .. but it might be extra-confusing if we "sometimes"
+            # consider a file that matches the pattern to be
+            # not-a-conflict
+            return True
+        return False
 
     @property
     @with_cursor
@@ -1383,7 +1517,7 @@ class GlobalConfigDatabase(object):
     Low-level access to the global configuration database
 
     :attr WeakValueDictionary[unicode, MagicFolderConfig] _folder_config_cache:
-        This is a cache of `MagicFolderConfig` instances keyed by the folder name.
+        This is a cache of `MagicFolderConfig` instances keyed by the folder relpath.
         We do this so we have only a single :py:`sqlite3.Connection` to the
         underlying state db.
     """

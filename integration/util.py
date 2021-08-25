@@ -291,7 +291,7 @@ class MagicFolderEnabledNode(object):
                 folder_name, None
             )
             if folder_config is not None:
-                folder_config.database.close()
+                folder_config._database.close()
 
         return _magic_folder_runner(
             self.reactor, self.request, self.name,
