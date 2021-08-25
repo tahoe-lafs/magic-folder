@@ -322,7 +322,6 @@ class StatusOptions(usage.Options):
 
 
 from autobahn.twisted.websocket import (
-    WebSocketClientProtocol,
     create_client_agent,
 )
 
@@ -333,7 +332,7 @@ def status(options):
     """
     endpoint_str = options.parent.config.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
-    client = options.parent.client
+
     from twisted.internet import reactor
     agent = create_client_agent(reactor)
     proto = yield agent.open(
