@@ -313,6 +313,64 @@ def add(options):
     print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
 
 
+class StatusOptions(usage.Options):
+    description = (
+        "Show status of magic-folders"
+    )
+    optFlags = [
+    ]
+
+
+from autobahn.twisted.websocket import (
+    create_client_agent,
+)
+
+@inline_callbacks
+def status(options):
+    """
+    Status of magic-folders
+    """
+    endpoint_str = options.parent.config.api_client_endpoint
+    websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+
+    from twisted.internet import reactor
+    agent = create_client_agent(reactor)
+    proto = yield agent.open(
+        websocket_uri,
+        {
+            "headers": {
+                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+            }
+        },
+    )
+
+    import json
+    import humanize
+    def message(payload, is_binary=False):
+        now = reactor.seconds()
+        data = json.loads(payload)["state"]
+        for folder_name, folder in data["folders"].items():
+            print('Folder "{}":'.format(folder_name))
+            print("  downloads: {}".format(len(folder["downloads"])))
+            print("  uploads: {}".format(len(folder["uploads"])))
+            for u in folder["uploads"]:
+                queue = humanize.naturaldelta(now - u["queued-at"])
+                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
+                print("    {}: queued {} ago{}".format(u["name"], queue, start))
+            print("  recent:")
+            for f in folder["recent"]:
+                if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
+                    continue
+                print("    {}: modified {} ago (updated {} ago)".format(
+                    f["relpath"],
+                    humanize.naturaldelta(now - f["modified"]),
+                    humanize.naturaldelta(now - f["last-updated"]),
+                ))
+    proto.on('message', message)
+
+    yield proto.is_closed
+
+
 class ListOptions(usage.Options):
     description = (
         "List all magic-folders this client has joined"
@@ -585,6 +643,7 @@ class MagicFolderCommand(BaseOptions):
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders daemon process."],
+        ["status", None, StatusOptions, "Show the current status of a folder."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -640,6 +699,7 @@ subDispatch = {
     "join": join,
     "leave": leave,
     "list": list_,
+    "status": status,
     "run": run,
 }
 

@@ -1708,6 +1708,7 @@ class GlobalConfigDatabase(object):
 
         :returns: a MagicFolderConfig instance
         """
+        # XXX sanitize / prove both dircaps are syntactically valid
         valid_magic_folder_name(name)
         if not isinstance(poll_interval, int) or poll_interval <= 0:
             raise APIError(
