@@ -463,8 +463,8 @@ class APIv1(object):
 
         snapshots = folder_config.get_all_snapshot_paths()
         caps = [
-            folder_config.get_remotesnapshot_caps(name)
-            for name in snapshots
+            folder_config.get_remotesnapshot_caps(relpath)
+            for relpath in snapshots
         ]
         sizes = []
         for cap in caps:
