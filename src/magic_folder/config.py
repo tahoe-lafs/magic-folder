@@ -221,6 +221,10 @@ _magicfolder_config_schema = Schema([
             FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
         )
         """,
+        # XXX it may make more sense to have a (separate) table
+        # caching information about remote-snapshots such as the
+        # content_cap and metadata_cap currently included in this
+        # table. See ticket 558
         """
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
