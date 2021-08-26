@@ -1,10 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
-from tempfile import mkdtemp
-
 import pytest_twisted
 from twisted.internet.error import ProcessTerminated
-from twisted.python.filepath import FilePath
 
 from magic_folder.util.capabilities import to_readonly_capability
 
@@ -12,7 +9,7 @@ from .util import await_file_contents, ensure_file_not_created
 
 
 @pytest_twisted.inlineCallbacks
-def test_add(request, reactor, temp_dir, alice):
+def test_add(request, reactor, alice):
     """
     'magic-folder add' happy-path works
     """
@@ -42,12 +39,12 @@ def test_add(request, reactor, temp_dir, alice):
 
 
 @pytest_twisted.inlineCallbacks
-def test_leave(request, reactor, temp_dir, alice, bob):
+def test_leave(request, reactor, temp_filepath, alice, bob):
     """
     After leaving a magic folder, its contents are no longer
     synced.
     """
-    magic = FilePath(mkdtemp())
+    magic = temp_filepath
     original_folder = magic.child("cats")
     recover_folder = magic.child("kitties")
     original_folder.makedirs()

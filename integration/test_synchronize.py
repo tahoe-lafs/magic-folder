@@ -11,14 +11,8 @@ Testing synchronizing files between participants
 
 from functools import partial
 import time
-from tempfile import (
-    mkdtemp,
-)
 
 from eliot import Message
-from twisted.python.filepath import (
-    FilePath,
-)
 import pytest
 import pytest_twisted
 
@@ -28,7 +22,20 @@ from magic_folder.util.capabilities import (
 from .util import (
     await_file_contents,
     ensure_file_not_created,
+    twisted_sleep,
 )
+
+def non_lit_content(s):
+    # type: (unicode) -> unicode
+    """
+    Pad the given string so it is long enough to not fit in a tahoe literal
+    URI.
+    """
+    # The max size of data that will be stored in a literal tahoe cap is 55.
+    # See allmydata.immutable.upload.Uploader.URI_LIT_SIZE_THRESHOLD
+    # We don't need to be exactly longer than that threshold, as long as we
+    # are over it.
+    return "{} {}\n".format(s, "." * max(55 - len(s), 0))
 
 
 def add_snapshot(node, folder_name, path):
@@ -58,8 +65,9 @@ def periodic_scan(node, folder_name, path):
 
     :param MagicFolderEnabledNode node: The node on which to do the scan.
     """
+    from twisted.internet import reactor
     Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
-    time.sleep(1)
+    return twisted_sleep(reactor, 1)
 
 @pytest.fixture(name='periodic_scan')
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):
@@ -98,12 +106,12 @@ def take_snapshot(request, magic_folder_nodes):
 
 
 @pytest_twisted.inlineCallbacks
-def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
     """
 
-    magic = FilePath(mkdtemp())
+    magic = temp_filepath
 
     # add our magic-folder and re-start
     yield alice.add("local", magic.path)
@@ -114,13 +122,13 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
     request.addfinalizer(cleanup)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     magic.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "local", "sylvester")
 
     # wait until we've definitely uploaded it
     for _ in range(10):
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
         try:
             former_remote = local_cfg.get_remotesnapshot("sylvester")
             break
@@ -134,13 +142,13 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
 
     try:
         # add several snapshots
-        content1 = "one\n" * 1000
+        content1 = non_lit_content("one")
         magic.child("sylvester").setContent(content1)
         yield take_snapshot(alice, "local", "sylvester")
-        content2 = "two\n" * 1000
+        content2 = non_lit_content("two")
         magic.child("sylvester").setContent(content2)
         yield take_snapshot(alice, "local", "sylvester")
-        content3 = "three\n" * 1000
+        content3 = non_lit_content("three")
         magic.child("sylvester").setContent(content3)
         yield take_snapshot(alice, "local", "sylvester")
 
@@ -151,10 +159,10 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
         snap = local_cfg.get_local_snapshot("sylvester")
         print(snap)
         # we should have 3 snapshots total, each one the parent of the next
-        assert len(snap.parents_local) == 1 and \
-            len(snap.parents_local[0].parents_local) == 1 and \
-            len(snap.parents_local[0].parents_local[0].parents_local) == 0 and \
-            len(snap.parents_local[0].parents_local[0].parents_remote) == 1
+        assert len(snap.parents_local) == 1
+        assert len(snap.parents_local[0].parents_local) == 1
+        assert len(snap.parents_local[0].parents_local[0].parents_local) == 0
+        assert len(snap.parents_local[0].parents_local[0].parents_remote) == 1
 
     finally:
         # turn Tahoe back on
@@ -168,12 +176,13 @@ def test_local_snapshots(request, reactor, temp_dir, alice, bob, take_snapshot):
             if local_cfg.get_remotesnapshot("sylvester") != former_remote:
                 found = True
                 break
-        time.sleep(1)
+        yield twisted_sleep(reactor, 1)
     assert found, "Expected 'sylvester' to be (only) a remote-snapshot"
 
 
 @pytest_twisted.inlineCallbacks
-def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapshot):
+@pytest.mark.parametrize("relpath", ["sylvester", "nested/sylvester"])
+def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot, relpath):
     """
     Test a version of the expected 'recover' workflow:
     - make a magic-folder on device 'alice'
@@ -195,11 +204,13 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
 
     # "alice" contains the 'original' magic-folder
     # "bob" contains the 'recovery' magic-folder
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
-    original_folder.makedirs()
-    recover_folder.makedirs()
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+
+    original_file = original_folder.preauthChild(relpath)
+    original_file.parent().makedirs()
+    recover_file = recover_folder.preauthChild(relpath)
+    recover_file.parent().makedirs()
 
     # add our magic-folder and re-start
     yield alice.add("original", original_folder.path)
@@ -210,14 +221,14 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "original", "sylvester")
+    content0 = non_lit_content("zero")
+    original_file.setContent(content0)
+    yield take_snapshot(alice, "original", relpath)
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
-    original_folder.child("sylvester").setContent(content1)
-    yield take_snapshot(alice, "original", "sylvester")
+    content1 = non_lit_content("one")
+    original_file.setContent(content1)
+    yield take_snapshot(alice, "original", relpath)
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -233,8 +244,8 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
-        recover_folder.child("sylvester").path,
+    yield await_file_contents(
+        recover_file.path,
         content1,
         timeout=25,
     )
@@ -242,23 +253,22 @@ def test_create_then_recover(request, reactor, temp_dir, alice, bob, take_snapsh
     # in the (ideally rare) case that the old device is found *and* a
     # new snapshot is uploaded, we put an update into the 'original'
     # folder. This also tests the normal 'update' flow as well.
-    content2 = "two\n" * 1000
-    original_folder.child("sylvester").setContent(content2)
-    yield take_snapshot(alice, "original", "sylvester")
+    content2 = non_lit_content("two")
+    original_file.setContent(content2)
+    yield take_snapshot(alice, "original", relpath)
 
     # the new content should appear in the 'recovery' folder
-    await_file_contents(
-        recover_folder.child("sylvester").path,
+    yield await_file_contents(
+        recover_file.path,
         content2,
     )
 
 
 @pytest_twisted.inlineCallbacks
-def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_snapshot):
+def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, take_snapshot):
     # FIXME needs docstring
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -271,7 +281,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "internal", "sylvester")
 
@@ -289,7 +299,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
@@ -298,7 +308,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
     yield bob.stop_magic_folder()
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     original_folder.child("sylvester").setContent(content1)
     yield take_snapshot(alice, "internal", "sylvester")
 
@@ -308,7 +318,7 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
@@ -316,10 +326,9 @@ def test_internal_inconsistency(request, reactor, temp_dir, alice, bob, take_sna
 
 
 @pytest_twisted.inlineCallbacks
-def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -332,7 +341,7 @@ def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "ancestor0", "sylvester")
 
@@ -350,46 +359,45 @@ def test_ancestors(request, reactor, temp_dir, alice, bob, take_snapshot):
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'ancestor1' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
     )
 
     # update the file in bob's folder
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     recover_folder.child("sylvester").setContent(content1)
     yield take_snapshot(bob, "ancestor1", "sylvester")
 
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
     )
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
         timeout=25,
     )
 
     # update the file in alice's folder
-    content2 = "two\n" * 1000
+    content2 = non_lit_content("two")
     original_folder.child("sylvester").setContent(content2)
     yield take_snapshot(alice, "ancestor0", "sylvester")
 
     # Since we made local changes to the file, a change to alice
     # shouldn't overwrite our changes
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content1,
         timeout=25,
     )
 
 @pytest_twisted.inlineCallbacks
-def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snapshot):
-    magic = FilePath(mkdtemp())
-    original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
-    recover2_folder = magic.child("mice")
+def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take_snapshot):
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    recover2_folder = temp_filepath.child("mice")
     original_folder.makedirs()
     recover_folder.makedirs()
     recover2_folder.makedirs()
@@ -405,11 +413,11 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snap
     request.addfinalizer(cleanup_original)
 
     # put a file in our folder
-    content0 = "zero\n" * 1000
+    content0 = non_lit_content("zero")
     original_folder.child("sylvester").setContent(content0)
     yield take_snapshot(alice, "original", "sylvester")
 
-    time.sleep(5)
+    yield twisted_sleep(reactor, 5)
     yield alice.stop_magic_folder()
 
     # create the 'recovery' magic-folder
@@ -429,25 +437,25 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snap
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("sylvester").path,
         content0,
         timeout=25,
     )
 
     # update the file (so now there's two versions)
-    content1 = "one\n" * 1000
+    content1 = non_lit_content("one")
     recover_folder.child("sylvester").setContent(content1)
     yield take_snapshot(bob, "recovery", "sylvester")
 
     # We shouldn't see this show up as a conflict, since we are newer than
     # alice
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester.conflict-alice").path,
         timeout=25,
     )
 
-    time.sleep(5)
+    yield twisted_sleep(reactor, 5)
     yield bob.stop_magic_folder()
 
     # create the second 'recovery' magic-folder
@@ -462,8 +470,137 @@ def test_recover_twice(request, reactor, temp_dir, alice, bob, edmond, take_snap
     bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
     yield edmond.add_participant("recovery-2", "bob", bob_cap)
 
-    await_file_contents(
+    yield await_file_contents(
         recover2_folder.child("sylvester").path,
         content1,
         timeout=25,
+    )
+
+@pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
+@pytest_twisted.inlineCallbacks
+def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    """
+    If we make a change to a local file and a change to the same file on a
+    peer, it is detected as a conflict, even if before we take a local snapshot
+    of it.
+    """
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    alice_folders = yield alice.list_(True)
+
+    def cleanup_original():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(alice.start_magic_folder())
+        pytest_twisted.blockon(alice.leave("original"))
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = non_lit_content("zero")
+    original_folder.child("sylvester").setContent(content0)
+    yield take_snapshot(alice, "original", "sylvester")
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+
+    def cleanup_recovery():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(bob.start_magic_folder())
+        pytest_twisted.blockon(bob.leave("recovery"))
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content0,
+        timeout=10,
+    )
+
+    content1 = non_lit_content("one")
+    recover_folder.child("sylvester").setContent(content1)
+
+    content2 = non_lit_content("two")
+    original_folder.child("sylvester").setContent(content2)
+    yield take_snapshot(alice, "original", "sylvester")
+
+    yield await_file_contents(
+        recover_folder.child("sylvester.conflict-alice").path,
+        content2,
+        timeout=10,
+    )
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content1,
+        timeout=10,
+    )
+
+@pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
+@pytest_twisted.inlineCallbacks
+def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    """
+    If we make a change to a local file, it is not detected as a conflict.
+    """
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    alice_folders = yield alice.list_(True)
+
+    def cleanup_original():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(alice.start_magic_folder())
+        pytest_twisted.blockon(alice.leave("original"))
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = non_lit_content("zero")
+    original_folder.child("sylvester").setContent(content0)
+    yield take_snapshot(alice, "original", "sylvester")
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+
+    def cleanup_recovery():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(bob.start_magic_folder())
+        pytest_twisted.blockon(bob.leave("recovery"))
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content0,
+        timeout=10,
+    )
+
+    content1 = non_lit_content("one")
+    recover_folder.child("sylvester").setContent(content1)
+
+    yield ensure_file_not_created(
+        recover_folder.child("sylvester.conflict-alice").path,
+        timeout=10,
+    )
+    yield await_file_contents(
+        recover_folder.child("sylvester").path,
+        content1,
+        timeout=10,
     )

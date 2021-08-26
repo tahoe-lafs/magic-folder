@@ -130,10 +130,7 @@ jobs:
         pip install wheel tox eliot-tree
 
     - name: Test with tox
-      continue-on-error: true
       run: tox -e integration
-      env:
-        PIP_FIND_LINKS: ./wheelhouse
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
