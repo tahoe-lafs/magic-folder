@@ -25,14 +25,14 @@ from twisted.application import (
     service,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     Deferred,
+    succeed,
 )
-from allmydata.interfaces import (
-    IDirnodeURI,
+from .util.capabilities import (
+    tahoe_uri_from_string,
 )
-from allmydata.uri import (
-    from_string as tahoe_uri_from_string,
+from .web import (
+    _InputError,
 )
 
 import attr
@@ -117,8 +117,8 @@ class InviteError(Exception):
     """
     Base class for all invite-related errors
     """
-    invite=attr.ib()
-    reason=attr.ib()
+    invite = attr.ib()
+    reason = attr.ib()
 
     def to_json(self):
         return {
@@ -209,6 +209,8 @@ class Invite(object):
 
             with start_action(action_type="invite:welcome"):
                 welcome = yield self._wormhole.get_welcome()
+                if 'motd' in welcome:
+                    print(welcome['motd'])
 
             with start_action(action_type="invite:get_code") as action_code:
                 self._wormhole.allocate_code(2)
@@ -350,6 +352,8 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         reactor=reactor,
     )
     welcome = yield wh.get_welcome()
+    if 'motd' in welcome:
+        print(welcome['motd'])
     wh.set_code(wormhole_code)
     with start_action(action_type="join:get_invite") as action_code:
         invite_data = yield wh.get_message()

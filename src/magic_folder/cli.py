@@ -32,18 +32,11 @@ from twisted.logger import (
     eventAsText,
 )
 
-from twisted.web.client import (
-    Agent,
-)
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
 from twisted.web import http
-
-from treq.client import (
-    HTTPClient,
-)
 
 from eliot.twisted import (
     inline_callbacks,
@@ -421,9 +414,6 @@ class InviteOptions(usage.Options):
 
 @inline_callbacks
 def invite(options):
-    from twisted.internet import reactor
-    treq = HTTPClient(Agent(reactor))
-
     data = yield magic_folder_invite(options)
     print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
     print(u"  waiting for {} to accept...".format(data["petname"]), file=options.stdout)

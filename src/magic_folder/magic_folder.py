@@ -48,9 +48,6 @@ from .scanner import (
 from .invite import (
     InMemoryInviteManager,
 )
-from .config import (
-    MagicFolderConfig,
-)
 from .status import (
     FolderStatus,
 )

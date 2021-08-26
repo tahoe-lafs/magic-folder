@@ -524,7 +524,6 @@ class APIv1(object):
         }
         if required_keys != set(body.keys()):
             missing = required_keys - set(body.keys())
-            extra = set(body.keys()) - required_keys
             if missing:
                 raise _InputError(
                     "Missing keys: {}".format(" ".join(missing))
@@ -544,7 +543,7 @@ class APIv1(object):
         # create a folder via wormhole
         from twisted.internet import reactor
         try:
-            result = yield accept_invite(
+            yield accept_invite(
                 reactor, self._global_config, wormhole_code, folder_name,
                 author_name, local_dir, poll_interval, scan_interval,
                 self._tahoe_client,
