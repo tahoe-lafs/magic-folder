@@ -825,6 +825,14 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             ]),
         )
 
+    def test_remotesnapshot_caps_missing(self):
+        """
+        A KeyError is thrown accessing missing remotesnapshot_caps
+        """
+        self.setup_example()
+        with self.assertRaises(KeyError):
+            self.db.get_remotesnapshot_caps("a-missing-snapshot-name")
+
 
 class RemoteSnapshotTimeTests(SyncTestCase):
     """
@@ -865,17 +873,23 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 {"relpath": relpath, "modification_time": x},
                 "URI:DIR2-CHK:",
                 [],
-                "URI:DIR2-CHK:",
+                "URI:CHK:",
+                "URI:CHK:",
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
             self.db.store_currentsnapshot_state(relpath, PathState(0, seconds_to_ns(x), seconds_to_ns(x)))
             self.db.store_uploaded_snapshot(relpath, remote, 0)
 
+        # on windows the timestamps end up being long() instead of
+        # int() is why the pre-processing includes an int() on the
+        # second tuple element
         self.assertThat(
             self.db.get_recent_remotesnapshot_paths(20),
             AfterPreprocessing(
-                lambda data: [t[:2] for t in data],
+                lambda data: [
+                    (t[0], int(t[1])) for t in data
+                ],
                 Equals([
                     ("foo_{}".format(x), x)
                     for x in range(34, 4, -1)  # newest to oldest
@@ -919,7 +933,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
 
         self.db.add_conflict(snap)
@@ -940,7 +955,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",  # content cap
+            "URI:CHK:",  # metadata cap
         )
 
         self.db.add_conflict(snap)
@@ -958,7 +974,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
         snap1 = RemoteSnapshot(
             "foo",
@@ -966,7 +983,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
 
         self.db.add_conflict(snap0)
@@ -992,7 +1010,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
         snap1 = RemoteSnapshot(
             "foo",
@@ -1000,7 +1019,8 @@ class ConflictTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
 
         self.db.add_conflict(snap0)

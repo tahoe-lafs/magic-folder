@@ -575,6 +575,7 @@ class TestDumpState(AsyncTestCase):
                 capability="URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
                 parents_raw=[],
                 content_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
+                metadata_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
             ),
             PathState(
                 0,

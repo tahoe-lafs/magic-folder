@@ -221,6 +221,10 @@ _magicfolder_config_schema = Schema([
             FOREIGN KEY([snapshot_identifier]) REFERENCES [local_snapshot]([identifier])
         )
         """,
+        # XXX it may make more sense to have a (separate) table
+        # caching information about remote-snapshots such as the
+        # content_cap and metadata_cap currently included in this
+        # table. See ticket 558
         """
         -- This table represents the current state of the file on disk, as last known to us
         CREATE TABLE [current_snapshots]
@@ -229,6 +233,8 @@ _magicfolder_config_schema = Schema([
             [snapshot_cap]     TEXT,             -- Tahoe-LAFS URI that represents the most recent remote snapshot
                                                  -- associated with this file, either as downloaded from a peer
                                                  -- or uploaded from local changes
+            [content_cap]      TEXT,             -- Tahoe-LAFS URI of the content capability
+            [metadata_cap]     TEXT,             -- Tahoe-LAFS URI of the metadata capability
             [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
             [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
             [size]             INTEGER NOT NULL, -- size of current snapshot
@@ -1033,11 +1039,12 @@ class MagicFolderConfig(object):
                 UPDATE
                     current_snapshots
                 SET
-                    snapshot_cap=?, last_updated_ns=?, upload_duration_ns=?
+                    snapshot_cap=?, content_cap=?, metadata_cap=?, last_updated_ns=?, upload_duration_ns=?
                 WHERE
                     [relpath]=?
                 """,
-                (snapshot_cap, now_ns, duration_ns, relpath),
+                (snapshot_cap, remote_snapshot.content_cap, remote_snapshot.metadata_cap,
+                 now_ns, duration_ns, relpath),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1063,17 +1070,22 @@ class MagicFolderConfig(object):
         with action:
             try:
                 cursor.execute(
-                    "INSERT INTO current_snapshots (relpath, snapshot_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
-                    " VALUES (?,?,?,?,?,?,?)",
-                    (relpath, snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
+                    "INSERT INTO current_snapshots (relpath, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    (relpath, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
                 cursor.execute(
-                    "UPDATE current_snapshots"
-                    " SET snapshot_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?"
-                    " WHERE [relpath]=?",
-                    (snapshot_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
+                    """
+                    UPDATE
+                        current_snapshots
+                    SET
+                        snapshot_cap=?, metadata_cap=?, content_cap=?, mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?, upload_duration_ns=?
+                    WHERE
+                        [relpath]=?
+                    """,
+                    (snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1161,6 +1173,42 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return row[0].encode("utf-8")
+            raise KeyError(relpath)
+
+
+    @with_cursor
+    def get_remotesnapshot_caps(self, cursor, relpath):
+        """
+        return all three capabilities corresponding to a given remote snapshot
+
+        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
+
+        :raise KeyError: If no snapshot exists for the given relpath.
+
+        :returns: A 3-tuple of (snapshot-cap, content-cap, metadata-cap)
+        """
+        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
+            relpath=relpath,
+        )
+        with action:
+            cursor.execute(
+                """
+                SELECT
+                    snapshot_cap, content_cap, metadata_cap
+                FROM
+                    current_snapshots
+                WHERE
+                    [relpath]=?
+                """,
+                (relpath,)
+            )
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                return (
+                    row[0].encode("utf-8"),  # snapshot-cap
+                    row[1].encode("utf-8"),  # content-cap
+                    row[2].encode("utf-8"),  # metadata-cap
+                )
             raise KeyError(relpath)
 
     @with_cursor
