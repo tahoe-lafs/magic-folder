@@ -350,11 +350,10 @@ class APIv1(object):
     @app.route("/magic-folder/<string:folder_name>/scan", methods=['PUT'])
     @inline_callbacks
     def scan_folder(self, request, folder_name):
+        """
+        Request an immediate scan on a particular folder
+        """
         folder_service = self._global_service.get_folder_service(folder_name)
-
-        body = _load_json(request.content.read())
-        if body != {"wait-for-snapshots": True}:
-            raise _InputError("Unknown options to scan.")
 
         yield folder_service.scan()
 

@@ -978,7 +978,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             has_no_result(),
         )
@@ -1017,7 +1016,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
@@ -1058,7 +1056,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child("a-folder-that-doesnt-exist").child('scan'),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
