@@ -678,10 +678,6 @@ class DownloaderService(service.MultiService):
                         # we don't download from ourselves
                         continue
                     files = yield participant.files()
-                    Message.log(
-                        message_type="files",
-                        files=files,
-                    )
                     for relpath, file_data in files.items():
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
@@ -705,7 +701,7 @@ class DownloaderService(service.MultiService):
             # latest, there is nothing to do .. otherwise, we
             # have to figure out what to do
             try:
-                our_snapshot_cap = self._config.get_remotesnapshot(snapshot.relpath)
+                our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
             if snapshot.capability != our_snapshot_cap:

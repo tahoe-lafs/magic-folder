@@ -521,8 +521,8 @@ def test_version(request, reactor, temp_dir, alice, bob):
     tahoe_client = alice.tahoe_client()
     yield tahoe_client.add_entry_to_mutable_directory(
         alice_cap,
-        "@version",
-        (yield tahoe_client.create_immutable(json.dumps({"version": 0}))),
+        "@metadata",
+        (yield tahoe_client.create_immutable(json.dumps({"version": 1}))),
     )
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)

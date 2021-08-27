@@ -66,7 +66,7 @@ class MagicPath(SyncTestCase):
 
     def test_invalid(self):
         with ExpectedException(InvalidMangledPath):
-            magic2path("@version")
+            magic2path("@metadata")
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))
     def test_ignore_known_suffixes(self, path, suffix):
