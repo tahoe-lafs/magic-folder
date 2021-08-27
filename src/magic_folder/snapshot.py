@@ -364,10 +364,11 @@ class RemoteSnapshot(object):
 
     relpath = attr.ib()
     author = attr.ib()  # any SnapshotAuthor instance
-    metadata = attr.ib()
-    capability = attr.ib()
+    metadata = attr.ib()  # deserialied metadata
+    capability = attr.ib()  # immutable dir-cap
     parents_raw = attr.ib()
-    content_cap = attr.ib()
+    content_cap = attr.ib()  # immutable capability
+    metadata_cap = attr.ib()  # immutable capability
 
     @inline_callbacks
     def fetch_content(self, tahoe_client, writable_file):
@@ -441,6 +442,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
             author=author,
             metadata=metadata,
             content_cap=content_cap,
+            metadata_cap=metadata_cap,
             parents_raw=parent_caps,
             capability=snapshot_cap.decode("ascii"),
         )
@@ -663,6 +665,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             parents_raw=parents_raw,
             capability=snapshot_cap.decode("ascii"),
             content_cap=content_cap,
+            metadata_cap=metadata_cap,
         )
     )
 

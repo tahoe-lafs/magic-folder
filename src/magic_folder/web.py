@@ -65,7 +65,10 @@ from .status import (
 from .snapshot import (
     create_author,
 )
-from .util.capabilities import is_readonly_directory_cap
+from .util.capabilities import (
+    is_readonly_directory_cap,
+    cap_size,
+)
 from .util.file import (
     ns_to_seconds,
 )
@@ -352,11 +355,10 @@ class APIv1(object):
     @app.route("/magic-folder/<string:folder_name>/scan", methods=['PUT'])
     @inline_callbacks
     def scan_folder(self, request, folder_name):
+        """
+        Request an immediate scan on a particular folder
+        """
         folder_service = self._global_service.get_folder_service(folder_name)
-
-        body = _load_json(request.content.read())
-        if body != {"wait-for-snapshots": True}:
-            raise _InputError("Unknown options to scan.")
 
         yield folder_service.scan()
 
@@ -589,6 +591,30 @@ class APIv1(object):
             ]
             for relpath, conflicts in folder_config.list_conflicts().items()
         })
+
+    @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
+    def folder_tahoe_objects(self, request, folder_name):
+        """
+        Renders a list of all the object-sizes of all Tahoe objects a
+        given magic-folder currently cares about. This is, for each
+        Snapshot: the Snapshot capability, the metadata capability and
+        the content capability.
+        """
+        _application_json(request)  # set reply headers
+        folder_config = self._global_config.get_magic_folder(folder_name)
+
+        snapshots = folder_config.get_all_snapshot_paths()
+        caps = [
+            folder_config.get_remotesnapshot_caps(relpath)
+            for relpath in snapshots
+        ]
+        sizes = []
+        for cap in caps:
+            sizes.extend([
+                cap_size(c)
+                for c in cap
+            ])
+        return json.dumps(sizes)
 
 
 class _InputError(APIError):

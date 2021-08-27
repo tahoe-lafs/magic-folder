@@ -90,6 +90,17 @@ You may also choose to run the various tests via tox.
 Using tox to run these tests will be closer to the way the CI system will run them.
 
 
+Mock
+----
+
+No tests shall use the `mock.Mock` or `mock.MagicMock` classes. For more information, see:
+
+* https://nedbatchelder.com/blog/201206/tldw_stop_mocking_start_testing.html to start
+* https://pythonspeed.com/articles/verified-fakes/
+* https://martinfowler.com/articles/mocksArentStubs.html
+
+
+
 Submitting a Pull Request
 =========================
 

@@ -133,9 +133,11 @@ from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
+    remote_snapshots,
 )
 from ..util.capabilities import (
     to_readonly_capability,
+    cap_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -976,7 +978,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             has_no_result(),
         )
@@ -1015,7 +1016,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
@@ -1056,7 +1056,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child("a-folder-that-doesnt-exist").child('scan'),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
@@ -1067,41 +1066,6 @@ class ScanFolderTests(SyncTestCase):
                             "reason": StartsWith("No such magic-folder"),
                         })
                     )
-                ),
-            )
-        )
-
-    @given(
-        author_names(),
-        folder_names(),
-        relative_paths(),
-        binary(),
-    )
-    def test_scan_invalid_option(self, author_name, folder_name, path_in_folder, some_content):
-        """
-        An error results using /v1/magic-folder/<folder-name>/scan API without the required option.
-        """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-        node = MagicFolderNode.create(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {folder_name: magic_folder_config(author_name, local_path)},
-            start_folder_services=False,
-        )
-
-        self.assertThat(
-            authorized_request(
-                node.http_client,
-                AUTH_TOKEN,
-                b"PUT",
-                self.url.child(folder_name).child('scan'),
-                b"{}"
-            ),
-            succeeded(
-                matches_response(
-                    code_matcher=Equals(BAD_REQUEST),
                 ),
             )
         )
@@ -2071,7 +2035,8 @@ class ConflictStatusTests(SyncTestCase):
             {"relpath": "foo", "modification_time": 1234},
             "URI:DIR2-CHK:",
             [],
-            "URI:DIR2-CHK:",
+            "URI:CHK:",
+            "URI:CHK:",
         )
 
         mf_config.add_conflict(snap)
@@ -2098,6 +2063,73 @@ class ConflictStatusTests(SyncTestCase):
                         Equals({
                             "foo": ["nelli"],
                         }),
+                    )
+                ),
+            )
+        )
+
+
+class TahoeObjectsTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/tahoe-objects` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_one_item(self, remote_snap):
+        """
+        Appropriate information is returned when we have one file in our
+        config/db
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "jenni",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_downloaded_snapshot(
+            "foo",
+            remote_snap,
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        expected_sizes = [
+            cap_size(cap)
+            for cap in [
+                    remote_snap.capability,
+                    remote_snap.content_cap,
+                    remote_snap.metadata_cap,
+            ]
+        ]
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "tahoe-objects"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals(expected_sizes),
                     )
                 ),
             )

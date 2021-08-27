@@ -13,7 +13,6 @@ import io
 import base64
 import time
 from mock import (
-    Mock,
     patch,
 )
 
@@ -337,22 +336,24 @@ class CacheTests(SyncTestCase):
         )
 
         # our tahoe client should not be asked anything if we re-cache
-        # the already-cached tree of Snapshots .. turn our client into
-        # a Mock to absorb any calls it receives.
-        self.cache.tahoe_client = Mock()
-        self.assertThat(
-            self.cache.get_snapshot_from_capability(cap),
-            succeeded(
-                MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": AfterPreprocessing(len, Equals(1)),
-                        "relpath": Equals(relpath),
-                    }),
+        # the already-cached tree of Snapshots ..
+
+        def all_requests_are_error(*args, **kw):
+            raise RuntimeError("nothing should call me")
+
+        with patch.object(self.cache, "tahoe_client", StringStubbingResource(all_requests_are_error)):
+            self.assertThat(
+                self.cache.get_snapshot_from_capability(cap),
+                succeeded(
+                    MatchesStructure(
+                        metadata=ContainsDict({
+                            "snapshot_version": Equals(1),
+                            "parents": AfterPreprocessing(len, Equals(1)),
+                            "relpath": Equals(relpath),
+                        }),
+                    )
                 )
             )
-        )
-        self.cache.tahoe_client.assert_not_called()
 
 
 class UpdateTests(AsyncTestCase):
@@ -927,6 +928,7 @@ class ConflictTests(AsyncTestCase):
             capability=cap0,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
@@ -974,6 +976,7 @@ class ConflictTests(AsyncTestCase):
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
@@ -990,6 +993,7 @@ class ConflictTests(AsyncTestCase):
             capability=cap0,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
@@ -1026,6 +1030,7 @@ class ConflictTests(AsyncTestCase):
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
+                metadata_cap=b"URI:CHK:",
             )
             self.remote_cache._cached_snapshots[parent_cap] = parent
             remotes.append(parent)
@@ -1063,6 +1068,7 @@ class ConflictTests(AsyncTestCase):
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
@@ -1074,6 +1080,7 @@ class ConflictTests(AsyncTestCase):
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
@@ -1085,6 +1092,7 @@ class ConflictTests(AsyncTestCase):
             capability=other_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[other_cap] = other
 
@@ -1120,6 +1128,7 @@ class ConflictTests(AsyncTestCase):
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
@@ -1131,6 +1140,7 @@ class ConflictTests(AsyncTestCase):
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
@@ -1163,6 +1173,7 @@ class ConflictTests(AsyncTestCase):
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
@@ -1252,6 +1263,7 @@ class ConflictTests(AsyncTestCase):
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
