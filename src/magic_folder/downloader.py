@@ -667,7 +667,8 @@ class DownloaderService(service.MultiService):
         with start_action(
             action_type="downloader:scan-collective", folder=self._config.name
         ):
-            for participant in (yield self._participants.list()):
+            participants = yield self._participants.list()
+            for participant in participants:
                 with start_action(
                     action_type="downloader:scan-participant",
                     participant=participant.name,
@@ -677,6 +678,10 @@ class DownloaderService(service.MultiService):
                         # we don't download from ourselves
                         continue
                     files = yield participant.files()
+                    Message.log(
+                        message_type="files",
+                        files=files,
+                    )
                     for relpath, file_data in files.items():
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
@@ -700,40 +705,10 @@ class DownloaderService(service.MultiService):
             # latest, there is nothing to do .. otherwise, we
             # have to figure out what to do
             try:
-                people = yield self._participants.list()
-            except SchemeNotSupported:
-                # mostly a testing aid; if we provided an "empty"
-                # Tahoe Client fake we get this error .. otherwise we
-                # need a proper collective set up.
-                people = []
-            for person in people:
-                with start_action(action_type="scan-participant", person=person.name, is_self=person.is_self):
-                    if person.is_self:
-                        # we don't download from ourselves
-                        continue
-                    files = yield self._tahoe_client.list_directory(person.dircap)
-                    Message.log(
-                        message_type="files",
-                        files=files,
-                    )
-                    for fname, data in files.items():
-                        snapshot_cap, metadata = data
-                        fpath = self._config.magic_path.preauthChild(magic2path(fname))
-                        relpath = "/".join(fpath.segmentsFrom(self._config.magic_path))
-                        action.add_success_fields(
-                            #FIXME, this can't be in a loop
-                            abspath=fpath.path,
-                            relpath=relpath,
-                        )
-                        snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-                        # if this remote matches what we believe to be the
-                        # latest, there is nothing to do .. otherwise, we
-                        # have to figure out what to do
-                        try:
-                            our_snapshot_cap = self._config.get_remotesnapshot(snapshot.relpath)
-                        except KeyError:
-                            our_snapshot_cap = None
-                        if snapshot.capability != our_snapshot_cap:
-                            if our_snapshot_cap is not None:
-                                yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                            yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
+                our_snapshot_cap = self._config.get_remotesnapshot(snapshot.relpath)
+            except KeyError:
+                our_snapshot_cap = None
+            if snapshot.capability != our_snapshot_cap:
+                if our_snapshot_cap is not None:
+                    yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+                yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
