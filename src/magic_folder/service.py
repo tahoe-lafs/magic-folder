@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from configparser import ConfigParser
 
 import attr
+from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
 from twisted.application.service import MultiService
@@ -15,12 +16,12 @@ from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
 
-from .common import APIError
+from .common import APIError, NoSuchMagicFolder
 from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
-from .util.capabilities import tahoe_uri_from_string
+from .util.capabilities import to_readonly_capability
 from .web import magic_folder_web_service
 
 
@@ -78,7 +79,6 @@ class MagicFolderService(MultiService):
             self.config,
             self,
             self._get_auth_token,
-            self.tahoe_client,
             self.status_service,
         )
         web_service.setServiceParent(self)
@@ -118,14 +118,14 @@ class MagicFolderService(MultiService):
 
         :param unicode folder_name: The name of the magic-folder to retrieve.
 
-        :raise KeyError: If no magic-folder with a matching name is found.
+        :raise NoSuchMagicFolder: If no magic-folder with a matching name is found.
 
         :return MagicFolder: The service for the matching magic-folder.
         """
         for service in self._iter_magic_folder_services():
             if service.folder_name == folder_name:
                 return service
-        raise KeyError(folder_name)
+        raise NoSuchMagicFolder(folder_name)
 
     def _get_auth_token(self):
         return self.config.api_token
@@ -140,7 +140,7 @@ class MagicFolderService(MultiService):
         return cls(
             reactor,
             config,
-            WebSocketStatusService(),
+            WebSocketStatusService(reactor, config),
         )
 
     def _when_connected_enough(self):
@@ -198,7 +198,7 @@ class MagicFolderService(MultiService):
         return self._starting
 
     @inline_callbacks
-    def create_folder(self, name, author_name, local_dir, poll_interval):
+    def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):
         """
         Create a magic-folder with the specified ``name`` and
         ``local_dir``.
@@ -213,6 +213,9 @@ class MagicFolderService(MultiService):
         :param integer poll_interval: Periodic time interval after which the
             client polls for updates.
 
+        :param integer scan_interval: Every 'scan_interval' seconds the
+            local directory will be scanned for changes.
+
         :return Deferred: ``None`` or an appropriate exception is raised.
         """
         if name in self.config.list_magic_folders():
@@ -220,6 +223,13 @@ class MagicFolderService(MultiService):
                 code=http.CONFLICT,
                 reason="Already have a magic-folder named '{}'".format(name),
             )
+
+        if scan_interval is not None and scan_interval <= 0:
+            raise APIError(
+                code=http.BAD_REQUEST,
+                reason="scan_interval must be positive integer or null",
+            )
+
 
         # create our author
         author = create_local_author(author_name)
@@ -231,7 +241,7 @@ class MagicFolderService(MultiService):
         personal_write_cap = yield self.tahoe_client.create_mutable_directory()
 
         # 'attenuate' our personal dmd write-cap to a read-cap
-        personal_readonly_cap = tahoe_uri_from_string(personal_write_cap).get_readonly().to_string().encode("ascii")
+        personal_readonly_cap = to_readonly_capability(personal_write_cap)
 
         # add ourselves to the collective
         yield self.tahoe_client.add_entry_to_mutable_directory(
@@ -247,7 +257,36 @@ class MagicFolderService(MultiService):
             collective_write_cap,
             personal_write_cap,
             poll_interval,
+            scan_interval,
         )
 
         mf = self._add_service_for_folder(name)
         yield mf.ready()
+
+    @inline_callbacks
+    def leave_folder(self, name, really_delete_write_capability):
+        with start_action(
+            action_type="service:leave-folder",
+            name=name,
+            really_delete_write_capability=really_delete_write_capability,
+        ):
+            folder = self.get_folder_service(name)
+
+            if folder.config.is_admin():
+                if not really_delete_write_capability:
+                    raise APIError(
+                        code=http.CONFLICT,
+                        reason="magic folder '{}' holds a write capability"
+                        ", not deleting.".format(name),
+                    )
+
+            yield folder.disownServiceParent()
+            fails = self.config.remove_magic_folder(name)
+            if fails:
+                raise APIError(
+                    code=http.INTERNAL_SERVER_ERROR,
+                    reason="Problems while removing state directories:",
+                    extra_fields={
+                        "details": {path: str(error) for (path, error) in fails}
+                    },
+                )

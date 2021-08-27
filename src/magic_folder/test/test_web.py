@@ -55,16 +55,18 @@ from testtools.twistedsupport import (
     has_no_result,
 )
 
+from twisted.internet.defer import Deferred
 from twisted.web.http import (
-    OK,
-    CREATED,
-    UNAUTHORIZED,
-    NOT_IMPLEMENTED,
-    NOT_ALLOWED,
-    NOT_ACCEPTABLE,
-    NOT_FOUND,
     BAD_REQUEST,
+    CONFLICT,
+    CREATED,
     INTERNAL_SERVER_ERROR,
+    NOT_ACCEPTABLE,
+    NOT_ALLOWED,
+    NOT_FOUND,
+    NOT_IMPLEMENTED,
+    OK,
+    UNAUTHORIZED,
 )
 from twisted.internet.task import Clock
 from twisted.web.resource import (
@@ -76,6 +78,7 @@ from twisted.web.static import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python import runtime
 
 from nacl.encoding import (
     Base32Encoder,
@@ -87,14 +90,11 @@ from treq.testing import (
 
 import werkzeug
 
-from allmydata.util.base32 import (
-    b2a,
-)
-
 from .common import (
     skipIf,
     SyncTestCase,
 )
+from .fixtures import MagicFolderNode
 from .matchers import (
     matches_response,
     header_contains,
@@ -110,44 +110,34 @@ from .strategies import (
     author_names,
 )
 
-from ..snapshot import (
-    create_local_author,
-    format_filenode,
-)
-from ..service import (
-    MagicFolderService,
+from ..config import (
+    Conflict,
 )
 from ..web import (
     magic_folder_resource,
     APIv1,
 )
-from ..config import (
-    create_global_configuration,
-    load_global_configuration,
+from ..util.file import (
+    PathState,
+    seconds_to_ns,
 )
 from ..client import (
-    create_testing_http_client,
     authorized_request,
     url_to_bytes,
 )
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
-from ..tahoe_client import (
-    create_tahoe_client,
-)
-from ..status import (
-    WebSocketStatusService,
+from ..snapshot import (
+    RemoteSnapshot,
+    create_local_author,
 )
 from .strategies import (
-    local_authors,
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
+    remote_snapshots,
 )
 from ..util.capabilities import (
     to_readonly_capability,
+    cap_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -278,93 +268,31 @@ class AuthorizationTests(SyncTestCase):
         )
 
 
-def treq_for_folders(reactor, basedir, auth_token, folders, start_folder_services,
-                     tahoe_client=None):
+def treq_for_folders(
+    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
+):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
     service with Magic Folders like the ones given.
 
-    :param reactor: A reactor to give to the ``MagicFolderService`` which will
-        back the HTTP interface.
-
-    :param FilePath basedir: A non-existant directory to create and populate
-        with a new Magic Folder service configuration.
-
-    :param unicode auth_token: The authorization token accepted by the
-        service.
-
-    :param folders: A mapping from Magic Folder names to their configurations.
-        These are the folders which will appear to exist.
-
-    :param bool start_folder_services: If ``True``, start the Magic Folder
-        service objects.  Otherwise, don't.
-
-    :param TahoeClient tahoe_client: if provided, used as the
-        tahoe-client. If it is not provided, an 'empty' Tahoe client is
-        provided (which is likely to cause errors if any Tahoe endpoitns
-        are called via this test).
+    See :py:`MagicFolderNode.create` for a description of the arguments.
 
     :return: An object like the ``treq`` module.
     """
-    global_config = create_global_configuration(
-        basedir,
-        # Make this endpoint string and the one below parse but make them
-        # invalid, too, because we don't want anything to start listening on
-        # these during this set of tests.
-        #
-        # https://github.com/LeastAuthority/magic-folder/issues/276
-        u"tcp:-1",
-        # It wants to know where the Tahoe-LAFS node directory is but we don't
-        # have one and we don't want to invoke any functionality that requires
-        # one.  Give it something bogus.
-        FilePath(u"/non-tahoe-directory"),
-        u"tcp:127.0.0.1:-1",
-    )
-    for name, config in folders.items():
-        global_config.create_magic_folder(
-            name,
-            config[u"magic-path"],
-            config[u"author"],
-            config[u"collective-dircap"],
-            config[u"upload-dircap"],
-            config[u"poll-interval"],
-        )
-
-    if tahoe_client is None:
-        # the caller must provide a properly-set-up Tahoe client if
-        # they care about Tahoe responses. Since they didn't, an
-        # "empty" one is sufficient.
-        tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource()))
-    global_service = MagicFolderService(
-        reactor,
-        global_config,
-        WebSocketStatusService(),
-        # Provide a TahoeClient so MagicFolderService doesn't try to look up a
-        # Tahoe-LAFS node URL in the non-existent directory we supplied above
-        # in its efforts to create one itself.
-        tahoe_client,
-    )
-
-    if start_folder_services:
-        # Reach in and start the individual service for the folder we're going
-        # to interact with.  This is required for certain functionality, eg
-        # snapshot creation.  We avoid starting the whole global_service
-        # because it wants to do error-prone things like bind ports.
-        for name in folders:
-            global_service.get_folder_service(name).startService()
-
-    return create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, tahoe_client, WebSocketStatusService())
+    return MagicFolderNode.create(
+        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
+    ).http_client
 
 
-def magic_folder_config(author, local_directory):
+def magic_folder_config(author_name, local_directory, admin=True):
     # see also treq_for_folders() where these dicts are turned into
     # real magic-folder configs
     return {
-        u"magic-path": local_directory,
-        u"author": author,
-        u"collective-dircap": u"URI:DIR2-RO:{}:{}".format(b2a("\0" * 16), b2a("\1" * 32)),
-        u"upload-dircap": u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
-        u"poll-interval": 60,
+        "magic-path": local_directory,
+        "author-name": author_name,
+        "poll-interval": 60,
+        "scan-interval": None,
+        "admin": admin,
     }
 
 
@@ -376,7 +304,7 @@ class MagicFolderTests(SyncTestCase):
 
     def setUp(self):
         super(MagicFolderTests, self).setUp()
-        self.author = create_local_author(u"alice")
+        self.author_name = u"alice"
 
     @given(
         sampled_from([b"PUT", b"PATCH", b"DELETE", b"OPTIONS"]),
@@ -386,7 +314,7 @@ class MagicFolderTests(SyncTestCase):
         A request to **/v1/magic-folder** with a method other than **GET** or **POST**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, method, self.url),
             succeeded(
@@ -412,28 +340,22 @@ class MagicFolderTests(SyncTestCase):
         """
         folder_path.asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
 
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
-            object(),
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {},
             False,
-            tahoe_client,
         )
 
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
                 'name': folder_name,
-                'author_name': self.author.name,
+                'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': None,
             })),
             succeeded(
                 matches_response(
@@ -459,28 +381,22 @@ class MagicFolderTests(SyncTestCase):
         """
         folder_path = FilePath(self.mktemp())
 
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
-            object(),
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {},
             False,
-            tahoe_client,
         )
 
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, b"POST", self.url, dumps({
                 'name': folder_name,
-                'author_name': self.author.name,
+                'author_name': self.author_name,
                 'local_path': folder_path.path,
                 'poll_interval': 60,
+                'scan_interval': None,
             })),
             succeeded(
                 matches_response(
@@ -502,7 +418,7 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** that does not have a JSON body
         fails with BAD REQUEST.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(
                 treq, AUTH_TOKEN, "POST", self.url, "not-json".encode("utf-8")
@@ -522,6 +438,36 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+    def test_add_folder_illegal_scan_interval(self):
+        """
+        A request for **POST /v1/magic-folder** that has a negative
+        scan_interval fails with NOT ACCEPTABLE.
+        """
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, dumps({
+                    'name': 'valid',
+                    'author_name': 'author',
+                    'local_path': 'foo',
+                    'poll_interval': 60,
+                    'scan_interval': -123,
+                })
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(BAD_REQUEST),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("scan_interval must be positive integer or null"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
 
     @given(
         dictionaries(
@@ -548,27 +494,25 @@ class MagicFolderTests(SyncTestCase):
             path_b.makedirs(ignoreExistingDirectory=True)
 
         basedir = FilePath(self.mktemp())
-        treq = treq_for_folders(
-            object(),
+        node = MagicFolderNode.create(
+            Clock(),
             basedir,
             AUTH_TOKEN,
             {
-                name: magic_folder_config(self.author, path_u)
+                name: magic_folder_config(self.author_name, path_u)
                 for (name, path_u)
                 in folders.items()
             },
             False,
         )
 
-        # note that treq_for_folders() will end up creating a configuration here
-        config = load_global_configuration(basedir)
         expected_folders = {
-            name: config.get_magic_folder(name)
-            for name in config.list_magic_folders()
+            name: node.global_config.get_magic_folder(name)
+            for name in node.global_config.list_magic_folders()
         }
 
         self.assertThat(
-            authorized_request(treq, AUTH_TOKEN, b"GET", self.url),
+            authorized_request(node.http_client, AUTH_TOKEN, b"GET", self.url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
@@ -587,6 +531,7 @@ class MagicFolderTests(SyncTestCase):
                                 u"magic_path": config.magic_path.path,
                                 u"stash_path": config.stash_path.path,
                                 u"poll_interval": config.poll_interval,
+                                u"scan_interval": config.scan_interval,
                                 u"is_admin": config.is_admin(),
                             }
                             for name, config
@@ -597,6 +542,280 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+
+class MagicFolderInstanceTests(SyncTestCase):
+    """
+    Tests for ``/v1/magic-folder/<folder-name>``.
+    """
+
+    url = DecodedURL.from_text("http://example.invalid./v1/magic-folder")
+
+    def setUp(self):
+        super(MagicFolderInstanceTests, self).setUp()
+        self.author_name = "alice"
+
+    @given(
+        sampled_from([b"GET", b"POST", b"PUT", b"PATCH", b"OPTIONS"]), folder_names()
+    )
+    def test_method_not_allowed(self, method, folder_name):
+        """
+        A request to **/v1/magic-folder/<folder-name>** with a method other than **DELETE**
+        receives a NOT ALLOWED or NOT IMPLEMENTED response.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                method,
+                self.url.child(folder_name),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(NOT_ALLOWED),
+                        Equals(NOT_IMPLEMENTED),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+            },
+            False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({}),
+                    ),
+                ),
+            ),
+        )
+
+    # Note: It may be possible to get this test to fail on windows, using a different
+    # means of causing the cleanup to fail
+    @skipIf(runtime.platformType == "win32", "windows does not have unix-like permissions")
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_cant_cleanup(self, folder_name):
+
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** fails, if
+        we can't delete the state or stash directories.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        basedir = FilePath(self.mktemp())
+        node = MagicFolderNode.create(
+            Clock(),
+            basedir,
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path, admin=False),
+            },
+            False,
+        )
+
+        # Make the magic-folder config directory readonly (and restore it after
+        # the test) so that removing the folder state directory fails.
+        # Note that we use an in-memory global config database, otherwise
+        # this would also cause write to it to fail.
+        basedir.chmod(0o500)
+        self.addCleanup(basedir.chmod, 0o700)
+
+        folder_service = node.global_service.get_folder_service(folder_name)
+        folder_config_dir = folder_service.config.stash_path.parent()
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Contains(
+                                    "Problems while removing state directories"
+                                ),
+                                "details": MatchesDict(
+                                    {
+                                        folder_config_dir.path: Contains(
+                                            "Permission denied"
+                                        )
+                                    }
+                                ),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_admin(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(CONFLICT),
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({"reason": Contains("holds a write capability")}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_admin_really(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                folder_name: magic_folder_config(self.author_name, local_path),
+            },
+            False,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                "DELETE",
+                self.url.child(folder_name),
+                dumps(
+                    {
+                        "really-delete-write-capability": True,
+                    }
+                ),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=MatchesAny(
+                        Equals(OK),
+                    ),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({}),
+                    ),
+                ),
+            ),
+        )
+
+    @given(
+        folder_names(),
+    )
+    def test_leave_folder_not_existing(self, folder_name):
+        """
+        A request for **DELETE /v1/magic-folder/<folder-name>** with a non-existant
+        magic-folder fails with NOT FOUND.
+        """
+        basedir = FilePath(self.mktemp())
+        node = MagicFolderNode.create(
+            Clock(),
+            basedir,
+            AUTH_TOKEN,
+            {},
+            False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"DELETE",
+                self.url.child(folder_name),
+                b"{}",
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": StartsWith("No such magic-folder"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
 
 
 class RedirectTests(SyncTestCase):
@@ -624,8 +843,6 @@ class RedirectTests(SyncTestCase):
         We test this by using a `//` in the URL path, which werkzeug
         redirects to not have the `/`.
         """
-        author = create_local_author("alice")
-
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
@@ -633,7 +850,7 @@ class RedirectTests(SyncTestCase):
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
-            {folder_name: magic_folder_config(author, local_path)},
+            {folder_name: magic_folder_config("alice", local_path)},
             start_folder_services=False,
         )
 
@@ -701,6 +918,159 @@ class RedirectTests(SyncTestCase):
 
 
 
+class ScanFolderTests(SyncTestCase):
+    """
+    Tests for scanning an existing Magic Folder.
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def setUp(self):
+        super(ScanFolderTests, self).setUp()
+        # TODO: Rather than using this fake, MagicFolderService should
+        # take a cooperator that is used by all the child services.
+        # We use this fake IReactorTime instead, which causes ScannerService
+        # to create a cooperator that runs it's tasks to completion immediately.
+        class ImmediateClock(Clock, object):
+            def callLater(self, delay, f, *args, **kwargs):
+                if delay == 0:
+                    f(*args, **kwargs)
+                else:
+                    super(ImmediateClock, self).callLater(delay, f, *args, **kwargs)
+
+        self.clock = ImmediateClock()
+
+    @given(
+        author_names(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_wait_for_completion(self, author_name, folder_name, path_in_folder, some_content):
+        """
+        A **PUT** request to **/v1/magic-folder/:folder-name/scan** does not receive a
+        response before the snapshot has been created in the local database.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        node = MagicFolderNode.create(
+            self.clock,
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author_name, local_path)},
+            # The interesting behavior of this test hinges on this flag.  We
+            # decline to start the folder services here.  Therefore, no local
+            # snapshots will ever be created.  This lets us observe the
+            # request in a state where it is waiting to receive its response.
+            # This demonstrates that the response is not delivered before the
+            # local snapshot is created.  See test_create_snapshot for the
+            # alternative case.
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child(folder_name, "scan"),
+            ),
+            has_no_result(),
+        )
+
+    @given(
+        author_names(),
+        folder_names(),
+        relative_paths(),
+        binary(),
+    )
+    def test_scan_folder(self, author_name, folder_name, path_in_folder, some_content):
+        """
+        A **PUT** to **/v1/magic-folder/:folder-name/scan** creates a new local
+        snapshot for a file in the named folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file.parent().makedirs(ignoreExistingDirectory=True)
+        some_file.setContent(some_content)
+
+        node = MagicFolderNode.create(
+            self.clock,
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {folder_name: magic_folder_config(author_name, local_path)},
+            # Unlike test_wait_for_completion above we start the folder
+            # services.  This will allow the local snapshot to be created and
+            # our request to receive a response.
+            start_folder_services=True,
+        )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child(folder_name, "scan"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(OK),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            ),
+        )
+
+        folder_config = node.global_config.get_magic_folder(folder_name)
+        snapshot_paths = folder_config.get_all_snapshot_paths()
+        self.assertThat(
+            snapshot_paths,
+            Equals({path_in_folder}),
+        )
+
+    def test_snapshot_no_folder(self):
+        """
+        An error results from using /v1/magic-folder/<folder-name>/scan API on
+        non-existent folder.
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {},
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"PUT",
+                self.url.child("a-folder-that-doesnt-exist").child('scan'),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
+                ),
+            )
+        )
+
+
 class CreateSnapshotTests(SyncTestCase):
     """
     Tests for creating a new snapshot in an existing Magic Folder using a
@@ -709,7 +1079,7 @@ class CreateSnapshotTests(SyncTestCase):
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
         binary(),
@@ -727,7 +1097,7 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.setContent(some_content)
 
         treq = treq_for_folders(
-            object(),
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
@@ -752,7 +1122,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
     )
@@ -770,7 +1140,7 @@ class CreateSnapshotTests(SyncTestCase):
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
         treq = treq_for_folders(
-            object(),
+            Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
@@ -788,9 +1158,10 @@ class CreateSnapshotTests(SyncTestCase):
             ),
             succeeded(
                 matches_response(
-                    # Maybe this could be BAD_REQUEST instead, sometimes, if
-                    # the path argument was bogus somehow.
-                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    # Maybe this could be BAD_REQUEST or INTERNAL_SERVER_ERROR
+                    # instead, sometimes, if the path argument was bogus or
+                    # somehow the path could not be read.
+                    code_matcher=Equals(NOT_ACCEPTABLE),
                     headers_matcher=header_contains({
                         u"Content-Type": Equals([u"application/json"]),
                     }),
@@ -805,7 +1176,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         relative_paths(),
         binary(),
@@ -823,19 +1194,29 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
-        treq = treq_for_folders(
+        # Pass a tahoe client that never responds, so the created
+        # snapshot is not uploaded.
+        class NeverClient(object):
+            def __call__(self, *args, **kw):
+                return Deferred()
+            def __getattr__(self, *args):
+                return self
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
+            tahoe_client=NeverClient(),
             # Unlike test_wait_for_completion above we start the folder
             # services.  This will allow the local snapshot to be created and
             # our request to receive a response.
             start_folder_services=True,
         )
+        folder_config = node.global_config.get_magic_folder(folder_name)
+
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
@@ -849,7 +1230,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"GET",
                 DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
@@ -875,7 +1256,7 @@ class CreateSnapshotTests(SyncTestCase):
                                             lambda path: FilePath(path).getContent(),
                                             Equals(some_content),
                                         ),
-                                        u"author": Equals(author.to_remote_author().to_json()),
+                                        u"author": Equals(folder_config.author.to_remote_author().to_json()),
                                     }),
                                 ]),
                             }),
@@ -886,7 +1267,7 @@ class CreateSnapshotTests(SyncTestCase):
         )
 
     @given(
-        local_authors(),
+        author_names(),
         folder_names(),
         sampled_from([u"..", u"foo/../..", u"/tmp/foo"]),
         binary(),
@@ -930,18 +1311,12 @@ class CreateSnapshotTests(SyncTestCase):
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         self.assertThat(
@@ -954,6 +1329,12 @@ class CreateSnapshotTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
                 ),
             )
         )
@@ -972,18 +1353,12 @@ class ParticipantsTests(SyncTestCase):
         """
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
-        root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         self.assertThat(
@@ -996,6 +1371,12 @@ class ParticipantsTests(SyncTestCase):
             succeeded(
                 matches_response(
                     code_matcher=Equals(NOT_FOUND),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        ContainsDict({
+                            "reason": StartsWith("No such magic-folder"),
+                        })
+                    )
                 ),
             )
         )
@@ -1025,47 +1406,31 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        folder_config = magic_folder_config(
-            create_local_author("iris"),
-            local_path,
-        )
-        # we can't add a new participant if their DMD is the same as
-        # one we already have .. and because Hypothesis is 'sneaky' we
-        # have to make sure it's not our collective, either
-        assume(personal_dmd != folder_config["upload-dircap"])
-        assume(personal_dmd != to_readonly_capability(folder_config["upload-dircap"]))
-        assume(personal_dmd != folder_config["collective-dircap"])
-        assume(personal_dmd != to_readonly_capability(folder_config["collective-dircap"]))
-
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    "iris": format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
-                folder_name: folder_config,
+                folder_name: magic_folder_config(
+                    "iris",
+                    local_path,
+                ),
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
+        folder_config = node.global_config.get_magic_folder(folder_name)
+        # we can't add a new participant if their DMD is the same as
+        # one we already have .. and because Hypothesis is 'sneaky' we
+        # have to make sure it's not our collective, either
+        assume(personal_dmd != folder_config.upload_dircap)
+        assume(personal_dmd != to_readonly_capability(folder_config.upload_dircap))
+        assume(personal_dmd != folder_config.collective_dircap)
+        assume(personal_dmd != to_readonly_capability(folder_config.collective_dircap))
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1089,7 +1454,7 @@ class ParticipantsTests(SyncTestCase):
         # participant
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"GET",
                 self.url.child(folder_name, "participants"),
@@ -1101,7 +1466,7 @@ class ParticipantsTests(SyncTestCase):
                         loads,
                         Equals({
                             u"iris": {
-                                u"personal_dmd": folder_config["upload-dircap"],
+                                u"personal_dmd": to_readonly_capability(folder_config.upload_dircap),
                             },
                             u'kelly': {
                                 u'personal_dmd': personal_dmd,
@@ -1123,25 +1488,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1149,13 +1500,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1183,25 +1533,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1209,13 +1545,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1245,25 +1580,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1271,13 +1592,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1310,25 +1630,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1336,13 +1642,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1356,7 +1661,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be a directory-capability"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )
@@ -1374,25 +1679,11 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
-        root = create_fake_tahoe_root()
-        # put our Collective DMD into the fake root
-        root._uri.data[folder_config["collective-dircap"]] = dumps([
-            u"dirnode",
-            {
-                u"children": {
-                    author: format_filenode(folder_config["upload-dircap"]),
-                },
-            },
-        ])
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(root),
-        )
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1400,13 +1691,12 @@ class ParticipantsTests(SyncTestCase):
                 folder_name: folder_config,
             },
             start_folder_services=False,
-            tahoe_client=tahoe_client,
         )
 
         # add a participant using the API
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "participants"),
@@ -1420,7 +1710,7 @@ class ParticipantsTests(SyncTestCase):
                     code_matcher=Equals(BAD_REQUEST),
                     body_matcher=AfterPreprocessing(
                         loads,
-                        Equals({"reason": "personal_dmd must be read-only"})
+                        Equals({"reason": "personal_dmd must be a read-only directory capability."})
                     )
                 )
             )
@@ -1438,7 +1728,7 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
@@ -1500,7 +1790,7 @@ class ParticipantsTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
-            create_local_author(author),
+            author,
             local_path,
         )
 
@@ -1551,4 +1841,296 @@ class ParticipantsTests(SyncTestCase):
             MatchesListwise([
                 matches_flushed_traceback(Exception, "an unexpected error")
             ]),
+        )
+
+
+class FileStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/file-status` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        We return empty information for an empty magic-folder
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "louise",
+            local_path,
+        )
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "file-status"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                        ]),
+                    )
+                ),
+            )
+        )
+
+    def test_one_item(self):
+        """
+        Appropriate information is returned when we have a file-status for
+        one file in our config/db
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "kristi",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "file-status"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                            {
+                                "mtime": 1,
+                                "size": 123,
+                                "relpath": "foo",
+                                "last-updated": 42,
+                                "last-upload-duration": None,
+                            },
+                        ]),
+                    )
+                ),
+            )
+        )
+
+
+class ConflictStatusTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/conflicts` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    def test_empty(self):
+        """
+        A folder with no conflicts reflect that in the status
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "louise",
+            local_path,
+        )
+
+        treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                treq,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({}),
+                    )
+                ),
+            )
+        )
+
+    def test_one_conflict(self):
+        """
+        Appropriate information is returned when we have a conflict with
+        one author
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "marta",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        # internal API for "no conflict yet"
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([])
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            "URI:DIR2-CHK:",
+            [],
+            "URI:CHK:",
+            "URI:CHK:",
+        )
+
+        mf_config.add_conflict(snap)
+
+        # internal API
+        self.assertThat(
+            mf_config.list_conflicts_for("foo"),
+            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "conflicts"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["nelli"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+
+class TahoeObjectsTests(SyncTestCase):
+    """
+    Tests relating to the '/v1/magic-folder/<folder>/tahoe-objects` API
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_one_item(self, remote_snap):
+        """
+        Appropriate information is returned when we have one file in our
+        config/db
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "jenni",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_downloaded_snapshot(
+            "foo",
+            remote_snap,
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        expected_sizes = [
+            cap_size(cap)
+            for cap in [
+                    remote_snap.capability,
+                    remote_snap.content_cap,
+                    remote_snap.metadata_cap,
+            ]
+        ]
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                b"GET",
+                self.url.child("default", "tahoe-objects"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals(expected_sizes),
+                    )
+                ),
+            )
         )

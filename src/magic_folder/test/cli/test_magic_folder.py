@@ -67,11 +67,9 @@ from ...tahoe_client import (
     create_tahoe_client,
 )
 
+from ...cli import MagicFolderCommand
 from ...common import (
     InvalidMagicFolderName,
-)
-from ..common_util import (
-    parse_cli,
 )
 from ..common import (
     AsyncTestCase,
@@ -84,6 +82,14 @@ from .common import (
     cli,
 )
 from ...testing.web import create_tahoe_treq_client, create_fake_tahoe_root
+
+
+def parse_cli(*argv):
+    # This parses the CLI options (synchronously), and returns the Options
+    # argument, or throws usage.UsageError if something went wrong.
+    options = MagicFolderCommand()
+    options.parseOptions(argv)
+    return options
 
 
 class ListMagicFolder(AsyncTestCase):
@@ -102,14 +108,14 @@ class ListMagicFolder(AsyncTestCase):
         """
         yield super(ListMagicFolder, self).setUp()
 
-        # for these tests, we never contact Tahoe so we can get
+        # for these tests we never contact Tahoe so we can get
         # away with an "empty" Tahoe WebUI
         tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         self.config = create_testing_configuration(
             FilePath(self.mktemp()),
             FilePath(u"/no/tahoe/node-directory"),
         )
-        status_service = WebSocketStatusService()
+        status_service = WebSocketStatusService(reactor, self.config)
         global_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )
@@ -118,7 +124,6 @@ class ListMagicFolder(AsyncTestCase):
             self.config,
             global_service,
             lambda: self.config.api_token,
-            tahoe_client,
             status_service,
         )
 
@@ -160,6 +165,7 @@ class ListMagicFolder(AsyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             1,
+            None,
         )
 
         outcome = yield self.cli([b"list"])
@@ -182,6 +188,7 @@ class ListMagicFolder(AsyncTestCase):
             u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
             u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
             1,
+            60,
         )
 
         outcome = yield self.cli(
@@ -228,16 +235,15 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
         )
-        status_service = WebSocketStatusService()
-        global_service = MagicFolderService(
+        status_service = WebSocketStatusService(reactor, self.config)
+        folder_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )
         self.http_client = create_testing_http_client(
             reactor,
             self.config,
-            global_service,
+            folder_service,
             lambda: self.config.api_token,
-            tahoe_client,
             status_service,
         )
 
@@ -262,6 +268,65 @@ class CreateMagicFolder(AsyncTestCase):
         self.assertThat(
             outcome.succeeded(),
             Equals(True),
+        )
+
+    @inline_callbacks
+    def test_add_magic_folder_intervals(self):
+        """
+        Create a new magic folder with a nickname and local directory so
+        that this folder is also invited and joined with the given nickname.
+        """
+        # Get a magic folder.
+        magic_folder = FilePath(self.mktemp())
+        magic_folder.makedirs()
+
+        outcome = yield self.cli(
+            [
+                b"add",
+                b"--name", b"test",
+                b"--author", b"test",
+                b"--poll-interval", b"30",
+                b"--scan-interval", b"30",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+        folder_config = self.config.get_magic_folder("test")
+        self.assertThat(
+            (folder_config.poll_interval, folder_config.scan_interval),
+            Equals((30, 30)),
+        )
+
+    @inline_callbacks
+    def test_add_magic_folder_disable_scanning(self):
+        """
+        Create a new magic folder with a nickname and local directory so
+        that this folder is also invited and joined with the given nickname.
+        """
+        # Get a magic folder.
+        magic_folder = FilePath(self.mktemp())
+        magic_folder.makedirs()
+
+        outcome = yield self.cli(
+            [
+                b"add",
+                b"--name", b"test",
+                b"--author", b"test",
+                b"--disable-scanning",
+                magic_folder.asBytesMode().path,
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+        folder_config = self.config.get_magic_folder("test")
+        self.assertThat(
+            folder_config.scan_interval,
+            Equals(None),
         )
 
     @inline_callbacks
@@ -333,7 +398,6 @@ class CreateMagicFolder(AsyncTestCase):
             InvalidMagicFolderName.message,
             outcome.stderr
         )
-
 
     @inline_callbacks
     def test_add_leave_folder(self):
@@ -591,6 +655,61 @@ class CreateErrors(SyncTestCase):
                 self.temp.path
             )
         self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+
+    def test_poll_interval_negative(self):
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli(
+                "add",
+                "--name", "test",
+                "--author", "test",
+                "--poll-interval=-1",
+                self.temp.path
+            )
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+
+    def test_poll_interval_zero(self):
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli(
+                "add",
+                "--name", "test",
+                "--author", "test",
+                "--poll-interval=0",
+                self.temp.path
+            )
+        self.assertEqual(str(ctx.exception), "--poll-interval must be a positive integer")
+
+    def test_scan_interval(self):
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli(
+                "add",
+                "--name", "test",
+                "--author", "test",
+                "--scan-interval=frog",
+                self.temp.path
+            )
+        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
+
+    def test_scan_interval_negative(self):
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli(
+                "add",
+                "--name", "test",
+                "--author", "test",
+                "--scan-interval=-1",
+                self.temp.path
+            )
+        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
+
+    def test_scan_interval_zero(self):
+        with self.assertRaises(usage.UsageError) as ctx:
+            parse_cli(
+                "add",
+                "--name", "test",
+                "--author", "test",
+                "--scan-interval=0",
+                self.temp.path
+            )
+        self.assertEqual(str(ctx.exception), "--scan-interval must be a positive integer")
 
 
 class ClientEndpoint(SyncTestCase):

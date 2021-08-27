@@ -5,13 +5,20 @@ from __future__ import (
     unicode_literals,
 )
 
+from functools import partial
 import json
+
+from six import string_types
 import attr
+from collections import (
+    defaultdict,
+)
 
 from zope.interface import (
     Interface,
     implementer,
 )
+from zope.interface.interface import Method
 
 from autobahn.twisted.websocket import (
     WebSocketServerFactory,
@@ -22,6 +29,11 @@ from twisted.application import (
     service,
 )
 
+from .util.file import (
+    seconds_to_ns,
+    ns_to_seconds,
+)
+
 
 class IStatus(Interface):
     """
@@ -30,18 +42,52 @@ class IStatus(Interface):
     messages from the status API.
     """
 
-    def upload_started(name):
+    def error_occurred(folder, message):
         """
-        One or more items are now in our upload queue.
+        Some error happened that should be reported to the user.
 
-        :param unicode name: the name of the folder that started upload
+        :param PublicError public_error: a plain-language description
+            of the error.
         """
 
-    def upload_stopped(name):
+    def upload_queued(folder, relpath):
         """
-        No items are in the upload queue.
+        An item is added to our upload queue
 
-        :param unicode name: the name of the folder that stopped uploading
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def upload_started(folder, relpath):
+        """
+        Started sending a Snapshot to Tahoe
+
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def upload_finished(folder, relpath):
+        """
+        Sending of a Snapshot to Tahoe has completed
+
+        :param unicode folder: the name of the folder that started upload
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def download_started(folder, relpath):
+        """
+        Started downloading a Snapshot + content from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
+    def download_finished(folder, relpath):
+        """
+        Completed downloading and synchronizing a Snapshot from Tahoe
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
         """
 
 
@@ -106,6 +152,47 @@ class StatusFactory(WebSocketServerFactory):
         return protocol
 
 
+def _create_blank_folder_state():
+    """
+    Internal helper. Create the blank state for a new folder in the
+    status-service state.
+    """
+    return {
+        "uploads": {},
+        "downloads": {},
+        "recent": [],
+        "errors": [],
+    }
+
+
+@attr.s
+class PublicError(object):
+    """
+    Description of an error that is permissable to show to a UI.
+
+    Such an error MUST NOT reveal any secret information, which
+    includes at least: any capability-string or any fURL.
+
+    The langauge used in the error should be plain and simple,
+    avoiding jargon and technical details (except where immediately
+    relevant). This is used by the IStatus API.
+    """
+    timestamp = attr.ib(validator=attr.validators.instance_of((float, int, long)))
+    summary = attr.ib(validator=attr.validators.instance_of(unicode))
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "timestamp": ns_to_seconds(self.timestamp),
+            "summary": self.summary,
+        }
+
+    def __str__(self):
+        return self.summary
+
+
 @attr.s
 @implementer(service.IService)
 @implementer(IStatus)
@@ -119,6 +206,15 @@ class WebSocketStatusService(service.Service):
     tree).
     """
 
+    # reactor
+    _clock = attr.ib()
+
+    # global configuration
+    _config = attr.ib()
+
+    # maximum number of recent errors to retain
+    max_errors = attr.ib(default=30)
+
     # tracks currently-connected clients
     _clients = attr.ib(default=attr.Factory(set))
 
@@ -127,7 +223,7 @@ class WebSocketStatusService(service.Service):
     _last_state = attr.ib(default=None)
 
     # current live state
-    _uploading = attr.ib(default=attr.Factory(dict))
+    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
 
     def client_connected(self, protocol):
         """
@@ -156,12 +252,59 @@ class WebSocketStatusService(service.Service):
         state.
         """
         upload_activity = any(
-            value is True
-            for value in self._uploading.values()
+            len(folder["uploads"])
+            for folder in self._folders.values()
         )
+        download_activity = any(
+            len(folder["downloads"])
+            for folder in self._folders.values()
+        )
+
+        def folder_data_for(name):
+            mf_config = self._config.get_magic_folder(name)
+            most_recent = [
+                {
+                    "relpath": relpath,
+                    "modified": timestamp,
+                    "last-updated": last_updated,
+                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
+                }
+                for relpath, timestamp, last_updated
+                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+            ]
+            uploads = [
+                upload
+                for upload in sorted(
+                        self._folders.get(name, {}).get("uploads", {}).values(),
+                        key=lambda u: u.get("queued-at", 0),
+                        reverse=True,
+                )
+            ]
+            downloads = [
+                download
+                for download in sorted(
+                        self._folders.get(name, {}).get("downloads", {}).values(),
+                        key=lambda d: d.get("queued-at", 0),
+                        reverse=True,
+                )
+            ]
+            return {
+                "uploads": uploads,
+                "downloads": downloads,
+                "errors": [
+                    err.to_json()
+                    for err in self._folders.get(name, {}).get("errors", [])
+                ],
+                "recent": most_recent,
+            }
+
         return json.dumps({
             "state": {
-                "synchronizing": upload_activity,
+                "synchronizing": upload_activity or download_activity,
+                "folders": {
+                    name: folder_data_for(name)
+                    for name in self._config.list_magic_folders()
+                }
             }
         }).encode("utf8")
 
@@ -184,16 +327,119 @@ class WebSocketStatusService(service.Service):
 
     # IStatus API
 
-    def upload_started(self, name):
+    def error_occurred(self, folder, message):
         """
         IStatus API
+
+        :param unicode folder: the folder this error pertains to
+
+        :param unicode message: a message suitable for an end-user to
+            read that describes the error. Such a message MUST NOT
+            include any secrects such as Tahoe capabilities.
         """
-        self._uploading[name] = True
+        err = PublicError(
+            seconds_to_ns(self._clock.seconds()),
+            message,
+        )
+        self._folders[folder]["errors"].insert(0, err)
+        self._folders[folder]["errors"] = self._folders[folder]["errors"][:self.max_errors]
         self._maybe_update_clients()
 
-    def upload_stopped(self, name):
+    def upload_queued(self, folder, relpath):
         """
         IStatus API
         """
-        self._uploading[name] = False
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["uploads"]:
+            self._folders[folder]["uploads"][relpath] = {
+                "name": relpath,
+                "queued-at": self._clock.seconds(),
+            }
         self._maybe_update_clients()
+
+    def upload_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        self._folders[folder]["uploads"][relpath]["started-at"] = self._clock.seconds()
+        self._maybe_update_clients()
+
+    def upload_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["uploads"][relpath]
+        self._maybe_update_clients()
+
+    def download_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        data = {
+            "name": relpath,
+            "started-at": self._clock.seconds(),
+        }
+        self._folders[folder]["downloads"][relpath] = data
+        self._maybe_update_clients()
+
+    def download_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["downloads"][relpath]
+        self._maybe_update_clients()
+
+
+@attr.s
+class _ProxyDescriptor(object):
+    """
+    Descriptor that returns ``partial(self.<original>.<method>, self.<relative>)``.
+    """
+    original = attr.ib(validator=attr.validators.instance_of(unicode))
+    relative = attr.ib(validator=attr.validators.instance_of(unicode))
+    method = attr.ib(validator=attr.validators.instance_of(string_types))
+
+    def __get__(self, oself, type=None):
+        if oself is None:
+            raise NotImplementedError()
+        original = getattr(oself, self.original)
+        return partial(
+            getattr(original, self.method),
+            getattr(oself, self.relative),
+        )
+
+def relative_proxy_for(iface, original, relative):
+    """
+    Class decorator that partially applies methods of an interface.
+
+    For each method of the given interface, that takes as first argument the
+    given relative argument, this adds a corresponding proxy method to the
+    decorated class, that gets that argument from the decorated instance.
+
+    :param Interface iface: The interface to generate proxy methods for.
+    :param unicode original: The attribute on the decorated class that
+        contains the implementation of the interface.
+    :param unicode relative: The attribute on the decorated class to
+        pass as the first argument to methods of the interface, when
+        the name of the first argument matches.
+    """
+    def decorator(cls):
+        for name, method in iface.namesAndDescriptions():
+            if not isinstance(method, Method):
+                continue
+            if method.positional[0] == relative:
+                setattr(cls, name, _ProxyDescriptor(original, relative, name))
+        return cls
+    return decorator
+
+
+@relative_proxy_for(IStatus, "_status", "folder")
+@attr.s
+class FolderStatus(object):
+    """
+    Wrapper around an :py:`IStatus` implementation that automatically passes
+    the ``folder`` argument.
+    """
+    folder = attr.ib(validator=attr.validators.instance_of(unicode))
+    _status = attr.ib(validator=attr.validators.provides(IStatus))

@@ -9,24 +9,17 @@ import sys
 import json
 from collections import deque
 
+import humanize
+
 from twisted.internet.task import (
     react,
-)
-from twisted.internet.defer import (
-    Deferred,
-)
-from twisted.internet.endpoints import (
-    clientFromString,
 )
 
 from autobahn.twisted.websocket import (
     WebSocketClientProtocol,
-    WebSocketClientFactory,
+    create_client_agent,
 )
 
-from twisted.python.filepath import (
-    FilePath,
-)
 from twisted.python import usage
 from twisted.internet.defer import (
     maybeDeferred,
@@ -34,14 +27,15 @@ from twisted.internet.defer import (
 )
 
 from .cli import (
-    _default_config_path,
-    load_global_configuration,
+    BaseOptions,
+    to_unicode,
 )
 from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
-    create_http_client,
-    create_magic_folder_client,
+)
+from .util.file import (
+    ns_to_seconds_float,
 )
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
@@ -66,7 +60,7 @@ def add_snapshot(options):
     Add one new Snapshot of a particular file in a particular
     magic-folder.
     """
-    res = yield options.parent.get_client().add_snapshot(
+    res = yield options.parent.client.add_snapshot(
         options['folder'].decode("utf8"),
         options['file'].decode("utf8"),
     )
@@ -75,7 +69,7 @@ def add_snapshot(options):
 
 class DumpStateOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder whose state to dump"),
+        ("folder", "n", None, "Name of the magic-folder whose state to dump", to_unicode),
     ]
 
     def postOptions(self):
@@ -106,8 +100,8 @@ def dump_state(options):
     print("  magic_path: {}".format(config.magic_path.path), file=options.stdout)
     print("  collective: {}".format(config.collective_dircap), file=options.stdout)
     print("  local snapshots:", file=options.stdout)
-    for snap_name in config.get_all_localsnapshot_paths():
-        snap = config.get_local_snapshot(snap_name)
+    for relpath in config.get_all_localsnapshot_paths():
+        snap = config.get_local_snapshot(relpath)
         parents = ""
         q = deque()
         q.append(snap)
@@ -115,16 +109,25 @@ def dump_state(options):
             s = q.popleft()
             parents += "{} -> ".format(s.identifier)
             q.extend(s.parents_local)
-        print("    {}: {}".format(snap_name, parents[:-4]), file=options.stdout)
+        print("    {}: {}".format(relpath, parents[:-4]), file=options.stdout)
     print("  remote snapshots:", file=options.stdout)
-    for snap_name in config.get_all_snapshot_paths():
+    for relpath, ps, last_update, upload_duration in config.get_all_current_snapshot_pathstates():
         try:
-            cap = config.get_remotesnapshot(snap_name)
+            cap = config.get_remotesnapshot(relpath)
         except KeyError:
             cap = None
-        path_state = config.get_currentsnapshot_pathstate(snap_name)
-        print("    {}: {}".format(snap_name, cap), file=options.stdout)
-        print("    {}  {}".format(" "*len(snap_name), path_state), file=options.stdout)
+            continue
+        print("    {}:".format(relpath), file=options.stdout)
+        print("        cap: {}".format(cap), file=options.stdout)
+        print("        mtime: {}".format(ps.mtime_ns), file=options.stdout)
+        print("        size: {}".format(ps.size), file=options.stdout)
+        if upload_duration:
+            # humans care about seconds not ns .. but we give some
+            # resolution beyond 'seconds' so that speed calculations
+            # (e.g. on small files) are more accurate.
+            duration = ns_to_seconds_float(upload_duration)
+            print("        upload time: {}".format(humanize.naturaldelta(duration)), file=options.stdout)
+            print("        upload speed: {}/s".format(humanize.naturalsize(ps.size / duration)), file=options.stdout)
 
 
 class AddParticipantOptions(usage.Options):
@@ -152,7 +155,7 @@ def add_participant(options):
     """
     Add one new participant to an existing magic-folder
     """
-    res = yield options.parent.get_client().add_participant(
+    res = yield options.parent.client.add_participant(
         options['folder'].decode("utf8"),
         options['author-name'].decode("utf8"),
         options['personal-dmd'].decode("utf8"),
@@ -179,14 +182,35 @@ def list_participants(options):
     """
     List all participants in a magic-folder
     """
-    res = yield options.parent.get_client().list_participants(
+    res = yield options.parent.client.list_participants(
         options['folder'].decode("utf8"),
     )
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
+class ScanFolderOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder participants to scan", to_unicode),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+def scan_folder(options):
+    return options.parent.client.scan_folder(
+        options['folder'],
+    )
+
+
 class MonitorOptions(usage.Options):
-    pass
+    optFlags = [
+        ["once", "", "Exit after receiving a single status message"],
+    ]
 
 
 class StatusProtocol(WebSocketClientProtocol):
@@ -195,10 +219,18 @@ class StatusProtocol(WebSocketClientProtocol):
     magic-folder
     """
 
+    def __init__(self, output, single_message):
+        super(StatusProtocol, self).__init__()
+        self._output = output
+        self._single_message = single_message
+
     def onMessage(self, payload, is_binary):
-        print(payload, file=self.factory._output)
+        print(payload, file=self._output)
+        if self._single_message:
+            self.sendClose()
 
 
+@inlineCallbacks
 def monitor(options):
     """
     Print out updates from the WebSocket status API
@@ -207,77 +239,41 @@ def monitor(options):
     endpoint_str = options.parent.config.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
-    from twisted.internet import reactor
-    endpoint = clientFromString(reactor, endpoint_str)
-    factory = WebSocketClientFactory(
+    agent = options.parent.get_websocket_agent()
+    proto = yield agent.open(
         websocket_uri,
-        headers={
-            "Authorization": "Bearer {}".format(options.parent.config.api_token),
-        }
+        {
+            "headers": {
+                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+            }
+        },
+        lambda: StatusProtocol(
+            output=options.parent.stdout,
+            single_message=options['once'],
+        )
     )
-    factory._output = options.parent.stdout
-    factory.protocol = StatusProtocol
-    endpoint.connect(factory)
-    return Deferred()
+    yield proto.is_closed
 
 
 @with_eliot_options
-class MagicFolderApiCommand(usage.Options):
+class MagicFolderApiCommand(BaseOptions):
     """
     top-level command (entry-point is "magic-folder-api")
     """
-    stdin = sys.stdin
-    stdout = sys.stdout
-    stderr = sys.stderr
-    _client = None  # initialized (at most once) in get_client()
+    _websocket_agent = None  # initialized (at most once) in get_websocket_agent()
 
-    optFlags = [
-        ["version", "V", "Display version numbers."],
-    ]
-    optParameters = [
-        ("config", "c", _default_config_path,
-         "The directory containing configuration"),
-    ]
-
-    _config = None  # lazy-instantiated by .config @property
-
-    @property
-    def _config_path(self):
-        """
-        The FilePath where our config is located
-        """
-        return FilePath(self['config'])
-
-    @property
-    def config(self):
-        """
-        a GlobalConfigDatabase instance representing the current
-        configuration location.
-        """
-        if self._config is None:
-            try:
-                self._config = load_global_configuration(self._config_path)
-            except Exception as e:
-                raise usage.UsageError(
-                    u"Unable to load '{}': {}".format(self._config_path.path, e)
-                )
-        return self._config
-
-    def get_client(self):
-        if self._client is None:
+    def get_websocket_agent(self):
+        if self._websocket_agent is None:
             from twisted.internet import reactor
-            self._client = create_magic_folder_client(
-                reactor,
-                self.config,
-                create_http_client(reactor, self.config.api_client_endpoint),
-            )
-        return self._client
+            self._websocket_agent = create_client_agent(reactor)
+        return self._websocket_agent
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
+        ["scan-folder", None, ScanFolderOptions, "Scan for local changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [
@@ -321,7 +317,8 @@ class MagicFolderApiCommand(usage.Options):
 
 
 @inlineCallbacks
-def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None):
+def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None,
+                                      websocket_agent=None, config=None):
     """
     Run a magic-folder-api command with the given args
 
@@ -336,6 +333,12 @@ def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=Non
     :param MagicFolderClient client: the client to use, or None to
         construct one.
 
+    :param GlobalConfigurationDatabase config: a configuration, or
+        None to load one.
+
+    :param IWebSocketClientAgent websocket_agent: an Autobahn
+        websocket agent to use, or None to construct one.
+
     :returns: a Deferred which fires with the result of doing this
         magic-folder-api (sub)command.
     """
@@ -347,6 +350,10 @@ def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=Non
         options.stderr = stderr
     if client is not None:
         options._client = client
+    if websocket_agent is not None:
+        options._websocket_agent = websocket_agent
+    if config is not None:
+        options._config = config
     try:
         options.parseOptions(args)
     except usage.UsageError as e:
@@ -379,6 +386,7 @@ def run_magic_folder_api_options(options):
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
+        "scan-folder": scan_folder,
         "monitor": monitor,
     }[options.subCommand]
 
@@ -401,7 +409,7 @@ def run_magic_folder_api_options(options):
 
         except MagicFolderApiError as e:
             # these kinds of errors should report via JSON from the endpoints
-            print(u"{}".format(e.body), file=options.stderr)
+            print(json.dumps(e.body), file=options.stderr)
             raise SystemExit(2)
 
         except Exception as e:

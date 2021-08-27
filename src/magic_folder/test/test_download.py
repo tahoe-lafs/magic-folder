@@ -12,10 +12,13 @@ Tests relating generally to magic_folder.downloader
 import io
 import base64
 import time
-from mock import Mock
+from mock import (
+    patch,
+)
 
 from json import (
     dumps,
+    loads,
 )
 
 from hyperlink import (
@@ -28,6 +31,7 @@ from eliot.twisted import (
 
 from testtools.matchers import (
     MatchesAll,
+    MatchesListwise,
     MatchesStructure,
     Always,
     Equals,
@@ -44,9 +48,11 @@ from hypothesis import (
 from twisted.internet import reactor
 from twisted.internet.task import (
     deferLater,
+    Clock,
 )
 from twisted.internet.defer import (
     inlineCallbacks,
+    returnValue,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -63,6 +69,7 @@ from ..downloader import (
     RemoteSnapshotCacheService,
     MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
+    DownloaderService,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -76,6 +83,7 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
+    FolderStatus,
     WebSocketStatusService,
 )
 from ..tahoe_client import (
@@ -85,11 +93,19 @@ from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
-from ..util.file import PathState, get_pathinfo, seconds_to_ns
+from ..participants import (
+    participants_from_collective,
+)
+from ..util.file import (
+    PathState,
+    get_pathinfo,
+    seconds_to_ns,
+)
 from .common import (
     SyncTestCase,
     AsyncTestCase,
 )
+from .matchers import matches_flushed_traceback
 from .strategies import (
     tahoe_lafs_immutable_dir_capabilities,
 )
@@ -117,6 +133,7 @@ class CacheTests(SyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
@@ -147,10 +164,10 @@ class CacheTests(SyncTestCase):
         Caching a single RemoteSnapshot with no parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        relpath = "foo"
         metadata = {
             "snapshot_version": 1,
-            "name": mangled_name,
+            "relpath": relpath,
             "author": self.author.to_remote_author().to_json(),
             "parents": [],
         }
@@ -183,7 +200,7 @@ class CacheTests(SyncTestCase):
                                     "author_signature": base64.b64encode(
                                         sign_snapshot(
                                             self.author,
-                                            mangled_name,
+                                            relpath,
                                             content_cap,
                                             metadata_cap
                                         ).signature
@@ -204,11 +221,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -219,14 +235,14 @@ class CacheTests(SyncTestCase):
         Caching a RemoteSnapshot with parents works
         """
         self.setup_example()
-        mangled_name = "foo"
+        relpath = "foo"
         parents = []
         genesis = None
 
         for who in range(5):
             metadata = {
                 "snapshot_version": 1,
-                "name": mangled_name,
+                "relpath": relpath,
                 "author": self.author.to_remote_author().to_json(),
                 "parents": parents,
             }
@@ -262,7 +278,7 @@ class CacheTests(SyncTestCase):
                                             "author_signature": base64.b64encode(
                                                 sign_snapshot(
                                                     self.author,
-                                                    mangled_name,
+                                                    relpath,
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature
@@ -285,11 +301,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(genesis),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": Equals([]),
-                        "name": Equals("foo"),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -306,11 +321,10 @@ class CacheTests(SyncTestCase):
             self.cache.get_snapshot_from_capability(cap),
             succeeded(
                 MatchesStructure(
-                    name=Equals("foo"),
                     metadata=ContainsDict({
                         "snapshot_version": Equals(1),
                         "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
+                        "relpath": Equals(relpath),
                     }),
                 )
             )
@@ -322,23 +336,24 @@ class CacheTests(SyncTestCase):
         )
 
         # our tahoe client should not be asked anything if we re-cache
-        # the already-cached tree of Snapshots .. turn our client into
-        # a Mock to absorb any calls it receives.
-        self.cache.tahoe_client = Mock()
-        self.assertThat(
-            self.cache.get_snapshot_from_capability(cap),
-            succeeded(
-                MatchesStructure(
-                    name=Equals("foo"),
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": AfterPreprocessing(len, Equals(1)),
-                        "name": Equals("foo"),
-                    }),
+        # the already-cached tree of Snapshots ..
+
+        def all_requests_are_error(*args, **kw):
+            raise RuntimeError("nothing should call me")
+
+        with patch.object(self.cache, "tahoe_client", StringStubbingResource(all_requests_are_error)):
+            self.assertThat(
+                self.cache.get_snapshot_from_capability(cap),
+                succeeded(
+                    MatchesStructure(
+                        metadata=ContainsDict({
+                            "snapshot_version": Equals(1),
+                            "parents": AfterPreprocessing(len, Equals(1)),
+                            "relpath": Equals(relpath),
+                        }),
+                    )
                 )
             )
-        )
-        self.cache.tahoe_client.assert_not_called()
 
 
 class UpdateTests(AsyncTestCase):
@@ -412,13 +427,14 @@ class UpdateTests(AsyncTestCase):
             self.collective_cap,
             self.personal_cap,
             1,
+            None,
         )
         self.http_client = create_tahoe_treq_client(self.root)
         self.tahoe_client = create_tahoe_client(
             DecodedURL.from_text("http://invalid./"),
             self.http_client,
         )
-        self.status_service = WebSocketStatusService()
+        self.status_service = WebSocketStatusService(reactor, self._global_config)
         self.service = MagicFolder.from_config(
             reactor,
             self.tahoe_client,
@@ -460,8 +476,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content)),
+            )
+        )
 
     @inlineCallbacks
     def test_conflict(self):
@@ -499,8 +520,20 @@ class UpdateTests(AsyncTestCase):
             yield deferLater(reactor, 1.0, lambda: None)
 
         # we should conflict
-        assert self.magic_path.child("foo.conflict-zara").getContent() == content
-        assert self.magic_path.child("foo").getContent() == original_content
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content)),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(original_content)),
+            )
+        )
 
     @inlineCallbacks
     def test_update(self):
@@ -551,8 +584,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content1:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
         self.assertThat(
             self.config.get_currentsnapshot_pathstate("foo"),
             MatchesAll(
@@ -566,7 +604,6 @@ class UpdateTests(AsyncTestCase):
                 ),
             )
         )
-
 
     @inlineCallbacks
     def test_multi_update(self):
@@ -614,8 +651,13 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content1:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content1, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
 
         # create a second update
         local_snap2 = yield create_snapshot(
@@ -640,8 +682,172 @@ class UpdateTests(AsyncTestCase):
                 if self.magic_path.child("foo").getContent() == content2:
                     break
             yield deferLater(reactor, 1.0, lambda: None)
-        assert self.magic_path.child("foo").exists()
-        assert self.magic_path.child("foo").getContent() == content2, "content mismatch"
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
+
+    @inlineCallbacks
+    def test_conflicting_update(self):
+        """
+        Create an update that conflicts with a local file
+        """
+
+        content0 = b"foo" * 1000
+        content1 = b"bar" * 1000
+        content2 = b"baz" * 1000
+        content3 = b"quux" * 1000
+        local_snap0 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+        )
+
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability.encode("utf8"),
+        )
+
+        # create an update
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            parents=[local_snap0],
+        )
+        remote_snap1 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+
+        # just before we link this in, put a local change "in the way"
+        # on Alice's side.
+        self.magic_path.child("foo").setContent(content2)
+
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap1.capability.encode("utf8"),
+            replace=True,
+        )
+
+        # wait for the downloader to put this into Alice's
+        # magic-folder, which should cause a conflcit
+        for _ in range(10):
+            if "foo.conflict-zara" in self.magic_path.listdir():
+                break
+            yield deferLater(reactor, 1.0, lambda: None)
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
+
+        # now we produce another update on Zara's side, which
+        # shouldn't change anything locally because we're already
+        # conflicted.
+
+        # create an update
+        local_snap2 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content3),
+            self.state_path,
+            parents=[remote_snap1],
+        )
+        remote_snap2 = yield write_snapshot_to_tahoe(local_snap2, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap2.capability.encode("utf8"),
+            replace=True,
+        )
+
+        for _ in range(10):
+            if "foo.conflict-zara" in self.magic_path.listdir():
+                if self.magic_path.child("foo.conflict-zara").getContent() != content1:
+                    print("weird content")
+            yield deferLater(reactor, 1.0, lambda: None)
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content2)),
+            )
+        )
+
+    @inlineCallbacks
+    def test_conflict_at_last_second(self):
+        """
+        If an update to a file happens while we're downloading a file that
+        is detected as a conflict.
+        """
+
+        content0 = b"foo" * 1000
+        local_snap0 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+        )
+
+        # arrange to hook ourselves in to the "download" code-path
+        # immediately _after_ the download has occurred...
+
+        # "our" folder updater service
+        folder_updater = self.service.downloader_service._folder_updater
+        orig_method = folder_updater._magic_fs.download_content_to_staging
+
+        @inline_callbacks
+        def do_download(relpath, cap, tahoe_client):
+            """
+            wrap the "download_content_to_staging" method so we can inject a
+            last-second change to file "foo" _immediately_ after we
+            download zara's update (but before we act on it)
+            """
+            x = yield orig_method(relpath, cap, tahoe_client)
+            # put in the last-second conflict
+            self.magic_path.preauthChild(relpath).setContent("So conflicted")
+            returnValue(x)
+
+        with patch.object(folder_updater._magic_fs, "download_content_to_staging", do_download):
+            # create a change in zara's Personal DMD
+            remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+            yield self.tahoe_client.add_entry_to_mutable_directory(
+                self.other_personal_cap,
+                u"foo",
+                remote_snap0.capability.encode("utf8"),
+            )
+
+            # wait for the downloader to detect zara's change
+            for _ in range(10):
+                yield deferLater(reactor, 1.0, lambda: None)
+                if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
+                    break
+
+        # we should discover and mark this last-second conflict by
+        # keeping "our" content in "foo" and putting zara's content in
+        # a conflict-file
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals("So conflicted")),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content0)),
+            )
+        )
 
 
 class ConflictTests(AsyncTestCase):
@@ -666,8 +872,8 @@ class ConflictTests(AsyncTestCase):
             FilePath("dummy"),
         )
 
-        self.alice_collective = "URI:DIR2:"
-        self.alice_personal = "URI:DIR2:"
+        self.alice_collective = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        self.alice_personal = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
 
         self.alice_config = self._global_config.create_magic_folder(
             "default",
@@ -676,6 +882,7 @@ class ConflictTests(AsyncTestCase):
             self.alice_collective,
             self.alice_personal,
             1,
+            None,
         )
 
         # note, we don't "run" this service, just populate ._cached_snapshots
@@ -690,14 +897,21 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            StubTreq(StringStubbingResource(get_resource_for)),
+        )
+        particiapnts = participants_from_collective(
+            self.alice_collective, self.alice_personal, tahoe_client
+        )
+        self.status = WebSocketStatusService(reactor, self._global_config)
         self.updater = MagicFolderUpdater(
             magic_fs=self.filesystem,
             config=self.alice_config,
             remote_cache=self.remote_cache,
-            tahoe_client=create_tahoe_client(
-                DecodedURL.from_text(u"http://invalid./"),
-                StubTreq(StringStubbingResource(get_resource_for)),
-            )
+            tahoe_client=tahoe_client,
+            status=FolderStatus(self.alice_config.name, self.status),
+            write_participant=particiapnts.writer,
         )
 
     @inline_callbacks
@@ -708,18 +922,19 @@ class ConflictTests(AsyncTestCase):
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
@@ -727,20 +942,22 @@ class ConflictTests(AsyncTestCase):
             raw_remote_parents=None,
         )
         # if we have a local, we must have the path locally
-        self.alice_magic_path.child("foo").setContent(local0_content)
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent(local0_content)
         self.alice_config.store_local_snapshot(local0)
+        self.alice_config.store_currentsnapshot_state("foo", get_pathinfo(local_path).state)
 
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot(remote0)
+        yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", remote0),
-                ("conflict", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
             ])
         )
 
@@ -753,44 +970,45 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
-        self.alice_config.store_downloaded_snapshot("foo", parent, PathState(
-            mtime_ns=0, ctime_ns=0, size=len(parent_content),
-        ))
+        # we've 'seen' this file before so we must have the path locally
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent(parent_content)
+        self.alice_config.store_downloaded_snapshot("foo", parent, get_pathinfo(local_path).state)
 
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.carol,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
-        # we've 'seen' this file before so we must have the path locally
-        self.alice_magic_path.child("foo").setContent(parent_content)
 
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot(remote0)
+        yield self.updater.add_remote_snapshot("foo", remote0)
 
-        # we have a local-snapshot for the same name as the incoming
+        # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
 
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", remote0),
-                ("overwrite", remote0),
+                ("download", "foo", remote0.content_cap),
+                ("overwrite", "foo", remote0.content_cap),
             ])
         )
 
@@ -806,34 +1024,33 @@ class ConflictTests(AsyncTestCase):
         for letter in 'abcd':
             parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
             parent = RemoteSnapshot(
-                name="foo",
+                relpath="foo",
                 author=self.alice,
                 metadata={"modification_time": 0},
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
                 content_cap=b"URI:CHK:",
+                metadata_cap=b"URI:CHK:",
             )
             self.remote_cache._cached_snapshots[parent_cap] = parent
             remotes.append(parent)
 
         # set "our" parent to the oldest one
-        self.alice_config.store_downloaded_snapshot("foo", remotes[0], PathState(
-            mtime_ns=0, ctime_ns=0, size=len("dummy"),
-        ))
-
+        local_path = self.alice_magic_path.child("foo")
         # we've 'seen' this file before so we must have the path locally
-        self.alice_magic_path.child("foo").setContent(b"dummy")
+        local_path.setContent(b"dummy")
+        self.alice_config.store_downloaded_snapshot("foo", remotes[0], get_pathinfo(local_path).state)
 
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
-        yield self.updater.add_remote_snapshot(youngest)
+        yield self.updater.add_remote_snapshot("foo", youngest)
 
         # we have a common ancestor so this should be an update
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", youngest),
-                ("overwrite", youngest),
+                ("download", "foo", youngest.content_cap),
+                ("overwrite", "foo", youngest.content_cap),
             ])
         )
 
@@ -845,34 +1062,37 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
         other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
             metadata={"modification_time": 0},
             capability=other_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[other_cap] = other
 
@@ -883,14 +1103,14 @@ class ConflictTests(AsyncTestCase):
         ))
 
         # ...child->parent aren't related to "other"
-        yield self.updater.add_remote_snapshot(child)
+        yield self.updater.add_remote_snapshot("foo", child)
 
         # so, no common ancestor: a conflict
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", child),
-                ("conflict", child),
+                ("download", "foo", child.content_cap),
+                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
             ])
         )
 
@@ -902,39 +1122,219 @@ class ConflictTests(AsyncTestCase):
 
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
-            metadata={"modification_time": 0},
+            metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
-            name="foo",
+            relpath="foo",
             author=self.alice,
-            metadata={"modification_time": 0},
+            metadata={"relpath": "foo", "modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
             content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
         # so "alice" has "child" already
-        self.alice_magic_path.child("foo").setContent("whatever")
-        self.alice_config.store_downloaded_snapshot("foo", child, PathState(
-            mtime_ns=0, ctime_ns=0, size=len("whatever"),
-        ))
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent("whatever")
+        self.alice_config.store_downloaded_snapshot("foo", child, get_pathinfo(local_path).state)
 
         # we update with the parent (so, it's old)
-        yield self.updater.add_remote_snapshot(parent)
+        yield self.updater.add_remote_snapshot("foo", parent)
 
         # so we should do nothing
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                ("download", parent),
             ])
+        )
+
+    @inline_callbacks
+    def test_update_filesystem_error(self):
+        """
+        An update that fails to write to the filesystem
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"relpath": "foo", "modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        def permissions_suck(relpath, mtime, staged_content):
+            """
+            cause the filesystem to fail to write due to a permissions problem
+            """
+            raise OSError(13, "Permission denied")
+        self.filesystem.mark_overwrite = permissions_suck
+
+        # set up a collective for 'alice' to pull an update from
+        # 'carol' into the "always permissions denied" filesystem
+        # .. but it needs to be "real" since we have to run the
+        # top-level scanner which discovers snapshots (because it
+        # handles the top-level errors)
+        root = create_fake_tahoe_root()
+        client = create_tahoe_treq_client(root)
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            client,
+        )
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        # hook in the top-level service .. we don't "start" it and
+        # instead just call _loop() because we just want a single
+        # scan.
+        top_service = DownloaderService(
+            Clock(),
+            self.alice_config,
+            alice_participants,
+            self.updater._status,
+            self.remote_cache,
+            self.updater,
+            tahoe_client,
+        )
+        yield top_service._loop()
+
+        # status system should report our error
+        self.assertThat(
+            loads(self.status._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Failed to overwrite file 'foo': [Errno 13] Permission denied"
+                                    ),
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(OSError),
+            MatchesListwise([
+                matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")
+            ]),
+        )
+
+    @inline_callbacks
+    def test_update_download_error(self):
+        """
+        An update that fails to download some content
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        def network_is_out(relpath, file_cap, tahoe_client):
+            """
+            download fails for some reason
+            """
+            raise Exception("something bad")
+        self.filesystem.download_content_to_staging = network_is_out
+
+        # set up a collective for 'alice' to pull an update from
+        # 'carol' into the "always permissions denied" filesystem
+        # .. but it needs to be "real" since we have to run the
+        # top-level scanner which discovers snapshots (because it
+        # handles the top-level errors)
+        root = create_fake_tahoe_root()
+        client = create_tahoe_treq_client(root)
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            client,
+        )
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        # hook in the top-level service .. we don't "start" it and
+        # instead just call _loop() because we just want a single
+        # scan.
+        top_service = DownloaderService(
+            Clock(),
+            self.alice_config,
+            alice_participants,
+            self.updater._status,
+            self.remote_cache,
+            self.updater,
+            tahoe_client,
+        )
+        yield top_service._loop()
+
+        # status system should report our error
+        self.assertThat(
+            loads(self.status._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Failed to download snapshot for 'foo'."
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            MatchesListwise([
+                matches_flushed_traceback(Exception, "something bad")
+            ]),
         )

@@ -57,6 +57,7 @@ from ..snapshot import (
 from ..magicpath import (
     path2magic,
 )
+from ..util.capabilities import is_immutable_directory_cap, to_verify_capability
 from ..util.file import PathState
 from twisted.internet import task
 
@@ -77,10 +78,6 @@ from magic_folder.tahoe_client import (
     TahoeAPIError,
 )
 
-from allmydata.uri import (
-    is_uri,
-    from_string as uri_from_string,
-)
 
 class RemoteSnapshotCreatorTests(SyncTestCase):
     """
@@ -91,11 +88,11 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     @given(
-        mangled_name=relative_paths().map(path2magic),
+        relpath=relative_paths(),
         content=binary(),
         upload_dircap=tahoe_lafs_dir_capabilities(),
     )
-    def test_commit_a_file(self, mangled_name, content, upload_dircap):
+    def test_commit_a_file(self, relpath, content, upload_dircap):
         """
         Add a file into localsnapshot store, start the service which
         should result in a remotesnapshot corresponding to the
@@ -120,7 +117,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         data = io.BytesIO(content)
 
         d = create_snapshot(
-            name=mangled_name,
+            relpath=relpath,
             author=self.author,
             data_producer=data,
             snapshot_stash_dir=config.stash_path,
@@ -139,26 +136,25 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # This should be picked up by the Uploader Service and should
         # result in a snapshot cap.
         config.store_local_snapshot(snapshots[0])
-        config.store_currentsnapshot_state(mangled_name, PathState(0, 0, 0))
+        config.store_currentsnapshot_state(relpath, PathState(0, 0, 0))
 
+        remote_snapshot_creator.initialize_upload_status()
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
             d,
             succeeded(Always()),
         )
 
-        remote_snapshot_cap = config.get_remotesnapshot(mangled_name)
+        remote_snapshot_cap = config.get_remotesnapshot(relpath)
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
             loads(f.root._uri.data[upload_dircap])[1][u"children"],
             Equals({
-                mangled_name: [
+                path2magic(relpath): [
                     u"dirnode", {
                         u"ro_uri": remote_snapshot_cap.decode("utf-8"),
-                        u"verify_uri": uri_from_string(
-                            remote_snapshot_cap
-                        ).get_verify_cap().to_string().decode("utf-8"),
+                        u"verify_uri": to_verify_capability(remote_snapshot_cap),
                         u"mutable": False,
                         u"format": u"CHK",
                     },
@@ -170,12 +166,14 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         # test whether we got a capability
         self.assertThat(
             remote_snapshot_cap,
-            MatchesPredicate(is_uri,
-                             "%r is not a Tahoe-LAFS URI"),
+            MatchesPredicate(
+                is_immutable_directory_cap,
+                "%r is not a immuutable directory Tahoe-LAFS URI",
+            ),
         )
 
-        with ExpectedException(KeyError, escape(repr(mangled_name))):
-            config.get_local_snapshot(mangled_name)
+        with ExpectedException(KeyError, escape(repr(relpath))):
+            config.get_local_snapshot(relpath)
 
     @given(
         path_segments(),
@@ -184,8 +182,9 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             min_size=1,
             max_size=2,
         ),
+        tahoe_lafs_dir_capabilities(),
     )
-    def test_write_snapshot_to_tahoe_fails(self, name, contents):
+    def test_write_snapshot_to_tahoe_fails(self, relpath, contents, upload_dircap):
         """
         If any part of a snapshot upload fails then the metadata for that snapshot
         is retained in the local database and the snapshot content is retained
@@ -197,7 +196,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
             temp=FilePath(self.mktemp()),
             author=self.author,
             root=broken_root,
-            upload_dircap="URI:DIR2:foo:bar",
+            upload_dircap=upload_dircap,
         ))
         config = f.config
         remote_snapshot_creator = f.remote_snapshot_creator
@@ -207,7 +206,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         for content in contents:
             data = io.BytesIO(content)
             d = create_snapshot(
-                name=name,
+                relpath=relpath,
                 author=self.author,
                 data_producer=data,
                 snapshot_stash_dir=config.stash_path,
@@ -218,11 +217,12 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 d,
                 succeeded(Always()),
             )
+            config.store_local_snapshot(snapshots[-1])
             parents = [snapshots[-1]]
 
         local_snapshot = snapshots[-1]
-        config.store_local_snapshot(snapshots[-1])
 
+        remote_snapshot_creator.initialize_upload_status()
         d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
             d,
@@ -233,7 +233,7 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
 
         self.assertEqual(
             local_snapshot,
-            config.get_local_snapshot(name),
+            config.get_local_snapshot(relpath),
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),
@@ -248,6 +248,9 @@ class MemorySnapshotCreator(object):
 
     def upload_local_snapshots(self):
         self._uploaded += 1
+
+    def initialize_upload_status(self):
+        pass
 
 
 class UploaderServiceTests(SyncTestCase):

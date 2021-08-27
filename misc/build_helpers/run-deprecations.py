@@ -24,7 +24,7 @@ class Options(usage.Options):
         self["args"] = list(args)
 
     description = """Run as:
-PYTHONWARNINGS=default::DeprecationWarning python run-deprecations.py [--warnings=STDERRFILE] [--package=PYTHONPACKAGE ] COMMAND ARGS..
+python run-deprecations.py [--warnings=STDERRFILE] [--package=PYTHONPACKAGE ] COMMAND ARGS..
 """
 
 class RunPP(protocol.ProcessProtocol):
@@ -56,7 +56,7 @@ def make_matcher(options):
         ``True`` if it contains an interesting warning and ``False``
         otherwise.
     """
-    pattern = r".*\.py[oc]?:\d+:" # (Pending)?DeprecationWarning: .*"
+    pattern = r".*\.py[oc]?:\d+: (Pending)?DeprecationWarning: .*"
     if options["package"]:
         pattern = r".*/{}/".format(
             re.escape(options["package"]),
@@ -83,31 +83,17 @@ def run_command(main):
                              (command, os.environ.get("PATH")))
         exe = executables[0]
 
-    pw = os.environ.get("PYTHONWARNINGS")
-    DDW = "default::DeprecationWarning"
-    if pw != DDW:
-        print("note: $PYTHONWARNINGS is '%s', not the expected %s" % (pw, DDW))
-        sys.stdout.flush()
+    env = os.environ.copy()
+    env["PYTHONWARNINGS"] = "default::DeprecationWarning"
 
     pp = RunPP()
     pp.d = defer.Deferred()
     pp.stdout = io.BytesIO()
     pp.stderr = io.BytesIO()
-    reactor.spawnProcess(pp, exe, [exe] + config["args"], env=None)
+    reactor.spawnProcess(pp, exe, [exe] + config["args"], env=env)
     (signal, rc) = yield pp.d
 
     match = make_matcher(config)
-
-    def ignore_deprecation(line):
-        """
-        Sometimes we want to ignore a deprecation warning.
-
-        - the Eliot "inline_callbacks" wrapper causes confusion with
-          the Twisted "inlineCallbacks" checks, so we ignore those.
-        """
-        if "returnValue should only be invoked by functions decorated with inlineCallbacks" in line:
-            return True
-        return False
 
     # maintain ordering, but ignore duplicates (for some reason, either the
     # 'warnings' module or twisted.python.deprecate isn't quashing them)
@@ -121,12 +107,12 @@ def run_command(main):
 
     pp.stdout.seek(0)
     for line in pp.stdout.readlines():
-        if match(line) and not ignore_deprecation(line):
+        if match(line):
             add(line) # includes newline
 
     pp.stderr.seek(0)
     for line in pp.stderr.readlines():
-        if match(line) and not ignore_deprecation(line):
+        if match(line):
             add(line)
 
     if warnings:

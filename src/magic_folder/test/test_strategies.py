@@ -16,10 +16,6 @@ from hypothesis import (
     assume,
 )
 
-from allmydata.uri import (
-    from_string as cap_from_string,
-)
-
 from testtools.matchers import (
     Equals,
 )
@@ -28,6 +24,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 
+from ..util.capabilities import tahoe_uri_from_string
 from .common import (
     SyncTestCase,
 )
@@ -48,7 +45,7 @@ class StrategyTests(SyncTestCase):
         Values built by ``tahoe_lafs_chk_capabilities`` round-trip through ASCII
         and ``allmydata.uri.from_string`` and their ``to_string`` method.
         """
-        cap = cap_from_string(cap_text.encode("ascii"))
+        cap = tahoe_uri_from_string(cap_text.encode("ascii"))
         serialized = cap.to_string().decode("ascii")
         self.assertThat(
             cap_text,
@@ -61,7 +58,7 @@ class StrategyTests(SyncTestCase):
         Values built by ``tahoe_lafs_dir_capabilities`` round-trip through ASCII
         and ``allmydata.uri.from_string`` and their ``to_string`` method.
         """
-        cap = cap_from_string(cap_text.encode("ascii"))
+        cap = tahoe_uri_from_string(cap_text.encode("ascii"))
         serialized = cap.to_string().decode("ascii")
         self.assertThat(
             cap_text,

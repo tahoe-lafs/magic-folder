@@ -21,16 +21,17 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from twisted.internet import defer
+from twisted.internet import (
+    defer,
+    reactor,
+)
 
 from testtools.matchers import (
-    Equals,
+    AfterPreprocessing,
     Always,
+    Equals,
     HasLength,
     MatchesStructure,
-    AfterPreprocessing,
-    MatchesListwise,
-    MatchesPredicate,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -41,6 +42,7 @@ from eliot import (
     Message,
 )
 
+from ..common import APIError
 from ..magic_folder import (
     LocalSnapshotService,
     LocalSnapshotCreator,
@@ -48,13 +50,12 @@ from ..magic_folder import (
 from ..snapshot import (
     create_local_author,
 )
-from ..magicpath import (
-    path2magic,
-)
 from ..config import (
     create_global_configuration,
+    create_testing_configuration,
 )
 from ..status import (
+    FolderStatus,
     WebSocketStatusService,
 )
 from ..util.file import (
@@ -63,6 +64,7 @@ from ..util.file import (
 from .common import (
     SyncTestCase,
 )
+from .matchers import matches_failure
 from .strategies import (
     path_segments,
     relative_paths,
@@ -86,6 +88,12 @@ class MemorySnapshotCreator(object):
         )
         self.processed.append(path)
 
+class MemoryUploaderService(object):
+    upload_requested = False
+    def perform_upload(self):
+        self.upload_requested = True
+        return defer.Deferred()
+
 
 class LocalSnapshotServiceTests(SyncTestCase):
     """
@@ -96,13 +104,32 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
+        self._node_dir = FilePath(self.mktemp())
+        self._node_dir.makedirs()
+        self._global_config = create_testing_configuration(
+            FilePath(self.mktemp()),
+            self._node_dir,
+        )
         self.magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
         self.magic_path.asBytesMode("utf-8").makedirs()
+        self.magic_config = self._global_config.create_magic_folder(
+            "name",
+            self.magic_path,
+            create_local_author("author"),
+            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            60,
+            None,
+        )
+
+        self.status = WebSocketStatusService(reactor, self._global_config)
         self.snapshot_creator = MemorySnapshotCreator()
+        self.uploader_service = MemoryUploaderService()
         self.snapshot_service = LocalSnapshotService(
-            magic_path=self.magic_path,
+            config=self.magic_config,
             snapshot_creator=self.snapshot_creator,
-            status=WebSocketStatusService(),
+            status=FolderStatus(self.magic_config.name, self.status),
+            uploader_service=self.uploader_service,
         )
 
 
@@ -130,6 +157,11 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_creator.processed,
             Equals([to_add]),
+        )
+
+        self.assertThat(
+            self.uploader_service.upload_requested,
+            Equals(True)
         )
 
     @given(lists(path_segments(), unique=True),
@@ -200,16 +232,9 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.add_file(to_add),
             failed(
-                AfterPreprocessing(
-                    lambda f: (f.type, f.value.args),
-                    MatchesListwise([
-                        Equals(ValueError),
-                        Equals((
-                            "expected a regular file, {!r} is a directory".format(
-                                to_add.path,
-                            ),
-                        )),
-                    ]),
+                matches_failure(
+                    APIError,
+                    "expected a regular file, .* is a directory"
                 ),
             ),
         )
@@ -225,17 +250,31 @@ class LocalSnapshotServiceTests(SyncTestCase):
         self.assertThat(
             self.snapshot_service.add_file(FilePath(to_add)),
             failed(
-                AfterPreprocessing(
-                    lambda f: (f.type, f.value.args),
-                    MatchesListwise([
-                        Equals(ValueError),
-                        MatchesPredicate(
-                            lambda args: args[0].startswith("The path being added "),
-                            "%r does not start with 'The path being added '.",
-                        ),
-                    ]),
+                matches_failure(
+                    APIError,
+                    "The path being added .*",
                 ),
             ),
+        )
+
+    def test_conflict_marker(self):
+        """
+        A conflict-marker file is not uploaded
+        """
+        self.setup_example()  # no @given() on this test
+        foo = self.magic_path.child("foo.conflict-laptop")
+        foo.setContent("bogus")
+
+        self.assertThat(
+            self.snapshot_service.add_file(foo),
+            succeeded(Always()),
+        )
+
+        # we should ignore this add_file() update and not upload /
+        # process it
+        self.assertThat(
+            self.snapshot_creator.processed,
+            Equals([]),
         )
 
 
@@ -269,6 +308,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             u"URI:DIR2-RO:aaa:bbb",
             u"URI:DIR2:ccc:ddd",
             60,
+            None,
         )
         self.snapshot_creator = LocalSnapshotCreator(
             db=self.db,
@@ -302,10 +342,9 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         self.assertThat(self.db.get_all_localsnapshot_paths(), HasLength(len(files)))
         for (file, filename, content) in files:
-            mangled_filename = path2magic(filename)
-            stored_snapshot = self.db.get_local_snapshot(mangled_filename)
+            stored_snapshot = self.db.get_local_snapshot(filename)
             stored_content = stored_snapshot.content_path.getContent()
-            path_state = self.db.get_currentsnapshot_pathstate(mangled_filename)
+            path_state = self.db.get_currentsnapshot_pathstate(filename)
             self.assertThat(stored_content, Equals(content))
             self.assertThat(stored_snapshot.parents_local, HasLength(0))
             self.assertThat(
@@ -334,8 +373,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        foo_magicname = path2magic(filename)
-        stored_snapshot1 = self.db.get_local_snapshot(foo_magicname)
+        stored_snapshot1 = self.db.get_local_snapshot(filename)
 
         # now modify the file with some new content.
         foo.asBytesMode("utf-8").setContent(content2)
@@ -345,7 +383,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             self.snapshot_creator.store_local_snapshot(foo),
             succeeded(Always()),
         )
-        stored_snapshot2 = self.db.get_local_snapshot(foo_magicname)
+        stored_snapshot2 = self.db.get_local_snapshot(filename)
 
         self.assertThat(
             stored_snapshot2.parents_local[0],

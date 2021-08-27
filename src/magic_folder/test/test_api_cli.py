@@ -39,6 +39,11 @@ from treq.testing import (
     StringStubbingResource,
     StubTreq,
 )
+from autobahn.twisted.testing import (
+    create_memory_agent,
+    MemoryReactorClockResolver,
+    create_pumper,
+)
 from nacl.encoding import (
     HexEncoder,
 )
@@ -57,6 +62,10 @@ from ..config import (
     create_testing_configuration,
     create_global_configuration,
     GlobalConfigDatabase,
+)
+from ..status import (
+    StatusFactory,
+    WebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
@@ -221,7 +230,7 @@ class TestMagicApi(AsyncTestCase):
             IsInstance(GlobalConfigDatabase),
         )
         self.assertThat(
-            options.get_client(),
+            options.client,
             IsInstance(MagicFolderClient),
         )
         self.assertThat(
@@ -545,6 +554,7 @@ class TestDumpState(AsyncTestCase):
             collective_dircap="URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
             upload_dircap="URI:DIR2:hnua3xva2meb46dqm3ndmiqxhe:h7l2qnydoztv7gruwd65xtdhsvd3cm2kk2544knp5fhmzxoyckba",
             poll_interval=1,
+            scan_interval=1,
         )
         config.store_local_snapshot(
             LocalSnapshot(
@@ -565,6 +575,7 @@ class TestDumpState(AsyncTestCase):
                 capability="URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
                 parents_raw=[],
                 content_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
+                metadata_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
             ),
             PathState(
                 0,
@@ -580,9 +591,9 @@ class TestDumpState(AsyncTestCase):
         options.stdout = StringIO()
         options.stderr = StringIO()
         options.parseOptions([
-            "--config", self.magic_config.path,
-            "dump-state",
-            "--folder", "test",
+            b"--config", self.magic_config.path,
+            b"dump-state",
+            b"--folder", b"test",
         ])
         options._config = self.global_config
         yield run_magic_folder_api_options(options)
@@ -609,8 +620,10 @@ class TestDumpState(AsyncTestCase):
                 "local snapshots:",
                 "foo: {}".format(local_uuid),
                 "remote snapshots:",
-                "bar: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
-                repr(PathState(0, 0, 0))
+                "bar:",
+                "cap: URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+                "mtime: 0",
+                "size: 0",
             ])
         )
 
@@ -802,4 +815,65 @@ class TestApiParticipants(AsyncTestCase):
         self.assertThat(
             stderr.getvalue().strip(),
             Equals("")
+        )
+
+
+class TestApiMonitor(AsyncTestCase):
+    """
+    Tests related to 'magic-folder-api monitor'
+    """
+    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    def setUp(self):
+        super(TestApiMonitor, self).setUp()
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
+        )
+        self.reactor = MemoryReactorClockResolver()
+        self.pumper = create_pumper()
+        self.service = WebSocketStatusService(
+            self.reactor,
+            self.global_config,
+        )
+        self.factory = StatusFactory(self.service)
+        self.agent = create_memory_agent(
+            self.reactor,
+            self.pumper,
+            lambda: self.factory.buildProtocol(None)
+        )
+        return self.pumper.start()
+
+    def tearDown(self):
+        super(TestApiMonitor, self).tearDown()
+        return self.pumper.stop()
+
+    @inlineCallbacks
+    def test_once(self):
+        """
+        Output a single status message with --once option
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        yield dispatch_magic_folder_api_command(
+            ["--config", self.magic_config.path, "monitor",
+             "--once",
+            ],
+            stdout=stdout,
+            stderr=stderr,
+            websocket_agent=self.agent,
+            config=self.global_config,
+        )
+        self.pumper._flush()
+
+        self.assertThat(
+            json.loads(stdout.getvalue()),
+            Equals({
+                'state': {
+                    'folders': {},
+                    'synchronizing': False,
+                }
+            }),
         )

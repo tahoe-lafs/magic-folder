@@ -81,7 +81,10 @@ def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, 
             author,
             mf_config[u'collective_dircap'],
             mf_config[u'upload_dircap'],
-            mf_config[u'poll_interval'],  # is this always available?
+            int(mf_config[u'poll_interval']),  # is this always available?
+            # tahoe-lafs's magic-folder implementation didn't have scan-interval
+            # so use poll-interval for it as well.
+            int(mf_config[u'poll_interval']),
         )
 
     return succeed(config)

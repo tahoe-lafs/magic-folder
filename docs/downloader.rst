@@ -28,7 +28,7 @@ It is represented by an immutable directory and contains:
   Deletion Snapshots contain no such key.
 - ``metadata``: information about the Snapshot, a read-only Capability pointing to a JSON-serialized dict containing:
   - ``snapshot_version``: int(1) currently
-  - ``name``: the name of this snapshot (a mangled relative path)
+  - ``name``: the name of this snapshot (a relative path)
   - ``author``: a dict containing:
     - ``name``: arbitrary name
     - ``verify_key``: base64-encoded public key of the author

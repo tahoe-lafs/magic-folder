@@ -75,33 +75,41 @@ class MagicFolderApiError(ClientError):
     A Magic Folder HTTP API returned a failure code.
     """
     code = attr.ib()
+    reason = attr.ib()
     body = attr.ib()
 
+    @property
+    def reason(self):
+        return self.body.get("reason")
+
     def __repr__(self):
-        return "<MagicFolderApiError code={} body={!r}>".format(
+        return "<MagicFolderApiError code={} reason={!r} body={!r}>".format(
             self.code,
+            self.reason,
             self.body,
         )
 
     def __str__(self):
-        return u"Magic Folder HTTP API reported error {}: {}".format(
+        extra_fields = {k: v for (k, v) in self.body.items() if k != "reason"}
+        return u"Magic Folder HTTP API reported error {}: {}{}".format(
             self.code,
-            self.body,
+            self.reason,
+            " ({})".format(extra_fields) if extra_fields else "",
         )
 
 
 @inlineCallbacks
-def _get_content_check_code(acceptable_codes, res):
+def _get_json_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
     body.
 
     :raise MagicFolderApiError: If the response code is not acceptable.
 
-    :return Deferred[bytes]: If the response code is acceptable, a Deferred
-        which fires with the response body.
+    :return Deferred[Any]: If the response code is acceptable, a Deferred
+        which fires with the parsed response body.
     """
-    body = yield res.content()
+    body = yield res.json()
     if res.code not in acceptable_codes:
         raise MagicFolderApiError(res.code, body)
     returnValue(body)
@@ -149,15 +157,34 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
         return self._authorized_request("GET", api_url)
 
-    def add_folder(self, magic_folder, author_name, local_path, poll_interval):
-        # type: (unicode, unicode, FilePath, int) -> dict
+    def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
+        # type: (unicode, unicode, FilePath, int, int) -> dict
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
         return self._authorized_request("POST", api_url, body=json.dumps({
             'name': magic_folder,
             'author_name': author_name,
             'local_path': local_path.path,
             'poll_interval': poll_interval,
+            'scan_interval': scan_interval,
         }, ensure_ascii=False).encode('utf-8'))
+
+    def scan_folder(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan')
+        return self._authorized_request("PUT", api_url, body=b"")
+
+    def leave_folder(self, magic_folder, really_delete_write_capability):
+        # type: (unicode, bool) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder)
+        return self._authorized_request(
+            "DELETE",
+            api_url,
+            body=json.dumps(
+                {
+                    "really-delete-write-capability": really_delete_write_capability,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
 
     @inlineCallbacks
     def _authorized_request(self, method, url, body=b""):
@@ -180,9 +207,8 @@ class MagicFolderClient(object):
                 "Can't reach the magic folder daemon at all"
             )
 
-        body = yield _get_content_check_code([http.OK, http.CREATED], response)
-        # all responses should contain JSON
-        returnValue(json.loads(body))
+        body = yield _get_json_check_code([http.OK, http.CREATED], response)
+        returnValue(body)
 
 
 @implementer(IAgentEndpointFactory)
@@ -222,7 +248,7 @@ def create_http_client(reactor, api_client_endpoint_str):
 
 # See https://github.com/LeastAuthority/magic-folder/issues/280
 # global_service should expect/demand an Interface
-def create_testing_http_client(reactor, config, global_service, get_api_token, tahoe_client, status_service):
+def create_testing_http_client(reactor, config, global_service, get_api_token, status_service):
     """
     :param global_service: an object providing the API of the global
         magic-folder service
@@ -236,7 +262,7 @@ def create_testing_http_client(reactor, config, global_service, get_api_token, t
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service, status_service, tahoe_client).app.resource()
+    v1_resource = APIv1(config, global_service, status_service).app.resource()
     root = magic_folder_resource(get_api_token, v1_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),

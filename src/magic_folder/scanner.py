@@ -7,13 +7,13 @@ Scan a Magic Folder for changes.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
-from eliot import start_action, write_failure
+from eliot import current_action, start_action, write_failure
 from eliot.twisted import inline_callbacks
-from twisted.application.service import Service
+from twisted.application.internet import TimerService
+from twisted.application.service import MultiService
 from twisted.internet.defer import DeferredLock, gatherResults
 from twisted.internet.task import Cooperator
 
-from .magicpath import path2magic
 from .util.file import get_pathinfo
 from .util.twisted import exclusively
 
@@ -28,16 +28,16 @@ def _create_cooperator(clock):
 
     # NOTE: We don't use CooperatorSevice here, since:
     # - There is not a way to set the reactor it uses
-    # - Once we enable periodic scans, we want to wait to stop the cooperator
-    #   stop it until after the TimerService for periodic scans has stoppped,
-    #   so that the Cooperator will have no pending work.
+    # - We want to wait to stop the cooperator until after the TimerService for
+    #   periodic scans has stopped, so that the Cooperator will have no pending
+    #   work.
     return Cooperator(
         scheduler=schedule,
     )
 
 
 @attr.s
-class ScannerService(Service):
+class ScannerService(MultiService):
     """
     Periodically scan a local Magic Folder for new or updated files, and request
     the local snapshot service snapshot them.
@@ -47,6 +47,7 @@ class ScannerService(Service):
     _local_snapshot_service = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
+    _scan_interval = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
@@ -56,20 +57,37 @@ class ScannerService(Service):
             local_snapshot_service=local_snapshot_service,
             status=status,
             cooperator=_create_cooperator(clock),
+            scan_interval=folder_config.scan_interval,
         )
 
     def __attrs_post_init__(self):
         super(ScannerService, self).__init__()
+        if self._scan_interval is not None:
+            TimerService(
+                self._scan_interval,
+                self._loop,
+            ).setServiceParent(self)
 
     def stopService(self):
-        super(ScannerService, self).stopService()
-        self._cooperator.stop()
+        return (
+            super(ScannerService, self)
+            .stopService()
+            .addCallback(lambda _: self._cooperator.stop())
+        )
 
     def scan_once(self):
         """
         Perform a scan for new files.
         """
         return self._scan()
+
+    def _loop(self):
+        """
+        Called periodically to scan for new files.
+
+        Performs a scan for files, and logs and consumes all errors.
+        """
+        return self._scan().addErrback(write_failure)
 
     @exclusively
     @inline_callbacks
@@ -91,41 +109,69 @@ class ScannerService(Service):
             results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
-            yield find_updated_files(self._cooperator, self._config, process)
+            yield find_updated_files(
+                self._cooperator, self._config, process, status=self._status
+            )
             yield gatherResults(results)
         # XXX update/use IStatus to report scan start/end
 
 
-def find_updated_files(cooperator, folder_config, on_new_file):
+def find_updated_files(cooperator, folder_config, on_new_file, status):
     """
     :param Cooperator cooperator: The cooperator to use to control yielding to
         the reactor.
     :param MagicFolderConfig folder_config: the folder for which we
         are scanning
 
-    :param callable on_new_file: a 1-argument callable. This function
-        will be invoked for each updated / new file we find. The
+    :param Callable[[FilePath], None] on_new_file:
+        This function will be invoked for each updated / new file we find. The
         argument will be a FilePath of the updated/new file.
+
+    :param FileStatus status: The status implementation to report errors to.
 
     :returns Deferred[None]: Deferred that fires once the scan is complete.
     """
-    # XXX we don't handle deletes
-    def _process():
-        for path in folder_config.magic_path.asBytesMode("utf-8").walk():
-            if path.isdir():
-                continue
-            path = path.asTextMode("utf-8")
-            relpath = "/".join(path.segmentsFrom(folder_config.magic_path))
-            name = path2magic(relpath)
-            try:
-                snapshot_state = folder_config.get_currentsnapshot_pathstate(name)
-            except KeyError:
-                snapshot_state = None
-            path_state = get_pathinfo(path).state
-            if path_state != snapshot_state:
-                # TODO: We may also want to compare checksums here,
-                # to avoid `touch(1)` creating a new snapshot.
-                on_new_file(path)
-            yield
+    action = current_action()
+    magic_path = folder_config.magic_path
+    bytes_path = magic_path.asBytesMode("utf-8")
 
-    return cooperator.coiterate(_process())
+    # XXX we don't handle deletes
+    def process_file(path):
+        with action.context():
+            relpath = "/".join(path.segmentsFrom(magic_path))
+            with start_action(action_type="scanner:find-updates:file", relpath=relpath):
+                # NOTE: Make sure that we get both these states without yielding
+                # to the reactor. Otherwise, we may detect a changed made by us
+                # as a new change.
+                path_info = get_pathinfo(path)
+                try:
+                    snapshot_state = folder_config.get_currentsnapshot_pathstate(
+                        relpath
+                    )
+                except KeyError:
+                    snapshot_state = None
+
+                if not path_info.is_file:
+                    if snapshot_state is not None:
+                        status.error_occurred(
+                            "File {} was a file, and now is {}.".format(
+                                relpath, "a directory" if path_info.is_dir else "not"
+                            )
+                        )
+                    action.add_success_fields(changed_type=True)
+                    return
+                if path_info.state != snapshot_state:
+                    # TODO: We may also want to compare checksums here,
+                    # to avoid `touch(1)` creating a new snapshot.
+                    action.add_success_fields(update=True)
+                    on_new_file(path)
+                else:
+                    action.add_success_fields(update=True)
+
+    return cooperator.coiterate(
+        (
+            process_file(path.asTextMode("utf-8"))
+            for path in bytes_path.walk()
+            if path != bytes_path
+        )
+    )

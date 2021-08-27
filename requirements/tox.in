@@ -1,0 +1,10 @@
+-r test.in
+
+# pip 21.0.0 is the first version of pip with no Python 2.7 support.
+pip<21
+
+# 45.0.0 is the first version of setuptools with no Python 2.7 support.
+setuptools<45
+
+wheel
+subunitreporter

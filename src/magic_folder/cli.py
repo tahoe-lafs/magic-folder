@@ -39,6 +39,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
+from twisted.web import http
 
 from treq.client import (
     HTTPClient,
@@ -55,6 +56,7 @@ from .common import (
 
 from .client import (
     CannotAccessAPIError,
+    MagicFolderApiError,
     create_magic_folder_client,
     create_http_client,
 )
@@ -239,8 +241,12 @@ class AddOptions(usage.Options):
     synopsis = "LOCAL_DIR"
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
+        ("scan-interval", "s", "60", "Seconds between scans of local changes"),
         ("name", "n", None, "The name of this magic-folder", to_unicode),
         ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
+    ]
+    optFlags = [
+        ["disable-scanning", None, "Disable scanning for local changes."],
     ]
     description = (
         "Create a new magic-folder."
@@ -274,11 +280,20 @@ class AddOptions(usage.Options):
         except InvalidMagicFolderName as e:
             raise usage.UsageError(str(e))
         try:
-            if int(self['poll-interval']) <= 0:
+            self['poll-interval'] = int(self['poll-interval'])
+            if self['poll-interval'] <= 0:
                 raise ValueError("should be positive")
         except ValueError:
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
+            )
+        try:
+            self['scan-interval'] = int(self['scan-interval'])
+            if self['scan-interval'] <= 0:
+                raise ValueError("should be positive")
+        except ValueError:
+            raise usage.UsageError(
+                "--scan-interval must be a positive integer"
             )
 
 
@@ -293,8 +308,67 @@ def add(options):
         options["author"],
         options.local_dir,
         options["poll-interval"],
+        None if options['disable-scanning'] else options["scan-interval"],
     )
     print("Created magic-folder named '{}'".format(options["name"]), file=options.stdout)
+
+
+class StatusOptions(usage.Options):
+    description = (
+        "Show status of magic-folders"
+    )
+    optFlags = [
+    ]
+
+
+from autobahn.twisted.websocket import (
+    create_client_agent,
+)
+
+@inline_callbacks
+def status(options):
+    """
+    Status of magic-folders
+    """
+    endpoint_str = options.parent.config.api_client_endpoint
+    websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+
+    from twisted.internet import reactor
+    agent = create_client_agent(reactor)
+    proto = yield agent.open(
+        websocket_uri,
+        {
+            "headers": {
+                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+            }
+        },
+    )
+
+    import json
+    import humanize
+    def message(payload, is_binary=False):
+        now = reactor.seconds()
+        data = json.loads(payload)["state"]
+        for folder_name, folder in data["folders"].items():
+            print('Folder "{}":'.format(folder_name))
+            print("  downloads: {}".format(len(folder["downloads"])))
+            print("  uploads: {}".format(len(folder["uploads"])))
+            for u in folder["uploads"]:
+                queue = humanize.naturaldelta(now - u["queued-at"])
+                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
+                print("    {}: queued {} ago{}".format(u["name"], queue, start))
+            print("  recent:")
+            for f in folder["recent"]:
+                if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
+                    continue
+                print("    {}: modified {} ago (updated {} ago)".format(
+                    f["relpath"],
+                    humanize.naturaldelta(now - f["modified"]),
+                    humanize.naturaldelta(now - f["last-updated"]),
+                ))
+    proto.on('message', message)
+
+    yield proto.is_closed
 
 
 class ListOptions(usage.Options):
@@ -434,7 +508,7 @@ class LeaveOptions(usage.Options):
         ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
     ]
     optParameters = [
-        ("name", "n", None, "Name of magic-folder to leave"),
+        ("name", "n", None, "Name of magic-folder to leave", to_unicode),
     ]
 
     def postOptions(self):
@@ -445,38 +519,25 @@ class LeaveOptions(usage.Options):
             )
 
 
+@inline_callbacks
 def leave(options):
+    client = options.parent.client
     try:
-        folder_config = options.parent.config.get_magic_folder(options["name"])
-    except ValueError:
-        raise usage.UsageError(
-            "No such magic-folder '{}'".format(options["name"])
+        yield client.leave_folder(
+            options["name"],
+            really_delete_write_capability=options["really-delete-write-capability"],
         )
-
-    if folder_config.is_admin():
-        if not options["really-delete-write-capability"]:
-            print(
-                "ERROR: magic folder '{}' holds a write capability"
-                ", not deleting.".format(options["name"]),
-                file=options.stderr,
-            )
+    except MagicFolderApiError as e:
+        print("Error: {}".format(e), file=options.stderr)
+        if e.code == http.CONFLICT:
             print(
                 "If you really want to delete it, pass --really-delete-write-capability",
                 file=options.stderr,
             )
-            return 1
-
-    fails = options.parent.config.remove_magic_folder(options["name"])
-    if fails:
-        print(
-            "ERROR: Problems while removing state directories:",
-            file=options.stderr,
-        )
-        for path, error in fails:
-            print("{}: {}".format(path, error), file=options.stderr)
-        return 1
-
-    return 0
+        if "details" in e.body:
+            for path, error in e.body["details"]:
+                print("{}: {}".format(path, error), file=options.stderr)
+        raise SystemExit(1)
 
 
 class RunOptions(usage.Options):
@@ -515,6 +576,10 @@ def run(options):
 
 @with_eliot_options
 class BaseOptions(usage.Options):
+    stdin = sys.stdin
+    stdout = sys.stdout
+    stderr = sys.stderr
+
     optFlags = [
         ["version", "V", "Display version numbers."],
     ]
@@ -551,11 +616,13 @@ class BaseOptions(usage.Options):
 
     @property
     def client(self):
-        if self._http_client is None:
-            from twisted.internet import reactor
-            self._http_client = create_http_client(reactor, self.config.api_client_endpoint)
         if self._client is None:
             from twisted.internet import reactor
+
+            if self._http_client is None:
+                self._http_client = create_http_client(
+                    reactor, self.config.api_client_endpoint
+                )
             self._client = create_magic_folder_client(
                 reactor,
                 self.config,
@@ -565,9 +632,6 @@ class BaseOptions(usage.Options):
 
 
 class MagicFolderCommand(BaseOptions):
-    stdin = sys.stdin
-    stdout = sys.stdout
-    stderr = sys.stderr
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
@@ -579,6 +643,7 @@ class MagicFolderCommand(BaseOptions):
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders daemon process."],
+        ["status", None, StatusOptions, "Show the current status of a folder."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -634,6 +699,7 @@ subDispatch = {
     "join": join,
     "leave": leave,
     "list": list_,
+    "status": status,
     "run": run,
 }
 
