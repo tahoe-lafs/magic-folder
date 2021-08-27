@@ -13,7 +13,6 @@ import io
 import base64
 import time
 from mock import (
-    Mock,
     patch,
 )
 
@@ -337,22 +336,24 @@ class CacheTests(SyncTestCase):
         )
 
         # our tahoe client should not be asked anything if we re-cache
-        # the already-cached tree of Snapshots .. turn our client into
-        # a Mock to absorb any calls it receives.
-        self.cache.tahoe_client = Mock()
-        self.assertThat(
-            self.cache.get_snapshot_from_capability(cap),
-            succeeded(
-                MatchesStructure(
-                    metadata=ContainsDict({
-                        "snapshot_version": Equals(1),
-                        "parents": AfterPreprocessing(len, Equals(1)),
-                        "relpath": Equals(relpath),
-                    }),
+        # the already-cached tree of Snapshots ..
+
+        def all_requests_are_error(*args, **kw):
+            raise RuntimeError("nothing should call me")
+
+        with patch.object(self.cache, "tahoe_client", StringStubbingResource(all_requests_are_error)):
+            self.assertThat(
+                self.cache.get_snapshot_from_capability(cap),
+                succeeded(
+                    MatchesStructure(
+                        metadata=ContainsDict({
+                            "snapshot_version": Equals(1),
+                            "parents": AfterPreprocessing(len, Equals(1)),
+                            "relpath": Equals(relpath),
+                        }),
+                    )
                 )
             )
-        )
-        self.cache.tahoe_client.assert_not_called()
 
 
 class UpdateTests(AsyncTestCase):
