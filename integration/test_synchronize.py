@@ -9,7 +9,6 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
-import json
 import time
 from functools import partial
 
