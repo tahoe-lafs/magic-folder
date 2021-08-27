@@ -170,9 +170,7 @@ class MagicFolderClient(object):
 
     def scan_folder(self, magic_folder):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan')
-        return self._authorized_request("PUT", api_url, body=json.dumps({
-            "wait-for-snapshots": True,
-        }))
+        return self._authorized_request("PUT", api_url, body=b"")
 
     def leave_folder(self, magic_folder, really_delete_write_capability):
         # type: (unicode, bool) -> dict

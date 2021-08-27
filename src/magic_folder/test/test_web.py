@@ -978,7 +978,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             has_no_result(),
         )
@@ -1017,7 +1016,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child(folder_name, "scan"),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
@@ -1058,7 +1056,6 @@ class ScanFolderTests(SyncTestCase):
                 AUTH_TOKEN,
                 b"PUT",
                 self.url.child("a-folder-that-doesnt-exist").child('scan'),
-                dumps({'wait-for-snapshots': True})
             ),
             succeeded(
                 matches_response(
@@ -1069,41 +1066,6 @@ class ScanFolderTests(SyncTestCase):
                             "reason": StartsWith("No such magic-folder"),
                         })
                     )
-                ),
-            )
-        )
-
-    @given(
-        author_names(),
-        folder_names(),
-        relative_paths(),
-        binary(),
-    )
-    def test_scan_invalid_option(self, author_name, folder_name, path_in_folder, some_content):
-        """
-        An error results using /v1/magic-folder/<folder-name>/scan API without the required option.
-        """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-        node = MagicFolderNode.create(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {folder_name: magic_folder_config(author_name, local_path)},
-            start_folder_services=False,
-        )
-
-        self.assertThat(
-            authorized_request(
-                node.http_client,
-                AUTH_TOKEN,
-                b"PUT",
-                self.url.child(folder_name).child('scan'),
-                b"{}"
-            ),
-            succeeded(
-                matches_response(
-                    code_matcher=Equals(BAD_REQUEST),
                 ),
             )
         )
