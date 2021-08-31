@@ -271,6 +271,7 @@ class LocalSnapshot(object):
         validator=attr.validators.instance_of(UUID),
         default=attr.Factory(uuid4),
     )
+    remote_snapshot = attr.ib(default=None)  # if non-None, we've uploaded this one
 
     def get_content_producer(self):
         """

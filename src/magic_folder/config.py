@@ -82,6 +82,9 @@ from zope.interface import (
     Interface,
 )
 
+from .magic_file import (
+    MagicFile,
+)
 from .snapshot import (
     LocalAuthor,
     LocalSnapshot,
@@ -762,6 +765,8 @@ class MagicFolderConfig(object):
     name = attr.ib()
     _database = attr.ib(converter=LockableDatabase)  # sqlite3 Connection
     _get_current_timestamp = attr.ib(default=time.time)
+    # XXX hmm, MagicFiles kind of want access to the folder, and the config?
+    _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
 
     @classmethod
     def initialize(
@@ -1429,6 +1434,29 @@ class MagicFolderConfig(object):
         """
         # check if this folder has a writable collective dircap
         return not is_readonly_directory_cap(self.collective_dircap)
+
+    def get_magic_file_for(self, path, folder_status, local_snapshot_service):
+        """
+        :returns: a MagicFile instance for relpath. This may create one
+            first.
+        """
+        # also ensure this relpath doesn't 'escape' our magic-path
+        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        try:
+            return self._magic_files[relpath]
+        except KeyError:
+            # XXX 'something' should be e.g. firing a couple
+            # local_update()s at this if there are existing
+            # LocalSnapshots for this relpath -- do we do that here,
+            # or elsewhere?
+            mf = MagicFile(self, folder_status, local_snapshot_service, path, relpath)
+            self._magic_files[relpath] = mf
+
+            # debugging
+            def tracer(old_state, the_input, new_state):
+                print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
+            mf.set_trace(tracer)
+            return mf
 
 
 class ITokenProvider(Interface):

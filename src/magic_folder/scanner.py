@@ -96,25 +96,21 @@ class ScannerService(MultiService):
         Perform a scan for new files, and wait for all the snapshots to be
         complete.
         """
-        # TODO: Do we always want to wait for all the files to be snapshotted?
-        # If we don't wait for snapshotting to complete, then we probably want
-        # to coalesce multiple outstanding snapshot requests for the same file,
-        # or otherwise ensure that we don't end up snapshotting an unchanged
-        # file.
         results = []
 
         def process(path):
-            d = self._local_snapshot_service.add_file(path)
-            d.addErrback(write_failure)
+            magic_file = self._config.get_magic_file_for(path, self._status, self._local_snapshot_service)
+            [d] = magic_file.local_update(path)
+            print("DING", d)
             results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
                 self._cooperator, self._config, process, self._status
             )
-            yield find_deleted_files(
-                self._cooperator, self._config, process, self._status
-            )
+#            yield find_deleted_files(
+#                self._cooperator, self._config, process, self._status
+#            )
             yield gatherResults(results)
         # XXX update/use IStatus to report scan start/end
 
@@ -138,7 +134,7 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     magic_path = folder_config.magic_path
     bytes_path = magic_path.asBytesMode("utf-8")
 
-    # XXX we don't handle deletes
+    print("SCAN")
     def process_file(path):
         with action.context():
             relpath = "/".join(path.segmentsFrom(magic_path))
@@ -154,8 +150,13 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                 except KeyError:
                     snapshot_state = None
 
+                print(path_info)
                 if not path_info.is_file:
                     if snapshot_state is not None:
+                        # XXX this is basically a delete, right? the
+                        # "file" has gone away, and we should
+                        # recursively scan the now-directory and
+                        # create new snapshots for any files.
                         status.error_occurred(
                             "File {} was a file, and now is {}.".format(
                                 relpath, "a directory" if path_info.is_dir else "not"
@@ -164,8 +165,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                     action.add_success_fields(changed_type=True)
                     return
                 if path_info.state != snapshot_state:
-                    # TODO: We may also want to compare checksums here,
-                    # to avoid `touch(1)` creating a new snapshot.
                     action.add_success_fields(update=True)
                     on_new_file(path)
                 else:

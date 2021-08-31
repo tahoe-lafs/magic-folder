@@ -109,12 +109,6 @@ class LocalSnapshotCreator(object):
 
         :param FilePath path: a single file inside our magic-folder dir
         """
-        # TODO: We may to have logic similar to (shared with?) the scanner,
-        # to see if we need to snapshot the file. This is probably most useful
-        # when we get here via API, rather than the scanner, but may also avoid
-        # duplicate snapshots if scanning doesn't wait for snapshotting to
-        # complete.
-
         # Query the db to check if there is an existing local
         # snapshot for the file being added.
         # If so, we use that as the parent.
@@ -207,12 +201,14 @@ class LocalSnapshotService(service.Service):
         while True:
             try:
                 (path, d) = yield self._queue.get()
+                print("Q", path, d)
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     print("process {}".format(path.path))
-                    yield self._snapshot_creator.store_local_snapshot(path)
+                    snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    # XXX state-machine should do this (now)
                     # We explicitly don't wait to upload the snapshot.
                     yield self._uploader_service.perform_upload()
-                    d.callback(None)
+                    d.callback(snap)
             except CancelledError:
                 break
             except Exception:
@@ -258,7 +254,7 @@ class LocalSnapshotService(service.Service):
                 return
 
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-            self._status.upload_queued(relpath)
+##            self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(abspath=path.path)
             raise APIError(

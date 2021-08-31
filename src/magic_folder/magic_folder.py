@@ -173,11 +173,9 @@ class MagicFolder(service.MultiService):
         self.scanner_service = scanner_service
         # By setting the parents these services will now start when
         # self, the top-level service, starts
+##        uploader_service.setServiceParent(self)
         local_snapshot_service.setServiceParent(self)
-        uploader_service.setServiceParent(self)
-        downloader.setServiceParent(self)
-        local_snapshot_service.setServiceParent(self)
-        uploader_service.setServiceParent(self)
+##        downloader.setServiceParent(self)
         scanner_service.setServiceParent(self)
 
     def ready(self):
