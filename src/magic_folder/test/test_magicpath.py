@@ -29,6 +29,7 @@ from testtools import ExpectedException
 from testtools.matchers import (
     AfterPreprocessing,
     Equals,
+    StartsWith,
 )
 
 from .common import (
@@ -67,6 +68,15 @@ class MagicPath(SyncTestCase):
     def test_invalid(self):
         with ExpectedException(InvalidMangledPath):
             magic2path("@metadata")
+
+    def test_invalid_exception_str(self):
+        """
+        confirm the __str__ method of InvalidMangledPath doesn't fail
+        """
+        self.assertThat(
+            str(InvalidMangledPath("@invalid", "sequence error")),
+            StartsWith("Invalid escape sequence")
+        )
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))
     def test_ignore_known_suffixes(self, path, suffix):
