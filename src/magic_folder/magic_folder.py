@@ -341,7 +341,7 @@ REMOVE_FROM_PENDING = ActionType(
 
 PATH = Field(
     u"path",
-    lambda fp: fp.asTextMode().path,
+    lambda fp: "<None>" if fp is None else fp.asTextMode().path,
     u"A local filesystem path.",
     validateInstanceOf(FilePath),
 )

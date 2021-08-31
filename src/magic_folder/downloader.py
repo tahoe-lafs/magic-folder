@@ -304,8 +304,10 @@ class MagicFolderUpdater(object):
 
             local_path = self._config.magic_path.preauthChild(relpath)
 
-            # TODO: We should be able to get all this info from a single
-            # database request
+            # TODO: We should be able to get all this info from a
+            # single database request (-> why does that matter? as
+            # long as we don't yield)
+
             # see if we have existing local or remote snapshots for
             # this relpath already
             try:
@@ -322,9 +324,10 @@ class MagicFolderUpdater(object):
 
             try:
                 local_snap = self._config.get_local_snapshot(relpath)
-                action.add_success_fields(
-                    local=local_snap.content_path.path,
-                )
+                if local_snap.content_path:
+                    action.add_success_fields(
+                        local=local_snap.content_path.path,
+                    )
             except KeyError:
                 local_snap = None
 
@@ -335,10 +338,6 @@ class MagicFolderUpdater(object):
             # note: if local_snap and remote_cap are both non-None
             # then remote_cap should already be the ancestor of
             # local_snap by definition.
-
-            # XXX check if we're already conflicted; if so, do not continue
-
-            # XXX not dealing with deletes yet
 
             is_conflict = False
             local_pathinfo = get_pathinfo(local_path)
@@ -383,28 +382,32 @@ class MagicFolderUpdater(object):
 
             else:
                 # there is no local file
-                # XXX we don't handle deletes yet
-                assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
+
+                # -- if this file is currently deleted, that's fine
+                # -- .. otherwise, there's an inconsistency
+                # XXX FIXME TODO
+                ##assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
-            self._status.download_started(relpath)
-            try:
-                with start_action(
-                    action_type=u"downloader:updater:content-to-staging",
-                    relpath=relpath,
-                    capability=snapshot.capability,
-                ):
-                    try:
-                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot.content_cap, self.tahoe_client)
-                    except Exception:
-                        self._status.error_occurred(
-                            "Failed to download snapshot for '{}'.".format(relpath)
-                        )
-                        raise
+            if snapshot.content_cap is not None:
+                self._status.download_started(relpath)
+                try:
+                    with start_action(
+                        action_type=u"downloader:updater:content-to-staging",
+                        relpath=relpath,
+                        capability=snapshot.capability,
+                    ):
+                        try:
+                            staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot.content_cap, self.tahoe_client)
+                        except Exception:
+                            self._status.error_occurred(
+                                "Failed to download snapshot for '{}'.".format(relpath)
+                            )
+                            raise
 
-            finally:
-                self._status.download_finished(relpath)
+                finally:
+                    self._status.download_finished(relpath)
 
             # once here, we know if we have a conflict or not. if
             # there is nothing to do, we shold have returned
@@ -427,13 +430,17 @@ class MagicFolderUpdater(object):
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                     self._config.add_conflict(snapshot)
                 else:
-                    try:
-                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
-                    except OSError as e:
-                        self._status.error_occurred(
-                            "Failed to overwrite file '{}': {}".format(relpath, str(e))
-                        )
-                        raise
+                    print("DECIDE", snapshot.content_cap)
+                    if snapshot.content_cap is None:
+                        self._magic_fs.mark_delete(snapshot)
+                    else:
+                        try:
+                            path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
+                        except OSError as e:
+                            self._status.error_occurred(
+                                "Failed to overwrite file '{}': {}".format(relpath, str(e))
+                            )
+                            raise
 
                     # Note, if we crash here (after moving the file into place
                     # but before noting that in our database) then we could
@@ -472,6 +479,8 @@ class LocalMagicFolderFilesystem(object):
         """
         IMagicFolderFilesystem API
         """
+        if file_cap is None:
+            return
         import hashlib
         h = hashlib.sha256()
         h.update(file_cap)
@@ -566,12 +575,15 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
 
-    def mark_delete(remote_snapshot):
+    def mark_delete(self, remote_snapshot):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        raise NotImplementedError()
+        print("MARK DELETE", remote_snapshot)
+        local_path = self.magic_path.preauthChild(remote_snapshot.relpath)
+        assert local_path.exists(), "delete, but local file already gone"
+        local_path.remove()
 
 
 @implementer(IMagicFolderFilesystem)
@@ -679,6 +691,7 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
+                        print(relpath, file_data)
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
     @inline_callbacks
@@ -704,6 +717,7 @@ class DownloaderService(service.MultiService):
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
+            print(our_snapshot_cap, snapshot.capability)
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)

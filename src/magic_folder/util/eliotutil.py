@@ -242,6 +242,7 @@ class _EliotLogging(Service):
             remove_destination(dest)
         return Service.stopService(self)
 
+
 @implementer(ILogObserver)
 @attr.s(frozen=True)
 class _TwistedLoggerToEliotObserver(object):

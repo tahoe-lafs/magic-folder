@@ -87,7 +87,11 @@ from .join import (
 from .service import (
     MagicFolderService,
 )
-from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
+from .util.eliotutil import (
+    maybe_enable_eliot_logging,
+    with_eliot_options,
+)
+
 
 if six.PY2:
     def to_unicode(s):
@@ -361,8 +365,9 @@ def status(options):
             for f in folder["recent"]:
                 if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
                     continue
-                print("    {}: modified {} ago (updated {} ago)".format(
+                print("    {}: {}modified {} ago (updated {} ago)".format(
                     f["relpath"],
+                    "[CONFLICT] " if f["conflicted"] else "",
                     humanize.naturaldelta(now - f["modified"]),
                     humanize.naturaldelta(now - f["last-updated"]),
                 ))
@@ -551,9 +556,11 @@ def run(options):
     synchronization between local and remote folders.
     """
     from twisted.internet import reactor
+    xxx = open("ding", "w")
 
     # being logging to stdout
     def event_to_string(event):
+        xxx.write("{}\n".format(event))
         # "t.i.protocol.Factory" produces a bunch of 'starting' and
         # 'stopping' messages that are quite noisy in the logs (and
         # don't provide useful information); skip them.
