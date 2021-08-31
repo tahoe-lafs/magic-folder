@@ -9,8 +9,8 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
-from functools import partial
 import time
+from functools import partial
 
 from eliot import Message
 import pytest
@@ -476,6 +476,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
         timeout=25,
     )
 
+
 @pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
 @pytest_twisted.inlineCallbacks
 def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_snapshot):
@@ -543,6 +544,7 @@ def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_sn
         content1,
         timeout=10,
     )
+
 
 @pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
 @pytest_twisted.inlineCallbacks

@@ -3,9 +3,12 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from configparser import ConfigParser
-
+import json
 import attr
+from configparser import (
+    ConfigParser,
+)
+
 from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
@@ -230,15 +233,33 @@ class MagicFolderService(MultiService):
                 reason="scan_interval must be positive integer or null",
             )
 
-
         # create our author
         author = create_local_author(author_name)
 
+        # create '@metadata' content for our directory and collective;
+        # note that we're re-using it here because it has the same
+        # data but in principal the metadata could be different for
+        # collective vs. personal DMDs -- also currently it fits into
+        # a LIT cap anyway (so they'll be identical)
+        dir_metadata_cap = yield self.tahoe_client.create_immutable(
+            json.dumps({"version": 1}).encode("utf8")
+        )
+
         # create an unlinked directory and get the collective write-cap
         collective_write_cap = yield self.tahoe_client.create_mutable_directory()
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap=collective_write_cap,
+            path_name="@metadata",
+            entry_cap=dir_metadata_cap,
+        )
 
         # create the personal dmd write-cap
         personal_write_cap = yield self.tahoe_client.create_mutable_directory()
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            mutable_cap=personal_write_cap,
+            path_name="@metadata",
+            entry_cap=dir_metadata_cap,
+        )
 
         # 'attenuate' our personal dmd write-cap to a read-cap
         personal_readonly_cap = to_readonly_capability(personal_write_cap)

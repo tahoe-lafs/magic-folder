@@ -667,7 +667,8 @@ class DownloaderService(service.MultiService):
         with start_action(
             action_type="downloader:scan-collective", folder=self._config.name
         ):
-            for participant in (yield self._participants.list()):
+            participants = yield self._participants.list()
+            for participant in participants:
                 with start_action(
                     action_type="downloader:scan-participant",
                     participant=participant.name,
