@@ -727,7 +727,7 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
         identifier=UUID(hex=identifier),
         relpath=relpath,
         author=author,
-        content_path=FilePath(content_paths[identifier]),
+        content_path=None if content_paths[identifier] is None else FilePath(content_paths[identifier]),
         metadata=metadata.get(identifier, {}),
         parents_remote=_get_remote_parents(identifier, parents),
         parents_local=_get_local_parents(
@@ -920,6 +920,7 @@ class MagicFolderConfig(object):
 
         try:
             # Create the primary row.
+            content_path = None if snapshot.content_path is None else snapshot.content_path.asTextMode("utf-8").path
             cursor.execute(
                 """
                 INSERT INTO
@@ -927,7 +928,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, snapshot.content_path.asTextMode("utf-8").path),
+                (unicode(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
