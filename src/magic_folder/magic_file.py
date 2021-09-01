@@ -221,7 +221,7 @@ class MagicFile(object):
 
             # XXX FIXME must change db to delete just the one snapshot...
             # Remove the LocalSnapshot from the db.
-            yield self._config.delete_localsnapshot(relpath)
+            yield self._config.delete_all_local_snapshots_for(relpath)
             self.personal_dmd_updated(snapshot)
         d = update_personal_dmd()
         d.addErrback(write_traceback)

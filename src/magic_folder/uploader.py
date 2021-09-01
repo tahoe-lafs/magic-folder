@@ -353,6 +353,17 @@ class RemoteSnapshotCreator(object):
                 self._status.upload_finished(relpath)
 
     @inline_callbacks
+    def _upload_one_snapshot(self, snapshot):
+        """
+        Upload a single LocalSnapshot instance. It is an error if this
+        snapshot has any local parents (use _upload_some_snapshots()
+        instead or upload parents first).
+
+        :param LocalSnapshot snapshot: what to upload
+        :returns Deferred[RemoteSnapshot]: the result of the upload
+        """
+
+    @inline_callbacks
     def _upload_some_snapshots(self, relpath):
         """
         Upload all of the snapshots for a particular path.
@@ -414,7 +425,7 @@ class RemoteSnapshotCreator(object):
                 )
 
         # Remove the LocalSnapshot from the db.
-        yield self._config.delete_localsnapshot(relpath)
+        yield self._config.delete_all_local_snapshots_for(relpath)
 
 
 @attr.s

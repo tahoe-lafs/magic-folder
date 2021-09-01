@@ -1002,9 +1002,98 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, relpath):
+    def local_snapshot_became_remote(self, cursor, local_snapshot, remote_snapshot):
         """
-        remove the row corresponding to the given relpath from the local_snapshots table
+        A LocalSnapshot has been uploaded, yielding a
+        RemoteSnapshot. This only makes sense for a local_snapshot
+        that has _just_ remote parents.
+
+        :param LocalSnapshot local_snapshot: the instance that was uploaded
+
+        :param RemoteSnapshot remote_snapshot: the instance
+            corresponding to local_snapshot
+
+        Adjust the database to match:
+        - the "child" of
+        """
+        assert local_snapshot.relpath == remote_snapshot.relpath, "Mismatched relpaths"
+        if local_snapshot.parents_local:
+            raise ValueError(
+                "Cannot adjust LocalSnapshot that still has local parents"
+            )
+        if local_snapshot.parents_remote != remote_snapshot.parents_raw:
+            raise ValueError(
+                "RemoteSnapshot does not have correct parents"
+            )
+
+        parents = _get_parents(cursor, local_snapshot.relpath)
+        assert local_snapshot.identifier not in parents, "Data inconsistency: parents found in db"
+
+        # okay, we are good-to-go: this local-snapshot appears to be
+        # semantically valid (has no local parents) and matches the
+        # remote -- we now need to correct the database:
+        # - delete the row for this local
+        # - make the parent of the child point at the remote instead
+
+        children = []
+        for child_uuid, parents in parents.items():
+            for idx, is_local, parent_uuid in parents:
+                if local_snapshot.identifier == UUID(hex=parent_uuid):
+                    children.append(child_uuid)
+        assert len(children) == 1, "Data inconsistency: too many children for local snapshot"
+        child = children[0]
+
+        # adjust this parent of 'child' to be a remote-parent instead
+        cursor.execute(
+            """
+            UPDATE
+                local_snapshot_parent
+            SET
+                local_only=?, parent_identifier=?
+            WHERE
+                snapshot_identifier=?
+            """,
+            (
+                False,  # local_only
+                remote_snapshot.capability,  # parent_identifier
+                str(child),  # snapshot_identifier
+            )
+        )
+
+        # delete the local-snapshot
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshots]
+            WHERE
+                identifier=?
+            """,
+            (str(local_snapshot.identifier), )
+        )
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshot_metadata]
+            WHERE
+                snapshot_identifier=?
+            """,
+            (str(local_snapshot.identifier), )
+        )
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshot_parent]
+            WHERE
+                snapshot_identifier=?
+            """,
+            (str(local_snapshot.identifier), )
+        )
+
+
+    @with_cursor
+    def delete_all_local_snapshots_for(self, cursor, relpath):
+        """
+        remove all rows corresponding to the given relpath from the local_snapshots table
 
         :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
@@ -1032,7 +1121,7 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with delete_localsnapshot
+        # TODO: We should consider merging this with local_snapshot_become_remote
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,
