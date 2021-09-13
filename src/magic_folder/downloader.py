@@ -646,13 +646,10 @@ class RemoteScannerService(service.MultiService):
     _config = attr.ib()
     _participants = attr.ib()
     _file_factory = attr.ib()  # MagicFileFactory instance
-    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
-    _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, file_factory, status, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache):
         """
         Create a RemoteScannerService from the MagicFolder configuration.
         """
@@ -661,10 +658,7 @@ class RemoteScannerService(service.MultiService):
             config,
             participants,
             file_factory,
-            status,
             remote_snapshot_cache,
-            folder_updater,
-            tahoe_client,
         )
 
     def __attrs_post_init__(self):

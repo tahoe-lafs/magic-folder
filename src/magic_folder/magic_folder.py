@@ -133,6 +133,18 @@ class MagicFolder(service.MultiService):
             status=folder_status,
         )
 
+        folder_updater = MagicFolderUpdater(
+            LocalMagicFolderFilesystem(
+                mf_config.magic_path,
+                mf_config.stash_path,
+            ),
+            mf_config,
+            remote_snapshot_cache_service,
+            tahoe_client,
+            status=folder_status,
+            write_participant=participants.writer,
+        )
+
         return cls(
             client=tahoe_client,
             config=mf_config,
@@ -146,20 +158,7 @@ class MagicFolder(service.MultiService):
                 config=mf_config,
                 participants=participants,
                 file_factory=magic_file_factory,
-                status=folder_status,
                 remote_snapshot_cache=remote_snapshot_cache_service,
-                folder_updater=MagicFolderUpdater(
-                    LocalMagicFolderFilesystem(
-                        mf_config.magic_path,
-                        mf_config.stash_path,
-                    ),
-                    mf_config,
-                    remote_snapshot_cache_service,
-                    tahoe_client,
-                    status=folder_status,
-                    write_participant=participants.writer,
-                ),
-                tahoe_client=tahoe_client,
             ),
             folder_status=folder_status,
             scanner_service=scanner_service,
