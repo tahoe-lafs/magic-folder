@@ -151,9 +151,9 @@ class MagicFile(object):
     @_machine.input()
     def remote_update(self, snapshot):
         """
-        The file has a remote update
+        The file has a remote update.
 
-        XXX this should probably be 'snapshots' for multiple participants
+        XXX should this be 'snapshots' for multiple participant updates 'at once'?
         XXX does this include deletes?
         """
 

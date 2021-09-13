@@ -34,7 +34,7 @@ from .uploader import (
 )
 from .downloader import (
     RemoteSnapshotCacheService,
-    DownloaderService,
+    RemoteScannerService,
     MagicFolderUpdater,
     LocalMagicFolderFilesystem,
 )
@@ -140,11 +140,12 @@ class MagicFolder(service.MultiService):
             local_snapshot_service=local_snapshot_service,
             uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
-            downloader=DownloaderService.from_config(
+            downloader=RemoteScannerService.from_config(
                 clock=reactor,
                 name=name,
                 config=mf_config,
                 participants=participants,
+                file_factory=magic_file_factory,
                 status=folder_status,
                 remote_snapshot_cache=remote_snapshot_cache_service,
                 folder_updater=MagicFolderUpdater(

@@ -92,7 +92,6 @@ class ScannerService(MultiService):
         Initialize state for existing, serialized LocalSnapshots that are
         in the database.
         """
-        print("init")
         localsnapshot_paths = self._config.get_all_localsnapshot_paths()
         for relpath in localsnapshot_paths:
             abspath = self._config.magic_path.preauthChild(relpath)

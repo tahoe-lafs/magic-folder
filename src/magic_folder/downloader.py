@@ -636,7 +636,7 @@ class InMemoryMagicFolderFilesystem(object):
 
 @attr.s
 @implementer(service.IService)
-class DownloaderService(service.MultiService):
+class RemoteScannerService(service.MultiService):
     """
     A service that periodically polls the Colletive DMD for new
     RemoteSnapshot capabilities to download.
@@ -645,20 +645,22 @@ class DownloaderService(service.MultiService):
     _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
     _config = attr.ib()
     _participants = attr.ib()
+    _file_factory = attr.ib()  # MagicFileFactory instance
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
     _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
     _tahoe_client = attr.ib()
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, clock, name, config, participants, file_factory, status, remote_snapshot_cache, folder_updater, tahoe_client):
         """
-        Create a DownloaderService from the MagicFolder configuration.
+        Create a RemoteScannerService from the MagicFolder configuration.
         """
         return cls(
             clock,
             config,
             participants,
+            file_factory,
             status,
             remote_snapshot_cache,
             folder_updater,
@@ -695,7 +697,6 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        ###print(relpath, file_data)
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
     @inline_callbacks
@@ -725,4 +726,8 @@ class DownloaderService(service.MultiService):
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
+                abspath = self._config.magic_path.preauthChild(snapshot.relpath)
+                mf = self._file_factory.magic_file_for(abspath)
+                d = mf.remote_update(snapshot)
+                print("did remote_update", d)
+                ###yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
