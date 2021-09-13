@@ -463,6 +463,11 @@ class MagicFolderUpdater(object):
                         snapshot.capability.encode("ascii"),
                     )
 
+                    self._config.store_currentsnapshot_state(
+                        relpath,
+                        path_state,
+                    )
+
 
 @implementer(IMagicFolderFilesystem)
 @attr.s
