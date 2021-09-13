@@ -17,6 +17,7 @@ from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
     CancelledError,
+    returnValue,
 )
 from twisted.web import http
 from zope.interface import (
@@ -108,6 +109,8 @@ class LocalSnapshotCreator(object):
         'know' about the file already).
 
         :param FilePath path: a single file inside our magic-folder dir
+
+        :returns Deferred[LocalSnapshot]: the completed snapshot
         """
         # Query the db to check if there is an existing local
         # snapshot for the file being added.
@@ -171,6 +174,7 @@ class LocalSnapshotCreator(object):
             # FIXME: should be in a transaction
             self._db.store_local_snapshot(snapshot)
             self._db.store_currentsnapshot_state(relpath, path_info.state)
+            returnValue(snapshot)
 
 
 @attr.s
@@ -207,7 +211,7 @@ class LocalSnapshotService(service.Service):
                     snap = yield self._snapshot_creator.store_local_snapshot(path)
                     # XXX state-machine should do this (now)
                     # We explicitly don't wait to upload the snapshot.
-                    yield self._uploader_service.perform_upload()
+                    ###yield self._uploader_service.perform_upload()
                     d.callback(snap)
             except CancelledError:
                 break
@@ -239,6 +243,7 @@ class LocalSnapshotService(service.Service):
         :raises: ValueError if the given file is not a descendent of
                  magic folder path or if the given path is a directory.
         :raises: TypeError if the input is not a FilePath.
+        :returns Deferred[LocalSnapshot]: the completed snapshot
         """
         if not isinstance(path, FilePath):
             raise TypeError(
@@ -246,13 +251,6 @@ class LocalSnapshotService(service.Service):
             )
 
         try:
-            # if "path" _is_ a conflict-file it should not be uploaded
-            # This check (or the following "segmentsFrom") will throw
-            # ValueError if path is outside the magic-path .. this is
-            # desired as a check as well
-            if self._config.is_conflict_marker(path):
-                return
-
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
 ##            self._status.upload_queued(relpath)
         except ValueError:
@@ -309,20 +307,6 @@ class RemoteSnapshotCreator(object):
     _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
 
-    def initialize_upload_status(self):
-        """
-        If any local-snapshots are present in our database at
-        startup we need to reflect their "pending upload" status
-        properly.
-        """
-        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
-        for relpath in localsnapshot_paths:
-            # if we re-started with LocalSnapshots already in our database
-            # locally, we won't have done a .upload_queued() yet _in this
-            # process_ (that is, a previous daemon did that resulting in
-            # the database entries)
-            self._status.upload_queued(relpath)
-
     @inline_callbacks
     def upload_local_snapshots(self):
         """
@@ -341,7 +325,7 @@ class RemoteSnapshotCreator(object):
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
             try:
                 with action:
-                    self._status.upload_started(relpath)
+##                    self._status.upload_started(relpath)
                     yield self._upload_some_snapshots(relpath)
             except TahoeAPIError as e:
                 self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
@@ -350,7 +334,8 @@ class RemoteSnapshotCreator(object):
             except Exception:
                 write_traceback()
             else:
-                self._status.upload_finished(relpath)
+                pass
+#                self._status.upload_finished(relpath)
 
     @inline_callbacks
     def _upload_one_snapshot(self, snapshot):
@@ -368,6 +353,8 @@ class RemoteSnapshotCreator(object):
         """
         Upload all of the snapshots for a particular path.
         """
+        print("UPLOAD SOME")
+        return
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(relpath)
         upload_started_at = time.time()
@@ -470,10 +457,6 @@ class UploaderService(service.MultiService):
         to poll for LocalSnapshots in the database.
         """
         super(UploaderService, self).startService()
-
-        # if we started with any local snapshots already in the
-        # database we must reflect this in our status service.
-        self._remote_snapshot_creator.initialize_upload_status()
 
     def perform_upload(self):
         """

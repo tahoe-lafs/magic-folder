@@ -690,7 +690,7 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        print(relpath, file_data)
+                        ###print(relpath, file_data)
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
     @inline_callbacks
@@ -716,7 +716,7 @@ class DownloaderService(service.MultiService):
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
-            print(our_snapshot_cap, snapshot.capability)
+            ###print(our_snapshot_cap, snapshot.capability)
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)

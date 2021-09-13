@@ -254,8 +254,8 @@ class TahoeClient(object):
         ).to_uri().to_text().encode("ascii")
         action = start_action(
             action_type=u"magic-folder:cli:list-dir",
-            dirnode_uri=dir_cap.decode("ascii"),
-            api_uri=api_uri,
+            # leaks secrets: dirnode_uri=dir_cap.decode("ascii"),
+            # leaks secrets: api_uri=api_uri,
         )
         with action.context():
             response = yield self.http_client.get(

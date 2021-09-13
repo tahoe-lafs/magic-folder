@@ -44,6 +44,7 @@ class ScannerService(MultiService):
     """
 
     _config = attr.ib()
+    _file_factory = attr.ib()
     _local_snapshot_service = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
@@ -51,9 +52,10 @@ class ScannerService(MultiService):
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
-    def from_config(cls, clock, folder_config, local_snapshot_service, status):
+    def from_config(cls, clock, folder_config, file_factory, local_snapshot_service, status):
         return cls(
             config=folder_config,
+            file_factory=file_factory,
             local_snapshot_service=local_snapshot_service,
             status=status,
             cooperator=_create_cooperator(clock),
@@ -68,6 +70,10 @@ class ScannerService(MultiService):
                 self._loop,
             ).setServiceParent(self)
 
+    def startService(self):
+        self._deserialize_local_snapshots()
+        return super(ScannerService, self).startService()
+
     def stopService(self):
         return (
             super(ScannerService, self)
@@ -80,6 +86,19 @@ class ScannerService(MultiService):
         Perform a scan for new files.
         """
         return self._scan()
+
+    def _deserialize_local_snapshots(self):
+        """
+        Initialize state for existing, serialized LocalSnapshots that are
+        in the database.
+        """
+        print("init")
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
+        for relpath in localsnapshot_paths:
+            abspath = self._config.magic_path.preauthChild(relpath)
+            mf = self._file_factory.magic_file_for(abspath)
+            snap = self._config.get_local_snapshot(relpath)
+            mf.existing_local_snapshot(snap)
 
     def _loop(self):
         """
@@ -99,10 +118,13 @@ class ScannerService(MultiService):
         results = []
 
         def process(path):
-            magic_file = self._config.get_magic_file_for(path, self._status, self._local_snapshot_service)
-            [d] = magic_file.local_update(path)
-            print("DING", d)
-            results.append(d)
+            magic_file = self._file_factory.magic_file_for(path)
+            # if "path" _is_ a conflict-file it should not be uploaded
+            if self._config.is_conflict_marker(path):
+                return
+            results.append(
+                magic_file.local_update(path)
+            )
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
@@ -134,7 +156,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     magic_path = folder_config.magic_path
     bytes_path = magic_path.asBytesMode("utf-8")
 
-    print("SCAN")
     def process_file(path):
         with action.context():
             relpath = "/".join(path.segmentsFrom(magic_path))
@@ -150,7 +171,7 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                 except KeyError:
                     snapshot_state = None
 
-                print(path_info)
+                ###print(path_info)
                 if not path_info.is_file:
                     if snapshot_state is not None:
                         # XXX this is basically a delete, right? the
