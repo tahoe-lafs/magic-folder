@@ -539,6 +539,15 @@ class LocalMagicFolderFilesystem(object):
             action_type=u"downloader:filesystem:mark-overwrite:emplace",
             content_final_path=local_path.path,
         ):
+            if not local_path.parent().exists():
+                local_path.parent().makedirs()
+            else:
+                if not local_path.parent().isdir():
+                    raise RuntimeError(
+                        "Wanted to write a subdir of {} but it's not a directory".format(
+                            local_path.parent().path,
+                        )
+                    )
             staged_content.moveTo(local_path)
         path_state = get_pathinfo(local_path).state
         if (
