@@ -223,12 +223,6 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def download_error(self, snapshot):
-        """
-        An error occurred while downloading a snapshot
-        """
-
-    @_machine.input()
     def snapshot_completed(self, snapshot):
         """
         A LocalSnapshot for this update is created
@@ -269,18 +263,6 @@ class MagicFile(object):
         """
         snapshot is not our ancestor
         """
-
-    @_machine.output()
-    def _pause_between_downloads(self, snapshot):
-        """
-        """
-        print("pause between downloads")
-        return deferLater(reactor, 5.0)
-
-    @_machine.output()
-    def _pause_between_uploads(self, new_content):
-        print("pause between downloads")
-        return deferLater(reactor, 5.0)
 
     @_machine.output()
     def _begin_download(self, snapshot):
@@ -503,19 +485,18 @@ class MagicFile(object):
                 Message.log(message_type="upload_completed")
 
         d = perform_upload()
-        def bad(f):
-            print("error; waiting 5 seconds")
-            x = deferLater(reactor, 5.0)
-            print("X", x)
-            def foo(*args):
-                print("LATER", args)
-                return perform_upload()
-            x.addCallback(foo)
-            x.addErrback(bad)
-            return x
-        d.addErrback(bad)
+
+        def upload_error(f):
+            self._factory._folder_status.error_occurred(
+                "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
+            )
+            print("error {}".format(f.getErrorMessage()[:60]))
+            delay = deferLater(reactor, 5.0)
+            delay.addCallback(lambda _: perform_upload())
+            delay.addErrback(upload_error)
+            return delay
+        d.addErrback(upload_error)
         return d
-#        d.addErrback(write_traceback)
 
     @_machine.output()
     def _mark_download_conflict(self, snapshot, staged_path):
@@ -628,11 +609,6 @@ class MagicFile(object):
         download_completed,
         enter=download_check_local,
         outputs=[_check_local_update],
-    )
-    downloading.upon(
-        download_error,
-        enter=downloading,
-        outputs=[_pause_between_downloads, _begin_download],
     )
     downloading.upon(
         remote_update,

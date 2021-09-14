@@ -79,7 +79,7 @@ class TahoeAPIError(Exception):
         )
 
     def __str__(self):
-        return repr(self)
+        return "Tahoe API error {}".format(self.code)
 
 
 @attr.s(frozen=True)
