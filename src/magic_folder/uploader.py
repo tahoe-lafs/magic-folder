@@ -205,13 +205,8 @@ class LocalSnapshotService(service.Service):
         while True:
             try:
                 (path, d) = yield self._queue.get()
-                print("Q", path, d)
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    print("process {}".format(path.path))
                     snap = yield self._snapshot_creator.store_local_snapshot(path)
-                    # XXX state-machine should do this (now)
-                    # We explicitly don't wait to upload the snapshot.
-                    ###yield self._uploader_service.perform_upload()
                     d.callback(snap)
             except CancelledError:
                 break
@@ -252,7 +247,6 @@ class LocalSnapshotService(service.Service):
 
         try:
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-##            self._status.upload_queued(relpath)
         except ValueError:
             ADD_FILE_FAILURE.log(abspath=path.path)
             raise APIError(
@@ -353,7 +347,6 @@ class RemoteSnapshotCreator(object):
         """
         Upload all of the snapshots for a particular path.
         """
-        print("UPLOAD SOME")
         return
         # deserialize into LocalSnapshot
         snapshot = self._config.get_local_snapshot(relpath)

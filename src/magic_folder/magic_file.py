@@ -7,26 +7,30 @@ from __future__ import (
 
 import time
 
+import automat
+import attr
 from eliot import (
     write_traceback,
+    start_action,
+    current_action,
+    Message,
 )
 from eliot.twisted import (
     inline_callbacks,
+)
+from twisted.internet.task import (
+    deferLater,
+)
+from twisted.internet import (
+    reactor,
 )
 
 from .snapshot import (
     write_snapshot_to_tahoe,
 )
-
-# i think this is "too pessimistic" on local updates
-#  - if we're "doing a local update" and discover another local change, that's fine (we just queue it)
-#  - if we're "doing a local update" and discover a remote change, conflict (always?)
-#  - if we're "doing a remote update" and discover a local change: conflict
-#  - if we're "doing a remote update" a discover a remote change: maybe-conflict? (i.e. wrong ancestor?)
-
-
-import automat
-import attr
+from .util.file import (
+    get_pathinfo,
+)
 
 
 def _last_one(things):
@@ -51,6 +55,8 @@ class MagicFileFactory(object):
     _folder_status = attr.ib()
     _local_snapshot_service = attr.ib()
     _write_participant = attr.ib()
+    _remote_cache = attr.ib()
+    _magic_fs = attr.ib()  # IMagicFolderFilesystem
 
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
 
@@ -73,6 +79,10 @@ class MagicFileFactory(object):
                 path,
                 relpath,
                 self,
+                action=start_action(
+                    action_type="magic_file",
+                    relpath=relpath,
+                )
             )
             self._magic_files[relpath] = mf
 
@@ -81,6 +91,13 @@ class MagicFileFactory(object):
             # transitions to a file/FD provided?
             if True:
                 def tracer(old_state, the_input, new_state):
+                    with mf._action.context():
+                        Message.log(
+                            message_type="state_transition",
+                            old_state=old_state,
+                            trigger=the_input,
+                            new_state=new_state,
+                        )
                     print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
                 mf.set_trace(tracer)
 
@@ -96,6 +113,7 @@ class MagicFile(object):
     _path = attr.ib()  # FilePath
     _relpath = attr.ib()  # text, relative-path inside our magic-folder
     _factory = attr.ib(validator=attr.validators.instance_of(MagicFileFactory))
+    _action = attr.ib()
 
     _machine = automat.MethodicalMachine()
 
@@ -116,6 +134,19 @@ class MagicFile(object):
         """
 
     @_machine.state()
+    def download_check_ancestor(self):
+        """
+        We've found a remote update; check its parentage
+        """
+
+    @_machine.state()
+    def download_check_local(self):
+        """
+        We're about to make local changes; make sure a filesystem change
+        didn't sneak in.
+        """
+
+    @_machine.state()
     def creating_snapshot(self):
         """
         We are creating a LocalSnapshot for a given update
@@ -128,9 +159,15 @@ class MagicFile(object):
         """
 
     @_machine.state()
-    def updating_personal_dmd(self):
+    def updating_personal_dmd_upload(self):
         """
-        We are updating Tahoe state
+        We are updating Tahoe state after an upload
+        """
+
+    @_machine.state()
+    def updating_personal_dmd_download(self):
+        """
+        We are updating Tahoe state after a download
         """
 
     @_machine.state()
@@ -146,6 +183,19 @@ class MagicFile(object):
 
         XXX if new_content is None, it's a delete -- or maybe we want
         a different kind of input?
+        """
+
+    @_machine.input()
+    def download_mismatch(self, snapshot, staged_path):
+        """
+        The local file does not match what we expect given database state
+        """
+
+    @_machine.input()
+    def download_matches(self, snapshot, staged_path):
+        """
+        The local file (if any) matches what we expect given database
+        state
         """
 
     @_machine.input()
@@ -167,9 +217,15 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def download_completed(self, snapshot):
+    def download_completed(self, snapshot, staged_path):
         """
         A remote Snapshot has been downloaded
+        """
+
+    @_machine.input()
+    def download_error(self, snapshot):
+        """
+        An error occurred while downloading a snapshot
         """
 
     @_machine.input()
@@ -196,14 +252,57 @@ class MagicFile(object):
         A conflicted file has been resolved
         """
 
+    @_machine.input()
+    def _ancestor_is_us(self, snapshot, staged_path):
+        """
+        We are actually the ancestor of snapshot
+        """
+
+    @_machine.input()
+    def _ancestor_matches(self, snapshot, staged_path):
+        """
+        snapshot is our ancestor
+        """
+
+    @_machine.input()
+    def _ancestor_mismatch(self, snapshot, staged_path):
+        """
+        snapshot is not our ancestor
+        """
+
+    @_machine.output()
+    def _pause_between_downloads(self, snapshot):
+        """
+        """
+        print("pause between downloads")
+        return deferLater(reactor, 5.0)
+
+    @_machine.output()
+    def _pause_between_uploads(self, new_content):
+        print("pause between downloads")
+        return deferLater(reactor, 5.0)
+
     @_machine.output()
     def _begin_download(self, snapshot):
         """
         Download a given Snapshot (including its content)
         """
         print("_begin_download")
-        # queue a download -- inject a new input when done (whether
-        # error or success)
+        d = self._factory._magic_fs.download_content_to_staging(
+            snapshot.relpath,
+            snapshot.content_cap,
+            self._factory._tahoe_client,
+        )
+
+        def downloaded(staged_path):
+            print("downloaded", staged_path)
+            self.download_completed(snapshot, staged_path)
+        d.addCallback(downloaded)
+        def bad(f):
+            print("badbad", f)
+            return f
+        d.addErrback(bad)  # XXX FIXME
+        return d
 
     @_machine.output()
     def _cancel_download(self):
@@ -213,11 +312,128 @@ class MagicFile(object):
         print("_cancel_download")
 
     @_machine.output()
-    def _perform_remote_update(self, snapshot):
+    def _check_local_update(self, snapshot, staged_path):
+        """
+        Detect a 'last minute' change by comparing the state of our local
+        file to that of the database.
+
+        In case of a brand new file we've never seen: the database
+        will have no entry, and there is no local file.
+
+        In case of an updated: the pathinfo of the file right now must
+        match what's in the database.
+        """
+        print("_check_local_update", staged_path)
+
+        try:
+            current_pathstate = self._factory._config.get_currentsnapshot_pathstate(self._relpath)
+        except KeyError:
+            current_pathstate = None
+
+        local_pathinfo = get_pathinfo(self._path)
+
+        # we don't check for a LocalSnapshot existing, because that
+        # should be impossible: the state-machine will take a
+        # local_update() for anything in the "downloading" branch and
+        # cause a conflict .. but for safety we can assert that.
+        try:
+            self._factory._config.get_local_snapshot(self._relpath)
+            assert False, "unexpected local snapshot; state-machine inconsistency?"
+        except KeyError:
+            pass
+
+        # now, determine if we've found a local update
+        if current_pathstate is None:
+            if local_pathinfo.exists:
+                self.download_mismatch(snapshot, staged_path)
+        else:
+            # we've seen this file before so its pathstate should
+            # match what we expect according to the database .. or
+            # else some update happened meantime.
+            if current_pathstate != local_pathinfo.state:
+                self.download_mismatch(snapshot, staged_path)
+
+        self.download_matches(snapshot, staged_path)
+
+    @_machine.output()
+    def _check_ancestor(self, snapshot):
+        """
+        Check if the ancestor for this remote update is correct or not.
+        """
+        try:
+            remote_cap = self._factory._config.get_remotesnapshot(snapshot.relpath)
+        except KeyError:
+            remote_cap = None
+        # if remote_cap is None, we've never seen this before (so the ancestor is always correct)
+        if remote_cap is not None:
+            ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
+
+            if not ancestor:
+                # if the incoming remotesnapshot is actually an
+                # ancestor of _our_ snapshot, then we have nothing
+                # to do because we are newer
+                if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
+                    return self._ancestor_of_us(snapshot, None)
+                return self._ancestor_mismatch(snapshot, None)
+        return self._ancestor_matches(snapshot, None)
+
+    @_machine.output()
+    def _perform_remote_update(self, snapshot, staged_path):
         """
         Resolve a remote update locally
         """
-        print("_perform_remote_update", snapshot)
+        print("_perform_remote_update", snapshot.relpath, staged_path)
+        # there is a longer dance described in detail in
+        # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
+        # which may do even better at reducing the window for local
+        # changes to get overwritten. Currently, that window is the 3
+        # python statements between here and ".mark_overwrite()"
+
+        if snapshot.content_cap is None:
+            self._factory._magic_fs.mark_delete(snapshot)
+        else:
+            try:
+                path_state = self._factory._magic_fs.mark_overwrite(
+                    snapshot.relpath,
+                    snapshot.metadata["modification_time"],
+                    staged_path,
+                )
+            except OSError as e:
+                self._factory._folder_status.error_occurred(
+                    "Failed to overwrite file '{}': {}".format(snapshot.relpath, str(e))
+                )
+                raise
+
+        # Note, if we crash here (after moving the file into place but
+        # before noting that in our database) then we could produce
+        # LocalSnapshots referencing the wrong parent. We will no
+        # longer produce snapshots with the wrong parent once we
+        # re-run and get past this point.
+
+        # remember the last remote we've downloaded
+        self._factory._config.store_downloaded_snapshot(
+            snapshot.relpath, snapshot, path_state
+        )
+
+        # XXX careful here, we still need something that makes
+        # sure mismatches between remotesnapshots in our db and
+        # the Personal DMD are reconciled .. that is, if we crash
+        # here and/or can't update our Personal DMD we need to
+        # retry later.
+        d = self._factory._write_participant.update_snapshot(
+            snapshot.relpath,
+            snapshot.capability.encode("ascii"),
+        )
+
+        def updated_snapshot(arg):
+            print("UP", arg)
+            self._factory._config.store_currentsnapshot_state(
+                snapshot.relpath,
+                path_state,
+            )
+            self.personal_dmd_updated(snapshot)
+        d.addCallback(updated_snapshot)
+        return d
 
     @_machine.output()
     def _status_upload_queued(self):
@@ -245,7 +461,6 @@ class MagicFile(object):
         Create a LocalSnapshot for this update
         """
         d = self._factory._local_snapshot_service.add_file(self._path)
-        print("ADDFILE", d)
 
         def completed(snap):
             return self.snapshot_completed(snap)
@@ -267,31 +482,50 @@ class MagicFile(object):
 
         @inline_callbacks
         def perform_upload():
-            upload_started_at = time.time()
-            print("BEGIN UP", snapshot)
-            remote_snapshot = yield write_snapshot_to_tahoe(
-                snapshot,
-                self._factory._config.author,
-                self._factory._tahoe_client,
-            )
-            print("REMOTE", remote_snapshot)
-            snapshot.remote_snapshot = remote_snapshot
-            yield self._factory._config.store_uploaded_snapshot(
-                remote_snapshot.relpath,
-                remote_snapshot,
-                upload_started_at,
-            )
-            self.upload_completed(snapshot)
+            print("peform_upload", snapshot.relpath)
+            with self._action.context() as action:
+                upload_started_at = time.time()
+                Message.log(message_type="uploading")
+
+                remote_snapshot = yield write_snapshot_to_tahoe(
+                    snapshot,
+                    self._factory._config.author,
+                    self._factory._tahoe_client,
+                )
+                Message.log(remote_snapshot=remote_snapshot)
+                snapshot.remote_snapshot = remote_snapshot
+                yield self._factory._config.store_uploaded_snapshot(
+                    remote_snapshot.relpath,
+                    remote_snapshot,
+                    upload_started_at,
+                )
+                self.upload_completed(snapshot)
+                Message.log(message_type="upload_completed")
 
         d = perform_upload()
         def bad(f):
-            print("BADDD", f)
+            print("error; waiting 5 seconds")
+            x = deferLater(reactor, 5.0)
+            print("X", x)
+            def foo(*args):
+                print("LATER", args)
+                return perform_upload()
+            x.addCallback(foo)
+            x.addErrback(bad)
+            return x
         d.addErrback(bad)
+        return d
 #        d.addErrback(write_traceback)
 
+    @_machine.output()
+    def _mark_download_conflict(self, snapshot, staged_path):
+        """
+        Mark a conflict for this remote snapshot
+        """
+        print("_mark_download_conflict")
 
     @_machine.output()
-    def _update_personal_dmd(self, snapshot):
+    def _update_personal_dmd_upload(self, snapshot):
         """
         Update our personal DMD (after an upload)
         """
@@ -337,6 +571,7 @@ class MagicFile(object):
         """
         A remote conflict is detected
         """
+        print("_detected_remote_conflict")
         # note conflict, write conflict files
 
     @_machine.output()
@@ -344,6 +579,7 @@ class MagicFile(object):
         """
         A local conflict is detected
         """
+        print("_detected_local_conflict")
         # note conflict, write conflict files
 
     @_machine.output()
@@ -359,13 +595,6 @@ class MagicFile(object):
         print("queue_remote_update")
 
     @_machine.output()
-    def _update_snapshot_cache(self, snapshot):
-        """
-        """
-        print("update_snapshot_cache")
-        # might not need this ...
-
-    @_machine.output()
     def _check_for_work(self):
         """
         """
@@ -373,20 +602,54 @@ class MagicFile(object):
 
     up_to_date.upon(
         remote_update,
+        enter=download_check_ancestor,
+        outputs=[_check_ancestor],
+        collector=_last_one,
+    )
+
+    download_check_ancestor.upon(
+        _ancestor_is_us,
+        enter=up_to_date,
+        outputs=[],
+    )
+    download_check_ancestor.upon(
+        _ancestor_mismatch,
+        enter=conflicted,
+        outputs=[_mark_download_conflict],
+    )
+    download_check_ancestor.upon(
+        _ancestor_matches,
         enter=downloading,
         outputs=[_status_download_started, _begin_download],
         collector=_last_one,
     )
+
     downloading.upon(
         download_completed,
-        enter=updating_personal_dmd,
-        outputs=[_perform_remote_update, _status_download_finished],
+        enter=download_check_local,
+        outputs=[_check_local_update],
+    )
+    downloading.upon(
+        download_error,
+        enter=downloading,
+        outputs=[_pause_between_downloads, _begin_download],
     )
     downloading.upon(
         remote_update,
         enter=downloading,
         outputs=[_queue_remote_update],
         collector=_last_one,
+    )
+
+    download_check_local.upon(
+        download_matches,
+        enter=updating_personal_dmd_download,
+        outputs=[_perform_remote_update],
+    )
+    download_check_local.upon(
+        download_mismatch,
+        enter=conflicted,
+        outputs=[_mark_download_conflict, _status_download_finished],
     )
 
     up_to_date.upon(
@@ -413,8 +676,8 @@ class MagicFile(object):
     )
     uploading.upon(
         upload_completed,
-        enter=updating_personal_dmd,
-        outputs=[_update_personal_dmd],
+        enter=updating_personal_dmd_upload,
+        outputs=[_update_personal_dmd_upload],
     )
     uploading.upon(
         local_update,
@@ -422,10 +685,16 @@ class MagicFile(object):
         outputs=[_queue_local_update],
         collector=_last_one,
     )
-    updating_personal_dmd.upon(
+
+    updating_personal_dmd_upload.upon(
         personal_dmd_updated,
         enter=up_to_date,
-        outputs=[_status_upload_finished, _update_snapshot_cache, _check_for_work]
+        outputs=[_status_upload_finished, _check_for_work]
+    )
+    updating_personal_dmd_download.upon(
+        personal_dmd_updated,
+        enter=up_to_date,
+        outputs=[_status_download_finished, _check_for_work]
     )
 
     up_to_date.upon(
@@ -434,10 +703,11 @@ class MagicFile(object):
         outputs=[_status_upload_queued, _status_upload_started, _begin_upload],
     )
 
+    # XXX what's this state for? did we hit it somehow in testing?
     conflicted.upon(
         personal_dmd_updated,
         enter=conflicted,
-        outputs=[_update_snapshot_cache]
+        outputs=[]
     )
 
 
@@ -446,14 +716,16 @@ class MagicFile(object):
         remote_update,
         enter=conflicted,
         outputs=[_detected_remote_conflict],
+        collector=_last_one,
     )
     uploading.upon(
         remote_update,
         enter=conflicted,
         outputs=[
-            _update_personal_dmd,  # still want to do this ..
+            _update_personal_dmd_upload,  # still want to do this ..
             _detected_remote_conflict,
         ],
+        collector=_last_one,
     )
     downloading.upon(
         local_update,
@@ -461,14 +733,28 @@ class MagicFile(object):
         outputs=[_status_download_finished, _cancel_download],
         collector=_last_one,
     )
-    updating_personal_dmd.upon(
+    updating_personal_dmd_download.upon(
+        remote_update,
+        enter=updating_personal_dmd_download,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
+    )
+    updating_personal_dmd_download.upon(
+        local_update,
+        enter=conflicted,
+        outputs=[_detected_local_conflict],
+        collector=_last_one,
+    )
+
+    updating_personal_dmd_upload.upon(
         remote_update,
         enter=conflicted,
         outputs=[_detected_remote_conflict],
+        collector=_last_one,
     )
-    updating_personal_dmd.upon(
+    updating_personal_dmd_upload.upon(
         local_update,
-        enter=updating_personal_dmd,
+        enter=updating_personal_dmd_upload,
         outputs=[_queue_local_update],
         collector=_last_one,
     )
@@ -483,9 +769,11 @@ class MagicFile(object):
         remote_update,
         enter=conflicted,
         outputs=[],  # probably want to .. do something? remember it?
+        collector=_last_one,
     )
     conflicted.upon(
         local_update,
         enter=conflicted,
         outputs=[],  # nothing, likely: user messing with resolution file?
+        collector=_last_one,
     )

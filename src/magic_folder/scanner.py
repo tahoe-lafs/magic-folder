@@ -105,7 +105,7 @@ class ScannerService(MultiService):
 
         Performs a scan for files, and logs and consumes all errors.
         """
-        return self._scan().addErrback(write_failure)
+        return self._scan()##.addErrback(write_failure)
 
     @exclusively
     @inline_callbacks

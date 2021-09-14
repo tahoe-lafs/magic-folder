@@ -124,6 +124,11 @@ class MagicFolder(service.MultiService):
             folder_status,
             local_snapshot_service,
             participants.writer,
+            remote_snapshot_cache_service,
+            LocalMagicFolderFilesystem(
+                mf_config.magic_path,
+                mf_config.stash_path,
+            ),
         )
         scanner_service = ScannerService.from_config(
             reactor,

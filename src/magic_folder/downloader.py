@@ -709,15 +709,16 @@ class RemoteScannerService(service.MultiService):
             remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-            # if this remote matches what we believe to be the
-            # latest, there is nothing to do .. otherwise, we
-            # have to figure out what to do
+            # if this remote matches what we believe to be the latest,
+            # there is nothing to do .. otherwise, we tell the
+            # state-machine for this file that there's a remote update
             try:
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
-            ###print(our_snapshot_cap, snapshot.capability)
+
             if snapshot.capability != our_snapshot_cap:
+                # make sure "our_snapshot_cap" is cached
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
