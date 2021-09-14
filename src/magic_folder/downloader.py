@@ -247,16 +247,12 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
-
-
 @attr.s
 class MagicFolderUpdater(object):
     """
     Updates the local magic-folder when given locally-cached
     RemoteSnapshots. These RemoteSnapshot instance must have all
     relevant parents available (via the cache service).
-    FIXME: we aren't guaranteed this
-    -> why not?
 
     "Relevant" here means all parents unless we find a common
     ancestor.
@@ -682,7 +678,7 @@ class RemoteScannerService(service.MultiService):
     def _loop(self):
         d = self._scan_collective()
         # in some cases, might want to surface elsewhere
-        d.addErrback(write_failure)
+        ##d.addErrback(write_failure)
 
     @inline_callbacks
     def _scan_collective(self):
