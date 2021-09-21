@@ -97,7 +97,7 @@ class ScannerService(MultiService):
             abspath = self._config.magic_path.preauthChild(relpath)
             mf = self._file_factory.magic_file_for(abspath)
             snap = self._config.get_local_snapshot(relpath)
-            mf.existing_local_snapshot(snap)
+            mf.local_snapshot_exists(snap)
 
     def _loop(self):
         """
@@ -121,9 +121,9 @@ class ScannerService(MultiService):
             # if "path" _is_ a conflict-file it should not be uploaded
             if self._config.is_conflict_marker(path):
                 return
-            results.append(
-                magic_file.local_update(path)
-            )
+            d = magic_file.create_update()
+            print("ZZZZ", d)
+            results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(

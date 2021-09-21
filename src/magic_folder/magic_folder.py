@@ -240,6 +240,10 @@ class MagicFolder(service.MultiService):
             return defer.fail(
                 APIError.from_exception(http.NOT_ACCEPTABLE, e)
             )
+        mf = self.file_factory.magic_file_for(path)
+        d = mf.create_update()
+        print("DINGDING", d)
+        return d
         return self.local_snapshot_service.add_file(path)
 
 

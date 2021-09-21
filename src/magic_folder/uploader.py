@@ -102,7 +102,7 @@ class LocalSnapshotCreator(object):
     _tahoe_client = attr.ib()
 
     @inline_callbacks
-    def store_local_snapshot(self, path):
+    def store_local_snapshot(self, path, local_parent=None):
         """
         Convert `path` into a LocalSnapshot and persist it to disk. If
         `path` does not exist, the this is a 'delete' (and we must
@@ -119,21 +119,25 @@ class LocalSnapshotCreator(object):
         try:
             parent_snapshot = self._db.get_local_snapshot(relpath)
         except KeyError:
-            parents = []
+            parents = [local_parent] if local_parent else []
         else:
             parents = [parent_snapshot]
+            if local_parent:
+                parents.append(local_parent)
 
         # if we already have a parent here, it's a LocalSnapshot
         # .. which means that any remote snapshot by definition
         # must be "not our parent" (it should be the parent .. or
         # grandparent etc .. of our localsnapshot)
         raw_remote = []
-        if not parents:
-            try:
-                parent_remote = self._db.get_remotesnapshot(relpath)
+        try:
+            parent_remote = self._db.get_remotesnapshot(relpath)
+        except KeyError:
+            parent_remote = None
+        if parent_remote:
+            # XXX should double-check parent relationship if we have any..
+            if not parents:
                 raw_remote = [parent_remote]
-            except KeyError:
-                pass
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
@@ -204,9 +208,9 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                (path, d) = yield self._queue.get()
+                (path, d, local_parent) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    snap = yield self._snapshot_creator.store_local_snapshot(path, local_parent)
                     d.callback(snap)
             except CancelledError:
                 break
@@ -225,7 +229,7 @@ class LocalSnapshotService(service.Service):
         return d
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
-    def add_file(self, path):
+    def add_file(self, path, local_parent=None):
         """
         Add the given path of type FilePath to our queue. If the path is
         not strictly below our magic-folder directory, it is an
@@ -234,6 +238,11 @@ class LocalSnapshotService(service.Service):
 
         :param FilePath path: path of the file that needs to be
             processed.
+
+        :param Optional[LocalSnapshot] local_parent: if not specified,
+            our most-recent RemoteSnapshot will be the parent. The
+            specified LocalSnapshot _should_ have our most-recent
+            RemoteSnapshot as one of its parents, though.
 
         :raises: ValueError if the given file is not a descendent of
                  magic folder path or if the given path is a directory.
@@ -268,7 +277,7 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._queue.put((path, d))
+        self._queue.put((path, d, local_parent))
         return d
 
 

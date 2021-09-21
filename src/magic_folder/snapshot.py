@@ -273,6 +273,26 @@ class LocalSnapshot(object):
     )
     remote_snapshot = attr.ib(default=None)  # if non-None, we've uploaded this one
 
+    def __attrs_post_init__(self):
+        print("CREATE LOCAL SNAP {}: {}".format(id(self), self.nice()))
+
+    def nice(self):
+        from collections import deque
+        links = []
+        remotes = []
+        q = deque([self])
+        while q:
+            snap = q.popleft()
+            links.append(str(snap.identifier))
+            remotes.extend(snap.parents_remote)
+            for parent in snap.parents_local:
+                q.append(parent)
+        return "LocalSnapshot(\n   {}\n   {}\n   )".format(
+            self.content_path.path,
+            "->".join(links),
+            "->".join(remotes),
+        )
+
     def get_content_producer(self):
         """
         :returns: an IBodyProducer that gives you all the bytes of the
@@ -548,19 +568,21 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     if modified_time is None:
         modified_time = now
 
-    returnValue(
-        LocalSnapshot(
-            relpath=relpath,
-            author=author,
-            metadata={
-                "mtime": modified_time,
-                "ctime": now,
-            },
-            content_path=None if data_producer is None else FilePath(temp_file_name),
-            parents_local=parents_local,
-            parents_remote=parents_remote,
-        )
+    local_snap = LocalSnapshot(
+        relpath=relpath,
+        author=author,
+        metadata={
+            "mtime": modified_time,
+            "ctime": now,
+        },
+        content_path=None if data_producer is None else FilePath(temp_file_name),
+        parents_local=parents_local,
+        parents_remote=parents_remote,
     )
+    from .config import _local_snapshots
+    _local_snapshots[local_snap.identifier] = local_snap
+
+    returnValue(local_snap)
 
 
 def format_filenode(cap, metadata=None):
@@ -602,6 +624,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     :returns: a RemoteSnapshot instance
     """
+    print("WRITE TO TAHOE", snapshot.nice())
     # XXX probably want to give this a progress= instance (kind-of
     # like teh one in Tahoe) so we can track upload progress for
     # status-API for GUI etc.
@@ -616,7 +639,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent)#.capability)
+            parents_raw.append(parent)
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
@@ -625,8 +648,14 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         # if parent is a RemoteSnapshot, we are sure that its parents
         # are themselves RemoteSnapshot. Recursively upload local parents
         # first.
+
+        # XXXX ooooh, so this list is copied .. and _then_ we do the
+        # uploads, so when the "oldest" parent gets written .. uh.
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
+        print("  FOUND PARENTS, recursive upload {}".format(" ".join(str(id(x)) for x in to_upload)))
         for parent in to_upload:
+            print("  doing recursive calls {} {}".format(id(parent), parent.nice()))
+            print("  local copy: {} self.parents_local {}".format(len(to_upload), len(snapshot.parents_local)))
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
             parents_raw.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected

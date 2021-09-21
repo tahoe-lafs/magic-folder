@@ -23,6 +23,9 @@ __all__ = [
 import re
 import hashlib
 import time
+from collections import (
+    deque,
+)
 from os import (
     urandom,
 )
@@ -705,6 +708,12 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
+# maps UUIDs->LocalSnapshot instances
+# used by _construct_local_snapshot to ensure that there is at most 1
+# LocalSnapshot instance in memory for each one in the database)
+_local_snapshots = WeakValueDictionary()
+
+
 def _construct_local_snapshot(identifier, relpath, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
@@ -726,8 +735,14 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
     :return LocalSnapshot: The requested snapshot, populated with information
         from the given parameters, including fully initialized local parents.
     """
-    return LocalSnapshot(
-        identifier=UUID(hex=identifier),
+    uuid = UUID(hex=identifier)
+    print("CONSTUCT FRMO DATABASE {}".format(uuid))
+    try:
+        return _local_snapshots[uuid]
+    except KeyError:
+        pass
+    rtn = _local_snapshots[uuid] = LocalSnapshot(
+        identifier=uuid,
         relpath=relpath,
         author=author,
         content_path=None if content_paths[identifier] is None else FilePath(content_paths[identifier]),
@@ -746,6 +761,7 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
             ),
         ),
     )
+    return rtn
 
 
 @attr.s
@@ -1087,6 +1103,93 @@ class MagicFolderConfig(object):
             (str(local_snapshot.identifier), )
         )
 
+    @with_cursor
+    def delete_local_snapshot(self, cursor, local_snapshot, remote_snapshot):
+        """
+        Delete a single LocalSnapshot from the database. You may not
+        delete a LocalSnapshot that has any local parents. If any
+        LocalSnapshots exist with this as their parent, they will be
+        adjustd to have the remote as parent instead.
+
+        :param LocalSnapshot local_snapshot: the snapshot to delete
+
+        :param RemoteSnapshot remote_snapshot: the RemoteSnapshot that
+            has replaced local_snapshot
+        """
+        print("DEL IT", id(local_snapshot))
+        print("delete_local_snapshot {} -> {}".format(local_snapshot.identifier, remote_snapshot.capability))
+        assert local_snapshot.relpath == remote_snapshot.relpath, "Unrelated snapshots"
+        relpath = local_snapshot.relpath
+        youngest_snapshot = self.get_local_snapshot.__wrapped__(self, cursor, relpath)
+        if not youngest_snapshot:
+            raise ValueError(
+                "No local snapshots for '{}'".format(relpath)
+            )
+
+        # breadth-first traversal of the (local) parents of our
+        # youngest snapshot
+        our_snap = None
+        child = None
+        q = deque([youngest_snapshot])
+        while q:
+            child = q.popleft()
+            if child.identifier == local_snapshot.identifier:
+                our_snap = child
+                child = None
+                break
+            for parent in child.parents_local:
+                if parent.identifier == local_snapshot.identifier:
+                    # we've found ours!
+                    our_snap = parent
+                    break
+                else:
+                    q.append(parent)
+
+        print("our snap: {}".format(our_snap.nice() if our_snap else None))
+        print("child snap {} : {}".format(id(child), child.nice() if child else None))
+
+        # turn the 'parent' entry for 'child' to remtoe_snapshot.capability
+        if child:
+            cursor.execute(
+                """
+                UPDATE
+                    local_snapshot_parent
+                SET
+                    local_only=?, parent_identifier=?
+                WHERE
+                   [snapshot_identifier]=?
+                """,
+                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+            )
+            print("child parents before: {}".format(child.parents_local))
+            print("                   : {}".format(child.parents_remote))
+            child.parents_local = [
+                snap
+                for snap in child.parents_local
+                if snap.identifier != local_snapshot.identifier
+            ]
+            child.parents_remote.append(remote_snapshot.capability)
+            print("child parents after: {}".format(child.parents_local))
+            print("                   : {}".format(child.parents_remote))
+        # delete 'ours'
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshot_metadata]
+            WHERE
+                [snapshot_identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshots]
+            WHERE
+                [identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
 
     @with_cursor
     def delete_all_local_snapshots_for(self, cursor, relpath):

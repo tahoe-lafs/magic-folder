@@ -6,6 +6,9 @@ from __future__ import (
 )
 
 import time
+from collections import (
+    deque,
+)
 
 import automat
 import attr
@@ -17,6 +20,9 @@ from eliot import (
 )
 from eliot.twisted import (
     inline_callbacks,
+)
+from twisted.internet.defer import (
+    Deferred,
 )
 from twisted.internet.task import (
     deferLater,
@@ -71,10 +77,8 @@ class MagicFileFactory(object):
         try:
             return self._magic_files[relpath]
         except KeyError:
-            # XXX 'something' should be e.g. firing a couple
-            # local_update()s at this if there are existing
-            # LocalSnapshots for this relpath -- do we do that here,
-            # or elsewhere? (probably here makes sense)
+            # upon scanner startup, .local_snapshot_exists() inputs
+            # are fed to this which causes it to start uploading.
             mf = MagicFile(
                 path,
                 relpath,
@@ -114,92 +118,164 @@ class MagicFile(object):
     _relpath = attr.ib()  # text, relative-path inside our magic-folder
     _factory = attr.ib(validator=attr.validators.instance_of(MagicFileFactory))
     _action = attr.ib()
+    _queue_local = attr.ib(default=attr.Factory(list))
+    _queue_remote = attr.ib(default=attr.Factory(list))
 
     _machine = automat.MethodicalMachine()
 
     # debug
     set_trace = _machine._setTrace
 
+
+    # these are API methods intended to be called by other code in
+    # magic-folder
+
+    @inline_callbacks
+    def create_update(self):
+        """
+        Creates a new local change, reading the content from our (local)
+        file (regardless of whether it has 'actually' changed or
+        not). If the file doesn't exist (any more), a 'deletion'
+        snapshot is created. The file contents are stashed and the
+        state-database updated before the returned Deferred fires.
+
+        Eventually, the snapshot will be uploaded. Even if our process
+        re-starts, the LocalSnapshot will be recovered from local
+        state and further attempts to upload will be made.
+
+        :returns Deferred: fires with None when our local state is
+            persisted. This is before the upload has occurred.
+        """
+        d = self._local_update()
+        print("CREATE_UPDATE", d)
+        return d
+
+    def found_new_remote(self, remote_snapshot):
+        """
+        A RemoteSnapshot that doesn't match our existing database entry
+        has been found. It will be downloaded and applied (possibly
+        resulting in conflicts).
+        """
+        d = self._remote_update(remote_snapshot)
+        print("FOUND_NEW_REMOTE", d)
+        return d
+
+    def local_snapshot_exists(self, local_snapshot):
+        """
+        State describing a LocalSnapshot exists. This should be the
+        'youngest' one if there are multiple snapshots for this file.
+
+        :returns None:
+        """
+        self._existing_local_snapshot(local_snapshot)
+
+    # all below methods are state-machine methods
+    #
+    # use "automat-visualize magic_folder" to get a nice diagram of
+    # the state-machine which should make it easier to read through
+    # this code.
+
     @_machine.state(initial=True)
-    def up_to_date(self):
+    def _up_to_date(self):
         """
         This file is up-to-date (our local state matches all remotes and
         our Personal DMD matches our local state.
         """
 
     @_machine.state()
-    def downloading(self):
+    def _downloading(self):
         """
         We are retrieving a remote update
         """
 
     @_machine.state()
-    def download_check_ancestor(self):
+    def _download_check_ancestor(self):
         """
         We've found a remote update; check its parentage
         """
 
     @_machine.state()
-    def download_check_local(self):
+    def _download_check_local(self):
         """
         We're about to make local changes; make sure a filesystem change
         didn't sneak in.
         """
 
     @_machine.state()
-    def creating_snapshot(self):
+    def _creating_snapshot(self):
         """
         We are creating a LocalSnapshot for a given update
         """
 
     @_machine.state()
-    def uploading(self):
+    def _uploading(self):
         """
         We are uploading a LocalSnapshot
         """
 
     @_machine.state()
-    def updating_personal_dmd_upload(self):
+    def _checking_for_local_work(self):
+        """
+        Examining our queue of work for uploads
+        """
+
+    @_machine.state()
+    def _checking_for_remote_work(self):
+        """
+        Examining ou queue for work for downloads
+        """
+
+    @_machine.state()
+    def _updating_personal_dmd_upload(self):
         """
         We are updating Tahoe state after an upload
         """
 
     @_machine.state()
-    def updating_personal_dmd_download(self):
+    def _updating_personal_dmd_download(self):
         """
         We are updating Tahoe state after a download
         """
 
     @_machine.state()
-    def conflicted(self):
+    def _conflicted(self):
         """
         There is a conflit that must be resolved
         """
 
     @_machine.input()
-    def local_update(self, new_content):
+    def _local_update(self):
         """
         The file is changed locally (created or updated or deleted)
-
-        XXX if new_content is None, it's a delete -- or maybe we want
-        a different kind of input?
         """
 
     @_machine.input()
-    def download_mismatch(self, snapshot, staged_path):
+    def _queued_upload(self, snapshot):
+        """
+        We finished one upload, but there is more
+        """
+
+    @_machine.input()
+    def _no_upload_work(self, snapshot):
+        """
+        We finished one upload and there is no more
+        """
+
+    @_machine.input()
+    def _download_mismatch(self, snapshot, staged_path):
         """
         The local file does not match what we expect given database state
         """
 
     @_machine.input()
-    def download_matches(self, snapshot, staged_path):
+    def _download_matches(self, snapshot, staged_path):
         """
         The local file (if any) matches what we expect given database
         state
         """
 
     @_machine.input()
-    def remote_update(self, snapshot):
+    def _remote_update(self, snapshot):
         """
         The file has a remote update.
 
@@ -208,7 +284,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def existing_local_snapshot(self, snapshot):
+    def _existing_local_snapshot(self, snapshot):
         """
         One or more LocalSnapshot instances already exist for this path.
 
@@ -217,31 +293,43 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def download_completed(self, snapshot, staged_path):
+    def _download_completed(self, snapshot, staged_path):
         """
         A remote Snapshot has been downloaded
         """
 
     @_machine.input()
-    def snapshot_completed(self, snapshot):
+    def _snapshot_completed(self, snapshot):
         """
         A LocalSnapshot for this update is created
         """
 
     @_machine.input()
-    def upload_completed(self, snapshot):
+    def _upload_completed(self, snapshot):
         """
         A LocalSnapshot has been turned into a RemoteSnapshot
         """
 
     @_machine.input()
-    def personal_dmd_updated(self, snapshot):
+    def _personal_dmd_updated(self, snapshot):
         """
         An update to our Personal DMD has been completed
         """
 
     @_machine.input()
-    def conflict_resolution(self, snapshot):
+    def _queued_download(self, snapshot):
+        """
+        There is queued RemoteSnapshot work
+        """
+
+    @_machine.input()
+    def _no_download_work(self, snapshot):
+        """
+        There is no queued RemoteSnapshot work
+        """
+
+    @_machine.input()
+    def _conflict_resolution(self, snapshot):
         """
         A conflicted file has been resolved
         """
@@ -278,7 +366,7 @@ class MagicFile(object):
 
         def downloaded(staged_path):
             print("downloaded", staged_path)
-            self.download_completed(snapshot, staged_path)
+            self._download_completed(snapshot, staged_path)
         d.addCallback(downloaded)
         def bad(f):
             print("badbad", f)
@@ -335,7 +423,7 @@ class MagicFile(object):
             if current_pathstate != local_pathinfo.state:
                 self.download_mismatch(snapshot, staged_path)
 
-        self.download_matches(snapshot, staged_path)
+        self._download_matches(snapshot, staged_path)
 
     @_machine.output()
     def _check_ancestor(self, snapshot):
@@ -349,6 +437,7 @@ class MagicFile(object):
         # if remote_cap is None, we've never seen this before (so the ancestor is always correct)
         if remote_cap is not None:
             ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
+            print("{} ancestor-of {} ? {}".format(remote_cap, snapshot.capability, ancestor))
 
             if not ancestor:
                 # if the incoming remotesnapshot is actually an
@@ -413,7 +502,7 @@ class MagicFile(object):
                 snapshot.relpath,
                 path_state,
             )
-            self.personal_dmd_updated(snapshot)
+            self._personal_dmd_updated(snapshot)
         d.addCallback(updated_snapshot)
         return d
 
@@ -442,16 +531,21 @@ class MagicFile(object):
         """
         Create a LocalSnapshot for this update
         """
-        d = self._factory._local_snapshot_service.add_file(self._path)
+        # XXX set parent here if we've queued anything...
+        local_parent = self._queue_local[-1] if self._queue_local else None
+        d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
         def completed(snap):
-            return self.snapshot_completed(snap)
+            x = self._snapshot_completed(snap)
+            print("COMPLETE", x)
+            return
 
         def bad(f):
             print("BAD", f)
         d.addCallback(completed)
         d.addErrback(bad)
-        # errback? (re-try?)
+        # errback? (re-try?)  XXX probably have to have a 'failed'
+        # state? or might re-trying work eventually?
         return d
 
     @_machine.output()
@@ -459,43 +553,60 @@ class MagicFile(object):
         """
         Begin uploading a LocalSnapshot (to create a RemoteSnapshot)
         """
-
+        print("BEGIN: {}".format(snapshot.nice()))
         assert snapshot is not None, "Internal inconsistency"
 
         @inline_callbacks
-        def perform_upload():
-            print("peform_upload", snapshot.relpath)
+        def perform_upload(snap):
+            print("peform_upload", snap.relpath, snap.identifier)
+            print("PERFORM IT", id(snap))
             with self._action.context() as action:
                 upload_started_at = time.time()
                 Message.log(message_type="uploading")
 
                 remote_snapshot = yield write_snapshot_to_tahoe(
-                    snapshot,
+                    snap,
                     self._factory._config.author,
                     self._factory._tahoe_client,
                 )
+                print("perform {}: got remote: {}".format(snap.identifier, remote_snapshot))
                 Message.log(remote_snapshot=remote_snapshot)
-                snapshot.remote_snapshot = remote_snapshot
+                snap.remote_snapshot = remote_snapshot
                 yield self._factory._config.store_uploaded_snapshot(
                     remote_snapshot.relpath,
                     remote_snapshot,
                     upload_started_at,
                 )
-                self.upload_completed(snapshot)
+                self._upload_completed(snap)
+                # XXXXXX okay i think what's happening here overall is
+                # that this 'snap' is still pointed at the
+                # local-snapshot which just got uploaded; e.g. if
+                # there's 2, we correctly upload + delete (?) the
+                # first (oldest) one, but the younger one still has it
+                # as parent, so "tries" to upload it ...
                 Message.log(message_type="upload_completed")
 
-        d = perform_upload()
+        d = perform_upload(snapshot)
 
-        def upload_error(f):
+        def upload_error(f, snap):
+            print("upload_error")
+            print(f)
+            print(snap)
             self._factory._folder_status.error_occurred(
                 "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
             )
-            print("error {}".format(f.getErrorMessage()[:60]))
+            # XXX okay, what's happening here is, we get an error
+            # .. then add perform_upload() in our errorback
+            # .. possibly adding more errbacks .. so I _think_ the
+            # chain goes that once we succeed on an upload, it unwinds
+            # that error-chain to the callback-chain once and then
+            # .. tries again, somehow?
+            print("error {}".format(f.getErrorMessage()))
             delay = deferLater(reactor, 5.0)
-            delay.addCallback(lambda _: perform_upload())
-            delay.addErrback(upload_error)
+            delay.addCallback(lambda _: perform_upload(snap))
+            delay.addErrback(upload_error, snap)
             return delay
-        d.addErrback(upload_error)
+        d.addErrback(upload_error, snapshot)
         return d
 
     @_machine.output()
@@ -527,6 +638,7 @@ class MagicFile(object):
             if snapshot.content_path is not None:
                 try:
                     # Remove the local snapshot content from the stash area.
+                    print("  -> delete {}".format(snapshot.content_path))
                     snapshot.content_path.asBytesMode("utf-8").remove()
                 except Exception as e:
                     print(
@@ -538,8 +650,9 @@ class MagicFile(object):
 
             # XXX FIXME must change db to delete just the one snapshot...
             # Remove the LocalSnapshot from the db.
-            yield self._factory._config.delete_all_local_snapshots_for(snapshot.relpath)
-            self.personal_dmd_updated(snapshot)
+            ##yield self._factory._config.delete_all_local_snapshots_for(snapshot.relpath)
+            yield self._factory._config.delete_local_snapshot(snapshot, remote_snapshot)
+            self._personal_dmd_updated(snapshot)
         d = update_personal_dmd()
         def bad(f):
             print("ADDDDD", f)
@@ -556,7 +669,7 @@ class MagicFile(object):
         # note conflict, write conflict files
 
     @_machine.output()
-    def _detected_local_conflict(self, new_content):
+    def _detected_local_conflict(self):
         """
         A local conflict is detected
         """
@@ -564,192 +677,271 @@ class MagicFile(object):
         # note conflict, write conflict files
 
     @_machine.output()
-    def _queue_local_update(self, new_content):
+    def _queue_local_update(self):
         """
+        Save this update for later processing (in _check_for_local_work)
         """
         print("queue_local_update")
+        d = self._factory._local_snapshot_service.add_file(self._path)
+
+        def added(snapshot):
+            # For this update to "make sense" for this magic-file it
+            # must be a descendant of either an already-queued
+            # snapshot or the one we're currently uploading...
+            print("ADDED", snapshot.nice())
+            print(self._queue_local)
+            if self._queue_local:
+                if self._queue_local[-1] not in snapshot.parents_local:
+                    raise RuntimeError(
+                        "Snapshot for {} has incorrect parent".format(self._relpath)
+                    )
+            # how to check our "currently uploading" snapshot?
+            self._queue_local.append(snapshot)
+        d.addCallback(added)
+        # XXX error? 'failed' state, because we can't even make a LocalSnapshot?
+        return d
 
     @_machine.output()
     def _queue_remote_update(self, snapshot):
         """
+        Save this remote snapshot for later processing (in _check_for_remote_work)
         """
         print("queue_remote_update")
+        self._queue_remote.append(snapshot)
 
     @_machine.output()
-    def _check_for_work(self):
+    def _check_for_local_work(self):
         """
+        Inject any saved updates, local first.
         """
-        print("_check_for_work")
+        print("_check_for_local_work")
+        if self._queue_local:
+            snapshot = self._queue_local.pop(0)
+            print("local work: {}".format(snapshot.nice()))
+            self._snapshot_completed(snapshot)
+            return
+        self._no_upload_work(None)
 
-    up_to_date.upon(
-        remote_update,
-        enter=download_check_ancestor,
+    @_machine.output()
+    def _check_for_remote_work(self):
+        """
+        Inject any saved remote updates.
+        """
+        print("_check_for_remote_work")
+        if self._queue_remote:
+            d, snapshot = self._queue_remote.pop(0)
+            print("remote work: {}".format(d))
+            real_d = self._remote_update(snapshot)
+            real_d.addBoth(lambda x: d.callback(x))
+        self._no_download_work(None)
+
+
+    _up_to_date.upon(
+        _remote_update,
+        enter=_download_check_ancestor,
         outputs=[_check_ancestor],
         collector=_last_one,
     )
 
-    download_check_ancestor.upon(
+    _download_check_ancestor.upon(
         _ancestor_is_us,
-        enter=up_to_date,
+        enter=_up_to_date,
         outputs=[],
     )
-    download_check_ancestor.upon(
-        _ancestor_mismatch,
-        enter=conflicted,
-        outputs=[_mark_download_conflict],
+    _download_check_ancestor.upon(
+        _remote_update,
+        enter=_download_check_ancestor,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
     )
-    download_check_ancestor.upon(
+    # XXX local-update possible here too? then->conflict
+    _download_check_ancestor.upon(
+        _ancestor_mismatch,
+        enter=_conflicted,
+        outputs=[_mark_download_conflict],
+        collector=_last_one,
+    )
+    _download_check_ancestor.upon(
         _ancestor_matches,
-        enter=downloading,
+        enter=_downloading,
         outputs=[_status_download_started, _begin_download],
         collector=_last_one,
     )
 
-    downloading.upon(
-        download_completed,
-        enter=download_check_local,
+    _downloading.upon(
+        _download_completed,
+        enter=_download_check_local,
         outputs=[_check_local_update],
+        collector=_last_one,
     )
-    downloading.upon(
-        remote_update,
-        enter=downloading,
+    _downloading.upon(
+        _remote_update,
+        enter=_downloading,
         outputs=[_queue_remote_update],
         collector=_last_one,
     )
 
-    download_check_local.upon(
-        download_matches,
-        enter=updating_personal_dmd_download,
+    _download_check_local.upon(
+        _download_matches,
+        enter=_updating_personal_dmd_download,
         outputs=[_perform_remote_update],
+        collector=_last_one,
     )
-    download_check_local.upon(
-        download_mismatch,
-        enter=conflicted,
+    _download_check_local.upon(
+        _download_mismatch,
+        enter=_conflicted,
         outputs=[_mark_download_conflict, _status_download_finished],
+        collector=_last_one,
     )
 
-    up_to_date.upon(
-        local_update,
-        enter=creating_snapshot,
+    _up_to_date.upon(
+        _local_update,
+        enter=_creating_snapshot,
         outputs=[_status_upload_queued, _create_local_snapshot],
         collector=_last_one,
     )
-    creating_snapshot.upon(
-        snapshot_completed,
-        enter=uploading,
-        outputs=[_status_upload_started, _begin_upload],
+    _up_to_date.upon(
+        _existing_local_snapshot,
+        enter=_uploading,
+        outputs=[_status_upload_queued, _status_upload_started, _begin_upload],
+        collector=_last_one,
     )
+    _creating_snapshot.upon(
+        _snapshot_completed,
+        enter=_uploading,
+        outputs=[_status_upload_started, _begin_upload],
+        collector=_last_one,
+    )
+
     # XXX actually .. we should maybe re-start this snapshot? This
     # means we've found a change _while_ we're trying to create the
     # snapshot .. what if it's like half-created?
     # (hmm, should be impossible if we wait for the snapshot in the
     # scanner...but window for the API to hit it still ..)
-    creating_snapshot.upon(
-        local_update,
-        enter=creating_snapshot,
+    _creating_snapshot.upon(
+        _local_update,
+        enter=_creating_snapshot,
         outputs=[_queue_local_update],
         collector=_last_one,
     )
-    uploading.upon(
-        upload_completed,
-        enter=updating_personal_dmd_upload,
+    _uploading.upon(
+        _upload_completed,
+        enter=_updating_personal_dmd_upload,
         outputs=[_update_personal_dmd_upload],
+        collector=_last_one,
     )
-    uploading.upon(
-        local_update,
-        enter=uploading,
+    _uploading.upon(
+        _local_update,
+        enter=_uploading,
         outputs=[_queue_local_update],
         collector=_last_one,
     )
 
-    updating_personal_dmd_upload.upon(
-        personal_dmd_updated,
-        enter=up_to_date,
-        outputs=[_status_upload_finished, _check_for_work]
+    _updating_personal_dmd_upload.upon(
+        _personal_dmd_updated,
+        enter=_checking_for_local_work,
+        outputs=[_status_upload_finished, _check_for_local_work],
+        collector=_last_one,
     )
-    updating_personal_dmd_download.upon(
-        personal_dmd_updated,
-        enter=up_to_date,
-        outputs=[_status_download_finished, _check_for_work]
+    _updating_personal_dmd_download.upon(
+        _personal_dmd_updated,
+        enter=_checking_for_local_work,
+        outputs=[_status_download_finished, _check_for_local_work],
+        collector=_last_one,
     )
 
-    up_to_date.upon(
-        existing_local_snapshot,
-        enter=uploading,
+    _checking_for_local_work.upon(
+        _snapshot_completed,
+        enter=_uploading,
         outputs=[_status_upload_queued, _status_upload_started, _begin_upload],
+        collector=_last_one,
+    )
+    _checking_for_local_work.upon(
+        _no_upload_work,
+        enter=_checking_for_remote_work,
+        outputs=[_check_for_remote_work],
+        collector=_last_one,
+    )
+
+    _checking_for_remote_work.upon(
+        _queued_download,
+        enter=_download_check_ancestor,
+        outputs=[_check_ancestor],
+        collector=_last_one,
+    )
+    _checking_for_remote_work.upon(
+        _no_download_work,
+        enter=_up_to_date,
+        outputs=[],
     )
 
     # XXX what's this state for? did we hit it somehow in testing?
-    conflicted.upon(
-        personal_dmd_updated,
-        enter=conflicted,
+    _conflicted.upon(
+        _personal_dmd_updated,
+        enter=_conflicted,
         outputs=[]
     )
 
-
-    # XXX probably more error-cases!
-    creating_snapshot.upon(
-        remote_update,
-        enter=conflicted,
+    _creating_snapshot.upon(
+        _remote_update,
+        enter=_conflicted,
         outputs=[_detected_remote_conflict],
         collector=_last_one,
     )
-    uploading.upon(
-        remote_update,
-        enter=conflicted,
+    _uploading.upon(
+        _remote_update,
+        enter=_conflicted,
         outputs=[
             _update_personal_dmd_upload,  # still want to do this ..
             _detected_remote_conflict,
         ],
         collector=_last_one,
     )
-    downloading.upon(
-        local_update,
-        enter=conflicted,
+    _downloading.upon(
+        _local_update,
+        enter=_conflicted,
         outputs=[_status_download_finished, _cancel_download],
         collector=_last_one,
     )
-    updating_personal_dmd_download.upon(
-        remote_update,
-        enter=updating_personal_dmd_download,
+    _updating_personal_dmd_download.upon(
+        _remote_update,
+        enter=_updating_personal_dmd_download,
         outputs=[_queue_remote_update],
         collector=_last_one,
     )
-    updating_personal_dmd_download.upon(
-        local_update,
-        enter=conflicted,
+    _updating_personal_dmd_download.upon(
+        _local_update,
+        enter=_conflicted,
         outputs=[_detected_local_conflict],
         collector=_last_one,
     )
 
-    updating_personal_dmd_upload.upon(
-        remote_update,
-        enter=conflicted,
+    _updating_personal_dmd_upload.upon(
+        _remote_update,
+        enter=_conflicted,
         outputs=[_detected_remote_conflict],
         collector=_last_one,
     )
-    updating_personal_dmd_upload.upon(
-        local_update,
-        enter=updating_personal_dmd_upload,
+    _updating_personal_dmd_upload.upon(
+        _local_update,
+        enter=_updating_personal_dmd_upload,
         outputs=[_queue_local_update],
         collector=_last_one,
     )
 
-
-    conflicted.upon(
-        conflict_resolution,
-        enter=uploading,
+    _conflicted.upon(
+        _conflict_resolution,
+        enter=_uploading,
         outputs=[_begin_upload],
+        collector=_last_one,
     )
-    conflicted.upon(
-        remote_update,
-        enter=conflicted,
+    _conflicted.upon(
+        _remote_update,
+        enter=_conflicted,
         outputs=[],  # probably want to .. do something? remember it?
-        collector=_last_one,
     )
-    conflicted.upon(
-        local_update,
-        enter=conflicted,
+    _conflicted.upon(
+        _local_update,
+        enter=_conflicted,
         outputs=[],  # nothing, likely: user messing with resolution file?
-        collector=_last_one,
     )
