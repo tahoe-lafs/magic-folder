@@ -649,13 +649,8 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         # are themselves RemoteSnapshot. Recursively upload local parents
         # first.
 
-        # XXXX ooooh, so this list is copied .. and _then_ we do the
-        # uploads, so when the "oldest" parent gets written .. uh.
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
-        print("  FOUND PARENTS, recursive upload {}".format(" ".join(str(id(x)) for x in to_upload)))
         for parent in to_upload:
-            print("  doing recursive calls {} {}".format(id(parent), parent.nice()))
-            print("  local copy: {} self.parents_local {}".format(len(to_upload), len(snapshot.parents_local)))
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
             parents_raw.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
