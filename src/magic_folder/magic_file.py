@@ -157,7 +157,6 @@ class MagicFile(object):
         resulting in conflicts).
         """
         d = self._remote_update(remote_snapshot)
-        print("FOUND_NEW_REMOTE", d)
         return d
 
     def local_snapshot_exists(self, local_snapshot):
@@ -357,7 +356,6 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-        print("_begin_download")
         d = self._factory._magic_fs.download_content_to_staging(
             snapshot.relpath,
             snapshot.content_cap,
@@ -365,7 +363,6 @@ class MagicFile(object):
         )
 
         def downloaded(staged_path):
-            print("downloaded", staged_path)
             self._download_completed(snapshot, staged_path)
         d.addCallback(downloaded)
         def bad(f):
@@ -393,8 +390,6 @@ class MagicFile(object):
         In case of an updated: the pathinfo of the file right now must
         match what's in the database.
         """
-        print("_check_local_update", staged_path)
-
         try:
             current_pathstate = self._factory._config.get_currentsnapshot_pathstate(self._relpath)
         except KeyError:
@@ -437,14 +432,13 @@ class MagicFile(object):
         # if remote_cap is None, we've never seen this before (so the ancestor is always correct)
         if remote_cap is not None:
             ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
-            print("{} ancestor-of {} ? {}".format(remote_cap, snapshot.capability, ancestor))
 
             if not ancestor:
                 # if the incoming remotesnapshot is actually an
                 # ancestor of _our_ snapshot, then we have nothing
                 # to do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    return self._ancestor_of_us(snapshot, None)
+                    return self._ancestor_matches(snapshot, None)
                 return self._ancestor_mismatch(snapshot, None)
         return self._ancestor_matches(snapshot, None)
 
@@ -453,7 +447,6 @@ class MagicFile(object):
         """
         Resolve a remote update locally
         """
-        print("_perform_remote_update", snapshot.relpath, staged_path)
         # there is a longer dance described in detail in
         # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
         # which may do even better at reducing the window for local
@@ -497,7 +490,6 @@ class MagicFile(object):
         )
 
         def updated_snapshot(arg):
-            print("UP", arg)
             self._factory._config.store_currentsnapshot_state(
                 snapshot.relpath,
                 path_state,
@@ -535,17 +527,14 @@ class MagicFile(object):
         local_parent = self._queue_local[-1] if self._queue_local else None
         d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
-        def completed(snap):
-            x = self._snapshot_completed(snap)
-            print("COMPLETE", x)
-            return
-
         def bad(f):
             print("BAD", f)
-        d.addCallback(completed)
+        d.addCallback(self._snapshot_completed)
         d.addErrback(bad)
         # errback? (re-try?)  XXX probably have to have a 'failed'
-        # state? or might re-trying work eventually?
+        # state? or might re-trying work eventually? (I guess
+        # .. maybe? Like if the disk is currently too full to copy but
+        # it might eventually get less-full?)
         return d
 
     @_machine.output()
@@ -553,13 +542,10 @@ class MagicFile(object):
         """
         Begin uploading a LocalSnapshot (to create a RemoteSnapshot)
         """
-        print("BEGIN: {}".format(snapshot.nice()))
         assert snapshot is not None, "Internal inconsistency"
 
         @inline_callbacks
         def perform_upload(snap):
-            print("peform_upload", snap.relpath, snap.identifier)
-            print("PERFORM IT", id(snap))
             with self._action.context() as action:
                 upload_started_at = time.time()
                 Message.log(message_type="uploading")
@@ -569,7 +555,6 @@ class MagicFile(object):
                     self._factory._config.author,
                     self._factory._tahoe_client,
                 )
-                print("perform {}: got remote: {}".format(snap.identifier, remote_snapshot))
                 Message.log(remote_snapshot=remote_snapshot)
                 snap.remote_snapshot = remote_snapshot
                 yield self._factory._config.store_uploaded_snapshot(
@@ -589,19 +574,9 @@ class MagicFile(object):
         d = perform_upload(snapshot)
 
         def upload_error(f, snap):
-            print("upload_error")
-            print(f)
-            print(snap)
             self._factory._folder_status.error_occurred(
                 "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
             )
-            # XXX okay, what's happening here is, we get an error
-            # .. then add perform_upload() in our errorback
-            # .. possibly adding more errbacks .. so I _think_ the
-            # chain goes that once we succeed on an upload, it unwinds
-            # that error-chain to the callback-chain once and then
-            # .. tries again, somehow?
-            print("error {}".format(f.getErrorMessage()))
             delay = deferLater(reactor, 5.0)
             delay.addCallback(lambda _: perform_upload(snap))
             delay.addErrback(upload_error, snap)
@@ -638,7 +613,6 @@ class MagicFile(object):
             if snapshot.content_path is not None:
                 try:
                     # Remove the local snapshot content from the stash area.
-                    print("  -> delete {}".format(snapshot.content_path))
                     snapshot.content_path.asBytesMode("utf-8").remove()
                 except Exception as e:
                     print(
@@ -655,7 +629,7 @@ class MagicFile(object):
             self._personal_dmd_updated(snapshot)
         d = update_personal_dmd()
         def bad(f):
-            print("ADDDDD", f)
+            print("BADDDDD", f)
             return f
         d.addErrback(bad)
 ##        d.addErrback(write_traceback)
@@ -681,15 +655,12 @@ class MagicFile(object):
         """
         Save this update for later processing (in _check_for_local_work)
         """
-        print("queue_local_update")
         d = self._factory._local_snapshot_service.add_file(self._path)
 
         def added(snapshot):
             # For this update to "make sense" for this magic-file it
             # must be a descendant of either an already-queued
             # snapshot or the one we're currently uploading...
-            print("ADDED", snapshot.nice())
-            print(self._queue_local)
             if self._queue_local:
                 if self._queue_local[-1] not in snapshot.parents_local:
                     raise RuntimeError(
@@ -706,7 +677,6 @@ class MagicFile(object):
         """
         Save this remote snapshot for later processing (in _check_for_remote_work)
         """
-        print("queue_remote_update")
         self._queue_remote.append(snapshot)
 
     @_machine.output()
@@ -714,10 +684,8 @@ class MagicFile(object):
         """
         Inject any saved updates, local first.
         """
-        print("_check_for_local_work")
         if self._queue_local:
             snapshot = self._queue_local.pop(0)
-            print("local work: {}".format(snapshot.nice()))
             self._snapshot_completed(snapshot)
             return
         self._no_upload_work(None)
@@ -727,14 +695,12 @@ class MagicFile(object):
         """
         Inject any saved remote updates.
         """
-        print("_check_for_remote_work")
         if self._queue_remote:
             d, snapshot = self._queue_remote.pop(0)
-            print("remote work: {}".format(d))
             real_d = self._remote_update(snapshot)
             real_d.addBoth(lambda x: d.callback(x))
+            return
         self._no_download_work(None)
-
 
     _up_to_date.upon(
         _remote_update,

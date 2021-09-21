@@ -722,8 +722,6 @@ class RemoteScannerService(service.MultiService):
             except KeyError:
                 our_snapshot_cap = None
 
-            print("ours: {}".format(our_snapshot_cap))
-            print("this: {}".format(snapshot.capability))
             if snapshot.capability != our_snapshot_cap:
                 # make sure "our_snapshot_cap" is cached
                 if our_snapshot_cap is not None:
@@ -731,5 +729,4 @@ class RemoteScannerService(service.MultiService):
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
                 d = mf.found_new_remote(snapshot)
-                print("did remote_update", d)
-                ###yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
+                # errback on d?

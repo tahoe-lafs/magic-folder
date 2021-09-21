@@ -736,7 +736,6 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
         from the given parameters, including fully initialized local parents.
     """
     uuid = UUID(hex=identifier)
-    print("CONSTUCT FRMO DATABASE {}".format(uuid))
     try:
         return _local_snapshots[uuid]
     except KeyError:
@@ -1116,8 +1115,6 @@ class MagicFolderConfig(object):
         :param RemoteSnapshot remote_snapshot: the RemoteSnapshot that
             has replaced local_snapshot
         """
-        print("DEL IT", id(local_snapshot))
-        print("delete_local_snapshot {} -> {}".format(local_snapshot.identifier, remote_snapshot.capability))
         assert local_snapshot.relpath == remote_snapshot.relpath, "Unrelated snapshots"
         relpath = local_snapshot.relpath
         youngest_snapshot = self.get_local_snapshot.__wrapped__(self, cursor, relpath)
@@ -1145,9 +1142,6 @@ class MagicFolderConfig(object):
                 else:
                     q.append(parent)
 
-        print("our snap: {}".format(our_snap.nice() if our_snap else None))
-        print("child snap {} : {}".format(id(child), child.nice() if child else None))
-
         # turn the 'parent' entry for 'child' to remtoe_snapshot.capability
         if child:
             cursor.execute(
@@ -1161,16 +1155,12 @@ class MagicFolderConfig(object):
                 """,
                 (False, unicode(remote_snapshot.capability), unicode(child.identifier))
             )
-            print("child parents before: {}".format(child.parents_local))
-            print("                   : {}".format(child.parents_remote))
             child.parents_local = [
                 snap
                 for snap in child.parents_local
                 if snap.identifier != local_snapshot.identifier
             ]
             child.parents_remote.append(remote_snapshot.capability)
-            print("child parents after: {}".format(child.parents_local))
-            print("                   : {}".format(child.parents_remote))
         # delete 'ours'
         cursor.execute(
             """

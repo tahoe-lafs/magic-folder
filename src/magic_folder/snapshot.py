@@ -273,9 +273,6 @@ class LocalSnapshot(object):
     )
     remote_snapshot = attr.ib(default=None)  # if non-None, we've uploaded this one
 
-    def __attrs_post_init__(self):
-        print("CREATE LOCAL SNAP {}: {}".format(id(self), self.nice()))
-
     def nice(self):
         from collections import deque
         links = []
@@ -409,7 +406,6 @@ class RemoteSnapshot(object):
         """
         :returns: True if this is a delete snapshot
         """
-        print("is?", self.content_cap)
         return self.content_cap is not None
 
 
@@ -624,7 +620,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     :returns: a RemoteSnapshot instance
     """
-    print("WRITE TO TAHOE", snapshot.nice())
     # XXX probably want to give this a progress= instance (kind-of
     # like teh one in Tahoe) so we can track upload progress for
     # status-API for GUI etc.
@@ -661,7 +656,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # cap? like a LIT cap that's 0 bytes?
     if snapshot.content_path is not None:
         content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
-    print("{}: {}".format(snapshot.relpath, content_cap))
 
     # create our metadata
     snapshot_metadata = {
