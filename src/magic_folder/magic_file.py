@@ -454,7 +454,7 @@ class MagicFile(object):
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
                     print("match because newer")
                     # XXX no, we need to go to "up to date" here
-                    return self._we_are_newer(snapshot, staged_path)
+                    return self._ancestor_we_are_newer(snapshot, staged_path)
                 ###return self._ancestor_matches(snapshot, staged_path)
                 return self._ancestor_mismatch(snapshot, staged_path)
         return self._ancestor_matches(snapshot, staged_path)

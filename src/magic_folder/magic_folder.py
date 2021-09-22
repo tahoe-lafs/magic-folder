@@ -35,7 +35,6 @@ from .uploader import (
 from .downloader import (
     RemoteSnapshotCacheService,
     RemoteScannerService,
-    MagicFolderUpdater,
     LocalMagicFolderFilesystem,
 )
 from .magic_file import (
@@ -136,18 +135,6 @@ class MagicFolder(service.MultiService):
             magic_file_factory,
             local_snapshot_service,
             status=folder_status,
-        )
-
-        folder_updater = MagicFolderUpdater(
-            LocalMagicFolderFilesystem(
-                mf_config.magic_path,
-                mf_config.stash_path,
-            ),
-            mf_config,
-            remote_snapshot_cache_service,
-            tahoe_client,
-            status=folder_status,
-            write_participant=participants.writer,
         )
 
         return cls(

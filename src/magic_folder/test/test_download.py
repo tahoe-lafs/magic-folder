@@ -67,12 +67,14 @@ from ..config import (
 )
 from ..downloader import (
     RemoteSnapshotCacheService,
-    MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
-    DownloaderService,
+    RemoteScannerService,
 )
 from ..magic_folder import (
     MagicFolder,
+)
+from ..magic_file import (
+    MagicFileFactory,
 )
 from ..snapshot import (
     create_local_author,
@@ -852,7 +854,7 @@ class UpdateTests(AsyncTestCase):
 
 class ConflictTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdater``
+    Tests relating to conflict cases
     """
 
     def setUp(self):
@@ -897,21 +899,25 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_calls.append((method, url, params, headers, data))
             return (200, {}, b"{}")
 
-        tahoe_client = create_tahoe_client(
+        self.tahoe_client = create_tahoe_client(
             DecodedURL.from_text(u"http://invalid./"),
             StubTreq(StringStubbingResource(get_resource_for)),
         )
-        particiapnts = participants_from_collective(
-            self.alice_collective, self.alice_personal, tahoe_client
+        self.participants = participants_from_collective(
+            self.alice_collective,
+            self.alice_personal,
+            self.tahoe_client,
         )
         self.status = WebSocketStatusService(reactor, self._global_config)
-        self.updater = MagicFolderUpdater(
-            magic_fs=self.filesystem,
-            config=self.alice_config,
-            remote_cache=self.remote_cache,
-            tahoe_client=tahoe_client,
-            status=FolderStatus(self.alice_config.name, self.status),
-            write_participant=particiapnts.writer,
+        self.filesystem = InMemoryMagicFolderFilesystem()
+        self.file_factory = MagicFileFactory(
+            self.alice_config,
+            self.tahoe_client,
+            FolderStatus("default", self.status),
+            object(), # local_snapshot_service
+            self.participants.writer,
+            self.remote_cache,
+            self.filesystem,
         )
 
     @inline_callbacks
@@ -1150,12 +1156,18 @@ class ConflictTests(AsyncTestCase):
         self.alice_config.store_downloaded_snapshot("foo", child, get_pathinfo(local_path).state)
 
         # we update with the parent (so, it's old)
-        yield self.updater.add_remote_snapshot("foo", parent)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(parent)
+
+        # XXX to fix this need to add another state in the
+        # state-machine to "maybe bail out early" if the updater is
+        # newer before _begin_download()
 
         # so we should do nothing
         self.assertThat(
             self.filesystem.actions,
             Equals([
+                (u'download', u'foo', 'URI:CHK:'),
             ])
         )
 
@@ -1210,7 +1222,7 @@ class ConflictTests(AsyncTestCase):
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
         # scan.
-        top_service = DownloaderService(
+        top_service = RemoteScannerService(
             Clock(),
             self.alice_config,
             alice_participants,
@@ -1300,14 +1312,21 @@ class ConflictTests(AsyncTestCase):
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
         # scan.
-        top_service = DownloaderService(
+        file_factory = MagicFileFactory(
+            self.alice_config,
+            tahoe_client,
+            FolderStatus("default", self.status),
+            object(), # local_snapshot_service,
+            alice_participants.writer,
+            self.remote_cache,
+            self.updater,
+)
+        top_service = RemoteScannerService(
             Clock(),
             self.alice_config,
             alice_participants,
-            self.updater._status,
+            file_factory,
             self.remote_cache,
-            self.updater,
-            tahoe_client,
         )
         yield top_service._loop()
 
