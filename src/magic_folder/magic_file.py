@@ -88,6 +88,11 @@ class MagicFileFactory(object):
                     relpath=relpath,
                 )
             )
+            # initialize "conflicted" state for this file
+            if self._config.list_conflicts_for(relpath):
+                mf._existing_conflict()
+
+            # cache this MagicFile
             self._magic_files[relpath] = mf
 
             # debugging -- might be nice to surface this ultimately as
@@ -292,6 +297,13 @@ class MagicFile(object):
         """
 
     @_machine.input()
+    def _existing_conflict(self):
+        """
+        This path is already conflicted. Used when initializing a fresh
+        file from the database.
+        """
+
+    @_machine.input()
     def _download_completed(self, snapshot, staged_path):
         """
         A remote Snapshot has been downloaded
@@ -343,6 +355,12 @@ class MagicFile(object):
     def _ancestor_mismatch(self, snapshot, staged_path):
         """
         snapshot is not our ancestor
+        """
+
+    @_machine.input()
+    def _ancestor_we_are_newer(self, snapshot, staged_path):
+        """
+        The proposed update is _our_ ancestor.
         """
 
     @_machine.output()
@@ -404,13 +422,15 @@ class MagicFile(object):
         # now, determine if we've found a local update
         if current_pathstate is None:
             if local_pathinfo.exists:
-                self._download_mismatch(snapshot, staged_path)
+                print("  mismatch")
+                return self._download_mismatch(snapshot, staged_path)
         else:
             # we've seen this file before so its pathstate should
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
-                self._download_mismatch(snapshot, staged_path)
+                print("  mismatch")
+                return self._download_mismatch(snapshot, staged_path)
 
         self._download_matches(snapshot, staged_path)
 
@@ -426,13 +446,16 @@ class MagicFile(object):
         # if remote_cap is None, we've never seen this before (so the ancestor is always correct)
         if remote_cap is not None:
             ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
-
+            print(" CHECK ANCESTOR", remote_cap, snapshot, staged_path, ancestor)
             if not ancestor:
                 # if the incoming remotesnapshot is actually an
                 # ancestor of _our_ snapshot, then we have nothing
                 # to do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    return self._ancestor_matches(snapshot, staged_path)
+                    print("match because newer")
+                    # XXX no, we need to go to "up to date" here
+                    return self._we_are_newer(snapshot, staged_path)
+                ###return self._ancestor_matches(snapshot, staged_path)
                 return self._ancestor_mismatch(snapshot, staged_path)
         return self._ancestor_matches(snapshot, staged_path)
 
@@ -706,9 +729,6 @@ class MagicFile(object):
             return
         self._no_download_work(None)
 
-    # XXX so, i think maybe we have to download the remote first
-    # because if there's a conflict we want to put the contents of it
-    # in the conflict-file...
     _up_to_date.upon(
         _remote_update,
         enter=_downloading,
@@ -727,7 +747,7 @@ class MagicFile(object):
     _download_checking_ancestor.upon(
         _ancestor_mismatch,
         enter=_conflicted,
-        outputs=[_mark_download_conflict],
+        outputs=[_mark_download_conflict, _status_download_finished],
         collector=_last_one,
     )
     _download_checking_ancestor.upon(
@@ -735,6 +755,13 @@ class MagicFile(object):
         enter=_download_checking_local,
         outputs=[_check_local_update],
         collector=_last_one,
+    )
+    # XXX actually, can we just avoid downloading the snapshot in this
+    # case? or at least, avoid downloading the _content_?
+    _download_checking_ancestor.upon(
+        _ancestor_we_are_newer,
+        enter=_up_to_date,
+        outputs=[],
     )
 
     _downloading.upon(
@@ -768,6 +795,11 @@ class MagicFile(object):
         enter=_creating_snapshot,
         outputs=[_status_upload_queued, _create_local_snapshot],
         collector=_last_one,
+    )
+    _up_to_date.upon(
+        _existing_conflict,
+        enter=_conflicted,
+        outputs=[],
     )
     _up_to_date.upon(
         _existing_local_snapshot,

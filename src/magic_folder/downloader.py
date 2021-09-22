@@ -727,6 +727,18 @@ class RemoteScannerService(service.MultiService):
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
+                # XXX should use .. MagicFolderConfig. probably?
                 mf = self._file_factory.magic_file_for(abspath)
-                d = mf.found_new_remote(snapshot)
-                # errback on d?
+
+                # is this snapshot already marked as a conflict
+                # for this path?
+                conflicts = [
+                    conflict
+                    for conflict in self._config.list_conflicts_for(snapshot.relpath)
+                    if conflict.snapshot_cap == snapshot.capability
+                ]
+                if not conflicts:
+                    d = mf.found_new_remote(snapshot)
+                    result = yield d
+                    print("XXX", result)
+                    # errback on d?
