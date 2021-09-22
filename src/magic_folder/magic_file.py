@@ -576,7 +576,7 @@ class MagicFile(object):
                     self._factory._config.author,
                     self._factory._tahoe_client,
                 )
-                Message.log(remote_snapshot=remote_snapshot)
+                Message.log(remote_snapshot=remote_snapshot.capability)
                 snap.remote_snapshot = remote_snapshot
                 yield self._factory._config.store_uploaded_snapshot(
                     remote_snapshot.relpath,
