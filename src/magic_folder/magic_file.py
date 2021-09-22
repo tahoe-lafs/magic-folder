@@ -188,13 +188,13 @@ class MagicFile(object):
         """
 
     @_machine.state()
-    def _download_check_ancestor(self):
+    def _download_checking_ancestor(self):
         """
         We've found a remote update; check its parentage
         """
 
     @_machine.state()
-    def _download_check_local(self):
+    def _download_checking_local(self):
         """
         We're about to make local changes; make sure a filesystem change
         didn't sneak in.
@@ -334,12 +334,6 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _ancestor_is_us(self, snapshot, staged_path):
-        """
-        We are actually the ancestor of snapshot
-        """
-
-    @_machine.input()
     def _ancestor_matches(self, snapshot, staged_path):
         """
         snapshot is our ancestor
@@ -410,18 +404,18 @@ class MagicFile(object):
         # now, determine if we've found a local update
         if current_pathstate is None:
             if local_pathinfo.exists:
-                self.download_mismatch(snapshot, staged_path)
+                self._download_mismatch(snapshot, staged_path)
         else:
             # we've seen this file before so its pathstate should
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
-                self.download_mismatch(snapshot, staged_path)
+                self._download_mismatch(snapshot, staged_path)
 
         self._download_matches(snapshot, staged_path)
 
     @_machine.output()
-    def _check_ancestor(self, snapshot):
+    def _check_ancestor(self, snapshot, staged_path):
         """
         Check if the ancestor for this remote update is correct or not.
         """
@@ -438,9 +432,9 @@ class MagicFile(object):
                 # ancestor of _our_ snapshot, then we have nothing
                 # to do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    return self._ancestor_matches(snapshot, None)
-                return self._ancestor_mismatch(snapshot, None)
-        return self._ancestor_matches(snapshot, None)
+                    return self._ancestor_matches(snapshot, staged_path)
+                return self._ancestor_mismatch(snapshot, staged_path)
+        return self._ancestor_matches(snapshot, staged_path)
 
     @_machine.output()
     def _perform_remote_update(self, snapshot, staged_path):
@@ -712,42 +706,41 @@ class MagicFile(object):
             return
         self._no_download_work(None)
 
+    # XXX so, i think maybe we have to download the remote first
+    # because if there's a conflict we want to put the contents of it
+    # in the conflict-file...
     _up_to_date.upon(
         _remote_update,
-        enter=_download_check_ancestor,
-        outputs=[_check_ancestor],
-        collector=_last_one,
-    )
-
-    _download_check_ancestor.upon(
-        _ancestor_is_us,
-        enter=_up_to_date,
-        outputs=[],
-    )
-    _download_check_ancestor.upon(
-        _remote_update,
-        enter=_download_check_ancestor,
-        outputs=[_queue_remote_update],
-        collector=_last_one,
-    )
-    # XXX local-update possible here too? then->conflict
-    _download_check_ancestor.upon(
-        _ancestor_mismatch,
-        enter=_conflicted,
-        outputs=[_mark_download_conflict],
-        collector=_last_one,
-    )
-    _download_check_ancestor.upon(
-        _ancestor_matches,
         enter=_downloading,
         outputs=[_status_download_started, _begin_download],
         collector=_last_one,
     )
 
+    _download_checking_ancestor.upon(
+        _remote_update,
+        enter=_download_checking_ancestor,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
+    )
+
+    # XXX local-update possible here too? then->conflict
+    _download_checking_ancestor.upon(
+        _ancestor_mismatch,
+        enter=_conflicted,
+        outputs=[_mark_download_conflict],
+        collector=_last_one,
+    )
+    _download_checking_ancestor.upon(
+        _ancestor_matches,
+        enter=_download_checking_local,
+        outputs=[_check_local_update],
+        collector=_last_one,
+    )
+
     _downloading.upon(
         _download_completed,
-        enter=_download_check_local,
-        outputs=[_check_local_update],
+        enter=_download_checking_ancestor,
+        outputs=[_check_ancestor],
         collector=_last_one,
     )
     _downloading.upon(
@@ -757,13 +750,13 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-    _download_check_local.upon(
+    _download_checking_local.upon(
         _download_matches,
         enter=_updating_personal_dmd_download,
         outputs=[_perform_remote_update],
         collector=_last_one,
     )
-    _download_check_local.upon(
+    _download_checking_local.upon(
         _download_mismatch,
         enter=_conflicted,
         outputs=[_mark_download_conflict, _status_download_finished],
@@ -841,8 +834,8 @@ class MagicFile(object):
 
     _checking_for_remote_work.upon(
         _queued_download,
-        enter=_download_check_ancestor,
-        outputs=[_check_ancestor],
+        enter=_downloading,
+        outputs=[_status_download_started, _begin_download],
         collector=_last_one,
     )
     _checking_for_remote_work.upon(
