@@ -226,6 +226,9 @@ class MagicFolder(service.MultiService):
         # type: (unicode) -> Deferred[None]
         """
         Create a new snapshot of the given file.
+
+        :returns Deferred: fires (with None) after the local state has
+            been serialized to the database.
         """
 
         # preauthChild allows path-separators in the "path" (i.e. not
@@ -244,7 +247,6 @@ class MagicFolder(service.MultiService):
         d = mf.create_update()
         print("DINGDING", d)
         return d
-        return self.local_snapshot_service.add_file(path)
 
 
 _NICKNAME = Field.for_types(

@@ -224,7 +224,7 @@ class IMagicFolderFilesystem(Interface):
         :return PathState: The path state of the file that was written.
         """
 
-    def mark_conflict(relpath, remote_snapshot, staged_content):
+    def mark_conflict(relpath, conflict_path, staged_content):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to

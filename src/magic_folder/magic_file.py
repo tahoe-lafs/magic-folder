@@ -527,9 +527,13 @@ class MagicFile(object):
         local_parent = self._queue_local[-1] if self._queue_local else None
         d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
+        def completed(snap):
+            self._snapshot_completed(snap)
+            return None
+
         def bad(f):
             print("BAD", f)
-        d.addCallback(self._snapshot_completed)
+        d.addCallback(completed)
         d.addErrback(bad)
         # errback? (re-try?)  XXX probably have to have a 'failed'
         # state? or might re-trying work eventually? (I guess
@@ -589,7 +593,13 @@ class MagicFile(object):
         """
         Mark a conflict for this remote snapshot
         """
-        print("_mark_download_conflict")
+        conflict_path = "{}.conflict-{}".format(
+            self._relpath,
+            snapshot.author.name
+        )
+        print("_mark_download_conflict", conflict_path, staged_path)
+        self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
+        self._factory._config.add_conflict(snapshot)
 
     @_machine.output()
     def _update_personal_dmd_upload(self, snapshot):
