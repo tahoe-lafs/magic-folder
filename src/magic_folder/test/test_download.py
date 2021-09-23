@@ -909,7 +909,6 @@ class ConflictTests(AsyncTestCase):
             self.tahoe_client,
         )
         self.status = WebSocketStatusService(reactor, self._global_config)
-        self.filesystem = InMemoryMagicFolderFilesystem()
         self.file_factory = MagicFileFactory(
             self.alice_config,
             self.tahoe_client,
@@ -1312,20 +1311,11 @@ class ConflictTests(AsyncTestCase):
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
         # scan.
-        file_factory = MagicFileFactory(
-            self.alice_config,
-            tahoe_client,
-            FolderStatus("default", self.status),
-            object(), # local_snapshot_service,
-            alice_participants.writer,
-            self.remote_cache,
-            self.updater,
-)
         top_service = RemoteScannerService(
             Clock(),
             self.alice_config,
             alice_participants,
-            file_factory,
+            self.file_factory,
             self.remote_cache,
         )
         yield top_service._loop()

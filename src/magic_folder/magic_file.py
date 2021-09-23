@@ -23,6 +23,7 @@ from eliot.twisted import (
 )
 from twisted.internet.defer import (
     Deferred,
+    maybeDeferred,
 )
 from twisted.internet.task import (
     deferLater,
@@ -368,7 +369,8 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-        d = self._factory._magic_fs.download_content_to_staging(
+        d = maybeDeferred(
+            self._factory._magic_fs.download_content_to_staging,
             snapshot.relpath,
             snapshot.content_cap,
             self._factory._tahoe_client,
@@ -377,10 +379,17 @@ class MagicFile(object):
         def downloaded(staged_path):
             self._download_completed(snapshot, staged_path)
         d.addCallback(downloaded)
-        def bad(f):
-            print("badbad", f)
-            return f
-        d.addErrback(bad)  # XXX FIXME
+
+        def failed(f):
+            print("bad bad", f)
+            print(dir(f))
+            self._factory._folder_status.error_occurred(
+                "Failed to download snapshot for '{}'.".format(
+                    self._relpath,
+                )
+            )
+            write_traceback(exc_info=(f.type, f.value, f.tb))
+        d.addErrback(failed)
         return d
 
     @_machine.output()
