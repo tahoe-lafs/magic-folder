@@ -154,8 +154,10 @@ class MagicFile(object):
             persisted. This is before the upload has occurred.
         """
         d = self._local_update()
+
         print("CREATE_UPDATE", d)
-        return d
+        yield d
+        return
 
     def found_new_remote(self, remote_snapshot):
         """
@@ -799,6 +801,7 @@ class MagicFile(object):
         _ancestor_we_are_newer,
         enter=_up_to_date,
         outputs=[_done_working],
+        collector=_last_one,
     )
 
     _downloading.upon(
@@ -911,6 +914,7 @@ class MagicFile(object):
         _no_download_work,
         enter=_up_to_date,
         outputs=[_done_working],
+        collector=_last_one,
     )
 
     # XXX what's this state for? did we hit it somehow in testing?

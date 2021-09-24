@@ -1007,7 +1007,7 @@ class ConflictTests(AsyncTestCase):
             parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
             parent = RemoteSnapshot(
                 relpath="foo",
-                author=self.alice,
+                author=self.alice_author,
                 metadata={"modification_time": 0},
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
@@ -1045,7 +1045,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1057,7 +1057,7 @@ class ConflictTests(AsyncTestCase):
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
@@ -1069,7 +1069,7 @@ class ConflictTests(AsyncTestCase):
         other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=other_cap,
             parents_raw=[],
@@ -1085,14 +1085,16 @@ class ConflictTests(AsyncTestCase):
         ))
 
         # ...child->parent aren't related to "other"
-        yield self.updater.add_remote_snapshot("foo", child)
+        mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
+        mf.found_new_remote(child)
+        #yield self.updater.add_remote_snapshot("foo", child)
 
         # so, no common ancestor: a conflict
         self.assertThat(
             self.filesystem.actions,
             Equals([
                 ("download", "foo", child.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
+                ("conflict", "foo", "foo.conflict-alice", child.content_cap),
             ])
         )
 
@@ -1105,7 +1107,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1117,7 +1119,7 @@ class ConflictTests(AsyncTestCase):
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
@@ -1156,7 +1158,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1209,7 +1211,7 @@ class ConflictTests(AsyncTestCase):
 
         # status system should report our error
         self.assertThat(
-            loads(self.status._marshal_state()),
+            loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
@@ -1244,7 +1246,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1297,7 +1299,7 @@ class ConflictTests(AsyncTestCase):
 
         # status system should report our error
         self.assertThat(
-            loads(self.status._marshal_state()),
+            loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
