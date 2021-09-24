@@ -461,19 +461,17 @@ class MagicFile(object):
             remote_cap = self._factory._config.get_remotesnapshot(snapshot.relpath)
         except KeyError:
             remote_cap = None
-        # if remote_cap is None, we've never seen this before (so the ancestor is always correct)
+
+        # if remote_cap is None, we've never seen this before (so the
+        # ancestor is always correct)
         if remote_cap is not None:
             ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
-            print(" CHECK ANCESTOR", remote_cap, snapshot, staged_path, ancestor)
             if not ancestor:
                 # if the incoming remotesnapshot is actually an
-                # ancestor of _our_ snapshot, then we have nothing
-                # to do because we are newer
+                # ancestor of _our_ snapshot, then we have nothing to
+                # do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    print("match because newer")
-                    # XXX no, we need to go to "up to date" here
                     return self._ancestor_we_are_newer(snapshot, staged_path)
-                ###return self._ancestor_matches(snapshot, staged_path)
                 return self._ancestor_mismatch(snapshot, staged_path)
         return self._ancestor_matches(snapshot, staged_path)
 

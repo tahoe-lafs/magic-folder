@@ -887,18 +887,7 @@ class ConflictTests(AsyncTestCase):
         self.filesystem = InMemoryMagicFolderFilesystem()
         self.file_factory._magic_fs = self.filesystem
 
-        print("ZZZ", self.file_factory)
         self.carol_author = create_local_author("carol")
-        return
-        self.file_factory = MagicFileFactory(
-            self.alice_config,
-            self.tahoe_client,
-            FolderStatus("default", self.status),
-            object(), # local_snapshot_service
-            self.participants.writer,
-            self.remote_cache,
-            self.filesystem,
-        )
 
     def tearDown(self):
         super(ConflictTests, self).tearDown()
@@ -943,10 +932,7 @@ class ConflictTests(AsyncTestCase):
         yield mf.local_snapshot_exists(local0)
         yield mf.found_new_remote(remote0)
 
-        d = mf.when_idle()
-        while not d.called:
-            print("ding", self.filesystem.actions)
-            yield deferLater(reactor, 1.0, lambda: None)
+        yield mf.when_idle()
 
         # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
