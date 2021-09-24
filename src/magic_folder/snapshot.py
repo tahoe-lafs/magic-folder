@@ -605,7 +605,6 @@ def format_filenode(cap, metadata=None):
     ]
 
 
-
 @inline_callbacks
 def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     """

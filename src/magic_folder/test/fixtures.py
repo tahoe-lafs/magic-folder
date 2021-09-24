@@ -34,6 +34,9 @@ from hyperlink import (
 )
 from treq.client import HTTPClient
 from twisted.internet.task import Clock
+from twisted.internet.defer import (
+    DeferredList,
+)
 from twisted.python.filepath import FilePath
 
 from ..client import create_testing_http_client
@@ -320,8 +323,6 @@ class MagicFolderNode(object):
                     folder_config = global_config.get_magic_folder(name)
                     folder_config.collective_dircap = to_readonly_capability(folder_config.collective_dircap)
 
-
-
         # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
         # See https://github.com/LeastAuthority/magic-folder/issues/334
         if start_folder_services:
@@ -340,3 +341,12 @@ class MagicFolderNode(object):
             global_service=global_service,
             global_config=global_config,
         )
+
+    def cleanup(self):
+        """
+        Stop the (selected) services we started
+        """
+        return DeferredList([
+            magic_folder.stopService()
+            for magic_folder in self.global_service._iter_magic_folder_services()
+        ])

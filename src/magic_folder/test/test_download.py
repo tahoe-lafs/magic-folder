@@ -859,56 +859,37 @@ class ConflictTests(AsyncTestCase):
 
     def setUp(self):
         super(ConflictTests, self).setUp()
-        self.alice = create_local_author("alice")
-        self.carol = create_local_author("carol")
+
+        from .fixtures import MagicFolderNode
 
         self.alice_magic_path = FilePath(self.mktemp())
         self.alice_magic_path.makedirs()
-        self.state_path = FilePath(self.mktemp())
-        self.state_path.makedirs()
+        self.alice = MagicFolderNode.create(
+            reactor,
+            FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": self.alice_magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 1,
+                    "scan-interval": 1,
+                },
+            },
+            start_folder_services=True,
+        )
 
+        self.file_factory = self.alice.global_service.getServiceNamed("magic-folder-default").file_factory
+        self.remote_cache = self.file_factory._remote_cache
+        self.state_path = self.alice.global_config._get_state_path("default")
+        self.alice_config = self.alice.global_config.get_magic_folder("default")
+        self.alice_author = self.alice_config.author
         self.filesystem = InMemoryMagicFolderFilesystem()
+        self.file_factory._magic_fs = self.filesystem
 
-        self._global_config = create_testing_configuration(
-            self.state_path,
-            FilePath("dummy"),
-        )
-
-        self.alice_collective = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
-        self.alice_personal = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
-
-        self.alice_config = self._global_config.create_magic_folder(
-            "default",
-            self.alice_magic_path,
-            self.alice,
-            self.alice_collective,
-            self.alice_personal,
-            1,
-            None,
-        )
-
-        # note, we don't "run" this service, just populate ._cached_snapshots
-        self.remote_cache = RemoteSnapshotCacheService(
-            folder_config=self.alice_config,
-            tahoe_client=None,
-        )
-
-        self.tahoe_calls = []
-
-        def get_resource_for(method, url, params, headers, data):
-            self.tahoe_calls.append((method, url, params, headers, data))
-            return (200, {}, b"{}")
-
-        self.tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            StubTreq(StringStubbingResource(get_resource_for)),
-        )
-        self.participants = participants_from_collective(
-            self.alice_collective,
-            self.alice_personal,
-            self.tahoe_client,
-        )
-        self.status = WebSocketStatusService(reactor, self._global_config)
+        print("ZZZ", self.file_factory)
+        self.carol_author = create_local_author("carol")
+        return
         self.file_factory = MagicFileFactory(
             self.alice_config,
             self.tahoe_client,
@@ -919,6 +900,10 @@ class ConflictTests(AsyncTestCase):
             self.filesystem,
         )
 
+    def tearDown(self):
+        super(ConflictTests, self).tearDown()
+        return self.alice.cleanup()
+
     @inline_callbacks
     def test_update_with_local(self):
         """
@@ -928,7 +913,7 @@ class ConflictTests(AsyncTestCase):
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             relpath="foo",
-            author=self.carol,
+            author=self.carol_author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
@@ -940,7 +925,7 @@ class ConflictTests(AsyncTestCase):
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
             parents=None,
@@ -952,17 +937,24 @@ class ConflictTests(AsyncTestCase):
         self.alice_config.store_local_snapshot(local0)
         self.alice_config.store_currentsnapshot_state("foo", get_pathinfo(local_path).state)
 
-        # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot("foo", remote0)
+        # tell the state-machine about the local, and then get it to
+        # examine the remote-snapshot
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.local_snapshot_exists(local0)
+        yield mf.found_new_remote(remote0)
+
+        d = mf.when_idle()
+        while not d.called:
+            print("ding", self.filesystem.actions)
+            yield deferLater(reactor, 1.0, lambda: None)
 
         # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
-
         self.assertThat(
             self.filesystem.actions,
             Equals([
                 ("download", "foo", remote0.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
+                ("conflict", "foo", "foo.conflict-carol", remote0.content_cap),
             ])
         )
 
@@ -976,7 +968,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -993,7 +985,7 @@ class ConflictTests(AsyncTestCase):
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             relpath="foo",
-            author=self.carol,
+            author=self.carol_author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
@@ -1001,7 +993,6 @@ class ConflictTests(AsyncTestCase):
             metadata_cap=b"URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
-
 
         # tell the updater to examine the remote-snapshot
         yield self.updater.add_remote_snapshot("foo", remote0)
@@ -1225,10 +1216,8 @@ class ConflictTests(AsyncTestCase):
             Clock(),
             self.alice_config,
             alice_participants,
-            self.updater._status,
+            self.file_factory,
             self.remote_cache,
-            self.updater,
-            tahoe_client,
         )
         yield top_service._loop()
 

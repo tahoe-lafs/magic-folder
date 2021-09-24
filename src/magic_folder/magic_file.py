@@ -126,6 +126,7 @@ class MagicFile(object):
     _action = attr.ib()
     _queue_local = attr.ib(default=attr.Factory(list))
     _queue_remote = attr.ib(default=attr.Factory(list))
+    _is_working = attr.ib(default=None)
 
     _machine = automat.MethodicalMachine()
 
@@ -173,6 +174,16 @@ class MagicFile(object):
         :returns None:
         """
         self._existing_local_snapshot(local_snapshot)
+
+    @inline_callbacks
+    def when_idle(self):
+        """
+        Wait until we are in an 'idle' state (up_to_date or conflited).
+        """
+        if self._is_working is None:
+            return
+        yield self._is_working
+        return
 
     # all below methods are state-machine methods
     #
@@ -381,8 +392,6 @@ class MagicFile(object):
         d.addCallback(downloaded)
 
         def failed(f):
-            print("bad bad", f)
-            print(dir(f))
             self._factory._folder_status.error_occurred(
                 "Failed to download snapshot for '{}'.".format(
                     self._relpath,
@@ -492,7 +501,8 @@ class MagicFile(object):
                 self._factory._folder_status.error_occurred(
                     "Failed to overwrite file '{}': {}".format(snapshot.relpath, str(e))
                 )
-                raise
+                write_traceback()
+                return
 
         # Note, if we crash here (after moving the file into place but
         # before noting that in our database) then we could produce
@@ -592,6 +602,7 @@ class MagicFile(object):
                     remote_snapshot,
                     upload_started_at,
                 )
+                self._factory._remote_cache._cached_snapshots[remote_snapshot.capability] = remote_snapshot
                 self._upload_completed(snap)
                 # XXXXXX okay i think what's happening here overall is
                 # that this 'snap' is still pointed at the
@@ -738,10 +749,29 @@ class MagicFile(object):
             return
         self._no_download_work(None)
 
+    @_machine.output()
+    def _working(self):
+        """
+        We are doing some work so this file is not currently updated.
+        """
+        assert self._is_working is None, "Internal inconsistency"
+        self._is_working = Deferred()
+
+    @_machine.output()
+    def _done_working(self):
+        """
+        Alert any listeners awaiting for this file to become idle (note
+        that 'confliced' is also an idle state)
+        """
+        assert self._is_working is not None, "Internal inconsistency"
+        d = self._is_working
+        self._is_working = None
+        d.callback(None)
+
     _up_to_date.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_status_download_started, _begin_download],
+        outputs=[_working, _status_download_started, _begin_download],
         collector=_last_one,
     )
 
@@ -756,7 +786,7 @@ class MagicFile(object):
     _download_checking_ancestor.upon(
         _ancestor_mismatch,
         enter=_conflicted,
-        outputs=[_mark_download_conflict, _status_download_finished],
+        outputs=[_mark_download_conflict, _status_download_finished, _done_working],
         collector=_last_one,
     )
     _download_checking_ancestor.upon(
@@ -770,7 +800,7 @@ class MagicFile(object):
     _download_checking_ancestor.upon(
         _ancestor_we_are_newer,
         enter=_up_to_date,
-        outputs=[],
+        outputs=[_done_working],
     )
 
     _downloading.upon(
@@ -795,25 +825,25 @@ class MagicFile(object):
     _download_checking_local.upon(
         _download_mismatch,
         enter=_conflicted,
-        outputs=[_mark_download_conflict, _status_download_finished],
+        outputs=[_mark_download_conflict, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
     _up_to_date.upon(
         _local_update,
         enter=_creating_snapshot,
-        outputs=[_status_upload_queued, _create_local_snapshot],
+        outputs=[_working, _status_upload_queued, _create_local_snapshot],
         collector=_last_one,
     )
     _up_to_date.upon(
         _existing_conflict,
         enter=_conflicted,
-        outputs=[],
+        outputs=[],  # up_to_date and conflicted are both "idle" states 
     )
     _up_to_date.upon(
         _existing_local_snapshot,
         enter=_uploading,
-        outputs=[_status_upload_queued, _status_upload_started, _begin_upload],
+        outputs=[_working, _status_upload_queued, _status_upload_started, _begin_upload],
         collector=_last_one,
     )
     _creating_snapshot.upon(
@@ -882,35 +912,49 @@ class MagicFile(object):
     _checking_for_remote_work.upon(
         _no_download_work,
         enter=_up_to_date,
-        outputs=[],
+        outputs=[_done_working],
     )
 
     # XXX what's this state for? did we hit it somehow in testing?
-    _conflicted.upon(
-        _personal_dmd_updated,
-        enter=_conflicted,
-        outputs=[]
-    )
+#    _conflicted.upon(
+#        _personal_dmd_updated,
+#        enter=_conflicted,
+#        outputs=[]
+#    )
 
+    # hrm HRMMM can we just queue this, and then it'll show as a
+    # conflict "anyway" (but, we need to download the remote so we can
+    # put its contents in the conflict-file)
     _creating_snapshot.upon(
         _remote_update,
-        enter=_conflicted,
-        outputs=[_detected_remote_conflict],
+        enter=_creating_snapshot,
+        outputs=[_queue_remote_update],
+#        enter=_conflicted,
+#        outputs=[_mark_download_conflict, _done_working],
         collector=_last_one,
     )
+    # XXXX HRMM, do we just 'queue_remote_update' on any of these
+    # things, carry on with the stuff, then will (correctly?) mark the
+    # conflict on the next trip through the machine...?
     _uploading.upon(
         _remote_update,
-        enter=_conflicted,
-        outputs=[
-            _update_personal_dmd_upload,  # still want to do this ..
-            _detected_remote_conflict,
-        ],
+        enter=_uploading,
+        outputs=[_queue_remote_update],
+#        enter=_conflicted,
+#        outputs=[
+            # we _do_ want to still update our personal DMD (with the
+            # local we're currently uploading) but also mark a
+            # conflict ...
+            ##_update_personal_dmd_upload,  # still want to do this ..
+#            _detected_remote_conflict,
+#            _done_working,
+#        ],
         collector=_last_one,
     )
     _downloading.upon(
         _local_update,
         enter=_conflicted,
-        outputs=[_status_download_finished, _cancel_download],
+        outputs=[_status_download_finished, _cancel_download, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -922,14 +966,14 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _local_update,
         enter=_conflicted,
-        outputs=[_detected_local_conflict],
+        outputs=[_detected_local_conflict, _done_working],
         collector=_last_one,
     )
 
     _updating_personal_dmd_upload.upon(
         _remote_update,
         enter=_conflicted,
-        outputs=[_detected_remote_conflict],
+        outputs=[_detected_remote_conflict, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_upload.upon(
