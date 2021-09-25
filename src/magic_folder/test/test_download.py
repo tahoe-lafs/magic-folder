@@ -872,11 +872,11 @@ class ConflictTests(AsyncTestCase):
                     "magic-path": self.alice_magic_path,
                     "author-name": "alice",
                     "admin": True,
-                    "poll-interval": 1,
-                    "scan-interval": 1,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
                 },
             },
-            start_folder_services=True,
+            start_folder_services=False,#True,
         )
 
         self.file_factory = self.alice.global_service.getServiceNamed("magic-folder-default").file_factory
@@ -891,7 +891,7 @@ class ConflictTests(AsyncTestCase):
 
     def tearDown(self):
         super(ConflictTests, self).tearDown()
-        return self.alice.cleanup()
+#        return self.alice.cleanup()
 
     @inline_callbacks
     def test_update_with_local(self):
@@ -981,7 +981,9 @@ class ConflictTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[cap0] = remote0
 
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot("foo", remote0)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(remote0)
+        yield mf.when_idle()
 
         # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
@@ -1025,7 +1027,10 @@ class ConflictTests(AsyncTestCase):
 
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
-        yield self.updater.add_remote_snapshot("foo", youngest)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(youngest)
+        yield mf.when_idle()
+        ##yield self.updater.add_remote_snapshot("foo", youngest)
 
         # we have a common ancestor so this should be an update
         self.assertThat(
