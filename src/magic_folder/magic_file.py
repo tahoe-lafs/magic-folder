@@ -569,6 +569,7 @@ class MagicFile(object):
 
         def bad(f):
             print("BAD", f)
+            return f
         d.addCallback(completed)
         d.addErrback(bad)
         # errback? (re-try?)  XXX probably have to have a 'failed'

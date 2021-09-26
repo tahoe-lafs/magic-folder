@@ -45,18 +45,16 @@ class ScannerService(MultiService):
 
     _config = attr.ib()
     _file_factory = attr.ib()
-    _local_snapshot_service = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
-    def from_config(cls, clock, folder_config, file_factory, local_snapshot_service, status):
+    def from_config(cls, clock, folder_config, file_factory, status):
         return cls(
             config=folder_config,
             file_factory=file_factory,
-            local_snapshot_service=local_snapshot_service,
             status=status,
             cooperator=_create_cooperator(clock),
             scan_interval=folder_config.scan_interval,

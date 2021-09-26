@@ -18,11 +18,23 @@ from twisted.internet.task import Clock, Cooperator
 from twisted.python import runtime
 from twisted.python.filepath import FilePath
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from ..config import create_testing_configuration
+from ..magic_file import MagicFileFactory
 from ..scanner import ScannerService, find_updated_files
 from ..snapshot import RemoteSnapshot, create_local_author
 from ..status import FolderStatus, WebSocketStatusService
 from ..util.file import PathState, get_pathinfo
+from ..tahoe_client import (
+    create_tahoe_client,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from .common import SyncTestCase, skipIf
 from .strategies import relative_paths
 
@@ -65,6 +77,10 @@ class FindUpdatesTests(SyncTestCase):
             scheduler=lambda f: f(),
         )
         self.addCleanup(self.cooperator.stop)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            create_tahoe_treq_client(create_fake_tahoe_root()),
+        )
 
     @given(
         relative_paths(),
@@ -262,14 +278,27 @@ class FindUpdatesTests(SyncTestCase):
 
         files = []
 
+        class FakeLocalSnapshot(object):
+            pass
+
         class SnapshotService(object):
-            def add_file(self, f):
+            def add_file(self, f, local_parent=None):
                 files.append(f)
-                return succeed(None)
+                return succeed(FakeLocalSnapshot())
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+        )
 
         service = ScannerService(
             self.config,
-            SnapshotService(),
+            file_factory,
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
@@ -299,14 +328,29 @@ class FindUpdatesTests(SyncTestCase):
 
         files = []
 
+        class FakeLocalSnapshot(object):
+            pass
+
         class SnapshotService(object):
-            def add_file(self, f):
+            def add_file(self, f, local_parent=None):
                 files.append(f)
-                return succeed(None)
+                return succeed(
+                    FakeLocalSnapshot()
+                )
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            object(), #self.write_participant,
+            object(), #self.remote_cache,
+            object(), #self.filesystem,
+        )
 
         service = ScannerService(
             self.config,
-            SnapshotService(),
+            file_factory,
             object(),
             cooperator=self.cooperator,
             scan_interval=1,
