@@ -81,10 +81,11 @@ class MemorySnapshotCreator(object):
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def store_local_snapshot(self, path):
+    def store_local_snapshot(self, path, local_snapshot=None):
         Message.log(
             message_type=u"memory-snapshot-creator:store-local-snapshot",
             path=path.path,
+            local_snapshot=local_snapshot,
         )
         self.processed.append(path)
 

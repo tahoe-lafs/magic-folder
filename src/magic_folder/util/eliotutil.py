@@ -101,6 +101,13 @@ RELPATH = Field.for_types(
     u"The relative path of a file in a magic-folder.",
 )
 
+ABSPATH = Field(
+    u"abspath",
+    lambda fp: fp.path,
+    u"The absolute path of a file in a magic-folder.",
+    validateInstanceOf(FilePath),
+)
+
 VERSION = Field.for_types(
     u"version",
     [int, long],

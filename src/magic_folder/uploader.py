@@ -36,6 +36,7 @@ from eliot.twisted import (
 from .common import APIError
 from .util.eliotutil import (
     RELPATH,
+    ABSPATH,
     log_call_deferred,
 )
 from .util.twisted import (
@@ -78,7 +79,7 @@ SNAPSHOT_COMMIT_FAILURE = MessageType(
 )
 ADD_FILE_FAILURE = MessageType(
     u"magic-folder:local-snapshot-creator:add-file-failure",
-    [RELPATH],
+    [ABSPATH],
     u"file path is not a descendent of the magic folder directory",
 )
 PROCESS_FILE_QUEUE = ActionType(
@@ -257,7 +258,7 @@ class LocalSnapshotService(service.Service):
         try:
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
         except ValueError:
-            ADD_FILE_FAILURE.log(abspath=path.path)
+            ADD_FILE_FAILURE.log(abspath=path)
             raise APIError(
                 reason=u"The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
