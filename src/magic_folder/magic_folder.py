@@ -133,8 +133,7 @@ class MagicFolder(service.MultiService):
             reactor,
             mf_config,
             magic_file_factory,
-            local_snapshot_service,
-            status=folder_status,
+            folder_status,
         )
 
         return cls(
