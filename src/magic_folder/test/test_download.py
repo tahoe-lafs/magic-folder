@@ -803,8 +803,8 @@ class UpdateTests(AsyncTestCase):
         # immediately _after_ the download has occurred...
 
         # "our" folder updater service
-        folder_updater = self.service.downloader_service._folder_updater
-        orig_method = folder_updater._magic_fs.download_content_to_staging
+        file_factory = self.service.file_factory
+        orig_method = file_factory._magic_fs.download_content_to_staging
 
         @inline_callbacks
         def do_download(relpath, cap, tahoe_client):
@@ -818,7 +818,7 @@ class UpdateTests(AsyncTestCase):
             self.magic_path.preauthChild(relpath).setContent("So conflicted")
             returnValue(x)
 
-        with patch.object(folder_updater._magic_fs, "download_content_to_staging", do_download):
+        with patch.object(file_factory._magic_fs, "download_content_to_staging", do_download):
             # create a change in zara's Personal DMD
             remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
             yield self.tahoe_client.add_entry_to_mutable_directory(
@@ -1033,7 +1033,6 @@ class ConflictTests(AsyncTestCase):
         mf = self.file_factory.magic_file_for(local_path)
         yield mf.found_new_remote(youngest)
         yield mf.when_idle()
-        ##yield self.updater.add_remote_snapshot("foo", youngest)
 
         # we have a common ancestor so this should be an update
         self.assertThat(
