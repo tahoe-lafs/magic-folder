@@ -1005,8 +1005,11 @@ class ConflictTests(AsyncTestCase):
 
         remotes = []
 
-        for letter in 'abcd':
-            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
+        for letter in b'abcd':
+            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(
+                base64.b32encode(letter * 16).rstrip('=').lower(),
+                base64.b32encode(letter * 32).rstrip('=').lower(),
+            )
             parent = RemoteSnapshot(
                 relpath="foo",
                 author=self.alice_author,
@@ -1091,8 +1094,7 @@ class ConflictTests(AsyncTestCase):
 
         # ...child->parent aren't related to "other"
         mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
-        mf.found_new_remote(child)
-        #yield self.updater.add_remote_snapshot("foo", child)
+        yield mf.found_new_remote(child)
 
         # so, no common ancestor: a conflict
         self.assertThat(
