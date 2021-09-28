@@ -39,9 +39,6 @@ from .util.eliotutil import (
     ABSPATH,
     log_call_deferred,
 )
-from .util.twisted import (
-    PeriodicService,
-)
 from .snapshot import (
     LocalAuthor,
     write_snapshot_to_tahoe,

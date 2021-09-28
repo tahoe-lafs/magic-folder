@@ -97,9 +97,8 @@ class MagicFileFactory(object):
             self._magic_files[relpath] = mf
 
             # debugging -- might be nice to surface this ultimately as
-            # a command-line option, and we JSON-serialize all
-            # transitions to a file/FD provided?
-            if True:
+            # a command-line option
+            if True:  # _debug_state_machine
                 def tracer(old_state, the_input, new_state):
                     with mf._action.context():
                         Message.log(
@@ -117,7 +116,25 @@ class MagicFileFactory(object):
 @attr.s
 class MagicFile(object):
     """
-    A single file in a single magic-folder
+    A single file in a single magic-folder.
+
+    The API methods here ultimately drive a state-machine implemented
+    using the Automat library. This will automatically produce Dot
+    diagrams describing the state-machine. To produce and see the
+    diagram:
+
+        automat-visualize magic_folder.magic_file
+        feh -ZF .automat_visualize/magic_folder.magic_file.MagicFile._machine.dot.png
+
+    When debugging (potential) issues with the state-machine, it is
+    useful to turn on tracing (or see the Eliot logs which also logs
+    the state-transitions). See _debug_state_machine above.
+
+    If the outcome of some operate is to inject a new input into the
+    state-machine, it should be done with self._call_later(0, ...)
+    This allows the state transition to "happen fully" (i.e. any
+    following outputs run) before a new input is injected. For
+    testing, _call_later() can be made synchronous.
     """
 
     _path = attr.ib()  # FilePath
@@ -127,12 +144,17 @@ class MagicFile(object):
     _queue_local = attr.ib(default=attr.Factory(list))
     _queue_remote = attr.ib(default=attr.Factory(list))
     _is_working = attr.ib(default=None)
+    _call_later = attr.ib(default=None)  # Callable to schedule work, reactor.callLater
 
     _machine = automat.MethodicalMachine()
 
     # debug
     set_trace = _machine._setTrace
 
+    def __attrs_post_init__(self):
+        if self._call_later is None:
+            from twisted.internet import reactor
+            self._call_later = reactor.callLater
 
     # these are API methods intended to be called by other code in
     # magic-folder
@@ -175,7 +197,8 @@ class MagicFile(object):
 
         :returns None:
         """
-        self._existing_local_snapshot(local_snapshot)
+        d = self._existing_local_snapshot(local_snapshot)
+        return d
 
     @inline_callbacks
     def when_idle(self):
@@ -390,7 +413,7 @@ class MagicFile(object):
         )
 
         def downloaded(staged_path):
-            self._download_completed(snapshot, staged_path)
+            self._call_later(0, self._download_completed, snapshot, staged_path)
         d.addCallback(downloaded)
 
         def failed(f):
@@ -443,16 +466,18 @@ class MagicFile(object):
         if current_pathstate is None:
             if local_pathinfo.exists:
                 print("  mismatch")
-                return self._download_mismatch(snapshot, staged_path)
+                self._call_later(0, self._download_mismatch, snapshot, staged_path)
+                return
         else:
             # we've seen this file before so its pathstate should
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
                 print("  mismatch")
-                return self._download_mismatch(snapshot, staged_path)
+                self._call_later(0, self._download_mismatch, snapshot, staged_path)
+                return
 
-        self._download_matches(snapshot, staged_path)
+        self._call_later(0, self._download_matches, snapshot, staged_path)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -473,9 +498,18 @@ class MagicFile(object):
                 # ancestor of _our_ snapshot, then we have nothing to
                 # do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    return self._ancestor_we_are_newer(snapshot, staged_path)
-                return self._ancestor_mismatch(snapshot, staged_path)
-        return self._ancestor_matches(snapshot, staged_path)
+                    self._call_later(
+                        0, self._ancestor_we_are_newer, snapshot, staged_path,
+                    )
+                    return
+                self._call_later(
+                    0, self._ancestor_mismatch, snapshot, staged_path,
+                )
+                return
+        self._call_later(
+            0, self._ancestor_matches, snapshot, staged_path,
+        )
+        return
 
     @_machine.output()
     def _perform_remote_update(self, snapshot, staged_path):
@@ -530,8 +564,15 @@ class MagicFile(object):
                 snapshot.relpath,
                 path_state,
             )
-            self._personal_dmd_updated(snapshot)
+            self._call_later(
+                0, self._personal_dmd_updated, snapshot,
+            )
+            return
+
+        def error(f):
+            print("FAIL", f)
         d.addCallback(updated_snapshot)
+        d.addErrback(error)
         return d
 
     @_machine.output()
@@ -564,7 +605,7 @@ class MagicFile(object):
         d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
         def completed(snap):
-            self._snapshot_completed(snap)
+            self._call_later(0, self._snapshot_completed, snap)
             return snap
 
         def bad(f):
@@ -583,7 +624,7 @@ class MagicFile(object):
         """
         Begin uploading a LocalSnapshot (to create a RemoteSnapshot)
         """
-        assert snapshot is not None, "Internal inconsistency"
+        assert snapshot is not None, "Internal inconsistency: no snapshot _begin_upload"
 
         @inline_callbacks
         def perform_upload(snap):
@@ -604,7 +645,9 @@ class MagicFile(object):
                     upload_started_at,
                 )
                 self._factory._remote_cache._cached_snapshots[remote_snapshot.capability] = remote_snapshot
-                self._upload_completed(snap)
+                self._call_later(
+                    0, self._upload_completed, snap,
+                )
                 # XXXXXX okay i think what's happening here overall is
                 # that this 'snap' is still pointed at the
                 # local-snapshot which just got uploaded; e.g. if
@@ -654,28 +697,34 @@ class MagicFile(object):
                 snapshot.relpath,
                 remote_snapshot.capability,
             )
-            # if removing the stashed content fails here, we MUST move on
-            # to delete the LocalSnapshot because we may not be able to
-            # re-create the Snapshot (maybe the content is "partially
-            # deleted"?
+
+            # if removing the stashed content fails here, we MUST move
+            # on to delete the LocalSnapshot because we may not be
+            # able to re-create the Snapshot (e.g. maybe the stashed
+            # content is "partially deleted" or otherwise unreadable)
+            # and we _don't_ want to deserialize the LocalSnapshot if
+            # the process restarts
             if snapshot.content_path is not None:
                 try:
                     # Remove the local snapshot content from the stash area.
                     snapshot.content_path.asBytesMode("utf-8").remove()
                 except Exception as e:
-                    print(
-                        "Failed to remove cache: '{}': {}".format(
+                    self._factory._folder_status.error_occurred(
+                        "Failed to remove cache file '{}': {}".format(
                             snapshot.content_path.asTextMode("utf-8").path,
                             str(e),
                         )
                     )
 
-            # XXX FIXME must change db to delete just the one snapshot...
             # Remove the LocalSnapshot from the db.
-            ##yield self._factory._config.delete_all_local_snapshots_for(snapshot.relpath)
             yield self._factory._config.delete_local_snapshot(snapshot, remote_snapshot)
-            self._personal_dmd_updated(snapshot)
+
+            # Signal ourselves asynchronously so that the machine may
+            # finish this output (and possibly more) before dealing
+            # with this new input
+            self._call_later(0, self._personal_dmd_updated, snapshot)
         d = update_personal_dmd()
+
         def bad(f):
             print("BADDDDD", f)
             return f
@@ -725,7 +774,9 @@ class MagicFile(object):
         """
         Save this remote snapshot for later processing (in _check_for_remote_work)
         """
-        self._queue_remote.append(snapshot)
+        d = Deferred()
+        self._queue_remote.append((d, snapshot))
+        return d
 
     @_machine.output()
     def _check_for_local_work(self):
@@ -734,9 +785,10 @@ class MagicFile(object):
         """
         if self._queue_local:
             snapshot = self._queue_local.pop(0)
-            self._snapshot_completed(snapshot)
             return
-        self._no_upload_work(None)
+        self._call_later(
+            0, self._no_upload_work, None,
+        )
 
     @_machine.output()
     def _check_for_remote_work(self):
@@ -745,10 +797,13 @@ class MagicFile(object):
         """
         if self._queue_remote:
             d, snapshot = self._queue_remote.pop(0)
-            real_d = self._remote_update(snapshot)
-            real_d.addBoth(lambda x: d.callback(x))
+
+            def do_remote_update(done_d, snap):
+                update_d = self._queued_download(snap)
+                update_d.addBoth(done_d.callback)
+            self._call_later(0, do_remote_update, d, snapshot)
             return
-        self._no_download_work(None)
+        self._call_later(0, self._no_download_work, None)
 
     @_machine.output()
     def _working(self):
@@ -879,6 +934,8 @@ class MagicFile(object):
         collector=_last_one,
     )
 
+    # there is async-work done by _update_personal_dmd_upload, after
+    # which personal_dmd_updated is input back to the machine
     _updating_personal_dmd_upload.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
@@ -918,12 +975,16 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-    # XXX what's this state for? did we hit it somehow in testing?
-#    _conflicted.upon(
-#        _personal_dmd_updated,
-#        enter=_conflicted,
-#        outputs=[]
-#    )
+    # if we get a remote-update while we're in
+    # "updating_personal_dmd_upload" we will enter _conflicted, then
+    # the DMD will be updated (good), and we get the
+    # "personal_dmd_updated" notification ..
+    _conflicted.upon(
+        _personal_dmd_updated,
+        enter=_conflicted,
+        outputs=[_status_upload_finished],
+        collector=_last_one,
+    )
 
     # hrm HRMMM can we just queue this, and then it'll show as a
     # conflict "anyway" (but, we need to download the remote so we can
