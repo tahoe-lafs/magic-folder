@@ -36,7 +36,10 @@ from ..testing.web import (
     create_tahoe_treq_client,
 )
 from .common import SyncTestCase, skipIf
-from .strategies import relative_paths
+from .strategies import (
+    relative_paths,
+    author_names,
+ )
 
 # This is a path state that doesn't correspond to a file written during the test.
 OLD_PATH_STATE = PathState(0, 0, 0)
@@ -359,3 +362,57 @@ class FindUpdatesTests(SyncTestCase):
         self.addCleanup(service.stopService)
 
         self.assertThat(files, Equals([local]))
+
+    # XXX should use generated author-names, but get encoding errors
+    # from FilePath on u'0.conflict-\x00' -- that is, a single nul as
+    # an author-name
+    @given(
+        relative_paths(),
+#        author_names(),
+    )
+    def test_scan_conflict_files(self, relpath): #, author_name):
+        """
+        A completely new file is found but it is a conflict-marker file
+        and shouldn't be uploaded
+        """
+        # local = self.magic_path.preauthChild(relpath + u".conflict-{}".format(author_name))
+        local = self.magic_path.preauthChild(relpath + u".conflict-author")
+        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        local.asBytesMode("utf-8").setContent(b"dummy\n")
+
+        files = []
+
+        class FakeLocalSnapshot(object):
+            pass
+
+        class SnapshotService(object):
+            def add_file(self, f, local_parent=None):
+                files.append(f)
+                return succeed(FakeLocalSnapshot())
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+        )
+
+        service = ScannerService(
+            self.config,
+            file_factory,
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=None,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
+
+        self.assertThat(
+            service.scan_once(),
+            succeeded(Always()),
+        )
+
+        self.assertThat(files, Equals([]))

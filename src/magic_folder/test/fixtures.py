@@ -41,15 +41,23 @@ from twisted.python.filepath import FilePath
 
 from ..client import create_testing_http_client
 from ..status import FolderStatus
+from ..uploader import (
+    LocalSnapshotService,
+    LocalSnapshotCreator,
+)
+from ..downloader import (
+    InMemoryMagicFolderFilesystem,
+    RemoteSnapshotCacheService,
+)
+from ..magic_file import (
+    MagicFileFactory,
+)
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
 from ..tahoe_client import (
     create_tahoe_client,
-)
-from ..magic_folder import (
-    RemoteSnapshotCreator,
 )
 from ..participants import participants_from_collective
 from ..snapshot import create_local_author
@@ -137,9 +145,9 @@ class NodeDirectory(Fixture):
         self.api_auth_token.setContent(self.token)
 
 
-class RemoteSnapshotCreatorFixture(Fixture):
+class MagicFileFactoryFixture(Fixture):
     """
-    A fixture which provides a ``RemoteSnapshotCreator`` connected to a
+    A fixture which provides a ``MagicFileFactory`` connected to a
     ``MagicFolderConfig``.
     """
     def __init__(self, temp, author, upload_dircap, root=None):
@@ -148,7 +156,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
             likes.
 
         :param LocalAuthor author: The author which will be used to sign
-            snapshots the ``RemoteSnapshotCreator`` creates.
+            created snapshots.
 
         :param bytes upload_dircap: The Tahoe-LAFS capability for a writeable
             directory into which new snapshots will be linked.
@@ -196,17 +204,40 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.scan_interval,
         )
 
+        self.filesystem = InMemoryMagicFolderFilesystem()
+
         self._global_config = create_testing_configuration(
             self.temp.child(b"config"),
             self.temp.child(b"tahoe-node"),
         )
         self.status = WebSocketStatusService(Clock(), self._global_config)
-        self.remote_snapshot_creator = RemoteSnapshotCreator(
+        folder_status = FolderStatus(self.config.name, self.status)
+
+        local_snapshot_service = LocalSnapshotService(
+            self.config,
+            LocalSnapshotCreator(
+                self.config,
+                self.config.author,
+                self.config.stash_path,
+                self.config.magic_path,
+                self.tahoe_client,
+            ),
+            status=folder_status,
+        )
+        local_snapshot_service.startService()
+        self.addCleanup(local_snapshot_service.stopService)
+
+        self.magic_file_factory = MagicFileFactory(
             config=self.config,
-            local_author=self.author,
             tahoe_client=self.tahoe_client,
-            status=FolderStatus(self.config.name, self.status),
+            folder_status=folder_status,
+            local_snapshot_service=local_snapshot_service,
             write_participant=participants.writer,
+            remote_cache=RemoteSnapshotCacheService.from_config(
+                self.config,
+                self.tahoe_client,
+            ),
+            magic_fs=self.filesystem,
         )
 
 @attr.s

@@ -29,8 +29,6 @@ from .util.eliotutil import (
 from .uploader import (
     LocalSnapshotService,
     LocalSnapshotCreator,
-    UploaderService,
-    RemoteSnapshotCreator,
 )
 from .downloader import (
     RemoteSnapshotCacheService,
@@ -94,17 +92,6 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             tahoe_client=tahoe_client,
         )
-        uploader_service = UploaderService.from_config(
-            clock=reactor,
-            config=mf_config,
-            remote_snapshot_creator=RemoteSnapshotCreator(
-                config=mf_config,
-                local_author=mf_config.author,
-                tahoe_client=tahoe_client,
-                write_participant=participants.writer,
-                status=folder_status,
-            ),
-        )
         local_snapshot_service = LocalSnapshotService(
             mf_config,
             LocalSnapshotCreator(
@@ -115,7 +102,6 @@ class MagicFolder(service.MultiService):
                 tahoe_client,
             ),
             status=folder_status,
-            uploader_service=uploader_service,
         )
         magic_file_factory = MagicFileFactory(
             mf_config,
@@ -141,7 +127,6 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             name=name,
             local_snapshot_service=local_snapshot_service,
-            uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=RemoteScannerService.from_config(
                 clock=reactor,
@@ -163,7 +148,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, uploader_service, folder_status, scanner_service, remote_snapshot_cache, downloader, participants, clock, magic_file_factory):
+    def __init__(self, client, config, name, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, participants, clock, magic_file_factory):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -171,13 +156,11 @@ class MagicFolder(service.MultiService):
         self._participants = participants
         self.file_factory = magic_file_factory
         self.local_snapshot_service = local_snapshot_service
-        self.uploader_service = uploader_service
         self.downloader_service = downloader
         self.folder_status = folder_status
         self.scanner_service = scanner_service
         # By setting the parents these services will now start when
         # self, the top-level service, starts
-        uploader_service.setServiceParent(self)
         local_snapshot_service.setServiceParent(self)
         downloader.setServiceParent(self)
         scanner_service.setServiceParent(self)

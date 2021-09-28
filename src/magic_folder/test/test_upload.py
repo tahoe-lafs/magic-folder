@@ -46,10 +46,6 @@ from twisted.python.filepath import (
 from twisted.web.resource import (
     ErrorPage,
 )
-from ..uploader import (
-    IRemoteSnapshotCreator,
-    UploaderService,
-)
 from ..snapshot import (
     create_local_author,
     create_snapshot,
@@ -63,6 +59,7 @@ from twisted.internet import task
 
 from .common import (
     SyncTestCase,
+    AsyncTestCase,
 )
 from .strategies import (
     path_segments,
@@ -71,7 +68,7 @@ from .strategies import (
 )
 
 from .fixtures import (
-    RemoteSnapshotCreatorFixture,
+    MagicFileFactoryFixture,
 )
 
 from magic_folder.tahoe_client import (
@@ -79,12 +76,12 @@ from magic_folder.tahoe_client import (
 )
 
 
-class RemoteSnapshotCreatorTests(SyncTestCase):
+class UploadTests(AsyncTestCase):
     """
-    Tests for ``RemoteSnapshotCreator``.
+    Tests for upload cases
     """
     def setUp(self):
-        super(RemoteSnapshotCreatorTests, self).setUp()
+        super(UploadTests, self).setUp()
         self.author = create_local_author(u"alice")
 
     @given(
@@ -98,13 +95,12 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
-        f = self.useFixture(RemoteSnapshotCreatorFixture(
+        f = self.useFixture(MagicFileFactoryFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,
             upload_dircap=upload_dircap,
         ))
         config = f.config
-        remote_snapshot_creator = f.remote_snapshot_creator
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
         # can link files into it.
@@ -114,32 +110,16 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         ])
 
         # create a local snapshot
-        data = io.BytesIO(content)
-
-        d = create_snapshot(
-            relpath=relpath,
-            author=self.author,
-            data_producer=data,
-            snapshot_stash_dir=config.stash_path,
-            parents=[],
-        )
-
-        snapshots = []
-        d.addCallback(snapshots.append)
-
+        local_path = f.config.magic_path.child(relpath)
+        with local_path.open("w") as local_file:
+            local_file.write("foo\n" * 20)
+        mf = f.magic_file_factory.magic_file_for(local_path)
+        d = mf.create_update()
         self.assertThat(
             d,
             succeeded(Always()),
         )
-
-        # push LocalSnapshot object into the SnapshotStore.
-        # This should be picked up by the Uploader Service and should
-        # result in a snapshot cap.
-        config.store_local_snapshot(snapshots[0])
-        config.store_currentsnapshot_state(relpath, PathState(0, 0, 0))
-
-        remote_snapshot_creator.initialize_upload_status()
-        d = remote_snapshot_creator.upload_local_snapshots()
+        d = mf.when_idle()
         self.assertThat(
             d,
             succeeded(Always()),
@@ -161,7 +141,6 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
                 ],
             }),
         )
-
 
         # test whether we got a capability
         self.assertThat(
@@ -192,101 +171,40 @@ class RemoteSnapshotCreatorTests(SyncTestCase):
         """
         broken_root = ErrorPage(500, "It's broken.", "It's broken.")
 
-        f = self.useFixture(RemoteSnapshotCreatorFixture(
+        f = self.useFixture(MagicFileFactoryFixture(
             temp=FilePath(self.mktemp()),
             author=self.author,
             root=broken_root,
             upload_dircap=upload_dircap,
         ))
-        config = f.config
-        remote_snapshot_creator = f.remote_snapshot_creator
-
+        local_path = f.config.magic_path.child(relpath)
+        mf = f.magic_file_factory.magic_file_for(local_path)
         snapshots = []
-        parents = []
+
         for content in contents:
-            data = io.BytesIO(content)
-            d = create_snapshot(
-                relpath=relpath,
-                author=self.author,
-                data_producer=data,
-                snapshot_stash_dir=config.stash_path,
-                parents=parents,
-            )
-            d.addCallback(snapshots.append)
-            self.assertThat(
-                d,
-                succeeded(Always()),
-            )
-            config.store_local_snapshot(snapshots[-1])
-            parents = [snapshots[-1]]
+            # data = io.BytesIO(content)
+            with local_path.open("w") as local_file:
+                local_file.write(content)
+                d = mf.create_update()
+                d.addCallback(snapshots.append)
+                self.assertThat(
+                    d,
+                    succeeded(Always()),
+                )
 
-        local_snapshot = snapshots[-1]
-
-        remote_snapshot_creator.initialize_upload_status()
-        d = remote_snapshot_creator.upload_local_snapshots()
         self.assertThat(
-            d,
+            mf.when_idle(),
             succeeded(Always()),
         )
-
         self.eliot_logger.flushTracebacks(TahoeAPIError)
 
+        local_snapshot = snapshots[-1]
+        print("ZZZZZ", local_snapshot, f.config.get_local_snapshot(relpath))
         self.assertEqual(
             local_snapshot,
-            config.get_local_snapshot(relpath),
+            f.config.get_local_snapshot(relpath),
         )
         self.assertThat(
             local_snapshot.content_path.getContent(),
             Equals(content),
-        )
-
-
-@implementer(IRemoteSnapshotCreator)
-@attr.s
-class MemorySnapshotCreator(object):
-    _uploaded = attr.ib(default=0)
-
-    def upload_local_snapshots(self):
-        self._uploaded += 1
-
-    def initialize_upload_status(self):
-        pass
-
-
-class UploaderServiceTests(SyncTestCase):
-    """
-    Tests for ``UploaderService``.
-    """
-    def setUp(self):
-        super(UploaderServiceTests, self).setUp()
-        self.poll_interval = 1
-        self.clock = task.Clock()
-        self.remote_snapshot_creator = MemorySnapshotCreator()
-        self.uploader_service = UploaderService(
-            poll_interval=self.poll_interval,
-            clock=self.clock,
-            remote_snapshot_creator=self.remote_snapshot_creator,
-        )
-
-    def test_commit_a_file(self):
-        # start Uploader Service
-        self.uploader_service.startService()
-        self.addCleanup(self.uploader_service.stopService)
-
-        # We want processing to start immediately on startup in case there was
-        # work left over from the last time we ran.  So there should already
-        # have been one upload attempt by now.
-        self.assertThat(
-            self.remote_snapshot_creator._uploaded,
-            Equals(1),
-        )
-
-        # advance the clock manually, which should result in the
-        # polling of the db for uncommitted LocalSnapshots in the db
-        # and then check for remote snapshots
-        self.clock.advance(self.poll_interval)
-
-        self.assertThat(
-            self.remote_snapshot_creator._uploaded,
-            Equals(2),
         )

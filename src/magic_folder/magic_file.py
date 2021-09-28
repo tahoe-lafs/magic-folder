@@ -565,7 +565,7 @@ class MagicFile(object):
 
         def completed(snap):
             self._snapshot_completed(snap)
-            return None
+            return snap
 
         def bad(f):
             print("BAD", f)
