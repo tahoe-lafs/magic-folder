@@ -310,6 +310,12 @@ class MagicFile(object):
         There is a conflit that must be resolved
         """
 
+    @_machine.state()
+    def _failed(self):
+        """
+        Something has gone completely wrong.
+        """
+
     @_machine.input()
     def _local_update(self):
         """
@@ -388,6 +394,12 @@ class MagicFile(object):
     def _personal_dmd_updated(self, snapshot):
         """
         An update to our Personal DMD has been completed
+        """
+
+    @_machine.input()
+    def _fatal_error_download(self, snapshot):
+        """
+        An error has occurred with no other recovery path.
         """
 
     @_machine.input()
@@ -556,6 +568,7 @@ class MagicFile(object):
                     "Failed to overwrite file '{}': {}".format(snapshot.relpath, str(e))
                 )
                 write_traceback()
+                self._call_later(self._fatal_error_download, snapshot)
                 return
 
         # Note, if we crash here (after moving the file into place but
@@ -960,6 +973,12 @@ class MagicFile(object):
         _personal_dmd_updated,
         enter=_checking_for_local_work,
         outputs=[_status_download_finished, _check_for_local_work],
+        collector=_last_one,
+    )
+    _updating_personal_dmd_download.upon(
+        _fatal_error_download,
+        enter=_failed,
+        outputs=[_status_download_finished, _done_working], # XXX FIXME failed status?
         collector=_last_one,
     )
 
