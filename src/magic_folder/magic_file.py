@@ -116,6 +116,16 @@ class MagicFileFactory(object):
 
             return mf
 
+    def finish(self):
+        """
+        Mostly for testing, this will yield on .when_idle() for every
+        MagicFile we know about
+        """
+        return DeferredList([
+            mf.when_idle()
+            for mf in self._magic_files.values()
+        ])
+
 
 @attr.s
 class MagicFile(object):
