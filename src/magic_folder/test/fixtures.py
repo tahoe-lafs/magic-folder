@@ -238,7 +238,10 @@ class MagicFileFactoryFixture(Fixture):
                 self.tahoe_client,
             ),
             magic_fs=self.filesystem,
+            synchronous=True,
         )
+        self.addCleanup(self.magic_file_factory.finish)
+
 
 @attr.s
 class MagicFolderNode(object):

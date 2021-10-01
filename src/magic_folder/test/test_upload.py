@@ -43,6 +43,9 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.defer import (
+    succeed,
+)
 from twisted.web.resource import (
     ErrorPage,
 )
@@ -80,6 +83,7 @@ class UploadTests(AsyncTestCase):
     """
     Tests for upload cases
     """
+
     def setUp(self):
         super(UploadTests, self).setUp()
         self.author = create_local_author(u"alice")
@@ -116,14 +120,12 @@ class UploadTests(AsyncTestCase):
         with local_path.open("w") as local_file:
             local_file.write("foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
-        d = mf.create_update()
         self.assertThat(
-            d,
+            mf.create_update(),
             succeeded(Always()),
         )
-        d = mf.when_idle()
         self.assertThat(
-            d,
+            mf.when_idle(),
             succeeded(Always()),
         )
 
@@ -181,27 +183,29 @@ class UploadTests(AsyncTestCase):
         ))
         local_path = f.config.magic_path.child(relpath)
         mf = f.magic_file_factory.magic_file_for(local_path)
+
+        retries = []
         snapshots = []
+
+        def retry(*args, **kw):
+            retries.append((args, kw))
+            return succeed("synchronous, no retry")
+        mf._delay_later = retry
 
         for content in contents:
             # data = io.BytesIO(content)
             with local_path.open("w") as local_file:
                 local_file.write(content)
-                d = mf.create_update()
-                d.addCallback(snapshots.append)
-                self.assertThat(
-                    d,
-                    succeeded(Always()),
-                )
+            d = mf.create_update()
+            d.addCallback(snapshots.append)
+            self.assertThat(
+                d,
+                succeeded(Always()),
+            )
 
-        self.assertThat(
-            mf.when_idle(),
-            succeeded(Always()),
-        )
         self.eliot_logger.flushTracebacks(TahoeAPIError)
 
         local_snapshot = snapshots[-1]
-        print("ZZZZZ", local_snapshot, f.config.get_local_snapshot(relpath))
         self.assertEqual(
             local_snapshot,
             f.config.get_local_snapshot(relpath),

@@ -492,10 +492,9 @@ class MagicFile(object):
 
         local_pathinfo = get_pathinfo(self._path)
 
-        # we don't check for a LocalSnapshot existing, because that
-        # should be impossible: the state-machine will take a
-        # local_update() for anything in the "downloading" branch and
-        # cause a conflict .. but for safety we can assert that.
+        # if we got a local-update during the "download" branch, we
+        # will have queued it .. but it should be impossible for a
+        # snapshot to be in our local database
         try:
             self._factory._config.get_local_snapshot(self._relpath)
             assert False, "unexpected local snapshot; state-machine inconsistency?"
@@ -1050,10 +1049,13 @@ class MagicFile(object):
 #        ],
         collector=_last_one,
     )
+    # we don't enter "conflicted" immediately here because we need the download to complete so we can put the content in the conflict-file .. once it finishes, we will notice that there's already a queued local-update and mark the conflict then (see 
     _downloading.upon(
         _local_update,
-        enter=_conflicted,
-        outputs=[_status_download_finished, _cancel_download, _done_working],
+        enter=_downloading,
+        outputs=[_queue_local_update],
+#        enter=_conflicted,
+#        outputs=[_status_download_finished, _cancel_download, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1069,10 +1071,15 @@ class MagicFile(object):
         collector=_last_one,
     )
 
+    # XXX tempting to go straight to "conflicted", but we want to
+    # download the remote content to put in the "conflict" file .. no
+    # matter how much local-snapshot uploading we do (first), those
+    # will not have this remote as an ancestor so it'll be marked as a
+    # conflict whenever we get around to processing it.
     _updating_personal_dmd_upload.upon(
         _remote_update,
-        enter=_conflicted,
-        outputs=[_detected_remote_conflict, _done_working],
+        enter=_remote_update,
+        outputs=[_queue_remote_update],
         collector=_last_one,
     )
     _updating_personal_dmd_upload.upon(

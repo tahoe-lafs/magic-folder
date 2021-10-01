@@ -446,9 +446,11 @@ class UpdateTests(AsyncTestCase):
         )
         self.service.startService()
 
+    @inlineCallbacks
     def tearDown(self):
-        super(UpdateTests, self).tearDown()
-        return self.service.stopService()
+        yield super(UpdateTests, self).tearDown()
+        yield self.service.file_factory.finish()
+        yield self.service.stopService()
 
     @inlineCallbacks
     def test_create(self):
@@ -876,7 +878,7 @@ class ConflictTests(AsyncTestCase):
                     "scan-interval": 100,
                 },
             },
-            start_folder_services=False,#True,
+            start_folder_services=True,
         )
 
         self.file_factory = self.alice.global_service.getServiceNamed("magic-folder-default").file_factory
@@ -891,7 +893,7 @@ class ConflictTests(AsyncTestCase):
 
     def tearDown(self):
         super(ConflictTests, self).tearDown()
-#        return self.alice.cleanup()
+        return self.alice.cleanup()
 
     @inline_callbacks
     def test_update_with_local(self):
@@ -1094,6 +1096,7 @@ class ConflictTests(AsyncTestCase):
         # ...child->parent aren't related to "other"
         mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
         yield mf.found_new_remote(child)
+        yield mf.when_idle()
 
         # so, no common ancestor: a conflict
         self.assertThat(
@@ -1142,6 +1145,7 @@ class ConflictTests(AsyncTestCase):
         # we update with the parent (so, it's old)
         mf = self.file_factory.magic_file_for(local_path)
         yield mf.found_new_remote(parent)
+        yield mf.when_idle()
 
         # XXX to fix this need to add another state in the
         # state-machine to "maybe bail out early" if the updater is
@@ -1214,6 +1218,7 @@ class ConflictTests(AsyncTestCase):
             self.remote_cache,
         )
         yield top_service._loop()
+        yield self.file_factory.finish()
 
         # status system should report our error
         self.assertThat(
