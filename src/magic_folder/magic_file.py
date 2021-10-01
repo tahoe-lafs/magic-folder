@@ -23,10 +23,9 @@ from eliot.twisted import (
 )
 from twisted.internet.defer import (
     Deferred,
+    DeferredList,
     maybeDeferred,
-)
-from twisted.internet.task import (
-    deferLater,
+    succeed,
 )
 from twisted.internet import (
     reactor,
@@ -64,6 +63,7 @@ class MagicFileFactory(object):
     _write_participant = attr.ib()
     _remote_cache = attr.ib()
     _magic_fs = attr.ib()  # IMagicFolderFilesystem
+    _synchronous = attr.ib(default=False)  # if True, _call_later doesn't use reactor
 
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
 
@@ -87,8 +87,12 @@ class MagicFileFactory(object):
                 action=start_action(
                     action_type="magic_file",
                     relpath=relpath,
-                )
+                ),
             )
+            if self._synchronous:
+                mf._call_later=lambda f, *args, **kw: f(*args, **kw)
+                mf._delay_later=lambda f, *args, **kw: succeed("synchronous: no retry")
+
             # initialize "conflicted" state for this file
             if self._config.list_conflicts_for(relpath):
                 mf._existing_conflict()
@@ -131,7 +135,7 @@ class MagicFile(object):
     the state-transitions). See _debug_state_machine above.
 
     If the outcome of some operate is to inject a new input into the
-    state-machine, it should be done with self._call_later(0, ...)
+    state-machine, it should be done with self._call_later(...)
     This allows the state transition to "happen fully" (i.e. any
     following outputs run) before a new input is injected. For
     testing, _call_later() can be made synchronous.
@@ -144,7 +148,12 @@ class MagicFile(object):
     _queue_local = attr.ib(default=attr.Factory(list))
     _queue_remote = attr.ib(default=attr.Factory(list))
     _is_working = attr.ib(default=None)
-    _call_later = attr.ib(default=None)  # Callable to schedule work, reactor.callLater
+
+    # to facilitate testing, sometimes we _don't_ want to use the real
+    # reactor to wait one turn, or to delay for retry purposes.
+    _call_later = attr.ib(default=None)  # Callable to schedule work at least one reactor turn later
+    _delay_later = attr.ib(default=None)  # Callable to return a Deferred that fires "later"
+    _retry_delay = attr.ib(default=None)  # Callable to calculate next retry delay
 
     _machine = automat.MethodicalMachine()
 
@@ -152,9 +161,25 @@ class MagicFile(object):
     set_trace = _machine._setTrace
 
     def __attrs_post_init__(self):
+        if self._retry_delay is None:
+            self._retry_delay = lambda: 0
+
         if self._call_later is None:
             from twisted.internet import reactor
-            self._call_later = reactor.callLater
+
+            def next_turn(f, *args, **kwargs):
+                return reactor.callLater(0, f, *args, **kwargs)
+            self._call_later = next_turn
+
+        if self._delay_later is None:
+            from twisted.internet import reactor
+            from twisted.internet.task import deferLater
+
+            def delay(f, *args, **kwargs):
+                d = deferLater(reactor, self._retry_delay(), f, *args, **kwargs)
+                print("DELAY", id(d))
+                return d
+            self._delay_later = delay
 
     # these are API methods intended to be called by other code in
     # magic-folder
@@ -203,7 +228,8 @@ class MagicFile(object):
     @inline_callbacks
     def when_idle(self):
         """
-        Wait until we are in an 'idle' state (up_to_date or conflited).
+        Wait until we are in an 'idle' state (up_to_date or conflicted or
+        failed).
         """
         if self._is_working is None:
             return
@@ -413,7 +439,7 @@ class MagicFile(object):
         )
 
         def downloaded(staged_path):
-            self._call_later(0, self._download_completed, snapshot, staged_path)
+            self._call_later(self._download_completed, snapshot, staged_path)
         d.addCallback(downloaded)
 
         def failed(f):
@@ -466,7 +492,7 @@ class MagicFile(object):
         if current_pathstate is None:
             if local_pathinfo.exists:
                 print("  mismatch")
-                self._call_later(0, self._download_mismatch, snapshot, staged_path)
+                self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
         else:
             # we've seen this file before so its pathstate should
@@ -474,10 +500,10 @@ class MagicFile(object):
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
                 print("  mismatch")
-                self._call_later(0, self._download_mismatch, snapshot, staged_path)
+                self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
-        self._call_later(0, self._download_matches, snapshot, staged_path)
+        self._call_later(self._download_matches, snapshot, staged_path)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -498,17 +524,11 @@ class MagicFile(object):
                 # ancestor of _our_ snapshot, then we have nothing to
                 # do because we are newer
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                    self._call_later(
-                        0, self._ancestor_we_are_newer, snapshot, staged_path,
-                    )
+                    self._call_later(self._ancestor_we_are_newer, snapshot, staged_path)
                     return
-                self._call_later(
-                    0, self._ancestor_mismatch, snapshot, staged_path,
-                )
+                self._call_later(self._ancestor_mismatch, snapshot, staged_path)
                 return
-        self._call_later(
-            0, self._ancestor_matches, snapshot, staged_path,
-        )
+        self._call_later(self._ancestor_matches, snapshot, staged_path)
         return
 
     @_machine.output()
@@ -564,9 +584,7 @@ class MagicFile(object):
                 snapshot.relpath,
                 path_state,
             )
-            self._call_later(
-                0, self._personal_dmd_updated, snapshot,
-            )
+            self._call_later(self._personal_dmd_updated, snapshot)
             return
 
         def error(f):
@@ -605,7 +623,7 @@ class MagicFile(object):
         d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
         def completed(snap):
-            self._call_later(0, self._snapshot_completed, snap)
+            self._call_later(self._snapshot_completed, snap)
             return snap
 
         def bad(f):
@@ -645,9 +663,7 @@ class MagicFile(object):
                     upload_started_at,
                 )
                 self._factory._remote_cache._cached_snapshots[remote_snapshot.capability] = remote_snapshot
-                self._call_later(
-                    0, self._upload_completed, snap,
-                )
+                self._call_later(self._upload_completed, snap)
                 # XXXXXX okay i think what's happening here overall is
                 # that this 'snap' is still pointed at the
                 # local-snapshot which just got uploaded; e.g. if
@@ -662,8 +678,7 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
             )
-            delay = deferLater(reactor, 5.0)
-            delay.addCallback(lambda _: perform_upload(snap))
+            delay = self._delay_later(perform_upload, snap)
             delay.addErrback(upload_error, snap)
             return delay
         d.addErrback(upload_error, snapshot)
@@ -722,7 +737,7 @@ class MagicFile(object):
             # Signal ourselves asynchronously so that the machine may
             # finish this output (and possibly more) before dealing
             # with this new input
-            self._call_later(0, self._personal_dmd_updated, snapshot)
+            self._call_later(self._personal_dmd_updated, snapshot)
         d = update_personal_dmd()
 
         def bad(f):
@@ -765,6 +780,7 @@ class MagicFile(object):
                     )
             # how to check our "currently uploading" snapshot?
             self._queue_local.append(snapshot)
+            return snapshot
         d.addCallback(added)
         # XXX error? 'failed' state, because we can't even make a LocalSnapshot?
         return d
@@ -786,9 +802,7 @@ class MagicFile(object):
         if self._queue_local:
             snapshot = self._queue_local.pop(0)
             return
-        self._call_later(
-            0, self._no_upload_work, None,
-        )
+        self._call_later(self._no_upload_work, None)
 
     @_machine.output()
     def _check_for_remote_work(self):
@@ -801,9 +815,9 @@ class MagicFile(object):
             def do_remote_update(done_d, snap):
                 update_d = self._queued_download(snap)
                 update_d.addBoth(done_d.callback)
-            self._call_later(0, do_remote_update, d, snapshot)
+            self._call_later(do_remote_update, d, snapshot)
             return
-        self._call_later(0, self._no_download_work, None)
+        self._call_later(self._no_download_work, None)
 
     @_machine.output()
     def _working(self):
