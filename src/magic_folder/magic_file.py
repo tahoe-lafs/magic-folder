@@ -186,15 +186,12 @@ class MagicFile(object):
             from twisted.internet.task import deferLater
 
             def delay(f, *args, **kwargs):
-                d = deferLater(reactor, self._retry_delay(), f, *args, **kwargs)
-                print("DELAY", id(d))
-                return d
+                return deferLater(reactor, self._retry_delay(), f, *args, **kwargs)
             self._delay_later = delay
 
     # these are API methods intended to be called by other code in
     # magic-folder
 
-    @inline_callbacks
     def create_update(self):
         """
         Creates a new local change, reading the content from our (local)
@@ -210,11 +207,7 @@ class MagicFile(object):
         :returns Deferred: fires with None when our local state is
             persisted. This is before the upload has occurred.
         """
-        d = self._local_update()
-
-        print("CREATE_UPDATE", d)
-        yield d
-        return
+        return self._local_update()
 
     def found_new_remote(self, remote_snapshot):
         """
@@ -222,8 +215,7 @@ class MagicFile(object):
         has been found. It will be downloaded and applied (possibly
         resulting in conflicts).
         """
-        d = self._remote_update(remote_snapshot)
-        return d
+        return self._remote_update(remote_snapshot)
 
     def local_snapshot_exists(self, local_snapshot):
         """
