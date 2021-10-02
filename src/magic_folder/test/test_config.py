@@ -781,6 +781,31 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except KeyError:
             pass
 
+    def test_delete_no_snapshot_found(self):
+        """
+        Attempting to delete a snapshot that doesn't exist is an error.
+        """
+        remote0 = RemoteSnapshot(
+            self.snap0.relpath,
+            self.snap0.author,
+            {
+                "relpath": self.snap0.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        self.db.delete_local_snapshot(self.snap0, remote0)
+
+        try:
+            self.db.delete_local_snapshot(self.snap0, remote0)
+            assert False, "Shouldn't be able to delete unfound snapshot"
+        except ValueError:
+            pass
+
 
 class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
     """

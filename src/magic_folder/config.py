@@ -1054,6 +1054,14 @@ class MagicFolderConfig(object):
                 else:
                     q.append(parent)
 
+        # even though there maybe be _some_ snapshots for this
+        # relpath, it's possible the one we've been asked to delete
+        # doesn't exist..
+        if not our_snap:
+            raise ValueError(
+                "No such snapshot '{}' for '{}'".format(local_snapshot.identifier, relpath)
+            )
+
         # turn the 'parent' entry for 'child' to remtoe_snapshot.capability
         if child:
             cursor.execute(
