@@ -704,7 +704,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             metadata_cap="URI:CHK:cccc:cccc",
         )
 
-        self.db.local_snapshot_became_remote(self.snap0, remote0)
+        self.db.delete_local_snapshot(self.snap0, remote0)
 
         # we should still have a 3-snapshot chain, but there should be
         # only 2 local snapshots and one remote
