@@ -273,23 +273,6 @@ class LocalSnapshot(object):
     )
     remote_snapshot = attr.ib(default=None)  # if non-None, we've uploaded this one
 
-    def nice(self):
-        from collections import deque
-        links = []
-        remotes = []
-        q = deque([self])
-        while q:
-            snap = q.popleft()
-            links.append(str(snap.identifier))
-            remotes.extend(snap.parents_remote)
-            for parent in snap.parents_local:
-                q.append(parent)
-        return "LocalSnapshot(\n   {}\n   {}\n   )".format(
-            self.content_path.path,
-            "->".join(links),
-            "->".join(remotes),
-        )
-
     def get_content_producer(self):
         """
         :returns: an IBodyProducer that gives you all the bytes of the
