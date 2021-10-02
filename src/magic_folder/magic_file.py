@@ -467,13 +467,6 @@ class MagicFile(object):
         return d
 
     @_machine.output()
-    def _cancel_download(self):
-        """
-        Stop an ongoing download
-        """
-        print("_cancel_download")
-
-    @_machine.output()
     def _check_local_update(self, snapshot, staged_path):
         """
         Detect a 'last minute' change by comparing the state of our local
@@ -504,7 +497,6 @@ class MagicFile(object):
         # now, determine if we've found a local update
         if current_pathstate is None:
             if local_pathinfo.exists:
-                print("  mismatch")
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
         else:
@@ -512,7 +504,6 @@ class MagicFile(object):
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
-                print("  mismatch")
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
@@ -707,7 +698,6 @@ class MagicFile(object):
             self._relpath,
             snapshot.author.name
         )
-        print("_mark_download_conflict", conflict_path, staged_path)
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
         self._factory._config.add_conflict(snapshot)
 
@@ -761,14 +751,6 @@ class MagicFile(object):
 ##        d.addErrback(write_traceback)
 
     @_machine.output()
-    def _detected_remote_conflict(self, snapshot):
-        """
-        A remote conflict is detected
-        """
-        print("_detected_remote_conflict")
-        # note conflict, write conflict files
-
-    @_machine.output()
     def _detected_local_conflict(self):
         """
         A local conflict is detected
@@ -782,22 +764,25 @@ class MagicFile(object):
         Save this update for later processing (in _check_for_local_work)
         """
         d = self._factory._local_snapshot_service.add_file(self._path)
+        self._queue_local.append(d)
 
-        def added(snapshot):
-            # For this update to "make sense" for this magic-file it
-            # must be a descendant of either an already-queued
-            # snapshot or the one we're currently uploading...
-            if self._queue_local:
-                if self._queue_local[-1] not in snapshot.parents_local:
-                    raise RuntimeError(
-                        "Snapshot for {} has incorrect parent".format(self._relpath)
-                    )
-            # how to check our "currently uploading" snapshot?
-            self._queue_local.append(snapshot)
-            return snapshot
-        d.addCallback(added)
-        # XXX error? 'failed' state, because we can't even make a LocalSnapshot?
-        return d
+        # ideally, we'd double-check the semantics of this snapshot
+        # when it is created: it should have as parents anything else
+        # in the queue -- but of course, we can't check until _those_
+        # snapshots are themselves created.
+
+        # XXX what do we do if this snapshot fails / errback()s? go to
+        # "failed" state?
+
+        # return a "fresh" Deferred, because callers can't be trusted
+        # not to mess with our return-value
+        ret_d = Deferred()
+
+        def got_snap(snap):
+            ret_d.callback(snap)
+            return snap
+        d.addCallback(got_snap)
+        return ret_d
 
     @_machine.output()
     def _queue_remote_update(self, snapshot):
@@ -811,10 +796,15 @@ class MagicFile(object):
     @_machine.output()
     def _check_for_local_work(self):
         """
-        Inject any saved updates, local first.
+        Inject any queued local updates
         """
         if self._queue_local:
-            snapshot = self._queue_local.pop(0)
+            snapshot_d = self._queue_local.pop(0)
+
+            def got_snapshot(snap):
+                self._call_later(self._snapshot_completed, snap)
+                return snap
+            snapshot_d.addCallback(got_snapshot)
             return
         self._call_later(self._no_upload_work, None)
 
@@ -1031,22 +1021,13 @@ class MagicFile(object):
 #        outputs=[_mark_download_conflict, _done_working],
         collector=_last_one,
     )
-    # XXXX HRMM, do we just 'queue_remote_update' on any of these
+    # XXX THINK do we just 'queue_remote_update' on any of these
     # things, carry on with the stuff, then will (correctly?) mark the
     # conflict on the next trip through the machine...?
     _uploading.upon(
         _remote_update,
         enter=_uploading,
         outputs=[_queue_remote_update],
-#        enter=_conflicted,
-#        outputs=[
-            # we _do_ want to still update our personal DMD (with the
-            # local we're currently uploading) but also mark a
-            # conflict ...
-            ##_update_personal_dmd_upload,  # still want to do this ..
-#            _detected_remote_conflict,
-#            _done_working,
-#        ],
         collector=_last_one,
     )
     # we don't enter "conflicted" immediately here because we need the download to complete so we can put the content in the conflict-file .. once it finishes, we will notice that there's already a queued local-update and mark the conflict then (see 
@@ -1054,8 +1035,6 @@ class MagicFile(object):
         _local_update,
         enter=_downloading,
         outputs=[_queue_local_update],
-#        enter=_conflicted,
-#        outputs=[_status_download_finished, _cancel_download, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(

@@ -214,7 +214,6 @@ class MagicFolder(service.MultiService):
             )
         mf = self.file_factory.magic_file_for(path)
         d = mf.create_update()
-        print("DINGDING", d)
         return d
 
 
