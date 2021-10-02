@@ -874,7 +874,7 @@ class MagicFile(object):
     _download_checking_ancestor.upon(
         _ancestor_we_are_newer,
         enter=_up_to_date,
-        outputs=[_done_working],
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
 
