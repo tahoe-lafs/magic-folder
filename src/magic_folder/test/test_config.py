@@ -610,7 +610,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
     @given(
         local_snapshots(),
     )
-    def test_delete_all_llocal_snapshots_for(self, snapshot):
+    def test_delete_all_local_snapshots_for(self, snapshot):
         """
         After a local snapshot is deleted from the database,
         ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
@@ -747,6 +747,39 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             remote0,
             Equals("URI:DIR2-CHK:aaaa:aaaa"),
         )
+
+    def test_delete_several_local_snapshot(self):
+        """
+        Given a chain of three snapshots deleting them all results in now
+        snapshots.
+        """
+        # we have a "leaf" snapshot "snap2" with parent "snap1" and
+        # grandparent "snap0" snap2->snap1->snap0
+
+        # pretend we uploaded the oldest ancestor, the only one we
+        # _can_ upload (semantically)
+        remote0 = RemoteSnapshot(
+            self.snap0.relpath,
+            self.snap0.author,
+            {
+                "relpath": self.snap0.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        self.db.delete_local_snapshot(self.snap0, remote0)
+        self.db.delete_local_snapshot(self.snap1, remote0)
+        self.db.delete_local_snapshot(self.snap2, remote0)
+
+        try:
+            self.db.get_local_snapshot(self.snap0.relpath)
+            assert False, "expected no local snapshots"
+        except KeyError:
+            pass
 
 
 class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
