@@ -748,7 +748,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             Equals("URI:DIR2-CHK:aaaa:aaaa"),
         )
 
-    def test_delete_several_local_snapshot(self):
+    def test_delete_several_local_snapshots(self):
         """
         Given a chain of three snapshots deleting them all results in now
         snapshots.

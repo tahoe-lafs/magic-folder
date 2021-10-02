@@ -120,10 +120,8 @@ class ScannerService(MultiService):
             if self._config.is_conflict_marker(path):
                 return
             d = magic_file.create_update()
-            # XXX why is "d" None sometimes?
-            print("ZZZZ", d)
-            if d is not None:
-                results.append(d)
+            assert d is not None, "Internal error: no snapshot produced"
+            results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
