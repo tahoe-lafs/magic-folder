@@ -25,6 +25,7 @@ from .util import (
     twisted_sleep,
 )
 
+
 def non_lit_content(s):
     # type: (unicode) -> unicode
     """
@@ -157,7 +158,6 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
         assert local_cfg.get_all_localsnapshot_paths() == {"sylvester"}
         snap = local_cfg.get_local_snapshot("sylvester")
-        print(snap)
         # we should have 3 snapshots total, each one the parent of the next
         assert len(snap.parents_local) == 1
         assert len(snap.parents_local[0].parents_local) == 1

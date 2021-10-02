@@ -632,7 +632,7 @@ class MagicFile(object):
         """
         Create a LocalSnapshot for this update
         """
-        # XXX set parent here if we've queued anything...
+        # XXX set parent here if we've queued anything...but, actually, we need to wait for it?
         local_parent = self._queue_local[-1] if self._queue_local else None
         d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
 
