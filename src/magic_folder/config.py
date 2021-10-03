@@ -1029,11 +1029,8 @@ class MagicFolderConfig(object):
         """
         assert local_snapshot.relpath == remote_snapshot.relpath, "Unrelated snapshots"
         relpath = local_snapshot.relpath
+        # this will raise KeyError if there are no snpashots at all for this relpath
         youngest_snapshot = self.get_local_snapshot.__wrapped__(self, cursor, relpath)
-        if not youngest_snapshot:
-            raise ValueError(
-                "No local snapshots for '{}'".format(relpath)
-            )
 
         # breadth-first traversal of the (local) parents of our
         # youngest snapshot
