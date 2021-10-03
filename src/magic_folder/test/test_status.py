@@ -204,6 +204,7 @@ class WebSocketTests(AsyncTestCase):
         yield super(WebSocketTests, self).tearDown()
         yield self.pumper.stop()
 
+    @inline_callbacks
     def test_open(self):
         """
         When the WebSocket connects it receives a state update
@@ -216,7 +217,7 @@ class WebSocketTests(AsyncTestCase):
                 messages.append(json.loads(msg))
 
         # upon open, we should receive the current state
-        self.agent.open("ws://127.0.0.1:-1/v1/status", {}, TestProto)
+        proto = yield self.agent.open("ws://127.0.0.1:-1/v1/status", {}, TestProto)
         self.pumper._flush()
         self.assertThat(
             messages,
@@ -250,6 +251,8 @@ class WebSocketTests(AsyncTestCase):
                 }
             ])
         )
+        proto.dropConnection()
+        yield proto.is_closed
 
     def test_send_message(self):
         """

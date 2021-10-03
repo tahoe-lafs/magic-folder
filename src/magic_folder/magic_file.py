@@ -22,6 +22,9 @@ from eliot import (
 from eliot.twisted import (
     inline_callbacks,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
@@ -195,10 +198,9 @@ class MagicFile(object):
 
         if self._delay_later is None:
             from twisted.internet import reactor
-            from twisted.internet.task import deferLater
 
-            def delay(f, *args, **kwargs):
-                return deferLater(reactor, self._retry_delay(), f, *args, **kwargs)
+            def delay(seconds, f, *args, **kwargs):
+                return deferLater(reactor, seconds, f, *args, **kwargs)
             self._delay_later = delay
 
     # these are API methods intended to be called by other code in

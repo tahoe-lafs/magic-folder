@@ -215,3 +215,7 @@ class UploadTests(SyncTestCase):
             local_snapshot.content_path.getContent(),
             Equals(content),
         )
+        self.assertThat(
+            len(retries),
+            Equals(1),
+        )

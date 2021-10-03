@@ -274,7 +274,7 @@ class FindUpdatesTests(SyncTestCase):
         """
         The scanner service discovers a_file when a scan is requested.
         """
-        relpath = "a_file"
+        relpath = "a_file0"
         local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
@@ -297,6 +297,7 @@ class FindUpdatesTests(SyncTestCase):
             object(), # write_participant,
             object(), # remote_cache,
             object(), # filesystem,
+            synchronous=True,
         )
 
         service = ScannerService(
@@ -324,7 +325,7 @@ class FindUpdatesTests(SyncTestCase):
         The scanner service iteself discovers a_file, when a scan interval is
         set.
         """
-        relpath = "a_file"
+        relpath = "a_file1"
         local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
@@ -346,9 +347,10 @@ class FindUpdatesTests(SyncTestCase):
             self.tahoe_client,
             self.folder_status,
             SnapshotService(),
-            object(), #self.write_participant,
-            object(), #self.remote_cache,
-            object(), #self.filesystem,
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
         )
 
         service = ScannerService(
