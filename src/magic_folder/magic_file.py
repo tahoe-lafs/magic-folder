@@ -179,7 +179,6 @@ class MagicFile(object):
     # reactor to wait one turn, or to delay for retry purposes.
     _call_later = attr.ib(default=None)  # Callable to schedule work at least one reactor turn later
     _delay_later = attr.ib(default=None)  # Callable to return a Deferred that fires "later"
-    _retry_delay = attr.ib(default=None)  # Callable to calculate next retry delay
 
     _machine = automat.MethodicalMachine()
 

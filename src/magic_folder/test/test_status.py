@@ -199,9 +199,10 @@ class WebSocketTests(AsyncTestCase):
         )
         return self.pumper.start()
 
+    @inline_callbacks
     def tearDown(self):
-        super(WebSocketTests, self).tearDown()
-        return self.pumper.stop()
+        yield super(WebSocketTests, self).tearDown()
+        yield self.pumper.stop()
 
     def test_open(self):
         """
