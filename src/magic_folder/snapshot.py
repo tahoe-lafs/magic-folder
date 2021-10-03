@@ -222,7 +222,7 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
         snapshot_relpath,
-        "[delete]" if content_capability is None else content_capability,
+        "" if content_capability is None else content_capability,
         metadata_capability,
     )
     return local_author.signing_key.sign(data_to_sign)
@@ -237,7 +237,7 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = _snapshot_signature_string(
         snapshot_relpath,
-        "[delete]" if content_capability is None else content_capability,
+        "" if content_capability is None else content_capability,
         metadata_capability,
     )
     return remote_author.verify_key.verify(
