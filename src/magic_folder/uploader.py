@@ -212,7 +212,7 @@ class LocalSnapshotService(service.Service):
                     print("process {}".format(path.path))
                     yield self._snapshot_creator.store_local_snapshot(path)
                     # We explicitly don't wait to upload the snapshot.
-                    yield self._uploader_service.perform_upload()
+                    self._uploader_service.perform_upload()
                     d.callback(None)
             except CancelledError:
                 break
