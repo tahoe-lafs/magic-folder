@@ -1115,6 +1115,54 @@ class ConflictTests(AsyncTestCase):
         )
 
     @inline_callbacks
+    def test_update_delete(self):
+        """
+        Give the updater a remote update which is a delete
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=None,
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        # so "alice" has "parent" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            parent,
+            get_pathinfo(self.alice_magic_path.child("foo")).state,
+        )
+
+        # deletion snapshot
+        yield self.updater.add_remote_snapshot("foo", child)
+
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("delete", "foo"),
+            ])
+        )
+
+    @inline_callbacks
     def test_old_update(self):
         """
         An update that's older than our local one

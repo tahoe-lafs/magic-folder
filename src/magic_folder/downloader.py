@@ -240,7 +240,7 @@ class IMagicFolderFilesystem(Interface):
             content.
         """
 
-    def mark_delete(relpath, remote_snapshot):
+    def mark_delete(relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
@@ -382,15 +382,16 @@ class MagicFolderUpdater(object):
 
             else:
                 # there is no local file
-
                 # -- if this file is currently deleted, that's fine
                 # -- .. otherwise, there's an inconsistency
-                # XXX FIXME TODO
-                ##assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
+                if snapshot.capability is not None:
+                    assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
-            if snapshot.content_cap is not None:
+            if snapshot.content_cap is None:
+                staged = None
+            else:
                 self._status.download_started(relpath)
                 try:
                     with start_action(
@@ -431,7 +432,8 @@ class MagicFolderUpdater(object):
                     self._config.add_conflict(snapshot)
                 else:
                     if snapshot.content_cap is None:
-                        self._magic_fs.mark_delete(snapshot)
+                        self._magic_fs.mark_delete(snapshot.relpath)
+                        path_state = None
                     else:
                         try:
                             path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
@@ -574,12 +576,13 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
 
-    def mark_delete(self, remote_snapshot):
+    def mark_delete(self, relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        local_path = self.magic_path.preauthChild(remote_snapshot.relpath)
+        local_path = self.magic_path.preauthChild(relpath)
+        get_pathinfo(local_path)
         assert local_path.exists(), "delete, but local file already gone"
         local_path.remove()
 
@@ -621,9 +624,9 @@ class InMemoryMagicFolderFilesystem(object):
             ("conflict", relpath, conflict_path, self._staged_content[staged_content])
         )
 
-    def mark_delete(self, relpath, remote_snapshot):
+    def mark_delete(self, relpath):
         self.actions.append(
-            ("delete", relpath, remote_snapshot)
+            ("delete", relpath)
         )
 
 
