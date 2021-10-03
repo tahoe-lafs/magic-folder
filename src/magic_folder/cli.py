@@ -556,11 +556,9 @@ def run(options):
     synchronization between local and remote folders.
     """
     from twisted.internet import reactor
-    xxx = open("ding", "w")
 
     # being logging to stdout
     def event_to_string(event):
-        xxx.write("{}\n".format(event))
         # "t.i.protocol.Factory" produces a bunch of 'starting' and
         # 'stopping' messages that are quite noisy in the logs (and
         # don't provide useful information); skip them.

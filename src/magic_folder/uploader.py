@@ -209,7 +209,6 @@ class LocalSnapshotService(service.Service):
             try:
                 (path, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    print("process {}".format(path.path))
                     yield self._snapshot_creator.store_local_snapshot(path)
                     # We explicitly don't wait to upload the snapshot.
                     self._uploader_service.perform_upload()
