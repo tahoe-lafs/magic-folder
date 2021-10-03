@@ -430,7 +430,6 @@ class MagicFolderUpdater(object):
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                     self._config.add_conflict(snapshot)
                 else:
-                    print("DECIDE", snapshot.content_cap)
                     if snapshot.content_cap is None:
                         self._magic_fs.mark_delete(snapshot)
                     else:
@@ -580,7 +579,6 @@ class LocalMagicFolderFilesystem(object):
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        print("MARK DELETE", remote_snapshot)
         local_path = self.magic_path.preauthChild(remote_snapshot.relpath)
         assert local_path.exists(), "delete, but local file already gone"
         local_path.remove()
@@ -691,7 +689,6 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        print(relpath, file_data)
                         yield self._process_snapshot(relpath, file_data.snapshot_cap)
 
     @inline_callbacks
@@ -717,7 +714,6 @@ class DownloaderService(service.MultiService):
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
-            print(our_snapshot_cap, snapshot.capability)
             if snapshot.capability != our_snapshot_cap:
                 if our_snapshot_cap is not None:
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
