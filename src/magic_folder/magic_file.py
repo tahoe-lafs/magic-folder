@@ -6,6 +6,7 @@ from __future__ import (
 )
 
 import time
+import itertools
 from collections import (
     deque,
 )
@@ -27,6 +28,9 @@ from twisted.internet.defer import (
     maybeDeferred,
     succeed,
 )
+from twisted.application.internet import (
+    backoffPolicy,
+)
 from twisted.internet import (
     reactor,
 )
@@ -45,6 +49,18 @@ def _last_one(things):
     :returns: the last thing in the iterable
     """
     return list(things)[-1]
+
+
+def _delay_sequence(max_delay=10.0):
+    """
+    Internal helper. Produces a sequence of delays (in seconds) for
+    use with retries
+    """
+    delay_function = backoffPolicy(
+        maxDelay=max_delay,
+    )
+    for attempt in itertools.count():
+        yield delay_function(attempt)
 
 
 @attr.s
@@ -171,9 +187,6 @@ class MagicFile(object):
     set_trace = _machine._setTrace
 
     def __attrs_post_init__(self):
-        if self._retry_delay is None:
-            self._retry_delay = lambda: 0
-
         if self._call_later is None:
             from twisted.internet import reactor
 
@@ -669,21 +682,18 @@ class MagicFile(object):
                 )
                 self._factory._remote_cache._cached_snapshots[remote_snapshot.capability] = remote_snapshot
                 self._call_later(self._upload_completed, snap)
-                # XXXXXX okay i think what's happening here overall is
-                # that this 'snap' is still pointed at the
-                # local-snapshot which just got uploaded; e.g. if
-                # there's 2, we correctly upload + delete (?) the
-                # first (oldest) one, but the younger one still has it
-                # as parent, so "tries" to upload it ...
                 Message.log(message_type="upload_completed")
 
         d = perform_upload(snapshot)
+
+        retry_delay_sequence = _delay_sequence()
 
         def upload_error(f, snap):
             self._factory._folder_status.error_occurred(
                 "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
             )
-            delay = self._delay_later(perform_upload, snap)
+            delay_amt = next(retry_delay_sequence)
+            delay = self._delay_later(delay_amt, perform_upload, snap)
             delay.addErrback(upload_error, snap)
             return delay
         d.addErrback(upload_error, snapshot)
