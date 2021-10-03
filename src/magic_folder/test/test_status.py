@@ -17,6 +17,9 @@ from twisted.python.filepath import (
 from twisted.internet.task import (
     Clock,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 from autobahn.twisted.testing import (
     create_memory_agent,
     MemoryReactorClockResolver,

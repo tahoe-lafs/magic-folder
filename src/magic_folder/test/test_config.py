@@ -781,7 +781,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except KeyError:
             pass
 
-    def test_delete_no_snapshot_found(self):
+    def test_delete_snapshot_twice(self):
         """
         Attempting to delete a snapshot that doesn't exist is an error.
         """
@@ -804,6 +804,37 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             self.db.delete_local_snapshot(self.snap0, remote0)
             assert False, "Shouldn't be able to delete unfound snapshot"
         except ValueError:
+            pass
+
+    def test_delete_no_snapshots_for_relpath(self):
+        """
+        Attempting to delete an unknown relpath is an error.
+        """
+        snap = LocalSnapshot(
+            relpath="non-existent",
+            author=self.author,
+            metadata=dict(),
+            content_path=FilePath("snap0 content"),
+            parents_local=[],
+            parents_remote=[],
+        )
+        remote = RemoteSnapshot(
+            snap.relpath,
+            snap.author,
+            {
+                "relpath": snap.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        try:
+            self.db.delete_local_snapshot(snap, remote)
+            assert False, "Shouldn't be able to delete unfound snapshot"
+        except KeyError:
             pass
 
 

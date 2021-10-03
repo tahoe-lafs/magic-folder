@@ -476,6 +476,8 @@ class MagicFile(object):
                 )
             )
             write_traceback(exc_info=(f.type, f.value, f.tb))
+            # XXX FIXME need to either retry via self._delay_later or
+            # go to failed
         d.addErrback(failed)
         return d
 

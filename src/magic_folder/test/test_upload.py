@@ -56,13 +56,16 @@ from ..snapshot import (
 from ..magicpath import (
     path2magic,
 )
-from ..util.capabilities import is_immutable_directory_cap, to_verify_capability
-from ..util.file import PathState
-from twisted.internet import task
+from ..util.capabilities import (
+    is_immutable_directory_cap,
+    to_verify_capability,
+)
+from ..util.file import (
+    PathState,
+)
 
 from .common import (
     SyncTestCase,
-    AsyncTestCase,
 )
 from .strategies import (
     path_segments,
@@ -79,14 +82,10 @@ from magic_folder.tahoe_client import (
 )
 
 
-class UploadTests(AsyncTestCase):
+class UploadTests(SyncTestCase):
     """
     Tests for upload cases
     """
-
-    def setUp(self):
-        super(UploadTests, self).setUp()
-        self.author = create_local_author(u"alice")
 
     @given(
         relpath=relative_paths(),
@@ -99,9 +98,10 @@ class UploadTests(AsyncTestCase):
         should result in a remotesnapshot corresponding to the
         localsnapshot.
         """
+        author = create_local_author("alice")
         f = self.useFixture(MagicFileFactoryFixture(
             temp=FilePath(self.mktemp()),
-            author=self.author,
+            author=author,
             upload_dircap=upload_dircap,
         ))
         config = f.config
@@ -175,9 +175,10 @@ class UploadTests(AsyncTestCase):
         """
         broken_root = ErrorPage(500, "It's broken.", "It's broken.")
 
+        author = create_local_author("alice")
         f = self.useFixture(MagicFileFactoryFixture(
             temp=FilePath(self.mktemp()),
-            author=self.author,
+            author=author,
             root=broken_root,
             upload_dircap=upload_dircap,
         ))

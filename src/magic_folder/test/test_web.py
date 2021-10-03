@@ -1147,7 +1147,7 @@ class CreateSnapshotTests(SyncTestCase):
         not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1159,7 +1159,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
