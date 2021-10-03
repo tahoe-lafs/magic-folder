@@ -202,7 +202,6 @@ def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
         """
         path = folder_config.magic_path.preauthChild(relpath)
         if not path.exists():
-            print(path, "is missing")
             try:
                 local = folder_config.get_local_snapshot(relpath)
             except KeyError:
@@ -213,9 +212,7 @@ def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
                 remote_content = False
 
             if local is None or not local.is_delete():
-                print("found delete?", path)
                 if remote_content is not None:
-                    print("sure")
                     on_deleted_file(path)
 
     return cooperator.coiterate(
