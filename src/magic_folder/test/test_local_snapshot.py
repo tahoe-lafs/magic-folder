@@ -185,10 +185,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
             result_d = self.snapshot_service.add_file(file)
             list_d.append(result_d)
 
-        d = defer.gatherResults(list_d)
-
         self.assertThat(
-            d,
+            defer.gatherResults(list_d),
             succeeded(Always()),
         )
 
