@@ -340,7 +340,6 @@ class RemoteSnapshotCreator(object):
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
         # the new snapshot gets lost.
-
         for relpath in localsnapshot_paths:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
             try:
@@ -462,11 +461,10 @@ class UploaderService(service.MultiService):
         Start UploaderService and initiate a periodic task
         to poll for LocalSnapshots in the database.
         """
-        super(UploaderService, self).startService()
-
         # if we started with any local snapshots already in the
         # database we must reflect this in our status service.
         self._remote_snapshot_creator.initialize_upload_status()
+        super(UploaderService, self).startService()
 
     def perform_upload(self):
         """

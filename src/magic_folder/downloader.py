@@ -483,9 +483,7 @@ class LocalMagicFolderFilesystem(object):
         """
         IMagicFolderFilesystem API
         """
-        if file_cap is None:
-            return
-        import hashlib
+        assert file_cap is not None, "must supply a file-cap"
         h = hashlib.sha256()
         h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
@@ -585,7 +583,6 @@ class LocalMagicFolderFilesystem(object):
         shall be deleted.
         """
         local_path = self.magic_path.preauthChild(relpath)
-        get_pathinfo(local_path)
         assert local_path.exists(), "delete, but local file already gone"
         local_path.remove()
 
