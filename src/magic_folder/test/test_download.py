@@ -69,6 +69,7 @@ from ..downloader import (
     RemoteSnapshotCacheService,
     MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
+    LocalMagicFolderFilesystem,
     DownloaderService,
 )
 from ..magic_folder import (
@@ -1385,4 +1386,34 @@ class ConflictTests(AsyncTestCase):
             MatchesListwise([
                 matches_flushed_traceback(Exception, "something bad")
             ]),
+        )
+
+
+class FilesystemModificationTests(SyncTestCase):
+    """
+    Tests for LocalMagicFolderFilesystem
+    """
+
+    def setUp(self):
+        super(FilesystemModificationTests, self).setUp()
+        self.magic = FilePath(self.mktemp())
+        self.magic.makedirs()
+        self.staging = FilePath(self.mktemp())
+        self.staging.makedirs()
+        self.filesystem = LocalMagicFolderFilesystem(
+            self.magic,
+            self.staging,
+        )
+
+    def test_delete(self):
+        """
+        Marking a file as deleted removes it
+        """
+        self.magic.child("foo").setContent("dummy")
+
+        self.filesystem.mark_delete("foo")
+
+        self.assertThat(
+            self.magic.child("foo").exists(),
+            Equals(False)
         )
