@@ -383,15 +383,21 @@ class MagicFolderUpdater(object):
 
             else:
                 # there is no local file
-                # -- if this file is currently deleted, that's fine
-                # -- .. otherwise, there's an inconsistency
-                if snapshot.content_cap is not None:
-                    if current_pathstate is not None:
-                        if current_pathstate.size is not None:
-                            raise AssertionError("Internal inconsistency: record of a Snapshot for this relpath but no local file")
+                if snapshot.is_delete():
+                    # ...this is an incoming delete, but we're already
+                    # deleted .. so at least log it
+                    Message.log(message_type="delete-but-already-deleted", relpath=relpath)
+                else:
+                    # ...so we must either not know about this file at
+                    # all, or we must know about it but consider it
+                    # deleted currently
+                    assert current_pathstate is None or current_pathstate.size is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file")
                 is_conflict = False
 
-            action.add_success_fields(is_conflict=is_conflict)
+            action.add_success_fields(
+                is_conflict=is_conflict,
+                is_delete=snapshot.is_delete(),
+            )
             self._status.download_started(relpath)
             try:  # ensure we do download_finished() no matter exit path
                 if snapshot.content_cap is None:
