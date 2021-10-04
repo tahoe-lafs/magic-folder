@@ -509,7 +509,4 @@ class RemoteScannerService(service.MultiService):
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
                 d = mf.found_new_remote(snapshot)
-                if False:
-                    result = yield d
-                    print("XXX", result)
                 # errback on d? what would we do besides "log it"?
