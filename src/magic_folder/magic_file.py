@@ -459,22 +459,10 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-        def perform_download():
-            return maybeDeferred(
-                self._factory._magic_fs.download_content_to_staging,
-                snapshot.relpath,
-                snapshot.content_cap,
-                self._factory._tahoe_client,
-            )
-
-        if snapshot.content_cap is None:
-            d = succeed(None)
-        else:
-            d = perform_download()
 
         def downloaded(staged_path):
             self._call_later(self._download_completed, snapshot, staged_path)
-        d.addCallback(downloaded)
+
         retry_delay_sequence = _delay_sequence()
 
         def failed(f):
@@ -487,8 +475,23 @@ class MagicFile(object):
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_download)
             delay.addErrback(failed)
-        d.addErrback(failed)
-        return d
+            return None
+
+        def perform_download():
+            if snapshot.content_cap is None:
+                d = succeed(None)
+            else:
+                d = maybeDeferred(
+                    self._factory._magic_fs.download_content_to_staging,
+                    snapshot.relpath,
+                    snapshot.content_cap,
+                    self._factory._tahoe_client,
+                )
+            d.addCallback(downloaded)
+            d.addErrback(failed)
+            return d
+
+        return perform_download()
 
     @_machine.output()
     def _check_local_update(self, snapshot, staged_path):
@@ -599,16 +602,6 @@ class MagicFile(object):
             snapshot.relpath, snapshot, path_state
         )
 
-        # XXX careful here, we still need something that makes
-        # sure mismatches between remotesnapshots in our db and
-        # the Personal DMD are reconciled .. that is, if we crash
-        # here and/or can't update our Personal DMD we need to
-        # retry later.
-        d = self._factory._write_participant.update_snapshot(
-            snapshot.relpath,
-            snapshot.capability.encode("ascii"),
-        )
-
         def updated_snapshot(arg):
             self._factory._config.store_currentsnapshot_state(
                 snapshot.relpath,
@@ -617,10 +610,28 @@ class MagicFile(object):
             self._call_later(self._personal_dmd_updated, snapshot)
             return
 
+        retry_delay_sequence = _delay_sequence()
+
         def error(f):
-            print("FAIL", f)
-        d.addCallback(updated_snapshot)
-        d.addErrback(error)
+            self._factory._folder_status.error_occurred(
+                "Error updating personal DMD: {}".format(f.getErrorMessage())
+            )
+            delay_amt = next(retry_delay_sequence)
+            delay = self._delay_later(delay_amt, perform_update)
+            delay.addErrback(failed)
+            # we have to either retry, or give up (and go to "failed" state)
+            return None
+
+        def perform_update():
+            d = self._factory._write_participant.update_snapshot(
+                snapshot.relpath,
+                snapshot.capability.encode("ascii"),
+            )
+            d.addCallback(updated_snapshot)
+            d.addErrback(error)
+            return d
+
+        d = perform_update()
         return d
 
     @_machine.output()
@@ -891,8 +902,6 @@ class MagicFile(object):
         outputs=[_check_local_update],
         collector=_last_one,
     )
-    # XXX actually, can we just avoid downloading the snapshot in this
-    # case? or at least, avoid downloading the _content_?
     _download_checking_ancestor.upon(
         _ancestor_we_are_newer,
         enter=_up_to_date,
@@ -1032,27 +1041,22 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-    # hrm HRMMM can we just queue this, and then it'll show as a
-    # conflict "anyway" (but, we need to download the remote so we can
-    # put its contents in the conflict-file)
+    # in these transitions we queue them (instead of going straight to
+    # 'conflicted') so we download the content, which is required for
+    # the subsequent conflict-file (which we'll hit because the
+    # snapshot we're creating can't have the right parent yet)
     _creating_snapshot.upon(
         _remote_update,
         enter=_creating_snapshot,
         outputs=[_queue_remote_update],
-#        enter=_conflicted,
-#        outputs=[_mark_download_conflict, _done_working],
         collector=_last_one,
     )
-    # XXX THINK do we just 'queue_remote_update' on any of these
-    # things, carry on with the stuff, then will (correctly?) mark the
-    # conflict on the next trip through the machine...?
     _uploading.upon(
         _remote_update,
         enter=_uploading,
         outputs=[_queue_remote_update],
         collector=_last_one,
     )
-    # we don't enter "conflicted" immediately here because we need the download to complete so we can put the content in the conflict-file .. once it finishes, we will notice that there's already a queued local-update and mark the conflict then (see 
     _downloading.upon(
         _local_update,
         enter=_downloading,
@@ -1072,11 +1076,6 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-    # XXX tempting to go straight to "conflicted", but we want to
-    # download the remote content to put in the "conflict" file .. no
-    # matter how much local-snapshot uploading we do (first), those
-    # will not have this remote as an ancestor so it'll be marked as a
-    # conflict whenever we get around to processing it.
     _updating_personal_dmd_upload.upon(
         _remote_update,
         enter=_updating_personal_dmd_upload,

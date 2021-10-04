@@ -1330,6 +1330,10 @@ class ConflictTests(AsyncTestCase):
             raise Exception("something bad")
         self.filesystem.download_content_to_staging = network_is_out
 
+        # make this synchronous for this test so that we don't
+        # infinitely loop trying to download
+        self.file_factory._synchronous = True
+
         # set up a collective for 'alice' to pull an update from
         # 'carol' into the "always permissions denied" filesystem
         # .. but it needs to be "real" since we have to run the
