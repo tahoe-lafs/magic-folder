@@ -984,7 +984,7 @@ def await_files_exist(paths, timeout=15, await_all=False):
 def await_file_vanishes(path, timeout=10):
     from twisted.internet import reactor
     start_time = reactor.seconds()
-    while reactor.seconds()- start_time < timeout:
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}' to vanish".format(path))
         if not exists(path):
             return

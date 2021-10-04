@@ -218,7 +218,7 @@ def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
         Check if this file still exists locally; if not, it's a delete
         """
         path = folder_config.magic_path.preauthChild(relpath)
-        if not path.exists():
+        if not path.asBytesMode("utf8").exists():
             try:
                 local = folder_config.get_local_snapshot(relpath)
             except KeyError:
