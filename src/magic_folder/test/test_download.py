@@ -29,6 +29,9 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     MatchesAll,
     MatchesListwise,
@@ -1417,3 +1420,10 @@ class FilesystemModificationTests(SyncTestCase):
             self.magic.child("foo").exists(),
             Equals(False)
         )
+
+    def test_delete_already_gone(self):
+        """
+        Error if the file is already gone
+        """
+        with ExpectedException(OSError):
+            self.filesystem.mark_delete("foo")

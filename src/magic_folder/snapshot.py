@@ -388,7 +388,6 @@ class RemoteSnapshot(object):
         """
         :returns: True if this is a delete snapshot
         """
-        print("is?", self.content_cap)
         return self.content_cap is not None
 
 
