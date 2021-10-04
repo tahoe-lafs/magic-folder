@@ -1425,5 +1425,12 @@ class FilesystemModificationTests(SyncTestCase):
         """
         Error if the file is already gone
         """
-        with ExpectedException(OSError):
+        try:
             self.filesystem.mark_delete("foo")
+        except Exception:
+            # in python3, this will always be an OSError, but in
+            # Python2 we get a WindowsError on windows and OSError on
+            # other systems.
+            pass
+        else:
+            raise AssertionError("Expected an exception")
