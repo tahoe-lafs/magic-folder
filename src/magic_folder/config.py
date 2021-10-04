@@ -1239,7 +1239,7 @@ class MagicFolderConfig(object):
             if row and row[0] is not None:
                 return (
                     row[0].encode("utf-8"),  # snapshot-cap
-                    row[1].encode("utf-8"),  # content-cap
+                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
                     row[2].encode("utf-8"),  # metadata-cap
                 )
             raise KeyError(relpath)
