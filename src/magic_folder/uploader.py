@@ -21,11 +21,9 @@ from twisted.internet.defer import (
 )
 from twisted.web import http
 from zope.interface import (
-    Interface,
     implementer,
 )
 from eliot import (
-    Message,
     ActionType,
     MessageType,
     write_traceback,
@@ -41,19 +39,14 @@ from .util.eliotutil import (
 )
 from .snapshot import (
     LocalAuthor,
-    write_snapshot_to_tahoe,
     create_snapshot,
 )
 from .status import (
     FolderStatus,
 )
-from .tahoe_client import (
-    TahoeAPIError,
-)
 from .config import (
     MagicFolderConfig,
 )
-from .participants import IWriteableParticipant
 from .util.file import get_pathinfo
 
 

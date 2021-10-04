@@ -5,21 +5,13 @@ from __future__ import (
     unicode_literals,
 )
 
-import io
-
 from json import (
     dumps,
     loads,
 )
 
-import attr
-
 from re import (
     escape,
-)
-
-from zope.interface import (
-    implementer,
 )
 
 from testtools.matchers import (
@@ -51,7 +43,6 @@ from twisted.web.resource import (
 )
 from ..snapshot import (
     create_local_author,
-    create_snapshot,
 )
 from ..magicpath import (
     path2magic,
@@ -59,9 +50,6 @@ from ..magicpath import (
 from ..util.capabilities import (
     is_immutable_directory_cap,
     to_verify_capability,
-)
-from ..util.file import (
-    PathState,
 )
 
 from .common import (

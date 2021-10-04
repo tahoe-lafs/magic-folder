@@ -7,9 +7,6 @@ from __future__ import (
 
 import time
 import itertools
-from collections import (
-    deque,
-)
 
 import automat
 import attr

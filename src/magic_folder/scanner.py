@@ -7,7 +7,11 @@ Scan a Magic Folder for changes.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
-from eliot import current_action, start_action, write_failure
+from eliot import (
+    current_action,
+    start_action,
+    write_failure,
+)
 from eliot.twisted import inline_callbacks
 from twisted.application.internet import TimerService
 from twisted.application.service import MultiService

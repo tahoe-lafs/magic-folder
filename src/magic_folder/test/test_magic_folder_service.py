@@ -11,10 +11,6 @@ from __future__ import (
     print_function,
     division,
 )
-import json
-from hyperlink import (
-    DecodedURL,
-)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -25,19 +21,14 @@ from twisted.application.service import (
 from twisted.internet import task
 from hypothesis import (
     given,
-    find,
 )
 from hypothesis.strategies import (
     binary,
-    integers,
-    just,
-    sampled_from,
 )
 from testtools.matchers import (
     Is,
     Always,
     Equals,
-    ContainsDict,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -49,11 +40,7 @@ from ..magic_folder import (
 from ..magic_file import (
     MagicFileFactory,
 )
-from ..magicpath import (
-    path2magic,
-)
 from ..config import (
-    create_global_configuration,
     create_testing_configuration,
 )
 from ..status import (
@@ -63,29 +50,21 @@ from ..status import (
 from ..snapshot import (
     create_local_author,
 )
-from ..tahoe_client import (
-    create_tahoe_client,
-)
-from ..downloader import(
+from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
 
-from ..testing.web import (
-    create_fake_tahoe_root,
-    create_tahoe_treq_client,
-)
 
 from .common import (
     SyncTestCase,
 )
 from .strategies import (
     relative_paths,
-    local_authors,
-    folder_names,
 )
 from .test_local_snapshot import (
     MemorySnapshotCreator,
 )
+
 
 class MagicFolderServiceTests(SyncTestCase):
     """

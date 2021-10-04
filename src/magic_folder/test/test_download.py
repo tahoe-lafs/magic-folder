@@ -59,7 +59,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from treq.testing import (
-    StubTreq,
     StringStubbingResource,
 )
 
@@ -75,9 +74,6 @@ from ..downloader import (
 from ..magic_folder import (
     MagicFolder,
 )
-from ..magic_file import (
-    MagicFileFactory,
-)
 from ..snapshot import (
     create_local_author,
     RemoteSnapshot,
@@ -87,7 +83,6 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
-    FolderStatus,
     WebSocketStatusService,
 )
 from ..tahoe_client import (

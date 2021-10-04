@@ -42,7 +42,6 @@ from ..testing.web import (
 from .common import SyncTestCase, skipIf
 from .strategies import (
     relative_paths,
-    author_names,
  )
 
 # This is a path state that doesn't correspond to a file written during the test.
@@ -395,9 +394,8 @@ class FindUpdatesTests(SyncTestCase):
     # an author-name
     @given(
         relative_paths(),
-#        author_names(),
     )
-    def test_scan_conflict_files(self, relpath): #, author_name):
+    def test_scan_conflict_files(self, relpath):
         """
         A completely new file is found but it is a conflict-marker file
         and shouldn't be uploaded

@@ -85,9 +85,6 @@ from zope.interface import (
     Interface,
 )
 
-from .magic_file import (
-    MagicFile,
-)
 from .snapshot import (
     LocalAuthor,
     LocalSnapshot,
