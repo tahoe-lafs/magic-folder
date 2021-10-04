@@ -42,6 +42,7 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     DeferredLock,
+    maybeDeferred,
     returnValue,
     succeed,
 )
@@ -500,5 +501,5 @@ class RemoteScannerService(service.MultiService):
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
-                d = mf.found_new_remote(snapshot)
+                d = maybeDeferred(mf.found_new_remote, snapshot)
                 d.addErrback(write_failure)
