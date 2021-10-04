@@ -663,5 +663,5 @@ def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     yield await_file_vanishes(
         recover_folder.child("jerry").path,
-        timeout=10,
+        timeout=20,
     )
