@@ -29,9 +29,6 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from testtools import (
-    ExpectedException,
-)
 from testtools.matchers import (
     MatchesAll,
     MatchesListwise,
