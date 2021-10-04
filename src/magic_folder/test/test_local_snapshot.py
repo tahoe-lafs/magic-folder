@@ -389,3 +389,34 @@ class LocalSnapshotCreatorTests(SyncTestCase):
                 content_path=Equals(stored_snapshot1.content_path)
             )
         )
+
+    @given(content=binary(min_size=1),
+           filename=path_segments(),
+    )
+    def test_delete_snapshot(self, filename, content):
+        """
+        Create a snapshot and then a deletion snapshot of it.
+        """
+        foo = self.magic.child(filename)
+        foo.asBytesMode("utf-8").setContent(content)
+
+        # make sure the store_local_snapshot() succeeds
+        self.assertThat(
+            self.snapshot_creator.store_local_snapshot(foo),
+            succeeded(Always()),
+        )
+
+        # delete the file
+        foo.asBytesMode("utf-8").remove()
+
+        # store a new snapshot
+        self.assertThat(
+            self.snapshot_creator.store_local_snapshot(foo),
+            succeeded(Always()),
+        )
+        stored_snapshot2 = self.db.get_local_snapshot(filename)
+
+        self.assertThat(
+            stored_snapshot2.is_delete(),
+            Equals(True),
+        )
