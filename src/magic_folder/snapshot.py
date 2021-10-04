@@ -636,7 +636,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
     # cap? like a LIT cap that's 0 bytes?
     if snapshot.content_path is not None:
         content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
-    print("{}: {}".format(snapshot.relpath, content_cap))
 
     # create our metadata
     snapshot_metadata = {
