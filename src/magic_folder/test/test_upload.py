@@ -103,9 +103,10 @@ class UploadTests(SyncTestCase):
 
         # create a local snapshot
         local_path = f.config.magic_path.preauthChild(relpath)
-        if not local_path.parent().exists():
-            local_path.parent().makedirs()
-        with local_path.asBytesMode("utf8").open("w") as local_file:
+        local_path_bytes = local_path.asBytesMode("utf8")
+        if not local_path_bytes.parent().exists():
+            local_path_bytes.parent().makedirs()
+        with local_path_bytes.open("w") as local_file:
             local_file.write("foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
         self.assertThat(
