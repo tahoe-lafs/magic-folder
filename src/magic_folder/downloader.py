@@ -10,6 +10,7 @@ from __future__ import (
 )
 
 import os
+import hashlib
 from collections import deque
 
 import attr
@@ -384,8 +385,10 @@ class MagicFolderUpdater(object):
                 # there is no local file
                 # -- if this file is currently deleted, that's fine
                 # -- .. otherwise, there's an inconsistency
-                if snapshot.capability is not None:
-                    assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
+                if snapshot.content_cap is not None:
+                    if current_pathstate is not None:
+                        if current_pathstate.size is not None:
+                            raise AssertionError("Internal inconsistency: record of a Snapshot for this relpath but no local file")
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
