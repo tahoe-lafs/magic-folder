@@ -15,7 +15,6 @@ from collections import deque
 
 import attr
 from attr.validators import (
-    provides,
     instance_of,
 )
 
@@ -50,10 +49,6 @@ from twisted.internet.interfaces import (
     IReactorTime,
 )
 
-from .config import (
-    MagicFolderConfig,
-)
-from .participants import IWriteableParticipant
 from .snapshot import (
     create_snapshot_from_capability,
 )
@@ -64,9 +59,6 @@ from .util.file import (
 )
 from .util.twisted import (
     exclusively,
-)
-from .status import (
-    FolderStatus,
 )
 
 
@@ -457,7 +449,7 @@ class RemoteScannerService(service.MultiService):
     def _loop(self):
         d = self._scan_collective()
         # in some cases, might want to surface elsewhere
-        ##d.addErrback(write_failure)
+        d.addErrback(write_failure)
 
     @inline_callbacks
     def _scan_collective(self):
@@ -509,4 +501,4 @@ class RemoteScannerService(service.MultiService):
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
                 d = mf.found_new_remote(snapshot)
-                # errback on d? what would we do besides "log it"?
+                d.addErrback(write_failure)
