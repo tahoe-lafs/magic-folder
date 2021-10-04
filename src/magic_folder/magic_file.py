@@ -776,14 +776,6 @@ class MagicFile(object):
 ##        d.addErrback(write_traceback)
 
     @_machine.output()
-    def _detected_local_conflict(self):
-        """
-        A local conflict is detected
-        """
-        print("_detected_local_conflict")
-        # note conflict, write conflict files
-
-    @_machine.output()
     def _queue_local_update(self):
         """
         Save this update for later processing (in _check_for_local_work)
@@ -1063,8 +1055,8 @@ class MagicFile(object):
     )
     _updating_personal_dmd_download.upon(
         _local_update,
-        enter=_conflicted,
-        outputs=[_detected_local_conflict, _done_working],
+        enter=_updating_personal_dmd_download,
+        outputs=[_queue_local_update],  # XXX or, can/should we go straight to conflicted?
         collector=_last_one,
     )
 
