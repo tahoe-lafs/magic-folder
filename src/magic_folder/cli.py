@@ -369,10 +369,16 @@ def status(options):
             for f in folder["recent"]:
                 if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
                     continue
-                print("    {}: {}modified {} ago (updated {} ago)".format(
+                if f["modified"] is not None:
+                    modified_text = "modified {} ago".format(
+                        humanize.naturaldelta(now - f["modified"])
+                    )
+                else:
+                    modified_text = "[deleted]"
+                print("    {}: {}{} (updated {} ago)".format(
                     f["relpath"],
                     "[CONFLICT] " if f["conflicted"] else "",
-                    humanize.naturaldelta(now - f["modified"]),
+                    modified_text,
                     humanize.naturaldelta(now - f["last-updated"]),
                 ))
     proto.on('message', message)

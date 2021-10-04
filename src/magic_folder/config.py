@@ -241,9 +241,9 @@ _magicfolder_config_schema = Schema([
                                                  -- or uploaded from local changes
             [content_cap]      TEXT,             -- Tahoe-LAFS URI of the content capability
             [metadata_cap]     TEXT,             -- Tahoe-LAFS URI of the metadata capability
-            [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
-            [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
-            [size]             INTEGER NOT NULL, -- size of current snapshot
+            [mtime_ns]         INTEGER,          -- ctime of current snapshot
+            [ctime_ns]         INTEGER,          -- mtime of current snapshot
+            [size]             INTEGER,          -- size of current snapshot
             [last_updated_ns]  INTEGER NOT NULL, -- timestamp when last changed
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
@@ -1175,7 +1175,17 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (relpath, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?,?,?)",
-                    (relpath, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
+                    (
+                        relpath,
+                        snapshot_cap,
+                        remote_snapshot.metadata_cap,
+                        remote_snapshot.content_cap,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        None,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1188,7 +1198,17 @@ class MagicFolderConfig(object):
                     WHERE
                         [relpath]=?
                     """,
-                    (snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
+                    (
+                        snapshot_cap,
+                        remote_snapshot.metadata_cap,
+                        remote_snapshot.content_cap,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        None,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1209,7 +1229,13 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (relpath, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
-                    (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    (
+                        relpath,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1217,7 +1243,13 @@ class MagicFolderConfig(object):
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
                     " WHERE [relpath]=?",
-                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
+                    (
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1309,7 +1341,7 @@ class MagicFolderConfig(object):
             if row and row[0] is not None:
                 return (
                     row[0].encode("utf-8"),  # snapshot-cap
-                    row[1].encode("utf-8"),  # content-cap
+                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
                     row[2].encode("utf-8"),  # metadata-cap
                 )
             raise KeyError(relpath)

@@ -24,7 +24,11 @@ from hyperlink import (
 
 from ..config import create_testing_configuration
 from ..magic_file import MagicFileFactory
-from ..scanner import ScannerService, find_updated_files
+from ..scanner import (
+    ScannerService,
+    find_updated_files,
+    find_deleted_files,
+)
 from ..snapshot import RemoteSnapshot, create_local_author
 from ..status import FolderStatus, WebSocketStatusService
 from ..util.file import PathState, get_pathinfo
@@ -265,6 +269,27 @@ class FindUpdatesTests(SyncTestCase):
                     ),
                 ]
             ),
+        )
+
+    @given(
+        relative_paths(),
+    )
+    def test_scan_delete(self, relpath):
+        """
+        Scanning a relpath we know about with no local file is a delete
+        """
+        self.config.store_currentsnapshot_state(relpath, OLD_PATH_STATE)
+
+        files = []
+        self.assertThat(
+            find_deleted_files(
+                self.cooperator, self.config, files.append, status=self.folder_status
+            ),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            files,
+            Equals([self.config.magic_path.preauthChild(relpath)])
         )
 
     @given(

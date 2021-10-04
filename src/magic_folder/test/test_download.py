@@ -29,6 +29,9 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
+from testtools import (
+    ExpectedException,
+)
 from testtools.matchers import (
     MatchesAll,
     MatchesListwise,
@@ -69,6 +72,7 @@ from ..downloader import (
     RemoteSnapshotCacheService,
     InMemoryMagicFolderFilesystem,
     RemoteScannerService,
+    LocalMagicFolderFilesystem,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -1108,6 +1112,54 @@ class ConflictTests(AsyncTestCase):
         )
 
     @inline_callbacks
+    def test_update_delete(self):
+        """
+        Give the updater a remote update which is a delete
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=None,
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        # so "alice" has "parent" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            parent,
+            get_pathinfo(self.alice_magic_path.child("foo")).state,
+        )
+
+        # deletion snapshot
+        yield self.updater.add_remote_snapshot("foo", child)
+
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("delete", "foo"),
+            ])
+        )
+
+    @inline_callbacks
     def test_old_update(self):
         """
         An update that's older than our local one
@@ -1335,3 +1387,40 @@ class ConflictTests(AsyncTestCase):
                 matches_flushed_traceback(Exception, "something bad")
             ]),
         )
+
+
+class FilesystemModificationTests(SyncTestCase):
+    """
+    Tests for LocalMagicFolderFilesystem
+    """
+
+    def setUp(self):
+        super(FilesystemModificationTests, self).setUp()
+        self.magic = FilePath(self.mktemp())
+        self.magic.makedirs()
+        self.staging = FilePath(self.mktemp())
+        self.staging.makedirs()
+        self.filesystem = LocalMagicFolderFilesystem(
+            self.magic,
+            self.staging,
+        )
+
+    def test_delete(self):
+        """
+        Marking a file as deleted removes it
+        """
+        self.magic.child("foo").setContent("dummy")
+
+        self.filesystem.mark_delete("foo")
+
+        self.assertThat(
+            self.magic.child("foo").exists(),
+            Equals(False)
+        )
+
+    def test_delete_already_gone(self):
+        """
+        Error if the file is already gone
+        """
+        with ExpectedException(OSError):
+            self.filesystem.mark_delete("foo")

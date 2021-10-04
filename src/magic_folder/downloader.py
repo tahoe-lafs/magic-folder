@@ -10,6 +10,7 @@ from __future__ import (
 )
 
 import os
+import hashlib
 from collections import deque
 
 import attr
@@ -240,7 +241,7 @@ class IMagicFolderFilesystem(Interface):
             content.
         """
 
-    def mark_delete(relpath, remote_snapshot):
+    def mark_delete(relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
@@ -262,9 +263,7 @@ class LocalMagicFolderFilesystem(object):
         """
         IMagicFolderFilesystem API
         """
-        if file_cap is None:
-            return
-        import hashlib
+        assert file_cap is not None, "must supply a file-cap"
         h = hashlib.sha256()
         h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
@@ -367,14 +366,12 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
 
-    def mark_delete(self, remote_snapshot):
+    def mark_delete(self, relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        print("MARK DELETE", remote_snapshot)
-        local_path = self.magic_path.preauthChild(remote_snapshot.relpath)
-        assert local_path.exists(), "delete, but local file already gone"
+        local_path = self.magic_path.preauthChild(relpath)
         local_path.remove()
 
 
@@ -415,9 +412,9 @@ class InMemoryMagicFolderFilesystem(object):
             ("conflict", relpath, conflict_path, self._staged_content[staged_content])
         )
 
-    def mark_delete(self, relpath, remote_snapshot):
+    def mark_delete(self, relpath):
         self.actions.append(
-            ("delete", relpath, remote_snapshot)
+            ("delete", relpath)
         )
 
 
@@ -467,7 +464,8 @@ class RemoteScannerService(service.MultiService):
         with start_action(
             action_type="downloader:scan-collective", folder=self._config.name
         ):
-            for participant in (yield self._participants.list()):
+            participants = yield self._participants.list()
+            for participant in participants:
                 with start_action(
                     action_type="downloader:scan-participant",
                     participant=participant.name,
