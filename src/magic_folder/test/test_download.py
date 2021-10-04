@@ -1436,3 +1436,26 @@ class FilesystemModificationTests(SyncTestCase):
             pass
         else:
             raise AssertionError("Expected an exception")
+
+    def test_overwrite_sub_dir(self):
+        """
+        Overwriting a non-existent directory creates the directory
+        """
+        dummy_content = "dummy\n"
+        staged = self.staging.child("new_content")
+        staged.setContent(dummy_content)
+
+        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged)
+
+        self.assertThat(
+            self.magic.child("sub").exists(),
+            Equals(True)
+        )
+        self.assertThat(
+            self.magic.child("sub").child("dir").exists(),
+            Equals(True)
+        )
+        self.assertThat(
+            self.magic.child("sub").child("dir").child("foo").getContent(),
+            Equals(dummy_content)
+        )
