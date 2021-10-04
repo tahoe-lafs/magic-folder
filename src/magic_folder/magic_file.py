@@ -13,7 +13,6 @@ import attr
 from eliot import (
     write_traceback,
     start_action,
-    current_action,
     Message,
 )
 from eliot.twisted import (
@@ -30,9 +29,6 @@ from twisted.internet.defer import (
 )
 from twisted.application.internet import (
     backoffPolicy,
-)
-from twisted.internet import (
-    reactor,
 )
 
 from .snapshot import (
@@ -106,8 +102,8 @@ class MagicFileFactory(object):
                 ),
             )
             if self._synchronous:
-                mf._call_later=lambda f, *args, **kw: f(*args, **kw)
-                mf._delay_later=lambda f, *args, **kw: succeed("synchronous: no retry")
+                mf._call_later = lambda f, *args, **kw: f(*args, **kw)
+                mf._delay_later = lambda f, *args, **kw: succeed("synchronous: no retry")
 
             # initialize "conflicted" state for this file
             if self._config.list_conflicts_for(relpath):
@@ -186,15 +182,15 @@ class MagicFile(object):
     set_trace = _machine._setTrace
 
     def __attrs_post_init__(self):
+        from twisted.internet import reactor
+
         if self._call_later is None:
-            from twisted.internet import reactor
 
             def next_turn(f, *args, **kwargs):
                 return reactor.callLater(0, f, *args, **kwargs)
             self._call_later = next_turn
 
         if self._delay_later is None:
-            from twisted.internet import reactor
 
             def delay(seconds, f, *args, **kwargs):
                 return deferLater(reactor, seconds, f, *args, **kwargs)
@@ -615,8 +611,7 @@ class MagicFile(object):
             )
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_update)
-            delay.addErrback(failed)
-            # we have to either retry, or give up (and go to "failed" state)
+            delay.addErrback(error)
             return None
 
         def perform_update():
@@ -684,7 +679,7 @@ class MagicFile(object):
 
         @inline_callbacks
         def perform_upload(snap):
-            with self._action.context() as action:
+            with self._action.context():
                 upload_started_at = time.time()
                 Message.log(message_type="uploading")
 
@@ -941,7 +936,7 @@ class MagicFile(object):
     _up_to_date.upon(
         _existing_conflict,
         enter=_conflicted,
-        outputs=[],  # up_to_date and conflicted are both "idle" states 
+        outputs=[],  # up_to_date and conflicted are both "idle" states
     )
     _up_to_date.upon(
         _existing_local_snapshot,

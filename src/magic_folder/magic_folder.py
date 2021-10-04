@@ -18,9 +18,6 @@ from eliot import (
     ActionType,
     MessageType,
 )
-from eliot.twisted import (
-    inline_callbacks,
-)
 
 from .common import APIError
 from .util.eliotutil import (
