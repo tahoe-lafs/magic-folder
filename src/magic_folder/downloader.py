@@ -392,11 +392,11 @@ class MagicFolderUpdater(object):
                 is_conflict = False
 
             action.add_success_fields(is_conflict=is_conflict)
-            if snapshot.content_cap is None:
-                staged = None
-            else:
-                self._status.download_started(relpath)
-                try:
+            self._status.download_started(relpath)
+            try:  # ensure we do download_finished() no matter exit path
+                if snapshot.content_cap is None:
+                    staged = None
+                else:
                     with start_action(
                         action_type=u"downloader:updater:content-to-staging",
                         relpath=relpath,
@@ -410,62 +410,62 @@ class MagicFolderUpdater(object):
                             )
                             raise
 
-                finally:
-                    self._status.download_finished(relpath)
-
-            # once here, we know if we have a conflict or not. if
-            # there is nothing to do, we shold have returned
-            # already. so mark an overwrite or conflict into the
-            # filesystem.
-            if is_conflict:
-                self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                self._config.add_conflict(snapshot)
-
-            else:
-                # there is a longer dance described in detail in
-                # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-                # which may do even better at reducing the window for
-                # local changes to get overwritten. Currently, that
-                # window is the 3 python statements between here and
-                # ".mark_overwrite()"
-                if local_pathinfo != get_pathinfo(local_path):
-                    # The file changed since we started processing this item
-                    action.add_success_fields(conflict_reason="last-minute-change")
+                # once here, we know if we have a conflict or not. if
+                # there is nothing to do, we shold have returned
+                # already. so mark an overwrite or conflict into the
+                # filesystem.
+                if is_conflict:
                     self._magic_fs.mark_conflict(relpath, conflict_path, staged)
                     self._config.add_conflict(snapshot)
+
                 else:
-                    if snapshot.content_cap is None:
-                        self._magic_fs.mark_delete(snapshot.relpath)
-                        path_state = None
+                    # there is a longer dance described in detail in
+                    # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
+                    # which may do even better at reducing the window for
+                    # local changes to get overwritten. Currently, that
+                    # window is the 3 python statements between here and
+                    # ".mark_overwrite()"
+                    if local_pathinfo != get_pathinfo(local_path):
+                        # The file changed since we started processing this item
+                        action.add_success_fields(conflict_reason="last-minute-change")
+                        self._magic_fs.mark_conflict(relpath, conflict_path, staged)
+                        self._config.add_conflict(snapshot)
                     else:
-                        try:
-                            path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
-                        except OSError as e:
-                            self._status.error_occurred(
-                                "Failed to overwrite file '{}': {}".format(relpath, str(e))
-                            )
-                            raise
+                        if snapshot.content_cap is None:
+                            self._magic_fs.mark_delete(snapshot.relpath)
+                            path_state = None
+                        else:
+                            try:
+                                path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
+                            except OSError as e:
+                                self._status.error_occurred(
+                                    "Failed to overwrite file '{}': {}".format(relpath, str(e))
+                                )
+                                raise
 
-                    # Note, if we crash here (after moving the file into place
-                    # but before noting that in our database) then we could
-                    # produce LocalSnapshots referencing the wrong parent. We
-                    # will no longer produce snapshots with the wrong parent
-                    # once we re-run and get past this point.
+                        # Note, if we crash here (after moving the file into place
+                        # but before noting that in our database) then we could
+                        # produce LocalSnapshots referencing the wrong parent. We
+                        # will no longer produce snapshots with the wrong parent
+                        # once we re-run and get past this point.
 
-                    # remember the last remote we've downloaded
-                    self._config.store_downloaded_snapshot(
-                        relpath, snapshot, path_state
-                    )
+                        # remember the last remote we've downloaded
+                        self._config.store_downloaded_snapshot(
+                            relpath, snapshot, path_state
+                        )
 
-                    # XXX careful here, we still need something that makes
-                    # sure mismatches between remotesnapshots in our db and
-                    # the Personal DMD are reconciled .. that is, if we crash
-                    # here and/or can't update our Personal DMD we need to
-                    # retry later.
-                    yield self._write_participant.update_snapshot(
-                        relpath,
-                        snapshot.capability.encode("ascii"),
-                    )
+                        # XXX careful here, we still need something that makes
+                        # sure mismatches between remotesnapshots in our db and
+                        # the Personal DMD are reconciled .. that is, if we crash
+                        # here and/or can't update our Personal DMD we need to
+                        # retry later.
+                        yield self._write_participant.update_snapshot(
+                            relpath,
+                            snapshot.capability.encode("ascii"),
+                        )
+
+            finally:
+                self._status.download_finished(relpath)
 
 
 @implementer(IMagicFolderFilesystem)
