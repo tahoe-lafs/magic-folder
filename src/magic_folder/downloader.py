@@ -391,7 +391,7 @@ class MagicFolderUpdater(object):
                     # ...so we must either not know about this file at
                     # all, or we must know about it but consider it
                     # deleted currently
-                    assert current_pathstate is None or current_pathstate.size is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file")
+                    assert current_pathstate is None or current_pathstate.size is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
                 is_conflict = False
 
             action.add_success_fields(
