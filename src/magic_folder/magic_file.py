@@ -459,19 +459,23 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-        if snapshot.content_cap is None:
-            d = succeed(None)
-        else:
-            d = maybeDeferred(
+        def perform_download():
+            return maybeDeferred(
                 self._factory._magic_fs.download_content_to_staging,
                 snapshot.relpath,
                 snapshot.content_cap,
                 self._factory._tahoe_client,
             )
 
+        if snapshot.content_cap is None:
+            d = succeed(None)
+        else:
+            d = perform_download()
+
         def downloaded(staged_path):
             self._call_later(self._download_completed, snapshot, staged_path)
         d.addCallback(downloaded)
+        retry_delay_sequence = _delay_sequence()
 
         def failed(f):
             self._factory._folder_status.error_occurred(
@@ -480,8 +484,9 @@ class MagicFile(object):
                 )
             )
             write_traceback(exc_info=(f.type, f.value, f.tb))
-            # XXX FIXME need to either retry via self._delay_later or
-            # go to failed
+            delay_amt = next(retry_delay_sequence)
+            delay = self._delay_later(delay_amt, perform_download)
+            delay.addErrback(failed)
         d.addErrback(failed)
         return d
 
@@ -986,7 +991,7 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _fatal_error_download,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working], # XXX FIXME failed status?
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1074,7 +1079,7 @@ class MagicFile(object):
     # conflict whenever we get around to processing it.
     _updating_personal_dmd_upload.upon(
         _remote_update,
-        enter=_remote_update,
+        enter=_updating_personal_dmd_upload,
         outputs=[_queue_remote_update],
         collector=_last_one,
     )
