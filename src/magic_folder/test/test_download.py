@@ -53,6 +53,7 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
+    succeed,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -1138,6 +1139,11 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
+        class FakeWriteParticipant(object):
+            def update_snapshot(self, relpath, cap):
+                return succeed(None)
+        self.file_factory._write_participant = FakeWriteParticipant()
+
         # so "alice" has "parent" already
         self.alice_magic_path.child("foo").setContent("whatever")
         self.alice_config.store_downloaded_snapshot(
@@ -1147,7 +1153,9 @@ class ConflictTests(AsyncTestCase):
         )
 
         # deletion snapshot
-        yield self.updater.add_remote_snapshot("foo", child)
+        mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
+        yield mf.found_new_remote(child)
+        yield mf.when_idle()
 
         self.assertThat(
             self.filesystem.actions,

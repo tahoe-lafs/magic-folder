@@ -459,12 +459,15 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-        d = maybeDeferred(
-            self._factory._magic_fs.download_content_to_staging,
-            snapshot.relpath,
-            snapshot.content_cap,
-            self._factory._tahoe_client,
-        )
+        if snapshot.content_cap is None:
+            d = succeed(None)
+        else:
+            d = maybeDeferred(
+                self._factory._magic_fs.download_content_to_staging,
+                snapshot.relpath,
+                snapshot.content_cap,
+                self._factory._tahoe_client,
+            )
 
         def downloaded(staged_path):
             self._call_later(self._download_completed, snapshot, staged_path)
@@ -563,7 +566,8 @@ class MagicFile(object):
         # python statements between here and ".mark_overwrite()"
 
         if snapshot.content_cap is None:
-            self._factory._magic_fs.mark_delete(snapshot)
+            self._factory._magic_fs.mark_delete(snapshot.relpath)
+            path_state = None
         else:
             try:
                 path_state = self._factory._magic_fs.mark_overwrite(
