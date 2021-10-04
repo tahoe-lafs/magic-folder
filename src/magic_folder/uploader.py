@@ -245,7 +245,9 @@ class LocalSnapshotService(service.Service):
             )
 
         try:
-            relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
+            # we just want the side-effect here, of confirming that
+            # this path is actually inside our magic-path
+            path.segmentsFrom(self._config.magic_path)
         except ValueError:
             ADD_FILE_FAILURE.log(abspath=path)
             raise APIError(
