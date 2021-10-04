@@ -583,7 +583,6 @@ class LocalMagicFolderFilesystem(object):
         shall be deleted.
         """
         local_path = self.magic_path.preauthChild(relpath)
-        assert local_path.exists(), "delete, but local file already gone"
         local_path.remove()
 
 
