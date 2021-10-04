@@ -22,9 +22,9 @@ class PathState(object):
     The filesystem information we use to check if a file has changed.
     """
 
-    size = attr.ib(validator=attr.validators.instance_of(integer_types))
-    mtime_ns = attr.ib(validator=attr.validators.instance_of(integer_types))
-    ctime_ns = attr.ib(validator=attr.validators.instance_of(integer_types))
+    size = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
+    mtime_ns = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
+    ctime_ns = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
 
 
 @attr.s(frozen=True, order=False)
@@ -47,14 +47,22 @@ def seconds_to_ns(t):
 
 
 def ns_to_seconds(t):
+    """
+    :param int t: nanoseconds
+    :returns float: the seconds representation of 't'
+    """
+    if t is None:
+        return None
     return int(t) // 1000000000
 
 
 def ns_to_seconds_float(t):
     """
-    :param int t: nanoseconds
+    :param float t: nanoseconds
     :returns float: the seconds representation of 't'
     """
+    if t is None:
+        return None
     return float(t) / 1000000000.0
 
 

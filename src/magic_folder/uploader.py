@@ -35,6 +35,7 @@ from eliot.twisted import (
 from .common import APIError
 from .util.eliotutil import (
     RELPATH,
+    ABSPATH,
     log_call_deferred,
 )
 from .util.twisted import (
@@ -77,7 +78,7 @@ SNAPSHOT_COMMIT_FAILURE = MessageType(
 )
 ADD_FILE_FAILURE = MessageType(
     u"magic-folder:local-snapshot-creator:add-file-failure",
-    [RELPATH],
+    [ABSPATH],
     u"file path is not a descendent of the magic folder directory",
 )
 PROCESS_FILE_QUEUE = ActionType(
@@ -103,7 +104,9 @@ class LocalSnapshotCreator(object):
     @inline_callbacks
     def store_local_snapshot(self, path):
         """
-        Convert `path` into a LocalSnapshot and persist it to disk.
+        Convert `path` into a LocalSnapshot and persist it to disk. If
+        `path` does not exist, the this is a 'delete' (and we must
+        'know' about the file already).
 
         :param FilePath path: a single file inside our magic-folder dir
         """
@@ -113,37 +116,50 @@ class LocalSnapshotCreator(object):
         # duplicate snapshots if scanning doesn't wait for snapshotting to
         # complete.
 
-        with path.asBytesMode("utf-8").open('rb') as input_stream:
-            # Query the db to check if there is an existing local
-            # snapshot for the file being added.
-            # If so, we use that as the parent.
-            relpath = u"/".join(path.segmentsFrom(self._magic_dir))
+        # Query the db to check if there is an existing local
+        # snapshot for the file being added.
+        # If so, we use that as the parent.
+        relpath = u"/".join(path.segmentsFrom(self._magic_dir))
+        try:
+            parent_snapshot = self._db.get_local_snapshot(relpath)
+        except KeyError:
+            parents = []
+        else:
+            parents = [parent_snapshot]
+
+        # if we already have a parent here, it's a LocalSnapshot
+        # .. which means that any remote snapshot by definition
+        # must be "not our parent" (it should be the parent .. or
+        # grandparent etc .. of our localsnapshot)
+        raw_remote = []
+        if not parents:
             try:
-                parent_snapshot = self._db.get_local_snapshot(relpath)
+                parent_remote = self._db.get_remotesnapshot(relpath)
+                raw_remote = [parent_remote]
             except KeyError:
-                parents = []
+                pass
+
+        # when we handle conflicts we will have to handle multiple
+        # parents here (or, somewhere)
+
+        action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)
+        with action:
+            path_info = get_pathinfo(path)
+
+            if not path_info.exists:
+                if not raw_remote and not parents:
+                    raise Exception(
+                        "{} is deleted but no parents found".format(relpath)
+                    )
+
+            if path_info.exists:
+                input_stream = path.asBytesMode("utf-8").open('rb')
+                mtime = int(path.asBytesMode("utf8").getModificationTime())
             else:
-                parents = [parent_snapshot]
+                input_stream = None
+                mtime = int(time.time())
 
-            # if we already have a parent here, it's a LocalSnapshot
-            # .. which means that any remote snapshot by definition
-            # must be "not our parent" (it should be the parent .. or
-            # grandparent etc .. of our localsnapshot)
-            raw_remote = []
-            if not parents:
-                try:
-                    parent_remote = self._db.get_remotesnapshot(relpath)
-                    raw_remote = [parent_remote]
-                except KeyError:
-                    pass
-
-            # when we handle conflicts we will have to handle multiple
-            # parents here (or, somewhere)
-
-            action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)
-            with action:
-                path_info = get_pathinfo(path)
-
+            try:
                 snapshot = yield create_snapshot(
                     relpath=relpath,
                     author=self._author,
@@ -152,13 +168,17 @@ class LocalSnapshotCreator(object):
                     parents=parents,
                     raw_remote_parents=raw_remote,
                     #FIXME from path_info
-                    modified_time=int(path.asBytesMode("utf8").getModificationTime()),
+                    modified_time=mtime,
                 )
+            finally:
+                if input_stream:
+                    input_stream.close()
 
-                # store the local snapshot to the disk
-                # FIXME: should be in a transaction
-                self._db.store_local_snapshot(snapshot)
-                self._db.store_currentsnapshot_state(relpath, path_info.state)
+            # store the local snapshot to the disk
+            # FIXME: should be in a transaction
+            self._db.store_local_snapshot(snapshot)
+            self._db.store_currentsnapshot_state(relpath, path_info.state)
+
 
 @attr.s
 @implementer(service.IService)
@@ -212,10 +232,13 @@ class LocalSnapshotService(service.Service):
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
         """
-        Add the given path of type FilePath to our queue. If the path
-        does not exist below our magic-folder directory, it is an error.
+        Add the given path of type FilePath to our queue. If the path is
+        not strictly below our magic-folder directory, it is an
+        error. If the file itself doesn't exist, we process it as a
+        'delete'.
 
-        :param FilePath path: path of the file that needs to be added.
+        :param FilePath path: path of the file that needs to be
+            processed.
 
         :raises: ValueError if the given file is not a descendent of
                  magic folder path or if the given path is a directory.
@@ -237,7 +260,7 @@ class LocalSnapshotService(service.Service):
             relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
             self._status.upload_queued(relpath)
         except ValueError:
-            ADD_FILE_FAILURE.log(relpath=path.path) #FIXME relpath
+            ADD_FILE_FAILURE.log(abspath=path)
             raise APIError(
                 reason=u"The path being added '{!r}' is not within '{!r}'".format(
                     path.path,
@@ -317,7 +340,6 @@ class RemoteSnapshotCreator(object):
         # in progress, a new snapshot can be created on a file we already uploaded
         # but not removed from the db and if it gets removed from the table later,
         # the new snapshot gets lost.
-
         for relpath in localsnapshot_paths:
             action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
             try:
@@ -382,16 +404,17 @@ class RemoteSnapshotCreator(object):
         # to delete the LocalSnapshot because we may not be able to
         # re-create the Snapshot (maybe the content is "partially
         # deleted"?
-        try:
-            # Remove the local snapshot content from the stash area.
-            snapshot.content_path.asBytesMode("utf-8").remove()
-        except Exception as e:
-            print(
-                "Failed to remove cache: '{}': {}".format(
-                    snapshot.content_path.asTextMode("utf-8").path,
-                    str(e),
+        if snapshot.content_path is not None:
+            try:
+                # Remove the local snapshot content from the stash area.
+                snapshot.content_path.asBytesMode("utf-8").remove()
+            except Exception as e:
+                print(
+                    "Failed to remove cache: '{}': {}".format(
+                        snapshot.content_path.asTextMode("utf-8").path,
+                        str(e),
+                    )
                 )
-            )
 
         # Remove the LocalSnapshot from the db.
         yield self._config.delete_localsnapshot(relpath)
@@ -438,11 +461,10 @@ class UploaderService(service.MultiService):
         Start UploaderService and initiate a periodic task
         to poll for LocalSnapshots in the database.
         """
-        super(UploaderService, self).startService()
-
         # if we started with any local snapshots already in the
         # database we must reflect this in our status service.
         self._remote_snapshot_creator.initialize_upload_status()
+        super(UploaderService, self).startService()
 
     def perform_upload(self):
         """

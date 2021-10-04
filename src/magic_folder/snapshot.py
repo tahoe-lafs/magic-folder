@@ -222,7 +222,7 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
         snapshot_relpath,
-        content_capability,
+        "" if content_capability is None else content_capability,
         metadata_capability,
     )
     return local_author.signing_key.sign(data_to_sign)
@@ -237,7 +237,7 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = _snapshot_signature_string(
         snapshot_relpath,
-        content_capability,
+        "" if content_capability is None else content_capability,
         metadata_capability,
     )
     return remote_author.verify_key.verify(
@@ -260,7 +260,8 @@ class LocalSnapshot(object):
     relpath = attr.ib()
     author = attr.ib()
     metadata = attr.ib()
-    content_path = attr.ib(validator=attr.validators.instance_of(FilePath))
+    # if content_path is None, this is a delete; otherwise it's a FilePath
+    content_path = attr.ib()##validator=attr.validators.instance_of((FilePath, None)))
     parents_local = attr.ib(validator=attr.validators.instance_of(list))
     parents_remote = attr.ib(
         default=attr.Factory(list),
@@ -279,6 +280,12 @@ class LocalSnapshot(object):
         """
         return FileBodyProducer(self.content_path.asBytesMode("utf-8").open("rb"))
 
+    def is_delete(self):
+        """
+        :returns: True if this is a deletion snapshot
+        """
+        return self.content_path is None
+
     def to_json(self):
         """
         Serialize the LocalSnapshot to JSON.
@@ -292,7 +299,7 @@ class LocalSnapshot(object):
                 'relpath': local_snapshot.relpath,
                 'metadata': local_snapshot.metadata,
                 'identifier': unicode(local_snapshot.identifier),
-                'content_path': local_snapshot.content_path.path,
+                'content_path': local_snapshot.content_path.path if local_snapshot.content_path is not None else None,
                 'parents_local': [
                     _serialized_dict(parent)
                     for parent
@@ -328,7 +335,7 @@ class LocalSnapshot(object):
                 author=author,
                 identifier=UUID(hex=snapshot_dict["identifier"]),
                 metadata=snapshot_dict["metadata"],
-                content_path=FilePath(snapshot_dict["content_path"]),
+                content_path=FilePath(snapshot_dict["content_path"]) if snapshot_dict["content_path"] is not None else None,
                 parents_local=[
                     deserialize_dict(parent, author)
                     for parent
@@ -377,6 +384,12 @@ class RemoteSnapshot(object):
         """
         yield tahoe_client.stream_capability(self.content_cap, writable_file)
 
+    def is_delete(self):
+        """
+        :returns: True if this is a delete snapshot
+        """
+        return self.content_cap is not None
+
 
 @inline_callbacks
 def create_snapshot_from_capability(snapshot_cap, tahoe_client):
@@ -424,7 +437,8 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
             )
 
         relpath = metadata["relpath"]
-        content_cap = snapshot["content"][1]["ro_uri"]
+        # if 'ro_uri' is missing, there's no content_cap here (so it's a delete)
+        content_cap = snapshot["content"][1].get("ro_uri", None)
 
         # create SnapshotAuthor
         author = create_author_from_json(metadata["author"])
@@ -464,7 +478,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
 
     :param data_producer: file-like object that can deliver all the
         data for the content of this Snapshot (it will be read
-        immediately).
+        immediately) or None if this is a delete.
 
     :param FilePath snapshot_stash_dir: the directory where Snapshot contents
         are to be stashed.
@@ -503,29 +517,30 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     if raw_remote_parents:
         parents_remote.extend(raw_remote_parents)
 
-    chunk_size = 1024*1024  # 1 MiB
-    chunks_per_yield = 100
+    if data_producer is not None:
+        chunk_size = 1024*1024  # 1 MiB
+        chunks_per_yield = 100
 
-    # 1. create a temp-file in our stash area
-    temp_file_fd, temp_file_name = mkstemp(
-        prefix="snap",
-        dir=snapshot_stash_dir.asBytesMode("utf-8").path,
-    )
-    try:
-        # 2. stream data_producer into our temp-file
-        done = False
-        while not done:
-            for _ in range(chunks_per_yield):
-                data = data_producer.read(chunk_size)
-                if data:
-                    if len(data) > 0:
-                        os.write(temp_file_fd, data)
-                else:
-                    done = True
-                    break
-            yield
-    finally:
-        os.close(temp_file_fd)
+        # 1. create a temp-file in our stash area
+        temp_file_fd, temp_file_name = mkstemp(
+            prefix="snap",
+            dir=snapshot_stash_dir.asBytesMode("utf-8").path,
+        )
+        try:
+            # 2. stream data_producer into our temp-file
+            done = False
+            while not done:
+                for _ in range(chunks_per_yield):
+                    data = data_producer.read(chunk_size)
+                    if data:
+                        if len(data) > 0:
+                            os.write(temp_file_fd, data)
+                    else:
+                        done = True
+                        break
+                yield
+        finally:
+            os.close(temp_file_fd)
 
     now = int(time.time())
     if modified_time is None:
@@ -539,7 +554,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
                 "mtime": modified_time,
                 "ctime": now,
             },
-            content_path=FilePath(temp_file_name),
+            content_path=None if data_producer is None else FilePath(temp_file_name),
             parents_local=parents_local,
             parents_remote=parents_remote,
         )
@@ -615,7 +630,11 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 
     # upload the content itself
-    content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
+    content_cap = None
+    # XXX THINK TODO would it be better to make this a valid zero-size
+    # cap? like a LIT cap that's 0 bytes?
+    if snapshot.content_path is not None:
+        content_cap = yield tahoe_client.create_immutable(snapshot.get_content_producer())
 
     # create our metadata
     snapshot_metadata = {

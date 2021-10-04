@@ -21,6 +21,7 @@ from magic_folder.util.capabilities import (
 )
 from .util import (
     await_file_contents,
+    await_file_vanishes,
     ensure_file_not_created,
     twisted_sleep,
 )
@@ -605,4 +606,62 @@ def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, take_snap
         recover_folder.child("sylvester").path,
         content1,
         timeout=10,
+    )
+
+
+@pytest.mark.parametrize("take_snapshot", [add_snapshot, scan_folder])
+@pytest_twisted.inlineCallbacks
+def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot):
+    """
+    A delete to a local file is stored and synchronized
+    """
+    original_folder = temp_filepath.child("cats")
+    recover_folder = temp_filepath.child("kitties")
+    original_folder.makedirs()
+    recover_folder.makedirs()
+
+    # add our magic-folder and re-start
+    yield alice.add("original", original_folder.path)
+    alice_folders = yield alice.list_(True)
+
+    def cleanup_original():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(alice.start_magic_folder())
+        pytest_twisted.blockon(alice.leave("original"))
+    request.addfinalizer(cleanup_original)
+
+    # put a file in our folder
+    content0 = non_lit_content("zero")
+    original_folder.child("jerry").setContent(content0)
+    yield take_snapshot(alice, "original", "jerry")
+
+    # create the 'recovery' magic-folder
+    yield bob.add("recovery", recover_folder.path)
+
+    def cleanup_recovery():
+        # Maybe start the service, so we can remove the folder.
+        pytest_twisted.blockon(bob.start_magic_folder())
+        pytest_twisted.blockon(bob.leave("recovery"))
+    request.addfinalizer(cleanup_recovery)
+
+    # add the 'original' magic-folder as a participant in the
+    # 'recovery' folder
+    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    yield bob.add_participant("recovery", "alice", alice_cap)
+
+    # we should now see the only Snapshot we have in the folder appear
+    # in the 'recovery' filesystem
+    yield await_file_contents(
+        recover_folder.child("jerry").path,
+        content0,
+        timeout=10,
+    )
+
+    # delete the file
+    original_folder.child("jerry").remove()
+    yield take_snapshot(alice, "original", "jerry")
+
+    yield await_file_vanishes(
+        recover_folder.child("jerry").path,
+        timeout=20,
     )

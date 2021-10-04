@@ -895,7 +895,6 @@ class FileShouldVanishException(Exception):
         )
 
 
-
 @log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
 def await_file_contents(path, contents, timeout=15):
     """
@@ -937,6 +936,7 @@ def await_file_contents(path, contents, timeout=15):
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
+
 
 @inline_callbacks
 def ensure_file_not_created(path, timeout=15):
@@ -980,13 +980,15 @@ def await_files_exist(paths, timeout=15, await_all=False):
     raise ExpectedFileUnfoundException(nice_paths, timeout)
 
 
+@inline_callbacks
 def await_file_vanishes(path, timeout=10):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}' to vanish".format(path))
         if not exists(path):
             return
-        sleep(1)
+        yield twisted_sleep(reactor, 1)
     raise FileShouldVanishException(path, timeout)
 
 

@@ -110,7 +110,10 @@ class ScannerService(MultiService):
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
-                self._cooperator, self._config, process, status=self._status
+                self._cooperator, self._config, process, self._status
+            )
+            yield find_deleted_files(
+                self._cooperator, self._config, process, self._status
             )
             yield gatherResults(results)
         # XXX update/use IStatus to report scan start/end
@@ -173,5 +176,48 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
             process_file(path.asTextMode("utf-8"))
             for path in bytes_path.walk()
             if path != bytes_path
+        )
+    )
+
+
+def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
+    """
+    :param Cooperator cooperator: The cooperator to use to control yielding to
+        the reactor.
+    :param MagicFolderConfig folder_config: the folder for which we
+        are scanning
+
+    :param Callable[[FilePath], None] on_deleted_file:
+        This function will be invoked for each deleted file we find. The
+        argument will be a FilePath of the deleted file.
+
+    :param FileStatus status: The status implementation to report errors to.
+
+    :returns Deferred[None]: Deferred that fires once the scan is complete.
+    """
+
+    def process_file(relpath):
+        """
+        Check if this file still exists locally; if not, it's a delete
+        """
+        path = folder_config.magic_path.preauthChild(relpath)
+        if not path.asBytesMode("utf8").exists():
+            try:
+                local = folder_config.get_local_snapshot(relpath)
+            except KeyError:
+                local = None
+            try:
+                _, remote_content, _ = folder_config.get_remotesnapshot_caps(relpath)
+            except KeyError:
+                remote_content = False
+
+            if local is None or not local.is_delete():
+                if remote_content is not None:
+                    on_deleted_file(path)
+
+    return cooperator.coiterate(
+        (
+            process_file(relpath)
+            for relpath in folder_config.get_all_snapshot_paths()
         )
     )
