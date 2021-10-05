@@ -91,6 +91,7 @@ from ..snapshot import (
     create_local_author,
     create_snapshot,
     RemoteSnapshot,
+    LocalSnapshot,
 )
 from ..util.file import (
     PathState,
@@ -609,16 +610,232 @@ class StoreLocalSnapshotTests(SyncTestCase):
     @given(
         local_snapshots(),
     )
-    def test_delete_localsnapshot(self, snapshot):
+    def test_delete_all_local_snapshots_for(self, snapshot):
         """
         After a local snapshot is deleted from the database,
         ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
         snapshot's path.
         """
         self.db.store_local_snapshot(snapshot)
-        self.db.delete_localsnapshot(snapshot.relpath)
+        self.db.delete_all_local_snapshots_for(snapshot.relpath)
         with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
             self.db.get_local_snapshot(snapshot.relpath)
+
+
+
+class DeleteLocalSnapshotTests(SyncTestCase):
+    """
+    Test the 'delete single snapshot' codepaths in MagicFolderConfig
+
+    non-Hypothesis-using tests
+    """
+    def setUp(self):
+        super(DeleteLocalSnapshotTests, self).setUp()
+        self.author = create_local_author(u"alice")
+
+        self.temp = FilePath(self.mktemp())
+        self.stash = self.temp.child("stash")
+        self.stash.makedirs()
+        self.magic = self.temp.child(b"magic")
+        self.magic.makedirs()
+
+        self.db = MagicFolderConfig.initialize(
+            u"some-folder",
+            SQLite3DatabaseLocation.memory(),
+            self.author,
+            self.stash,
+            u"URI:DIR2-RO:aaa:bbb",
+            u"URI:DIR2:ccc:ddd",
+            self.magic,
+            60,
+            60,
+        )
+
+        self.snap0 = LocalSnapshot(
+            relpath="foo",
+            author=self.author,
+            metadata=dict(),
+            content_path=FilePath("snap0 content"),
+            parents_local=[],
+            parents_remote=[],
+        )
+        self.db.store_local_snapshot(self.snap0)
+
+        self.snap1 = LocalSnapshot(
+            relpath="foo",
+            author=self.author,
+            metadata=dict(),
+            content_path=FilePath("snap1 content"),
+            parents_local=[self.snap0],
+            parents_remote=[],
+        )
+        self.db.store_local_snapshot(self.snap1)
+
+        self.snap2 = LocalSnapshot(
+            relpath="foo",
+            author=self.author,
+            metadata=dict(),
+            content_path=FilePath("snap2 content"),
+            parents_local=[self.snap1],
+            parents_remote=[],
+        )
+        self.db.store_local_snapshot(self.snap2)
+
+    def test_delete_one_local_snapshot(self):
+        """
+        Given a chain of three snapshots deleting the oldest one results
+        in a proper chain of two snapshots.
+        """
+        # we have a "leaf" snapshot "snap2" with parent "snap1" and
+        # grandparent "snap0" snap2->snap1->snap0
+
+        # pretend we uploaded the oldest ancestor, the only one we
+        # _can_ upload (semantically)
+        remote0 = RemoteSnapshot(
+            self.snap0.relpath,
+            self.snap0.author,
+            {
+                "relpath": self.snap0.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        self.db.delete_local_snapshot(self.snap0, remote0)
+
+        # we should still have a 3-snapshot chain, but there should be
+        # only 2 local snapshots and one remote
+
+        # start with the "leaf", the most-local snapshot
+        dbsnap2 = self.db.get_local_snapshot(self.snap0.relpath)
+        self.assertThat(
+            dbsnap2.content_path,
+            Equals(FilePath("snap2 content"))
+        )
+        self.assertThat(
+            dbsnap2.parents_local,
+            AfterPreprocessing(len, Equals(1)),
+        )
+        self.assertThat(
+            dbsnap2.parents_remote,
+            AfterPreprocessing(len, Equals(0)),
+        )
+
+        # the leaf had just one parent, which is local -- examine it
+        dbsnap1 = dbsnap2.parents_local[0]
+        self.assertThat(
+            dbsnap1.content_path,
+            Equals(FilePath("snap1 content"))
+        )
+        self.assertThat(
+            dbsnap1.parents_local,
+            AfterPreprocessing(len, Equals(0)),
+        )
+        self.assertThat(
+            dbsnap1.parents_remote,
+            AfterPreprocessing(len, Equals(1)),
+        )
+
+        # the "middle" parent (above) has no local parents and one
+        # remote, which is correct .. the final parent should be the
+        # one we replaced the local with.
+        remote0 = dbsnap1.parents_remote[0]
+        self.assertThat(
+            remote0,
+            Equals("URI:DIR2-CHK:aaaa:aaaa"),
+        )
+
+    def test_delete_several_local_snapshots(self):
+        """
+        Given a chain of three snapshots deleting them all results in now
+        snapshots.
+        """
+        # we have a "leaf" snapshot "snap2" with parent "snap1" and
+        # grandparent "snap0" snap2->snap1->snap0
+
+        # pretend we uploaded the oldest ancestor, the only one we
+        # _can_ upload (semantically)
+        remote0 = RemoteSnapshot(
+            self.snap0.relpath,
+            self.snap0.author,
+            {
+                "relpath": self.snap0.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        self.db.delete_local_snapshot(self.snap0, remote0)
+        self.db.delete_local_snapshot(self.snap1, remote0)
+        self.db.delete_local_snapshot(self.snap2, remote0)
+
+        try:
+            self.db.get_local_snapshot(self.snap0.relpath)
+            assert False, "expected no local snapshots"
+        except KeyError:
+            pass
+
+    def test_delete_snapshot_twice(self):
+        """
+        Attempting to delete a snapshot that doesn't exist is an error.
+        """
+        remote0 = RemoteSnapshot(
+            self.snap0.relpath,
+            self.snap0.author,
+            {
+                "relpath": self.snap0.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        self.db.delete_local_snapshot(self.snap0, remote0)
+
+        try:
+            self.db.delete_local_snapshot(self.snap0, remote0)
+            assert False, "Shouldn't be able to delete unfound snapshot"
+        except ValueError:
+            pass
+
+    def test_delete_no_snapshots_for_relpath(self):
+        """
+        Attempting to delete an unknown relpath is an error.
+        """
+        snap = LocalSnapshot(
+            relpath="non-existent",
+            author=self.author,
+            metadata=dict(),
+            content_path=FilePath("snap0 content"),
+            parents_local=[],
+            parents_remote=[],
+        )
+        remote = RemoteSnapshot(
+            snap.relpath,
+            snap.author,
+            {
+                "relpath": snap.relpath,
+                "modification_time": 1234,
+            },
+            capability="URI:DIR2-CHK:aaaa:aaaa",
+            parents_raw=[],
+            content_cap="URI:CHK:bbbb:bbbb",
+            metadata_cap="URI:CHK:cccc:cccc",
+        )
+
+        try:
+            self.db.delete_local_snapshot(snap, remote)
+            assert False, "Shouldn't be able to delete unfound snapshot"
+        except KeyError:
+            pass
 
 
 class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):

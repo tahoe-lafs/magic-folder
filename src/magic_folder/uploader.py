@@ -417,7 +417,7 @@ class RemoteSnapshotCreator(object):
                 )
 
         # Remove the LocalSnapshot from the db.
-        yield self._config.delete_localsnapshot(relpath)
+        yield self._config.delete_all_local_snapshots_for(relpath)
 
 
 @attr.s
