@@ -23,6 +23,9 @@ __all__ = [
 import re
 import hashlib
 import time
+from collections import (
+    deque,
+)
 from os import (
     urandom,
 )
@@ -997,9 +1000,93 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, relpath):
+    def delete_local_snapshot(self, cursor, local_snapshot, remote_snapshot):
         """
-        remove the row corresponding to the given relpath from the local_snapshots table
+        Delete a single LocalSnapshot from the database. You may not
+        delete a LocalSnapshot that has any local parents. If any
+        LocalSnapshots exist with this as their parent, they will be
+        adjustd to have the remote as parent instead.
+
+        :param LocalSnapshot local_snapshot: the snapshot to delete
+
+        :param RemoteSnapshot remote_snapshot: the RemoteSnapshot that
+            has replaced local_snapshot
+        """
+        assert local_snapshot.relpath == remote_snapshot.relpath, "Unrelated snapshots"
+        relpath = local_snapshot.relpath
+        # this will raise KeyError if there are no snpashots at all for this relpath
+        youngest_snapshot = self.get_local_snapshot.__wrapped__(self, cursor, relpath)
+
+        # breadth-first traversal of the (local) parents of our
+        # youngest snapshot
+        our_snap = None
+        child = None
+        q = deque([youngest_snapshot])
+        while q:
+            child = q.popleft()
+            if child.identifier == local_snapshot.identifier:
+                our_snap = child
+                child = None
+                break
+            for parent in child.parents_local:
+                if parent.identifier == local_snapshot.identifier:
+                    # we've found ours!
+                    our_snap = parent
+                    break
+                else:
+                    q.append(parent)
+
+        # even though there maybe be _some_ snapshots for this
+        # relpath, it's possible the one we've been asked to delete
+        # doesn't exist..
+        if not our_snap:
+            raise ValueError(
+                "No such snapshot '{}' for '{}'".format(local_snapshot.identifier, relpath)
+            )
+
+        # turn the 'parent' entry for 'child' to remtoe_snapshot.capability
+        if child:
+            cursor.execute(
+                """
+                UPDATE
+                    local_snapshot_parent
+                SET
+                    local_only=?, parent_identifier=?
+                WHERE
+                   [snapshot_identifier]=?
+                """,
+                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+            )
+            child.parents_local = [
+                snap
+                for snap in child.parents_local
+                if snap.identifier != local_snapshot.identifier
+            ]
+            child.parents_remote.append(remote_snapshot.capability)
+        # delete 'ours'
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshot_metadata]
+            WHERE
+                [snapshot_identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshots]
+            WHERE
+                [identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
+
+    @with_cursor
+    def delete_all_local_snapshots_for(self, cursor, relpath):
+        """
+        remove all rows corresponding to the given relpath from the local_snapshots table
 
         :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
@@ -1027,7 +1114,7 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with delete_localsnapshot
+        # TODO: We should consider merging this with delete_local_snapshot
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,
