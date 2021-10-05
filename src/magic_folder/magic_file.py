@@ -659,11 +659,7 @@ class MagicFile(object):
             self._call_later(self._snapshot_completed, snap)
             return snap
 
-        def bad(f):
-            print("BAD", f)
-            return f
         d.addCallback(completed)
-        d.addErrback(bad)
         # errback? (re-try?)  XXX probably have to have a 'failed'
         # state? or might re-trying work eventually? (I guess
         # .. maybe? Like if the disk is currently too full to copy but
@@ -769,6 +765,7 @@ class MagicFile(object):
             self._call_later(self._personal_dmd_updated, snapshot)
         d = update_personal_dmd()
 
+        # XXX should retry on failure
         def bad(f):
             print("BADDDDD", f)
             return f
