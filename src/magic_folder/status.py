@@ -269,16 +269,6 @@ class WebSocketStatusService(service.Service):
 
         def folder_data_for(name):
             mf_config = self._config.get_magic_folder(name)
-            most_recent = [
-                {
-                    "relpath": relpath,
-                    "modified": timestamp,
-                    "last-updated": last_updated,
-                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
-                }
-                for relpath, timestamp, last_updated
-                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
-            ]
             uploads = [
                 upload
                 for upload in sorted(
@@ -294,6 +284,25 @@ class WebSocketStatusService(service.Service):
                         key=lambda d: d.get("queued-at", 0),
                         reverse=True,
                 )
+            ]
+
+            def uploads_and_downloads():
+                for d in downloads:
+                    yield d["name"]
+                for d in uploads:
+                    yield d["name"]
+            down_up = uploads_and_downloads()
+
+            most_recent = [
+                {
+                    "relpath": relpath,
+                    "modified": timestamp,
+                    "last-updated": last_updated,
+                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
+                }
+                for relpath, timestamp, last_updated
+                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+                if relpath not in down_up
             ]
             return {
                 "uploads": uploads,
