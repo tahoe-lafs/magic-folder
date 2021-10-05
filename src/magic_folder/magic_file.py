@@ -123,7 +123,7 @@ class MagicFileFactory(object):
                             trigger=the_input,
                             new_state=new_state,
                         )
-                    ##print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
+                    # print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
                 mf.set_trace(tracer)
 
             return mf

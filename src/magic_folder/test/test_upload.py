@@ -43,6 +43,7 @@ from twisted.web.resource import (
 )
 from ..snapshot import (
     create_local_author,
+    RemoteSnapshot,
 )
 from ..magicpath import (
     path2magic,
@@ -50,6 +51,9 @@ from ..magicpath import (
 from ..util.capabilities import (
     is_immutable_directory_cap,
     to_verify_capability,
+)
+from ..util.file import (
+    get_pathinfo,
 )
 
 from .common import (
@@ -207,4 +211,84 @@ class UploadTests(SyncTestCase):
         self.assertThat(
             len(retries),
             Equals(1),
+        )
+
+
+class MagicFileFactoryTests(SyncTestCase):
+    """
+    Test aspects of MagicFileFactory
+    """
+
+    @given(
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_existing_conflict(self, upload_dircap):
+        """
+        An already-conflicted file shows up that way upon startup.
+        """
+        relpath = "conflicted_relpath"
+        author = create_local_author("alice")
+
+        f = self.useFixture(MagicFileFactoryFixture(
+            temp=FilePath(self.mktemp()),
+            author=author,
+            upload_dircap=upload_dircap,
+        ))
+        config = f.config
+
+        local = f.magic_path.child(relpath)
+        with local.asBytesMode("utf8").open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        snap = RemoteSnapshot(
+            relpath,
+            author,
+            metadata={
+                "modification_time": int(
+                    local.asBytesMode("utf-8").getModificationTime()
+                ),
+            },
+            capability="URI:DIR2-CHK:",
+            parents_raw=[],
+            content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
+        )
+        config.store_downloaded_snapshot(
+            relpath, snap, get_pathinfo(local).state
+        )
+
+        # mark it as a conflict
+        config.add_conflict(snap)
+
+        # create a MagicFile file for this relpath now
+        mf = f.magic_file_factory.magic_file_for(local)
+
+        # we can't know the current state, but we can see what it does
+        transitions = []
+
+        def trace(*args):
+            transitions.append(args)
+        mf.set_trace(trace)
+
+        # send in a remote update; if we were already conflicted it'll
+        # loop into that state and stay conflicted .. otherwise it'll
+        # try to upload
+        child = RemoteSnapshot(
+            relpath,
+            author,
+            metadata={
+                "modification_time": int(1234),
+            },
+            capability="URI:DIR2-CHK:",
+            parents_raw=[snap.capability],
+            content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
+        )
+        mf.found_new_remote(child)
+
+        self.assertThat(
+            transitions,
+            Equals([
+                ('_conflicted', '_remote_update', '_conflicted'),
+            ])
         )
