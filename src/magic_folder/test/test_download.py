@@ -876,8 +876,8 @@ class UpdateTests(AsyncTestCase):
             relpath,
             PathState(
                 current_pathstate.size,
-                current_pathstate.mtime_ns + 1000,
-                current_pathstate.ctime_ns + 1000,
+                current_pathstate.mtime_ns + 1000000,
+                current_pathstate.ctime_ns + 1000000,
             )
         )
         self.magic_path.child(relpath).touch()
