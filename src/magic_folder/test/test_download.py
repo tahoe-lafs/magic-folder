@@ -850,6 +850,71 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
+    @inlineCallbacks
+    def test_conflict_pathstate_mismatch(self):
+        """
+        """
+
+        relpath = "some_file"
+
+        # give alice current knowledge of this file
+        local_path = self.magic_path.child(relpath)
+        local_path.setContent(b"dummy contents")
+
+        alice_snap = yield create_snapshot(
+            relpath,
+            self.author,
+            io.BytesIO(b"dummy contents"),
+            self.state_path,
+        )
+        current_pathstate = get_pathinfo(local_path).state
+        alice_remote = yield write_snapshot_to_tahoe(alice_snap, self.author, self.tahoe_client)
+        self.config.store_currentsnapshot_state(relpath, current_pathstate)
+
+        # mess with the time
+        self.config.store_currentsnapshot_state(
+            relpath,
+            PathState(
+                current_pathstate.size,
+                current_pathstate.mtime_ns + 1000,
+                current_pathstate.ctime_ns + 1000,
+            )
+        )
+        self.magic_path.child(relpath).touch()
+
+        # zara creates a snapshot
+        content0 = b"first" * 1000
+        local_snap0 = yield create_snapshot(
+            relpath,
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+            raw_remote_parents=[alice_remote.capability],
+        )
+
+        # create a change in zara's Personal DMD
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            relpath,
+            remote_snap0.capability.encode("utf8"),
+        )
+
+        # wait for the downloader to detect zara's change
+        expected_files = {
+            "{}.conflict-zara".format(relpath),
+            relpath,
+        }
+        for _ in range(10):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if set(self.magic_path.listdir()) == expected_files:
+                break
+
+        self.assertThat(
+            set(self.magic_path.listdir()),
+            Equals(expected_files),
+        )
+
 
 class ConflictTests(AsyncTestCase):
     """
