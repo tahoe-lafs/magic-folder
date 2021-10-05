@@ -880,7 +880,6 @@ class UpdateTests(AsyncTestCase):
                 current_pathstate.ctime_ns + 1000000,
             )
         )
-        self.magic_path.child(relpath).touch()
 
         # zara creates a snapshot
         content0 = b"first" * 1000
@@ -905,7 +904,7 @@ class UpdateTests(AsyncTestCase):
             "{}.conflict-zara".format(relpath),
             relpath,
         }
-        for _ in range(10):
+        for _ in range(15):
             yield deferLater(reactor, 1.0, lambda: None)
             if set(self.magic_path.listdir()) == expected_files:
                 break
