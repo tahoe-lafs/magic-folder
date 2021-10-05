@@ -853,6 +853,8 @@ class UpdateTests(AsyncTestCase):
     @inlineCallbacks
     def test_conflict_pathstate_mismatch(self):
         """
+        If the database-stored pathstate doesn't match what's on disk when
+        we receive an update a conflict results.
         """
 
         relpath = "some_file"
@@ -869,15 +871,13 @@ class UpdateTests(AsyncTestCase):
         )
         current_pathstate = get_pathinfo(local_path).state
         alice_remote = yield write_snapshot_to_tahoe(alice_snap, self.author, self.tahoe_client)
-        self.config.store_currentsnapshot_state(relpath, current_pathstate)
-
-        # mess with the time
+        # mess with the time, so it doesn't match what's on disk
         self.config.store_currentsnapshot_state(
             relpath,
             PathState(
                 current_pathstate.size,
-                current_pathstate.mtime_ns + 1000000,
-                current_pathstate.ctime_ns + 1000000,
+                current_pathstate.mtime_ns + 60000000,
+                current_pathstate.ctime_ns + 60000000,
             )
         )
 
