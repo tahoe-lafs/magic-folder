@@ -857,7 +857,7 @@ class UpdateTests(AsyncTestCase):
         we receive an update a conflict results.
         """
 
-        relpath = "some_file"
+        relpath = "pathstate_file"
 
         # give alice current knowledge of this file
         local_path = self.magic_path.child(relpath)
@@ -882,7 +882,7 @@ class UpdateTests(AsyncTestCase):
         )
 
         # zara creates a snapshot
-        content0 = b"first" * 1000
+        content0 = b"zara was here" * 1000
         local_snap0 = yield create_snapshot(
             relpath,
             self.other,
@@ -906,6 +906,7 @@ class UpdateTests(AsyncTestCase):
         }
         for _ in range(15):
             yield deferLater(reactor, 1.0, lambda: None)
+            print(self.magic_path.listdir())
             if set(self.magic_path.listdir()) == expected_files:
                 break
 
