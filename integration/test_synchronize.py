@@ -19,6 +19,9 @@ import pytest_twisted
 from magic_folder.util.capabilities import (
     to_readonly_capability,
 )
+from magic_folder.util import (
+    database,
+)
 from .util import (
     await_file_contents,
     await_file_vanishes,
@@ -129,13 +132,22 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
     yield take_snapshot(alice, "local", "sylvester")
 
     # wait until we've definitely uploaded it
+    former_remote = None
     for _ in range(10):
         yield twisted_sleep(reactor, 1)
         try:
             former_remote = local_cfg.get_remotesnapshot("sylvester")
             break
+        except database.OperationalError:
+            # since we're messing with the database while production
+            # code is running, it's possible this will fail if we
+            # access the database while the "real" code is also doing
+            # that.
+            pass
         except KeyError:
             pass
+    assert former_remote is not None, "Didn't find remote; upload failed?"
+
     x = yield alice.dump_state("local")
     print(x)
 
