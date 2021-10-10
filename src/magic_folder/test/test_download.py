@@ -906,7 +906,6 @@ class UpdateTests(AsyncTestCase):
         }
         for _ in range(15):
             yield deferLater(reactor, 1.0, lambda: None)
-            print(self.magic_path.listdir())
             if set(self.magic_path.listdir()) == expected_files:
                 break
 
