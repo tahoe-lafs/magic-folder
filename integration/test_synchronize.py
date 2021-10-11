@@ -15,12 +15,10 @@ from functools import partial
 from eliot import Message
 import pytest
 import pytest_twisted
+import sqlite3
 
 from magic_folder.util.capabilities import (
     to_readonly_capability,
-)
-from magic_folder.util import (
-    database,
 )
 from .util import (
     await_file_contents,
@@ -138,7 +136,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         try:
             former_remote = local_cfg.get_remotesnapshot("sylvester")
             break
-        except database.OperationalError:
+        except sqlite3.OperationalError:
             # since we're messing with the database while production
             # code is running, it's possible this will fail if we
             # access the database while the "real" code is also doing
