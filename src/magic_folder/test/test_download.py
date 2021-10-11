@@ -857,7 +857,7 @@ class UpdateTests(AsyncTestCase):
         we receive an update a conflict results.
         """
 
-        relpath = "pathstate_file"
+        relpath = "a"
 
         # give alice current knowledge of this file
         local_path = self.magic_path.child(relpath)
