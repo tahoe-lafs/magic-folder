@@ -260,7 +260,7 @@ class LocalMagicFolderFilesystem(object):
         h = hashlib.sha256()
         h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
-        with staged_path.toBytesMode("utf8").open('wb') as f:
+        with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
 
