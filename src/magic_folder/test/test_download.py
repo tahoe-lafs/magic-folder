@@ -851,7 +851,7 @@ class UpdateTests(AsyncTestCase):
         )
 
     @inlineCallbacks
-    def test_conflict_pathstate_mismatch(self):
+    def test_state_mismatch(self):
         """
         If the database-stored pathstate doesn't match what's on disk when
         we receive an update a conflict results.
