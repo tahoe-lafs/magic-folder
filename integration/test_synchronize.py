@@ -192,7 +192,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
 
 
 @pytest_twisted.inlineCallbacks
-@pytest.mark.parametrize("relpath", ["sylvester", "nested/sylvester"])
+@pytest.mark.parametrize("relpath", ["dinah", "nested/felicia"])
 def test_create_then_recover(request, reactor, temp_filepath, alice, bob, take_snapshot, relpath):
     """
     Test a version of the expected 'recover' workflow:
@@ -293,8 +293,8 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "internal", "sylvester")
+    original_folder.child("fluffy").setContent(content0)
+    yield take_snapshot(alice, "internal", "fluffy")
 
     # create the 'rec' magic-folder
     yield bob.add("rec", recover_folder.path)
@@ -311,7 +311,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("fluffy").path,
         content0,
         timeout=25,
     )
@@ -320,8 +320,8 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
 
     # update the file (so now there's two versions)
     content1 = non_lit_content("one")
-    original_folder.child("sylvester").setContent(content1)
-    yield take_snapshot(alice, "internal", "sylvester")
+    original_folder.child("fluffy").setContent(content1)
+    yield take_snapshot(alice, "internal", "fluffy")
 
     time.sleep(2)
 
@@ -330,7 +330,7 @@ def test_internal_inconsistency(request, reactor, temp_filepath, alice, bob, tak
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("fluffy").path,
         content1,
         timeout=25,
     )
@@ -353,8 +353,8 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "ancestor0", "sylvester")
+    original_folder.child("nyan").setContent(content0)
+    yield take_snapshot(alice, "ancestor0", "nyan")
 
     # create the 'ancestor1' magic-folder
     yield bob.add("ancestor1", recover_folder.path)
@@ -371,35 +371,35 @@ def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snapshot):
     # we should now see the only Snapshot we have in the folder appear
     # in the 'ancestor1' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("nyan").path,
         content0,
         timeout=25,
     )
 
     # update the file in bob's folder
     content1 = non_lit_content("one")
-    recover_folder.child("sylvester").setContent(content1)
-    yield take_snapshot(bob, "ancestor1", "sylvester")
+    recover_folder.child("nyan").setContent(content1)
+    yield take_snapshot(bob, "ancestor1", "nyan")
 
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("nyan").path,
         content1,
         timeout=25,
     )
     yield ensure_file_not_created(
-        recover_folder.child("sylvester.conflict-alice").path,
+        recover_folder.child("nyan.conflict-alice").path,
         timeout=25,
     )
 
     # update the file in alice's folder
     content2 = non_lit_content("two")
-    original_folder.child("sylvester").setContent(content2)
-    yield take_snapshot(alice, "ancestor0", "sylvester")
+    original_folder.child("nyan").setContent(content2)
+    yield take_snapshot(alice, "ancestor0", "nyan")
 
     # Since we made local changes to the file, a change to alice
     # shouldn't overwrite our changes
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("nyan").path,
         content1,
         timeout=25,
     )
@@ -425,8 +425,8 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_folder.child("pussyfoot").setContent(content0)
+    yield take_snapshot(alice, "original", "pussyfoot")
 
     yield twisted_sleep(reactor, 5)
     yield alice.stop_magic_folder()
@@ -449,20 +449,20 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("pussyfoot").path,
         content0,
         timeout=25,
     )
 
     # update the file (so now there's two versions)
     content1 = non_lit_content("one")
-    recover_folder.child("sylvester").setContent(content1)
-    yield take_snapshot(bob, "recovery", "sylvester")
+    recover_folder.child("pussyfoot").setContent(content1)
+    yield take_snapshot(bob, "recovery", "pussyfoot")
 
     # We shouldn't see this show up as a conflict, since we are newer than
     # alice
     yield ensure_file_not_created(
-        recover_folder.child("sylvester.conflict-alice").path,
+        recover_folder.child("pussyfoot.conflict-alice").path,
         timeout=25,
     )
 
@@ -482,7 +482,7 @@ def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond, take
     yield edmond.add_participant("recovery-2", "bob", bob_cap)
 
     yield await_file_contents(
-        recover2_folder.child("sylvester").path,
+        recover2_folder.child("pussyfoot").path,
         content1,
         timeout=25,
     )
@@ -513,8 +513,8 @@ def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_sn
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_folder.child("cheshire").setContent(content0)
+    yield take_snapshot(alice, "original", "cheshire")
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -533,25 +533,25 @@ def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, take_sn
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("cheshire").path,
         content0,
         timeout=10,
     )
 
     content1 = non_lit_content("one")
-    recover_folder.child("sylvester").setContent(content1)
+    recover_folder.child("cheshire").setContent(content1)
 
     content2 = non_lit_content("two")
-    original_folder.child("sylvester").setContent(content2)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_folder.child("cheshire").setContent(content2)
+    yield take_snapshot(alice, "original", "cheshire")
 
     yield await_file_contents(
-        recover_folder.child("sylvester.conflict-alice").path,
+        recover_folder.child("cheshire.conflict-alice").path,
         content2,
         timeout=10,
     )
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("cheshire").path,
         content1,
         timeout=10,
     )
@@ -580,8 +580,8 @@ def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, take_snap
 
     # put a file in our folder
     content0 = non_lit_content("zero")
-    original_folder.child("sylvester").setContent(content0)
-    yield take_snapshot(alice, "original", "sylvester")
+    original_folder.child("claude").setContent(content0)
+    yield take_snapshot(alice, "original", "claude")
 
     # create the 'recovery' magic-folder
     yield bob.add("recovery", recover_folder.path)
@@ -600,20 +600,20 @@ def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, take_snap
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("claude").path,
         content0,
         timeout=10,
     )
 
     content1 = non_lit_content("one")
-    recover_folder.child("sylvester").setContent(content1)
+    recover_folder.child("claude").setContent(content1)
 
     yield ensure_file_not_created(
-        recover_folder.child("sylvester.conflict-alice").path,
+        recover_folder.child("claude.conflict-alice").path,
         timeout=10,
     )
     yield await_file_contents(
-        recover_folder.child("sylvester").path,
+        recover_folder.child("claude").path,
         content1,
         timeout=10,
     )
