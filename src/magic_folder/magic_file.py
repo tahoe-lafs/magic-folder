@@ -109,6 +109,12 @@ class MagicFileFactory(object):
             if self._config.list_conflicts_for(relpath):
                 mf._existing_conflict()
 
+            # TODO: scanner ("or something") should check if our
+            # current_snapshot notion of this file matches our
+            # Personal DMD (if not: update them personal DMD because
+            # we missed that step in the state-machine last time we
+            # ran)
+
             # cache this MagicFile
             self._magic_files[relpath] = mf
 
@@ -604,6 +610,15 @@ class MagicFile(object):
             return
 
         retry_delay_sequence = _delay_sequence()
+
+        # It probably makes sense to have a separate state for this
+        # part ("update remote dmd"). If we crash here (e.g. Tahoe is
+        # down, keep retrying, but subsequently crash) and then
+        # restart, we just won't update the remote DMD. So "something"
+        # should notice at startup that 'store_downloaded_snapshot'
+        # has run but not this part (because the database has a
+        # different entry than the remote DMD) and inject an event to
+        # get us here.
 
         def error(f):
             self._factory._folder_status.error_occurred(
