@@ -451,6 +451,7 @@ class RemoteScannerService(service.MultiService):
         d = self._scan_collective()
         # in some cases, might want to surface elsewhere
         d.addErrback(write_failure)
+        return d
 
     @inline_callbacks
     def _scan_collective(self):
@@ -501,5 +502,7 @@ class RemoteScannerService(service.MultiService):
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
-                d = maybeDeferred(mf.found_new_remote, snapshot)
-                d.addErrback(write_failure)
+                try:
+                    yield maybeDeferred(mf.found_new_remote, snapshot)
+                except Exception:
+                    write_failure()

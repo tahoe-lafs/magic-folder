@@ -228,7 +228,8 @@ class MagicFile(object):
         has been found. It will be downloaded and applied (possibly
         resulting in conflicts).
         """
-        return self._remote_update(remote_snapshot)
+        self._remote_update(remote_snapshot)
+        return self.when_idle()
 
     def local_snapshot_exists(self, local_snapshot):
         """
@@ -556,6 +557,10 @@ class MagicFile(object):
                 if self._factory._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
                     self._call_later(self._ancestor_we_are_newer, snapshot, staged_path)
                     return
+                Message.log(
+                    message_type="ancestor_mismatch",
+                    staged_path=staged_path.path,
+                )
                 self._call_later(self._ancestor_mismatch, snapshot, staged_path)
                 return
         self._call_later(self._ancestor_matches, snapshot, staged_path)
