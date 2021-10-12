@@ -388,7 +388,7 @@ class InMemoryMagicFolderFilesystem(object):
         return succeed(marker)
 
     def mark_overwrite(self, relpath, mtime, staged_content):
-        assert staged_content in self._staged_content
+        assert staged_content in self._staged_content, "Overwrite but no staged content"
         self.actions.append(
             ("overwrite", relpath, self._staged_content[staged_content])
         )

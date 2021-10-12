@@ -1382,16 +1382,23 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
+        fails = [object()]
+        orig_download = self.filesystem.download_content_to_staging
+
         def network_is_out(relpath, file_cap, tahoe_client):
             """
             download fails for some reason
-            """
-            raise Exception("something bad")
-        self.filesystem.download_content_to_staging = network_is_out
 
-        # make this synchronous for this test so that we don't
-        # infinitely loop trying to download
-        self.file_factory._synchronous = True
+            We only want a single error; if we let the network
+            "always" be down then the `yield top_service._loop()` call
+            below will never succeed because it'll just keep re-
+            trying.
+            """
+            if not fails:
+                return orig_download(relpath, file_cap, tahoe_client)
+            fails.pop(0)
+            raise Exception("the network is down")
+        self.filesystem.download_content_to_staging = network_is_out
 
         # set up a collective for 'alice' to pull an update from
         # 'carol' into the "always permissions denied" filesystem
@@ -1452,7 +1459,7 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.eliot_logger.flush_tracebacks(Exception),
             MatchesListwise([
-                matches_flushed_traceback(Exception, "something bad")
+                matches_flushed_traceback(Exception, "the network is down")
             ]),
         )
 
