@@ -559,7 +559,6 @@ class MagicFile(object):
                     return
                 Message.log(
                     message_type="ancestor_mismatch",
-                    staged_path=staged_path.path,
                 )
                 self._call_later(self._ancestor_mismatch, snapshot, staged_path)
                 return
