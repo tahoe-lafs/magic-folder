@@ -167,6 +167,10 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         x = yield alice.dump_state("local")
         print(x)
 
+        # XXX this fails (esp. on mac-os) sometimes because we've
+        # already got a database lock (presumably in the production
+        # code)
+        # https://github.com/LeastAuthority/magic-folder/issues/569
         assert local_cfg.get_all_localsnapshot_paths() == {"sylvester"}
         snap = local_cfg.get_local_snapshot("sylvester")
         # we should have 3 snapshots total, each one the parent of the next
