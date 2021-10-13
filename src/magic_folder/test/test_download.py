@@ -1463,6 +1463,96 @@ class ConflictTests(AsyncTestCase):
             ]),
         )
 
+    @inline_callbacks
+    def test_fail_download_dmd_update(self):
+        """
+        An update arrives but we fail to update our Personal DMD
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice_author,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        root = create_fake_tahoe_root()
+        client = create_tahoe_treq_client(root)
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            client,
+        )
+
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        self.file_factory._write_participant._tahoe_client = tahoe_client
+
+
+        fails = [object()]
+        orig_add_entry = tahoe_client.add_entry_to_mutable_directory
+
+        def dmd_update_fails(*args, **kw):
+            if not fails:
+                return orig_add_entry(*args, **kw)
+            fails.pop(0)
+            raise Exception("dmd update fails")
+        tahoe_client.add_entry_to_mutable_directory = dmd_update_fails
+
+        # hook in the top-level service .. we don't "start" it and
+        # instead just call _loop() because we just want a single
+        # scan.
+        top_service = RemoteScannerService(
+            Clock(),
+            self.alice_config,
+            alice_participants,
+            self.file_factory,
+            self.remote_cache,
+        )
+        yield top_service._loop()
+
+        # status system should report our error
+        self.assertThat(
+            loads(self.alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Error updating personal DMD: dmd update fails"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            MatchesListwise([
+                matches_flushed_traceback(Exception, "dmd update fails")
+            ]),
+        )
+
 
 class FilesystemModificationTests(SyncTestCase):
     """

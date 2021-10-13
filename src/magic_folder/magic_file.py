@@ -628,13 +628,15 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
+            write_traceback(exc_info=(f.type, f.value, f.tb))
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_update)
             delay.addErrback(error)
             return None
 
         def perform_update():
-            d = self._factory._write_participant.update_snapshot(
+            d = maybeDeferred(
+                self._factory._write_participant.update_snapshot,
                 snapshot.relpath,
                 snapshot.capability.encode("ascii"),
             )
