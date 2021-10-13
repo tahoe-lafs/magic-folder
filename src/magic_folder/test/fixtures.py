@@ -315,12 +315,14 @@ class MagicFolderNode(object):
                         name,
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
+                        # collective DMD
                         "URI:DIR2{}:{}:{}".format(
                             "" if config["admin"] else "-RO",
                             b2a("\0" * 16),
                             b2a("\1" * 32),
                         ),
 
+                        # personal DMD
                         u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
                         config[u"poll-interval"],
                         config[u"scan-interval"],

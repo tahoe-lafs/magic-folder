@@ -37,15 +37,33 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     succeed,
+    Deferred,
     DeferredList,
     inlineCallbacks,
+)
+from twisted.internet.task import (
+    deferLater,
 )
 from twisted.web.resource import (
     ErrorPage,
 )
+from hyperlink import (
+    DecodedURL,
+)
+from autobahn.twisted.testing import (
+    MemoryReactorClockResolver,
+)
+
 from ..snapshot import (
     create_local_author,
     RemoteSnapshot,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
+from ..tahoe_client import (
+    create_tahoe_client,
 )
 from ..magicpath import (
     path2magic,
@@ -53,6 +71,7 @@ from ..magicpath import (
 from ..util.capabilities import (
     is_immutable_directory_cap,
     to_verify_capability,
+    to_readonly_capability,
 )
 from ..util.file import (
     get_pathinfo,
@@ -70,6 +89,7 @@ from .strategies import (
 
 from .fixtures import (
     MagicFileFactoryFixture,
+    MagicFolderNode,
 )
 
 from magic_folder.tahoe_client import (
@@ -309,35 +329,93 @@ class AsyncMagicFileTests(AsyncTestCase):
         produced
         """
         author = create_local_author("alice")
-        upload_dircap = b"URI:DIR2:{}:{}".format('a' * 26, 'a' * 52)
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
         relpath = "a_local_file"
 
-        f = self.useFixture(MagicFileFactoryFixture(
-            temp=FilePath(self.mktemp()),
-            author=author,
-            upload_dircap=upload_dircap,
-        ))
-        config = f.config
+        # we provide our own Tahoe client here so that we can control
+        # when uploads etc complete .. so that we can queue up a
+        # couple uploads without having the first complete
+        # "immediately"
+        tahoe_root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(tahoe_root),
+        )
 
-        # Make the upload dircap refer to a dirnode so the snapshot creator
-        # can link files into it.
-        f.root._uri.data[upload_dircap] = dumps([
-            u"dirnode",
-            {u"children": {}},
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=tahoe_client,
+            # note: we do start services, but later..
+            start_folder_services=False,
+        )
+        self.addCleanup(alice.cleanup)
+
+        config = alice.global_config.get_magic_folder("default")
+        service = alice.global_service.get_folder_service("default")
+
+        # because we provided a tahoe_root to MagicFolderNode, it
+        # doesn't put the collective/personal mutable DMDs in to the
+        # data-store...and so we also need to delay startup of
+        # services until we've done this, so that the scanner may find
+        # things.
+
+        # Collective DMD
+        tahoe_root._uri.data[config.collective_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {
+                    "alice": [
+                        "dirnode",
+                        {
+                            "mutable": True,
+                            "ro_uri": to_readonly_capability(config.upload_dircap),
+                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "format": "SDMF",
+                        },
+                    ],
+                }
+            }
         ])
 
-        local = f.magic_path.child(relpath)
+        # Personal DMD
+        tahoe_root._uri.data[config.upload_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {},
+            }
+        ])
+
+        # all data available, we can start services
+        service.startService()
+
+        local = magic_path.child(relpath)
         with local.asBytesMode("utf8").open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
-        mf = f.magic_file_factory.magic_file_for(local)
-        updates = [
-            mf.create_update(),
-            mf.create_update(),
-        ]
+        mf = service.file_factory.magic_file_for(local)
+        updates = []
+        updates.append(mf.create_update())
+        updates.append(mf.create_update())
 
         # we wait for the snapshots to be created
         snapshots = yield DeferredList(updates)
+
+        # we also want the remotes to be actually-uploaded so we can
+        # check their structure
+        yield mf.when_idle()
 
         # one snapshot should have no parents, the other should have
         # the first as its parent .. DeferredList returns 2-tuples

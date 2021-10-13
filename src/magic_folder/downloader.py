@@ -458,6 +458,10 @@ class RemoteScannerService(service.MultiService):
         with start_action(
             action_type="downloader:scan-collective", folder=self._config.name
         ):
+            # XXX any errors here should (probably) be reported to the
+            # status service .. meantime, errors will abort this scan
+            # but shouldn't cause subsequent scanning runs to be
+            # aborted.
             participants = yield self._participants.list()
             for participant in participants:
                 with start_action(
