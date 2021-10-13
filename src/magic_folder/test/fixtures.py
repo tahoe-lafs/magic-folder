@@ -248,6 +248,7 @@ class MagicFolderNode(object):
     # FIXME docstring
     tahoe_root = attr.ib()
     http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+    tahoe_client = attr.ib()
     global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
     global_config = attr.ib(validator=attr.validators.instance_of(GlobalConfigDatabase))
 
@@ -378,6 +379,7 @@ class MagicFolderNode(object):
         return cls(
             tahoe_root=tahoe_root,
             http_client=http_client,
+            tahoe_client=tahoe_client,
             global_service=global_service,
             global_config=global_config,
         )

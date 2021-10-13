@@ -1305,12 +1305,7 @@ class ConflictTests(AsyncTestCase):
         # .. but it needs to be "real" since we have to run the
         # top-level scanner which discovers snapshots (because it
         # handles the top-level errors)
-        root = create_fake_tahoe_root()
-        client = create_tahoe_treq_client(root)
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text("http://invalid./"),
-            client,
-        )
+        tahoe_client = self.alice.tahoe_client
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
@@ -1405,12 +1400,7 @@ class ConflictTests(AsyncTestCase):
         # .. but it needs to be "real" since we have to run the
         # top-level scanner which discovers snapshots (because it
         # handles the top-level errors)
-        root = create_fake_tahoe_root()
-        client = create_tahoe_treq_client(root)
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text("http://invalid./"),
-            client,
-        )
+        tahoe_client = self.alice.tahoe_client
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
@@ -1481,13 +1471,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        root = create_fake_tahoe_root()
-        client = create_tahoe_treq_client(root)
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text("http://invalid./"),
-            client,
-        )
-
+        tahoe_client = self.alice.tahoe_client
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
@@ -1500,18 +1484,18 @@ class ConflictTests(AsyncTestCase):
             tahoe_client,
         )
 
-        self.file_factory._write_participant._tahoe_client = tahoe_client
-
-
         fails = [object()]
-        orig_add_entry = tahoe_client.add_entry_to_mutable_directory
+        orig_add_entry = self.alice.tahoe_root._uri._add_entry_to_dir
 
         def dmd_update_fails(*args, **kw):
             if not fails:
                 return orig_add_entry(*args, **kw)
             fails.pop(0)
-            raise Exception("dmd update fails")
-        tahoe_client.add_entry_to_mutable_directory = dmd_update_fails
+            return None
+
+        # TahoeClient is frozen=True .. so we mess with the underlying
+        # tahoe_root and arrange for 1 DMD update to fail
+        self.alice.tahoe_root._uri._add_entry_to_dir = dmd_update_fails
 
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
@@ -1536,7 +1520,7 @@ class ConflictTests(AsyncTestCase):
                                 lambda errors: errors[0],
                                 ContainsDict({
                                     "summary": Equals(
-                                        "Error updating personal DMD: dmd update fails"
+                                        "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
                                     )
                                 }),
                             ),
@@ -1549,7 +1533,7 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.eliot_logger.flush_tracebacks(Exception),
             MatchesListwise([
-                matches_flushed_traceback(Exception, "dmd update fails")
+                matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
             ]),
         )
 
