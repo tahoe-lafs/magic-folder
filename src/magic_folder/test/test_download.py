@@ -1484,18 +1484,7 @@ class ConflictTests(AsyncTestCase):
             tahoe_client,
         )
 
-        fails = [object()]
-        orig_add_entry = self.alice.tahoe_root._uri._add_entry_to_dir
-
-        def dmd_update_fails(*args, **kw):
-            if not fails:
-                return orig_add_entry(*args, **kw)
-            fails.pop(0)
-            return None
-
-        # TahoeClient is frozen=True .. so we mess with the underlying
-        # tahoe_root and arrange for 1 DMD update to fail
-        self.alice.tahoe_root._uri._add_entry_to_dir = dmd_update_fails
+        self.alice.tahoe_root.fail_next_directory_update()
 
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
