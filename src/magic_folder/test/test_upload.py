@@ -37,6 +37,8 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     succeed,
+    DeferredList,
+    inlineCallbacks,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -58,6 +60,7 @@ from ..util.file import (
 
 from .common import (
     SyncTestCase,
+    AsyncTestCase,
 )
 from .strategies import (
     path_segments,
@@ -292,3 +295,66 @@ class MagicFileFactoryTests(SyncTestCase):
                 ('_conflicted', '_remote_update', '_conflicted'),
             ])
         )
+
+
+class AsyncMagicFileTests(AsyncTestCase):
+    """
+    MagicFile tests requiring the reactor
+    """
+
+    @inlineCallbacks
+    def test_local_queue(self):
+        """
+        Queuing up two updates 'at once' causes two versions to be
+        produced
+        """
+        author = create_local_author("alice")
+        upload_dircap = b"URI:DIR2:{}:{}".format('a' * 26, 'a' * 52)
+        relpath = "a_local_file"
+
+        f = self.useFixture(MagicFileFactoryFixture(
+            temp=FilePath(self.mktemp()),
+            author=author,
+            upload_dircap=upload_dircap,
+        ))
+        config = f.config
+
+        # Make the upload dircap refer to a dirnode so the snapshot creator
+        # can link files into it.
+        f.root._uri.data[upload_dircap] = dumps([
+            u"dirnode",
+            {u"children": {}},
+        ])
+
+        local = f.magic_path.child(relpath)
+        with local.asBytesMode("utf8").open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        mf = f.magic_file_factory.magic_file_for(local)
+        updates = [
+            mf.create_update(),
+            mf.create_update(),
+        ]
+
+        # we wait for the snapshots to be created
+        snapshots = yield DeferredList(updates)
+
+        # one snapshot should have no parents, the other should have
+        # the first as its parent .. DeferredList returns 2-tuples
+        # though
+        self.assertThat(
+            all(
+                ok
+                for ok, snap
+                in snapshots
+            ),
+            Equals(True)
+        )
+        snap0, snap1 = (snap for ok, snap in snapshots)
+        self.assertThat(snap0.remote_snapshot.parents_raw, Equals([]))
+        self.assertThat(snap0.parents_local, Equals([]))
+        self.assertThat(snap0.parents_remote, Equals([]))
+
+        self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability]))
+        self.assertThat(snap1.parents_local, Equals([]))
+        self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
