@@ -37,21 +37,14 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     succeed,
-    Deferred,
     DeferredList,
     inlineCallbacks,
-)
-from twisted.internet.task import (
-    deferLater,
 )
 from twisted.web.resource import (
     ErrorPage,
 )
 from hyperlink import (
     DecodedURL,
-)
-from autobahn.twisted.testing import (
-    MemoryReactorClockResolver,
 )
 
 from ..snapshot import (
@@ -328,7 +321,6 @@ class AsyncMagicFileTests(AsyncTestCase):
         Queuing up two updates 'at once' causes two versions to be
         produced
         """
-        author = create_local_author("alice")
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "a_local_file"
