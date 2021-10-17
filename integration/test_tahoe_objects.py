@@ -83,21 +83,15 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
             )
         )
 
-    # this is (Snapshot-size, content-size and metadata-size) for the
-    # one file we've put in. Although we know the number of bytes in
-    # the file we opened, the other sizes may change depending on
-    # details of the Snapshot or metadata implementation .. they
-    # should however always be identical across all the magic-folders
-    # created in this test.
-
-    # each folder should produce [416, 800, 190] for the sizes
-    # .. except the first one depends on Snapshot's implementation and
-    # the last one depends on metadata details, so we only want to
-    # assert that they're all the same.
+    # Each folder should produce [416, 800, 190] for the sizes -- this
+    # is (Snapshot-size, content-size and metadata-size) for the one
+    # file we've put in.  .. except the first one depends on
+    # Snapshot's implementation and the last one depends on metadata
+    # details, so we only want to assert that they're all the same.
     # expected_results = [[416, 800, 190]] * number_of_folders
 
-    # the "if res else None" clauses below are because we use this in
-    # the loop (to potentially bail early), and some of the results
+    # The "if res else None" clauses below are because we use this in
+    # the loop (to potentially succeed early), and some of the results
     # may be empty for a few iterations / seconds
     matches_expected_results = MatchesAll(
         # this says that all the content capabilities (2nd item)
