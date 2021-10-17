@@ -69,6 +69,10 @@ from magic_folder.config import (
 from magic_folder.tahoe_client import (
     create_tahoe_client,
 )
+from magic_folder.client import (
+    create_http_client,
+    create_magic_folder_client,
+)
 from magic_folder.util.eliotutil import (
     log_inline_callbacks,
 )
@@ -103,6 +107,7 @@ class MagicFolderEnabledNode(object):
     magic_folder_web_port = attr.ib()
 
     _global_config = attr.ib(init=False, default=None)
+    _client = attr.ib(default=None)
 
     @property
     def node_directory(self):
@@ -123,6 +128,19 @@ class MagicFolderEnabledNode(object):
             config.tahoe_client_url,
             HTTPClient(Agent(self.reactor)),
         )
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = create_magic_folder_client(
+                self.reactor,
+                self.global_config(),
+                create_http_client(
+                    self.reactor,
+                    unicode(self.global_config().api_client_endpoint),
+                ),
+            )
+        return self._client
 
     @property
     def magic_directory(self):
