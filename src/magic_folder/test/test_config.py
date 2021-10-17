@@ -1067,7 +1067,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         relative_paths(),
         path_states(),
     )
-    def test_tahoe_object_sizes(self, relpath, state):
+    def test_tahoe_object_sizes_local(self, relpath, state):
         """
         Local-only snapshots get no size returned
         """
