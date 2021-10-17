@@ -2,7 +2,7 @@
 # See COPYING for details.
 
 """
-Tests for ``magic_folder.tahoe_client``.
+Tests for ``magic_folder.client``.
 """
 
 from __future__ import (
