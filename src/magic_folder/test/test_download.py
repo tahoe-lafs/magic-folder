@@ -1605,10 +1605,23 @@ class FilesystemModificationTests(SyncTestCase):
         staged.setContent(dummy_content)
         # we put a _file_ in the way of the incoming directory
         with self.magic.child("sub").open("w") as f:
-            f.write("pre-existing file")
+            f.write(b"pre-existing file")
 
         # for now, it's just an error if we find a file in a spot
         # where we wanted a directory .. perhaps there should be a
         # better / different answer?
         with ExpectedException(RuntimeError, ".*not a directory.*"):
             self.filesystem.mark_overwrite("sub/foo", 12345, staged)
+        self.assertThat(
+            self.magic.child("sub"),
+            MatchesAll(
+                AfterPreprocessing(
+                    lambda f: f.isfile(),
+                    Equals(True)
+                ),
+                AfterPreprocessing(
+                    lambda f: f.getContent(),
+                    Equals(b"pre-existing file")
+                )
+            )
+        )
