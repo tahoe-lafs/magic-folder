@@ -114,7 +114,7 @@ from eliot import (
 from .util.capabilities import (
     is_readonly_directory_cap,
     is_directory_cap,
-    cap_size,
+    capability_size,
 )
 from .util.database import (
     with_cursor,
@@ -1279,7 +1279,7 @@ class MagicFolderConfig(object):
                 # whenever we do finally upload.
                 continue
             sizes.extend([
-                cap_size(c)
+                capability_size(c)
                 for c in caps
             ])
         return sizes
