@@ -51,6 +51,7 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
         storage=True,
     )
     number_of_folders = 20
+    folder_names = ["workstuff{}".format(n) for n in range(number_of_folders)]
 
     output = yield util._magic_folder_runner(
         reactor, request, "yolandi",
@@ -62,37 +63,29 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
     assert output.strip() == "No magic-folders"
 
     # make a bunch of folders
-    for folder_num in range(number_of_folders):
-        magic_dir = FilePath(base_dir).child("yolandi-magic{}".format(folder_num))
+    for folder_name in folder_names:
+        magic_dir = FilePath(base_dir).child(folder_name)
         magic_dir.makedirs()
 
-        yield util._magic_folder_runner(
-            reactor, request, "yolandi",
-            [
-                "--config", yolandi.magic_config_directory,
-                "add",
-                "--author", "laptop",
-                "--name", "workstuff{}".format(folder_num),
-                magic_dir.path,
-            ],
+        yield yolandi.client.add_folder(
+            folder_name,
+            author_name="yolandi",
+            local_path=magic_dir,
+            poll_interval=10,
+            scan_interval=10,
         )
 
     # concurrently put 1 file into each folder and immediately create
     # a snapshot for it via an API call
     files = []
-    for folder_num in range(number_of_folders):
-        magic_dir = FilePath(base_dir).child("yolandi-magic{}".format(folder_num))
+    for folder_num, folder_name in enumerate(folder_names):
+        magic_dir = FilePath(base_dir).child(folder_name)
         with magic_dir.child("a_file_name").open("w") as f:
             f.write("data {:02d}\n".format(folder_num) * 100)
         files.append(
-            util._magic_folder_api_runner(
-                reactor, request, "yolandi",
-                [
-                    "--config", yolandi.magic_config_directory,
-                    "add-snapshot",
-                    "--folder", "workstuff{}".format(folder_num),
-                    "--file", "a_file_name",
-                ],
+            yolandi.client.add_snapshot(
+                folder_name,
+                "a_file_name",
             )
         )
 
@@ -102,16 +95,15 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
     # details of the Snapshot or metadata implementation .. they
     # should however always be identical across all the magic-folders
     # created in this test.
-    expected_results = [[416, 800, 189]] * number_of_folders
+    expected_results = [[416, 800, 190]] * number_of_folders
 
     # try for 10 seconds to get what we expect. we're waiting for each
     # of the magic-folders to upload their single "a_file_name" items
-    # and the slowest should take 6 seconds + upload time ..
     for _ in range(10):
         yield util.twisted_sleep(reactor, 1)
         results = yield DeferredList([
-            yolandi.client.tahoe_objects("workstuff{}".format(folder_num))
-            for folder_num in range(number_of_folders)
+            yolandi.client.tahoe_objects(folder_name)
+            for folder_name in folder_names
         ])
         errors = [
             fail
