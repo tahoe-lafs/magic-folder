@@ -5,8 +5,6 @@ from __future__ import (
     unicode_literals,
 )
 
-import json
-
 from twisted.python.filepath import (
     FilePath,
 )
@@ -19,8 +17,13 @@ import pytest_twisted
 from eliot.twisted import (
     inline_callbacks,
 )
-from eliot import (
-    start_action,
+from testtools.assertions import assert_that
+from testtools.matchers import (
+    Equals,
+    HasLength,
+    AllMatch,
+    MatchesAll,
+    AfterPreprocessing,
 )
 
 from . import util
@@ -95,31 +98,58 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
     # details of the Snapshot or metadata implementation .. they
     # should however always be identical across all the magic-folders
     # created in this test.
-    expected_results = [[416, 800, 190]] * number_of_folders
+
+    # each folder should produce [416, 800, 190] for the sizes
+    # .. except the first one depends on Snapshot's implementation and
+    # the last one depends on metadata details, so we only want to
+    # assert that they're all the same.
+    # expected_results = [[416, 800, 190]] * number_of_folders
+
+    # the "if res else None" clauses below are because we use this in
+    # the loop (to potentially bail early), and some of the results
+    # may be empty for a few iterations / seconds
+    matches_expected_results = MatchesAll(
+        # this says that all the content capabilities (2nd item)
+        # should be size 800
+        AfterPreprocessing(
+            lambda results: [res[1] if res else None for res in results],
+            AllMatch(Equals(800))
+        ),
+        # this says that there should be exactly one thing in the set
+        # of all the pairs of the Snapshot (1st item) and metadata
+        # (3rd item) sizes .. that is, that all the Snapshot sizes are
+        # the same and all the metadata sizes are the same.
+        AfterPreprocessing(
+            lambda results: {(res[0], res[2]) if res else None for res in results},
+            HasLength(1)
+        )
+    )
 
     # try for 10 seconds to get what we expect. we're waiting for each
     # of the magic-folders to upload their single "a_file_name" items
+    # so that they each have one Snapshot in Tahoe-LAFS
     for _ in range(10):
         yield util.twisted_sleep(reactor, 1)
         results = yield DeferredList([
             yolandi.client.tahoe_objects(folder_name)
             for folder_name in folder_names
         ])
+        # if any of the queries fail, we fail the test
         errors = [
             fail
             for ok, fail in results
             if not ok
         ]
-        assert errors == []
+        assert errors == [], "At least one /tahoe-objects query failed"
 
         actual_results = [
             result
             for ok, result in results
             if ok
         ]
-        # exit early if we'll pass
-        if actual_results == expected_results:
+        # exit early if we'll pass the test
+        if matches_expected_results.match(actual_results) is None:
             break
 
     # check the results
-    assert actual_results == expected_results
+    assert_that(actual_results, matches_expected_results)
