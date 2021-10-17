@@ -56,15 +56,6 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
     number_of_folders = 20
     folder_names = ["workstuff{}".format(n) for n in range(number_of_folders)]
 
-    output = yield util._magic_folder_runner(
-        reactor, request, "yolandi",
-        [
-            "--config", yolandi.magic_config_directory,
-            "list",
-        ],
-    )
-    assert output.strip() == "No magic-folders"
-
     # make a bunch of folders
     for folder_name in folder_names:
         magic_dir = FilePath(base_dir).child(folder_name)
