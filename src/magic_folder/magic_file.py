@@ -749,6 +749,18 @@ class MagicFile(object):
         Update our personal DMD (after an upload)
         """
 
+        retry_delay_sequence = _delay_sequence()
+
+        def error(f):
+            self._factory._folder_status.error_occurred(
+                "Error updating personal DMD: {}".format(f.getErrorMessage())
+            )
+            write_traceback(exc_info=(f.type, f.value, f.tb))
+            delay_amt = next(retry_delay_sequence)
+            delay = self._delay_later(delay_amt, update_personal_dmd)
+            delay.addErrback(error)
+            return None
+
         @inline_callbacks
         def update_personal_dmd():
             remote_snapshot = snapshot.remote_snapshot
@@ -785,13 +797,7 @@ class MagicFile(object):
             # with this new input
             self._call_later(self._personal_dmd_updated, snapshot)
         d = update_personal_dmd()
-
-        # XXX should retry on failure
-        def bad(f):
-            print("BADDDDD", f)
-            return f
-        d.addErrback(bad)
-##        d.addErrback(write_traceback)
+        d.addErrback(error)
 
     @_machine.output()
     def _queue_local_update(self):
