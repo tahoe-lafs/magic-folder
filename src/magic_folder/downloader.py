@@ -313,6 +313,8 @@ class LocalMagicFolderFilesystem(object):
                 local_path.parent().makedirs()
             else:
                 if not local_path.parent().isdir():
+                    # XXX this probably needs a better answer but for
+                    # now at least we can signal a problem.
                     raise RuntimeError(
                         "Wanted to write a subdir of {} but it's not a directory".format(
                             local_path.parent().path,

@@ -38,6 +38,9 @@ from testtools.matchers import (
     ContainsDict,
     AfterPreprocessing,
 )
+from testtools import (
+    ExpectedException,
+)
 from testtools.twistedsupport import (
     succeeded,
     failed,
@@ -1592,3 +1595,20 @@ class FilesystemModificationTests(SyncTestCase):
             self.magic.child("sub").child("dir").child("foo").getContent(),
             Equals(dummy_content)
         )
+
+    def test_overwrite_sub_dir_is_file(self):
+        """
+        An incoming overwrite where a local file exists is an error
+        """
+        dummy_content = "dummy\n"
+        staged = self.staging.child("new_content")
+        staged.setContent(dummy_content)
+        # we put a _file_ in the way of the incoming directory
+        with self.magic.child("sub").open("w") as f:
+            f.write("pre-existing file")
+
+        # for now, it's just an error if we find a file in a spot
+        # where we wanted a directory .. perhaps there should be a
+        # better / different answer?
+        with ExpectedException(RuntimeError, ".*not a directory.*"):
+            self.filesystem.mark_overwrite("sub/foo", 12345, staged)
