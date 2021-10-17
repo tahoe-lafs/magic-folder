@@ -39,7 +39,8 @@ class MagicFolderClientTests(SyncTestCase):
     """
     def setup_client(self):
         """
-        Create a fake Tahoe-LAFS web frontend and a client that will talk to it.
+        Set up a Magic Folder API client that will simply record all the
+        API calls / args / etc.
         """
 
         self.api_calls = []
