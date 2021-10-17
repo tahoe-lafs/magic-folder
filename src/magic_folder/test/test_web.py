@@ -137,7 +137,7 @@ from .strategies import (
 )
 from ..util.capabilities import (
     to_readonly_capability,
-    cap_size,
+    capability_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -2109,7 +2109,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            cap_size(cap)
+            capability_size(cap)
             for cap in [
                     remote_snap.capability,
                     remote_snap.content_cap,

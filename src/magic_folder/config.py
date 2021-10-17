@@ -111,8 +111,15 @@ from eliot import (
     start_action,
 )
 
-from .util.capabilities import is_readonly_directory_cap, is_directory_cap
-from .util.database import with_cursor, LockableDatabase
+from .util.capabilities import (
+    is_readonly_directory_cap,
+    is_directory_cap,
+    capability_size,
+)
+from .util.database import (
+    with_cursor,
+    LockableDatabase,
+)
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -1249,6 +1256,35 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
+    def get_tahoe_object_sizes(self, cursor):
+        """
+        :returns: list of triples containing the sizes of the snapshot,
+            metadata and content capabilities for all objects uploaded or
+            downloaded by this magic-folder.
+        """
+        # this __wrapped__ business is to get around the non-recursive
+        # with_cursor transaction handling .. because we already have
+        # a cursor here
+        snapshots = self.get_all_snapshot_paths.__wrapped__(self, cursor)
+        sizes = []
+        for relpath in snapshots:
+            try:
+                caps = self.get_remotesnapshot_caps.__wrapped__(self, cursor, relpath)
+            except KeyError:
+                # this will happen if we know about "relpath" but
+                # there is no snapshot_cap at all for it yet .. so
+                # then there are no Tahoe objects for it yet
+                # either. We could take a guess here at how big the
+                # Tahoe object will be but also the UI could update
+                # whenever we do finally upload.
+                continue
+            sizes.extend([
+                capability_size(c)
+                for c in caps
+            ])
+        return sizes
+
+    @with_cursor
     def get_recent_remotesnapshot_paths(self, cursor, n):
         """
         Retrieve a set of the ``n`` most-recent relpaths of files that
@@ -1293,6 +1329,8 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return row[0].encode("utf-8")
+            # XXX weird to have "KeyError" if snapshot_cap is there,
+            # but null _as well_ as when the row is simply missing.
             raise KeyError(relpath)
 
 
@@ -1329,6 +1367,8 @@ class MagicFolderConfig(object):
                     None if row[1] is None else row[1].encode("utf-8"),  # content-cap
                     row[2].encode("utf-8"),  # metadata-cap
                 )
+            # XXX kind of weird to throw KeyError for things we know
+            # abou, but the snapshot_cap is still null...
             raise KeyError(relpath)
 
     @with_cursor

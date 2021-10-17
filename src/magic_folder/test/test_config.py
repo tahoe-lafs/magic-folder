@@ -93,6 +93,9 @@ from ..snapshot import (
     RemoteSnapshot,
     LocalSnapshot,
 )
+from ..util.capabilities import (
+    capability_size,
+)
 from ..util.file import (
     PathState,
     seconds_to_ns,
@@ -1049,6 +1052,49 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.setup_example()
         with self.assertRaises(KeyError):
             self.db.get_remotesnapshot_caps("a-missing-snapshot-name")
+
+    def test_tahoe_object_sizes(self):
+        """
+        Correct capability sizes are returned
+        """
+        self.setup_example()
+        self.assertThat(
+            self.db.get_tahoe_object_sizes(),
+            Equals([])
+        )
+
+    @given(
+        relative_paths(),
+        path_states(),
+    )
+    def test_tahoe_object_sizes_local(self, relpath, state):
+        """
+        Local-only snapshots get no size returned
+        """
+        self.db.store_currentsnapshot_state(relpath, state)
+        self.assertThat(
+            self.db.get_tahoe_object_sizes(),
+            Equals([])
+        )
+
+    @given(
+        relative_paths(),
+        remote_snapshots(),
+        path_states(),
+    )
+    def test_tahoe_object_sizes_remote(self, relpath, remote_snap, state):
+        """
+        Correct capability sizes are returned
+        """
+        self.db.store_downloaded_snapshot(relpath, remote_snap, state)
+
+        s = capability_size(remote_snap.capability)
+        c = capability_size(remote_snap.content_cap)
+        m = capability_size(remote_snap.metadata_cap)
+        self.assertThat(
+            self.db.get_tahoe_object_sizes(),
+            Equals([s, c, m])
+        )
 
 
 class RemoteSnapshotTimeTests(SyncTestCase):
