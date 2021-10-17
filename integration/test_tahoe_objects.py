@@ -32,7 +32,7 @@ from . import util
 
 @inline_callbacks
 @pytest_twisted.inlineCallbacks
-def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
     """
     the 'tahoe-objects' API works concurrently
     (see also ticket #570)
