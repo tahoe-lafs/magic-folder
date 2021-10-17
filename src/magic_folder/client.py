@@ -136,9 +136,9 @@ class MagicFolderClient(object):
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
         return self._authorized_request("GET", api_url)
 
-    def add_snapshot(self, magic_folder, path):
+    def add_snapshot(self, magic_folder, relpath):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'snapshot')
-        api_url = api_url.set(u'path', path)
+        api_url = api_url.set(u'path', relpath)
         return self._authorized_request("POST", api_url)
 
     def add_participant(self, magic_folder, author_name, personal_dmd):
@@ -155,6 +155,10 @@ class MagicFolderClient(object):
 
     def list_participants(self, magic_folder):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
+        return self._authorized_request("GET", api_url)
+
+    def tahoe_objects(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'tahoe-objects')
         return self._authorized_request("GET", api_url)
 
     def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):

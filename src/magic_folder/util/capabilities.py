@@ -15,7 +15,7 @@ from allmydata.uri import (
 from allmydata.uri import from_string as tahoe_uri_from_string
 
 
-def cap_size(capability):
+def capability_size(capability):
     """
     :returns: the size, in bytes, of the capability
     """
