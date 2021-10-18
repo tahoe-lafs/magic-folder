@@ -227,6 +227,8 @@ class MagicFile(object):
         A RemoteSnapshot that doesn't match our existing database entry
         has been found. It will be downloaded and applied (possibly
         resulting in conflicts).
+
+        :param RemoteSnapshot remote_snapshot: the newly-discovered remote
         """
         self._remote_update(remote_snapshot)
         return self.when_idle()

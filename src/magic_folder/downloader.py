@@ -508,7 +508,4 @@ class RemoteScannerService(service.MultiService):
                     yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
                 abspath = self._config.magic_path.preauthChild(snapshot.relpath)
                 mf = self._file_factory.magic_file_for(abspath)
-                try:
-                    yield maybeDeferred(mf.found_new_remote, snapshot)
-                except Exception:
-                    write_failure()
+                yield maybeDeferred(mf.found_new_remote, snapshot)
