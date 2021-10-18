@@ -29,7 +29,11 @@ from ..scanner import (
     find_updated_files,
     find_deleted_files,
 )
-from ..snapshot import RemoteSnapshot, create_local_author
+from ..snapshot import (
+    LocalSnapshot,
+    RemoteSnapshot,
+    create_local_author,
+)
 from ..status import FolderStatus, WebSocketStatusService
 from ..util.file import PathState, get_pathinfo
 from ..tahoe_client import (
@@ -441,3 +445,69 @@ class FindUpdatesTests(SyncTestCase):
         )
 
         self.assertThat(files, Equals([]))
+
+    @given(
+        relative_paths(),
+    )
+    def test_scan_preexisting_local_snapshot(self, relpath):
+        """
+        A pre-existing LocalSnapshot is in our database so the scanner
+        finds it at startup
+        """
+        # make a pre-existing local snapshot
+        self.setup_example()
+        local = self.magic_path.preauthChild(relpath)
+        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        # pretend we stashed it, too
+        stash = FilePath(self.mktemp())
+        stash.makedirs()
+        stash.child(relpath).asBytesMode("utf8").setContent(b"dummy\n")
+
+        local_snap = LocalSnapshot(
+            relpath,
+            author=self.author,
+            metadata={
+                "modification_time": 1234,
+            },
+            content_path=stash.child(relpath),
+            parents_local=[],
+        )
+        self.config.store_local_snapshot(local_snap)
+
+        files = []
+
+        class SnapshotService(object):
+            def add_file(self, f, local_parent=None):
+                files.append(f)
+                return succeed(local_snap)
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
+        )
+
+        service = ScannerService(
+            self.config,
+            file_factory,
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=None,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
+
+        self.assertThat(
+            service._loop(),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            files,
+            Equals([local])
+        )
