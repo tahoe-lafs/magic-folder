@@ -46,6 +46,7 @@ from ..testing.web import (
 from .common import SyncTestCase, skipIf
 from .strategies import (
     relative_paths,
+    path_segments,
  )
 
 # This is a path state that doesn't correspond to a file written during the test.
@@ -447,7 +448,7 @@ class FindUpdatesTests(SyncTestCase):
         self.assertThat(files, Equals([]))
 
     @given(
-        relative_paths(),
+        path_segments(),
     )
     def test_scan_preexisting_local_snapshot(self, relpath):
         """
