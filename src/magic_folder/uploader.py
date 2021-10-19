@@ -101,6 +101,9 @@ class LocalSnapshotCreator(object):
 
         :param FilePath path: a single file inside our magic-folder dir
 
+        :param LocalSnapshot local_parent: if not None, an existing
+            LocalSnapshot to use as a parent o the newly-created snapshot.
+
         :returns Deferred[LocalSnapshot]: the completed snapshot
         """
         # Query the db to check if there is an existing local
