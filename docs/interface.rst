@@ -250,7 +250,7 @@ The state for each folder consists of the following information:
   Tahoe-LAFS.
 - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
   Each ``dict`` in these lists contain:
-  - ``"name"``: the relative-path
+  - ``"relpath"``: the relative-path
   - ``"queued-at"``: the Unix timestamp when this item was queued
   - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
     This key will not exist until we do start.

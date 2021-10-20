@@ -353,7 +353,7 @@ class WebSocketStatusService(service.Service):
         # relpath, but we should keep the _oldest_ queued time.
         if relpath not in self._folders[folder]["uploads"]:
             self._folders[folder]["uploads"][relpath] = {
-                "name": relpath,
+                "relpath": relpath,
                 "queued-at": self._clock.seconds(),
             }
         self._maybe_update_clients()
@@ -377,7 +377,7 @@ class WebSocketStatusService(service.Service):
         IStatus API
         """
         data = {
-            "name": relpath,
+            "relpath": relpath,
             "started-at": self._clock.seconds(),
         }
         self._folders[folder]["downloads"][relpath] = data
