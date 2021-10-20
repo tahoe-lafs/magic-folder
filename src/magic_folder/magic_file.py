@@ -674,11 +674,17 @@ class MagicFile(object):
         """
         Create a LocalSnapshot for this update
         """
-        # XXX set parent here if we've queued anything...but, actually, we need to wait for it?
-        local_parent = self._queue_local[-1] if self._queue_local else None
-        d = self._factory._local_snapshot_service.add_file(self._path, local_parent)
+        d = self._factory._local_snapshot_service.add_file(self._path)
+
+        # when the local snapshot gets created, it _should_ have the
+        # next thing in our queue (if any) as its parent (see assert below)
 
         def completed(snap):
+            if self._queue_local:
+                assert snap == self._queue_local[0], "Invalid queue; expected {} not {}".format(
+                    snap.identifier,
+                    self._queue_local[0].identifier,
+                )
             self._call_later(self._snapshot_completed, snap)
             return snap
 

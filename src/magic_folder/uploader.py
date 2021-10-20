@@ -93,16 +93,13 @@ class LocalSnapshotCreator(object):
     _tahoe_client = attr.ib()
 
     @inline_callbacks
-    def store_local_snapshot(self, path, local_parent=None):
+    def store_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk. If
         `path` does not exist, the this is a 'delete' (and we must
         'know' about the file already).
 
         :param FilePath path: a single file inside our magic-folder dir
-
-        :param LocalSnapshot local_parent: if not None, an existing
-            LocalSnapshot to use as a parent o the newly-created snapshot.
 
         :returns Deferred[LocalSnapshot]: the completed snapshot
         """
@@ -113,11 +110,9 @@ class LocalSnapshotCreator(object):
         try:
             parent_snapshot = self._db.get_local_snapshot(relpath)
         except KeyError:
-            parents = [local_parent] if local_parent else []
+            parents = []
         else:
             parents = [parent_snapshot]
-            if local_parent:
-                parents.append(local_parent)
 
         # if we already have a parent here, it's a LocalSnapshot
         # .. which means that any remote snapshot by definition
@@ -201,9 +196,9 @@ class LocalSnapshotService(service.Service):
         """
         while True:
             try:
-                (path, d, local_parent) = yield self._queue.get()
+                (path, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    snap = yield self._snapshot_creator.store_local_snapshot(path, local_parent)
+                    snap = yield self._snapshot_creator.store_local_snapshot(path)
                     d.callback(snap)
             except CancelledError:
                 break
@@ -222,7 +217,7 @@ class LocalSnapshotService(service.Service):
         return d
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
-    def add_file(self, path, local_parent=None):
+    def add_file(self, path):
         """
         Add the given path of type FilePath to our queue. If the path is
         not strictly below our magic-folder directory, it is an
@@ -231,11 +226,6 @@ class LocalSnapshotService(service.Service):
 
         :param FilePath path: path of the file that needs to be
             processed.
-
-        :param Optional[LocalSnapshot] local_parent: if not specified,
-            our most-recent RemoteSnapshot will be the parent. The
-            specified LocalSnapshot _should_ have our most-recent
-            RemoteSnapshot as one of its parents, though.
 
         :raises: ValueError if the given file is not a descendent of
                  magic folder path or if the given path is a directory.
@@ -272,5 +262,5 @@ class LocalSnapshotService(service.Service):
 
         # add file into the queue
         d = Deferred()
-        self._queue.put((path, d, local_parent))
+        self._queue.put((path, d))
         return d
