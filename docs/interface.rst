@@ -211,20 +211,50 @@ Upon connecting, a new client will immediately receive a "state" message::
 
     {
         "state": {
+            "folders": {
+                "default": {
+                    "downloads": [],
+                    "errors": [],
+                    "uploads": [],
+                    "recent": [
+                        {
+                            "relpath": "foo"
+                            "conflicted": false,
+                            "modified": 1634431697,
+                            "last-updated": 1634431700,
+                        }
+                    ]
+                }
+            },
             "synchronizing": false
         }
     }
 
 After that the client may receive further state updates with a ``"state"`` message like the above.
 Currently the only valid kind of message is ``"state"``.
+The above example has no uploads or downloads happening and a single recent file, ``foo``.
 
-The state consists of the following information:
+The state for each folder consists of the following information:
 
 - ``"synchronizing"``: ``true`` or ``false``. When ``true`` the
   magic-folder daemon is uploading data to or downloading data from
   Tahoe-LAFS.
+- ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
+  Each ``dict`` in these lists contain:
+  - ``"name"``: the relative-path
+  - ``"queued-at"``: the Unix timestamp when this item was queued
+  - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
+    This key will not exist until we do start.
+- ``"recent"`` contains a list up to 30 of the most-recently updated files.
+  Each ``dict`` in this list contains:
+  - ``"relpath"``: the relative path of this item
+  - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
+  - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
+  - ``"conflicted"``: a boolean indicating if there is a conflict for this relative path
 
 Clients should be tolerant of keys in the state they don't understand.
 Unknown state keys should be ignored.
+Note that ``"modified"`` is when the local state for thie item changed while ``"last-updated"`` is to do with the filesystem modification time.
+For example, a file may have an on-disk modification time that is older than the last time we updated our state about it, especially one that came from another device.
 
 The client doesn't send any messages to the server; it is an error to do so.
