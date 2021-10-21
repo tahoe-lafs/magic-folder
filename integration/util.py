@@ -5,6 +5,7 @@ from __future__ import (
     unicode_literals,
 )
 
+import six
 import sys
 import time
 import json
@@ -483,13 +484,13 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self.output.write(data)
+        self.output.write(six.text_type(data, "utf8"))
 
     def errReceived(self, data):
         print("ERR: {}".format(data))
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
-        self.output.write(data)
+        self.output.write(six.text_type(data, "utf8"))
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -509,10 +510,10 @@ class _DumpOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self._out.write(data)
+        self._out.write(six.text_type(data, "utf8"))
 
     def errReceived(self, data):
-        self._out.write(data)
+        self._out.write(six.text_type(data, "utf8"))
 
 
 @attr.s
@@ -674,7 +675,7 @@ class _MagicTextProtocol(ProcessProtocol):
         with self._action.context():
             Message.log(message_type=u"out-received", data=data)
             sys.stdout.write(data)
-            self._output.write(data)
+            self._output.write(six.text_type(data, "utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
             d, self.magic_seen = self.magic_seen, None

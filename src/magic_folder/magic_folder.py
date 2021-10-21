@@ -246,13 +246,13 @@ class MagicFolder(service.MultiService):
 
 _NICKNAME = Field.for_types(
     u"nickname",
-    [unicode, bytes],
+    [six.text_type, bytes],
     u"A Magic-Folder participant nickname.",
 )
 
 _DIRECTION = Field.for_types(
     u"direction",
-    [unicode],
+    [six.text_type],
     u"A synchronization direction: uploader or downloader.",
     validateSetMembership({u"uploader", u"downloader"}),
 )
@@ -396,7 +396,7 @@ SYMLINK = MessageType(
 
 CREATED_DIRECTORY = Field.for_types(
     u"created_directory",
-    [unicode],
+    [six.text_type],
     u"The relative path of a newly created directory in a magic-folder.",
 )
 
@@ -428,7 +428,7 @@ SPECIAL_FILE = MessageType(
 _COUNTER_NAME = Field.for_types(
     u"counter_name",
     # Should really only be unicode
-    [unicode, bytes],
+    [six.text_type, bytes],
     u"The name of a counter.",
 )
 
@@ -470,7 +470,7 @@ _SIZE = Field.for_types(
 
 _ABSPATH = Field.for_types(
     u"abspath",
-    [unicode],
+    [six.text_type],
     u"The absolute path of a file being written in a local directory.",
 )
 
@@ -573,7 +573,7 @@ PERFORM_SCAN = ActionType(
 
 _CONFLICT_REASON = Field.for_types(
     u"conflict_reason",
-    [unicode, type(None)],
+    [six.text_type, type(None)],
     u"A human-readable explanation of why a file was in conflict.",
     validateSetMembership({
         u"dbentry mismatch metadata",

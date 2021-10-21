@@ -11,6 +11,7 @@ from __future__ import (
     print_function,
 )
 
+import six
 import inspect
 import json
 import os
@@ -97,7 +98,7 @@ def validateInstanceOf(t):
 
 RELPATH = Field.for_types(
     u"relpath",
-    [unicode],
+    [six.text_type],
     u"The relative path of a file in a magic-folder.",
 )
 
@@ -110,25 +111,25 @@ ABSPATH = Field(
 
 VERSION = Field.for_types(
     u"version",
-    [int, long],
+    six.integer_types,
     u"The version of the file.",
 )
 
 LAST_UPLOADED_URI = Field.for_types(
     u"last_uploaded_uri",
-    [unicode, bytes, None],
+    [six.text_type, bytes, None],
     u"The filecap to which this version of this file was uploaded.",
 )
 
 LAST_DOWNLOADED_URI = Field.for_types(
     u"last_downloaded_uri",
-    [unicode, bytes, None],
+    [six.text_type, bytes, None],
     u"The filecap from which the previous version of this file was downloaded.",
 )
 
 LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
-    [float, int, long],
+    (float, ) + six.integer_types,
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
 )
 

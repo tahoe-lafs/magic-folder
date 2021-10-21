@@ -21,6 +21,7 @@ __all__ = [
 ]
 
 import re
+import six
 import hashlib
 import time
 from collections import (
@@ -288,7 +289,7 @@ FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
 )
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
-    [unicode],
+    [six.text_type],
     u"An indication of whether the record for this upload was new or an update to a previous entry.",
     validateSetMembership({u"insert", u"update"}),
 )
@@ -324,8 +325,8 @@ class RemoteSnapshotWithoutPathState(Exception):
     corresponding path state (either provided, or already in the database).
     """
 
-    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
-    relpath = attr.ib(validator=attr.validators.instance_of(unicode))
+    folder_name = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    relpath = attr.ib(validator=attr.validators.instance_of(six.text_type))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -350,11 +351,11 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # our APIs insist on endpoint-strings being unicode, but Twisted
     # only accepts "str" .. so we have to convert on py2. When we
     # support python3 this check only needs to happen on py2
-    if not isinstance(api_endpoint_str, unicode):
+    if not isinstance(api_endpoint_str, six.text_type):
         raise ValueError(
             "'api_endpoint_str' must be unicode"
         )
-    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, unicode):
+    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, six.text_type):
         raise ValueError(
             "'api_client_endpoint_str' must be unicode"
         )
@@ -774,7 +775,7 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_name = attr.ib(validator=instance_of(unicode))
+    author_name = attr.ib(validator=instance_of(six.text_type))
 
 
 @attr.s
@@ -935,7 +936,7 @@ class MagicFolderConfig(object):
                 WHERE
                     identifier= ?
                 """,
-                (unicode(parent.identifier),),
+                (six.text_type(parent.identifier),),
             )
             count = cursor.fetchone()
             if count[0] != 1:
@@ -951,7 +952,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, content_path),
+                (six.text_type(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -967,7 +968,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?)
             """,
             list(
-                (unicode(snapshot.identifier), k, v)
+                (six.text_type(snapshot.identifier), k, v)
                 for (k, v)
                 in snapshot.metadata.items()
             ),
@@ -993,7 +994,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?, ?)
             """,
             [
-                (unicode(snapshot.identifier), index, local_only, parent_identifier)
+                (six.text_type(snapshot.identifier), index, local_only, parent_identifier)
                 for (index, (local_only, parent_identifier)) in enumerate(
                     chain(
                         (
@@ -1001,7 +1002,7 @@ class MagicFolderConfig(object):
                             for parent_identifier in snapshot.parents_remote
                         ),
                         (
-                            (True, unicode(parent.identifier))
+                            (True, six.text_type(parent.identifier))
                             for parent in snapshot.parents_local
                         ),
                     )
@@ -1075,7 +1076,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+                (False, six.text_type(remote_snapshot.capability), six.text_type(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1091,7 +1092,7 @@ class MagicFolderConfig(object):
             WHERE
                 [snapshot_identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (six.text_type(our_snap.identifier),)
         )
         cursor.execute(
             """
@@ -1100,7 +1101,7 @@ class MagicFolderConfig(object):
             WHERE
                 [identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (six.text_type(our_snap.identifier),)
         )
 
     @with_cursor
@@ -1108,7 +1109,7 @@ class MagicFolderConfig(object):
         """
         remove all rows corresponding to the given relpath from the local_snapshots table
 
-        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
+        :param six.text_type relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
         action = DELETE_SNAPSHOTS(
             relpath=relpath,
@@ -1651,7 +1652,7 @@ class FilesystemTokenProvider(object):
         # encoding as Tahoe uses.
         self._api_token = urlsafe_b64encode(urandom(32))
         with self.api_token_path.open('wb') as f:
-            f.write(self._api_token)
+            f.write(self._api_token.encode("utf8"))
         return self._api_token
 
     def _load_token(self):
@@ -1659,7 +1660,7 @@ class FilesystemTokenProvider(object):
         Internal helper. Reads the token file into _api_token
         """
         with self.api_token_path.open('rb') as f:
-            self._api_token = f.read()
+            self._api_token = f.read().decode("utf8")
 
 
 @attr.s
@@ -1725,7 +1726,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0].encode("utf8")
+            return cursor.fetchone()[0]
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -1742,10 +1743,8 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_client_endpoint FROM config")
-            endpoint = cursor.fetchone()[0]
-            if endpoint is not None:
-                endpoint = endpoint.encode("utf8")
-            return endpoint
+            # can be None
+            return cursor.fetchone()[0]
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):

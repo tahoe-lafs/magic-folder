@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import subprocess
 import sys
@@ -12,7 +12,6 @@ import pytest
 import pytest_twisted
 from eliot import log_call, start_task, to_file
 from foolscap.furl import decode_furl
-from pathlib2 import Path
 from twisted.internet.error import ProcessTerminated
 
 from .util import (
@@ -110,7 +109,7 @@ class VirtualEnv(object):
     :ivar Path base_dir: The base directory of the virtualenv.
     """
 
-    base_dir = attr.ib(validator=attr.validators.instance_of(Path))
+    base_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @property
     def bin_dir(self):
@@ -118,15 +117,15 @@ class VirtualEnv(object):
         The directory containing executables of the virtual environment.
         """
         if sys.platform == 'win32':
-            return self.base_dir.joinpath("Scripts")
+            return self.base_dir.child("Scripts")
         else:
-            return self.base_dir.joinpath("bin")
+            return self.base_dir.child("bin")
 
     def bin(self, executable):
         """
         Returns the path to the named executable from the virtual environment.
         """
-        return self.bin_dir.joinpath(executable)
+        return self.bin_dir.child(executable)
 
     @property
     def python(self):
@@ -174,7 +173,7 @@ def tahoe_venv(request, reactor):
 
     venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
 
-    return VirtualEnv(Path(venv_dir))
+    return VirtualEnv(FilePath(venv_dir))
 
 
 @pytest.fixture(scope='session')

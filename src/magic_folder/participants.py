@@ -11,6 +11,8 @@ from __future__ import (
     print_function,
 )
 
+import six
+
 from zope.interface import (
     Attribute,
     Interface,
@@ -264,7 +266,7 @@ class _CollectiveDirnodeParticipant(object):
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
     """
-    name = attr.ib(validator=attr.validators.instance_of(unicode))
+    name = attr.ib(validator=attr.validators.instance_of(six.text_type))
     dircap = attr.ib(validator=attr.validators.instance_of(bytes))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
     _tahoe_client = attr.ib()
