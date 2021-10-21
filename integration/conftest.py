@@ -38,7 +38,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--tahoe-tox-env", dest="tahoe_tox_env",
         help="A tox env to run tahoe from.",
-        default="tahoe1_15",
+        default="tahoe1_16",
     )
     parser.addoption(
         "--gather-foolscap-logs", action="store_true", dest="gather_foolscap_logs",
@@ -133,9 +133,9 @@ class VirtualEnv(object):
         The python executable of the virtualenv.
         """
         if sys.platform == 'win32':
-            return self.bin("python.exe")
+            return self.bin("python.exe").path
         else:
-            return self.bin("python")
+            return self.bin("python").path
 
 
 # NB: conceptually, it kind of makes sense to parametrize this fixture

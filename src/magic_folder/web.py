@@ -639,13 +639,13 @@ def _is_authorized(request, get_auth_token):
     if len(authorization) > 1:
         return False
     auth_token = get_auth_token()
-    expected = b"Bearer %s" % (auth_token,)
+    expected = "Bearer {}".format(auth_token)
     # This ends up calling `hmac.compare_digest`. Looking at the source for
     # that method suggests that it tries to make timing dependence for unequal
     # length strings be on the second argument.
     # Pass the attacker controlled value, to avoid leaking length information
     # of the expected value.
     return timing_safe_compare(
-        expected,
+        expected.encode("ascii"),
         authorization[0].encode("ascii"),
     )

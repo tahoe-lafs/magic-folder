@@ -140,7 +140,7 @@ class MagicFolderEnabledNode(object):
                 self.global_config(),
                 create_http_client(
                     self.reactor,
-                    unicode(self.global_config().api_client_endpoint),
+                    self.global_config().api_client_endpoint,
                 ),
             )
         return self._client
@@ -542,7 +542,7 @@ class EliotLogStream(object):
             except ValueError:
                 self._fallback(line)
             else:
-                logger.write(message)
+                logger.write(six.text_type(message, "utf8"))
 
 
 def run_service(
@@ -674,7 +674,7 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             Message.log(message_type=u"out-received", data=data)
-            sys.stdout.write(data)
+            sys.stdout.write(six.text_type(data, "utf8"))
             self._output.write(six.text_type(data, "utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
@@ -691,7 +691,7 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
-            sys.stdout.write(data)
+            sys.stdout.write(six.text_type(data, "utf8"))
 
     def eliot_garbage_received(self, data):
         """
@@ -870,9 +870,9 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
             '--hostname', 'localhost',
             '--listen', 'tcp',
             '--webport', web_port,
-            '--shares-needed', unicode(needed),
-            '--shares-happy', unicode(happy),
-            '--shares-total', unicode(total),
+            '--shares-needed', "{}".format(needed),
+            '--shares-happy', "{}".format(happy),
+            '--shares-total', "{}".format(total),
             '--helper',
         ]
         if not storage:

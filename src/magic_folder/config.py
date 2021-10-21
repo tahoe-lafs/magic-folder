@@ -1660,7 +1660,8 @@ class FilesystemTokenProvider(object):
         Internal helper. Reads the token file into _api_token
         """
         with self.api_token_path.open('rb') as f:
-            self._api_token = f.read().decode("utf8")
+            data = f.read()
+            self._api_token = data.decode("utf8")
 
 
 @attr.s
