@@ -204,7 +204,7 @@ GET `/v1/magic-folder/<folder-name>/conflicts`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Returns a ``dict`` of all conflicts in the given magic-folder.
-Each entry in the dict maps a relpath to a list of author-names.
+Each item in the ``dict`` maps a relpath to a list of author-names.
 The author-names correspond to the device that conflicts with this file.
 There will also be a file named like ``<relpath>.conflict-<author-name>`` in the magic-folder whose contents match those of the conflicting remote file.
 
