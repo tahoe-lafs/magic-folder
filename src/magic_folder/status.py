@@ -288,9 +288,9 @@ class WebSocketStatusService(service.Service):
 
             def uploads_and_downloads():
                 for d in downloads:
-                    yield d["name"]
+                    yield d["relpath"]
                 for d in uploads:
-                    yield d["name"]
+                    yield d["relpath"]
             down_up = uploads_and_downloads()
 
             most_recent = [
