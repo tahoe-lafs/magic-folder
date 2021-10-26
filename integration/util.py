@@ -8,6 +8,7 @@ from __future__ import (
 import sys
 import time
 import json
+import sqlite3
 import os
 from os import mkdir
 from io import BytesIO
@@ -22,6 +23,7 @@ from treq.client import HTTPClient
 from twisted.internet.defer import (
     returnValue,
     Deferred,
+    maybeDeferred,
 )
 from twisted.internet.task import (
     deferLater,
@@ -1271,7 +1273,7 @@ def _command(*args):
 
 
 @inline_callbacks
-def database_retry(seconds, f, *args, **kwargs):
+def database_retry(reactor, seconds, f, *args, **kwargs):
     """
     Call `f` with `args` and `kwargs` .. but retry up to `seconds`
     times (1s apart) due to an sqlite3 OperationalError.
@@ -1285,7 +1287,7 @@ def database_retry(seconds, f, *args, **kwargs):
     for _ in range(seconds):
         yield twisted_sleep(reactor, 1)
         try:
-            value = local_cfg.get_remotesnapshot("sylvester")
+            value = yield maybeDeferred(f, *args, **kwargs)
             break
         except sqlite3.OperationalError:
             # since we're messing with the database while production
@@ -1299,3 +1301,4 @@ def database_retry(seconds, f, *args, **kwargs):
         raise RuntimeError(
             "Calling {} kept raising OperationError even after {} tries".format(f, seconds)
         )
+    returnValue(value)

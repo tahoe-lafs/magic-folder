@@ -15,7 +15,6 @@ from functools import partial
 from eliot import Message
 import pytest
 import pytest_twisted
-import sqlite3
 
 from magic_folder.util.capabilities import (
     to_readonly_capability,
@@ -131,7 +130,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
     yield take_snapshot(alice, "local", "sylvester")
 
     # wait until we've definitely uploaded it
-    former_remote = yield database_retry(10, local_cfg.get_remotesnapshot, "sylvester")
+    former_remote = yield database_retry(reactor, 10, local_cfg.get_remotesnapshot, "sylvester")
     assert former_remote is not None, "Didn't find remote; upload failed?"
 
     x = yield alice.dump_state("local")
@@ -159,9 +158,9 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         # already got a database lock (presumably in the production
         # code)
         # https://github.com/LeastAuthority/magic-folder/issues/569
-        all_paths = yield database_retry(10, local_cfg.get_all_localsnapshot_paths)
+        all_paths = yield database_retry(reactor, 10, local_cfg.get_all_localsnapshot_paths)
         assert all_paths == {"sylvester"}
-        snap = yield database_retry(10, local_cfg.get_local_snapshot, "sylvester")
+        snap = yield database_retry(reactor, 10, local_cfg.get_local_snapshot, "sylvester")
         # we should have 3 snapshots total, each one the parent of the next
         assert len(snap.parents_local) == 1
         assert len(snap.parents_local[0].parents_local) == 1
