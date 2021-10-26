@@ -284,7 +284,7 @@ class WebSocketStatusService(service.Service):
                     yield d["relpath"]
                 for d in uploads:
                     yield d["relpath"]
-            down_up = uploads_and_downloads()
+            down_up = set(uploads_and_downloads())
 
             most_recent = [
                 {

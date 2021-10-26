@@ -405,7 +405,6 @@ class FindUpdatesTests(SyncTestCase):
         A completely new file is found but it is a conflict-marker file
         and shouldn't be uploaded
         """
-        # local = self.magic_path.preauthChild(relpath + u".conflict-{}".format(author_name))
         local = self.magic_path.preauthChild(relpath + u".conflict-author")
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
@@ -479,7 +478,7 @@ class FindUpdatesTests(SyncTestCase):
         files = []
 
         class SnapshotService(object):
-            def add_file(self, f, local_parent=None):
+            def add_file(self, f):
                 files.append(f)
                 return succeed(local_snap)
 

@@ -209,7 +209,6 @@ class UploadTests(SyncTestCase):
         mf._delay_later = retry
 
         for content in contents:
-            # data = io.BytesIO(content)
             with local_path.asBytesMode("utf8").open("w") as local_file:
                 local_file.write(content)
             d = mf.create_update()
@@ -434,7 +433,6 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability]))
         self.assertThat(snap1.parents_local, Equals([]))
         self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
-
 
     @inlineCallbacks
     def test_fail_upload_dmd_update(self):
