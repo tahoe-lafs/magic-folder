@@ -25,6 +25,7 @@ from .util import (
     await_file_vanishes,
     ensure_file_not_created,
     twisted_sleep,
+    database_retry,
 )
 
 
@@ -130,20 +131,7 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
     yield take_snapshot(alice, "local", "sylvester")
 
     # wait until we've definitely uploaded it
-    former_remote = None
-    for _ in range(10):
-        yield twisted_sleep(reactor, 1)
-        try:
-            former_remote = local_cfg.get_remotesnapshot("sylvester")
-            break
-        except sqlite3.OperationalError:
-            # since we're messing with the database while production
-            # code is running, it's possible this will fail if we
-            # access the database while the "real" code is also doing
-            # that.
-            pass
-        except KeyError:
-            pass
+    former_remote = yield database_retry(10, local_cfg.get_remotesnapshot, "sylvester")
     assert former_remote is not None, "Didn't find remote; upload failed?"
 
     x = yield alice.dump_state("local")
@@ -171,8 +159,9 @@ def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snaps
         # already got a database lock (presumably in the production
         # code)
         # https://github.com/LeastAuthority/magic-folder/issues/569
-        assert local_cfg.get_all_localsnapshot_paths() == {"sylvester"}
-        snap = local_cfg.get_local_snapshot("sylvester")
+        all_paths = yield database_retry(10, local_cfg.get_all_localsnapshot_paths)
+        assert all_paths == {"sylvester"}
+        snap = yield database_retry(10, local_cfg.get_local_snapshot, "sylvester")
         # we should have 3 snapshots total, each one the parent of the next
         assert len(snap.parents_local) == 1
         assert len(snap.parents_local[0].parents_local) == 1
