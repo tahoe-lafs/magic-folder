@@ -79,7 +79,7 @@ class TahoeAPIError(Exception):
         )
 
     def __str__(self):
-        return repr(self)
+        return "Tahoe API error {}".format(self.code)
 
 
 @attr.s(frozen=True)
@@ -98,7 +98,7 @@ class CannotCreateDirectoryError(Exception):
         return repr(self)
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, str=False)
 class CannotAddDirectoryEntryError(Exception):
     """
     Failed to add a sub-directory or file to a mutable directory.
@@ -106,14 +106,11 @@ class CannotAddDirectoryEntryError(Exception):
     entry_name = attr.ib()
     tahoe_error = attr.ib()
 
-    def __repr__(self):
-        return "Could add {} to directory. Error code {}".format(
+    def __str__(self):
+        return "Couldn't add {} to directory. Error code {}".format(
             self.entry_name,
             self.tahoe_error.code,
         )
-
-    def __str__(self):
-        return repr(self)
 
 
 @inlineCallbacks
@@ -254,8 +251,8 @@ class TahoeClient(object):
         ).to_uri().to_text().encode("ascii")
         action = start_action(
             action_type=u"magic-folder:cli:list-dir",
-            dirnode_uri=dir_cap.decode("ascii"),
-            api_uri=api_uri,
+            # leaks secrets: dirnode_uri=dir_cap.decode("ascii"),
+            # leaks secrets: api_uri=api_uri,
         )
         with action.context():
             response = yield self.http_client.get(

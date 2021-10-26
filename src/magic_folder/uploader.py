@@ -17,14 +17,13 @@ from twisted.internet.defer import (
     Deferred,
     DeferredQueue,
     CancelledError,
+    returnValue,
 )
 from twisted.web import http
 from zope.interface import (
-    Interface,
     implementer,
 )
 from eliot import (
-    Message,
     ActionType,
     MessageType,
     write_traceback,
@@ -38,24 +37,16 @@ from .util.eliotutil import (
     ABSPATH,
     log_call_deferred,
 )
-from .util.twisted import (
-    PeriodicService,
-)
 from .snapshot import (
     LocalAuthor,
-    write_snapshot_to_tahoe,
     create_snapshot,
 )
 from .status import (
     FolderStatus,
 )
-from .tahoe_client import (
-    TahoeAPIError,
-)
 from .config import (
     MagicFolderConfig,
 )
-from .participants import IWriteableParticipant
 from .util.file import get_pathinfo
 
 
@@ -109,13 +100,9 @@ class LocalSnapshotCreator(object):
         'know' about the file already).
 
         :param FilePath path: a single file inside our magic-folder dir
-        """
-        # TODO: We may to have logic similar to (shared with?) the scanner,
-        # to see if we need to snapshot the file. This is probably most useful
-        # when we get here via API, rather than the scanner, but may also avoid
-        # duplicate snapshots if scanning doesn't wait for snapshotting to
-        # complete.
 
+        :returns Deferred[LocalSnapshot]: the completed snapshot
+        """
         # Query the db to check if there is an existing local
         # snapshot for the file being added.
         # If so, we use that as the parent.
@@ -132,12 +119,14 @@ class LocalSnapshotCreator(object):
         # must be "not our parent" (it should be the parent .. or
         # grandparent etc .. of our localsnapshot)
         raw_remote = []
-        if not parents:
-            try:
-                parent_remote = self._db.get_remotesnapshot(relpath)
+        try:
+            parent_remote = self._db.get_remotesnapshot(relpath)
+        except KeyError:
+            parent_remote = None
+        if parent_remote:
+            # XXX should double-check parent relationship if we have any..
+            if not parents:
                 raw_remote = [parent_remote]
-            except KeyError:
-                pass
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
@@ -178,6 +167,7 @@ class LocalSnapshotCreator(object):
             # FIXME: should be in a transaction
             self._db.store_local_snapshot(snapshot)
             self._db.store_currentsnapshot_state(relpath, path_info.state)
+            returnValue(snapshot)
 
 
 @attr.s
@@ -190,7 +180,6 @@ class LocalSnapshotService(service.Service):
     _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
-    _uploader_service = attr.ib()
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
 
     def startService(self):
@@ -209,10 +198,8 @@ class LocalSnapshotService(service.Service):
             try:
                 (path, d) = yield self._queue.get()
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    yield self._snapshot_creator.store_local_snapshot(path)
-                    # We explicitly don't wait to upload the snapshot.
-                    self._uploader_service.perform_upload()
-                    d.callback(None)
+                    snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    d.callback(snap)
             except CancelledError:
                 break
             except Exception:
@@ -243,6 +230,7 @@ class LocalSnapshotService(service.Service):
         :raises: ValueError if the given file is not a descendent of
                  magic folder path or if the given path is a directory.
         :raises: TypeError if the input is not a FilePath.
+        :returns Deferred[LocalSnapshot]: the completed snapshot
         """
         if not isinstance(path, FilePath):
             raise TypeError(
@@ -250,15 +238,9 @@ class LocalSnapshotService(service.Service):
             )
 
         try:
-            # if "path" _is_ a conflict-file it should not be uploaded
-            # This check (or the following "segmentsFrom") will throw
-            # ValueError if path is outside the magic-path .. this is
-            # desired as a check as well
-            if self._config.is_conflict_marker(path):
-                return
-
-            relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
-            self._status.upload_queued(relpath)
+            # we just want the side-effect here, of confirming that
+            # this path is actually inside our magic-path
+            path.segmentsFrom(self._config.magic_path)
         except ValueError:
             ADD_FILE_FAILURE.log(abspath=path)
             raise APIError(
@@ -282,192 +264,3 @@ class LocalSnapshotService(service.Service):
         d = Deferred()
         self._queue.put((path, d))
         return d
-
-
-class IRemoteSnapshotCreator(Interface):
-    """
-    An object that can create remote snapshots representing the same
-    information as some local snapshots that already exist.
-    """
-    def upload_local_snapshots():
-        """
-        Find local uncommitted snapshots and commit them to the grid.
-
-        :return Deferred[None]: A Deferred that fires when an effort has been
-            made to commit at least some local uncommitted snapshots.
-        """
-
-    def initialize_upload_status(self):
-        """
-        Called precisely once upon startup, before any calls to
-        upload_local_snapshots.
-        """
-
-
-@implementer(IRemoteSnapshotCreator)
-@attr.s
-class RemoteSnapshotCreator(object):
-    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
-    _local_author = attr.ib()
-    _tahoe_client = attr.ib()
-    _write_participant = attr.ib(validator=attr.validators.provides(IWriteableParticipant))
-    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
-
-    def initialize_upload_status(self):
-        """
-        If any local-snapshots are present in our database at
-        startup we need to reflect their "pending upload" status
-        properly.
-        """
-        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
-        for relpath in localsnapshot_paths:
-            # if we re-started with LocalSnapshots already in our database
-            # locally, we won't have done a .upload_queued() yet _in this
-            # process_ (that is, a previous daemon did that resulting in
-            # the database entries)
-            self._status.upload_queued(relpath)
-
-    @inline_callbacks
-    def upload_local_snapshots(self):
-        """
-        Check the db for uncommitted LocalSnapshots, deserialize them from the on-disk
-        format to LocalSnapshot objects and commit them into the grid.
-        """
-        # get the paths for the LocalSnapshot objects in the db
-        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
-
-        # XXX: processing this table should be atomic. i.e. While the upload is
-        # in progress, a new snapshot can be created on a file we already uploaded
-        # but not removed from the db and if it gets removed from the table later,
-        # the new snapshot gets lost.
-        for relpath in localsnapshot_paths:
-            action = UPLOADER_SERVICE_UPLOAD_LOCAL_SNAPSHOTS(relpath=relpath)
-            try:
-                with action:
-                    self._status.upload_started(relpath)
-                    yield self._upload_some_snapshots(relpath)
-            except TahoeAPIError as e:
-                self._status.error_occurred(u"Failed to upload to Tahoe. code={}".format(e.code))
-                write_traceback()
-                # note: we will re-try on the next upload pass, after one scan_interval
-            except Exception:
-                write_traceback()
-            else:
-                self._status.upload_finished(relpath)
-
-    @inline_callbacks
-    def _upload_some_snapshots(self, relpath):
-        """
-        Upload all of the snapshots for a particular path.
-        """
-        # deserialize into LocalSnapshot
-        snapshot = self._config.get_local_snapshot(relpath)
-        upload_started_at = time.time()
-        remote_snapshot = yield write_snapshot_to_tahoe(
-            snapshot,
-            self._local_author,
-            self._tahoe_client,
-        )
-        Message.log(message_type="snapshot:metadata",
-                    metadata=remote_snapshot.metadata,
-                    relpath=relpath,
-                    capability=remote_snapshot.capability)
-
-        # if we crash here, we'll retry and re-upload (hopefully
-        # de-duplication works for the content at laest) the
-        # Snapshot but no consequences
-
-        # At this point, remote snapshot creation successful for
-        # the given relpath.
-        # store the remote snapshot capability in the db.
-        yield self._config.store_uploaded_snapshot(relpath, remote_snapshot, upload_started_at)
-
-        # if we crash here, there's an inconsistency between our
-        # remote and local state: we believe the version is X but
-        # other participants see X<-ancestor-Y (that is, version Y
-        # that has X as an ancestor) .. we will re-try the whole
-        # operation and get back here. The Downloader may be confused
-        # but it should find "X" the common ancestor even if another
-        # version X<--Y<--Z is published (and hence properly see it as
-        # an overwrite). If we create a new LocalSnapshot while
-        # inconsistent we will note the parent as X when it was really
-        # the _content_ from parent Y .. we'll still I think correctly
-        # detect the conflict but any diff migh be weird.
-
-        # update the entry in the DMD
-        yield self._write_participant.update_snapshot(
-            relpath,
-            remote_snapshot.capability,
-        )
-
-        # if removing the stashed content fails here, we MUST move on
-        # to delete the LocalSnapshot because we may not be able to
-        # re-create the Snapshot (maybe the content is "partially
-        # deleted"?
-        if snapshot.content_path is not None:
-            try:
-                # Remove the local snapshot content from the stash area.
-                snapshot.content_path.asBytesMode("utf-8").remove()
-            except Exception as e:
-                print(
-                    "Failed to remove cache: '{}': {}".format(
-                        snapshot.content_path.asTextMode("utf-8").path,
-                        str(e),
-                    )
-                )
-
-        # Remove the LocalSnapshot from the db.
-        yield self._config.delete_all_local_snapshots_for(relpath)
-
-
-@attr.s
-class UploaderService(service.MultiService):
-    """
-    A service that periodically polls the database for local snapshots
-    and commit them into the grid.
-    """
-    _clock = attr.ib()
-    _poll_interval = attr.ib()
-    _remote_snapshot_creator = attr.ib()
-    _periodic_service = attr.ib()
-
-    @_periodic_service.default
-    def _init_periodic(self):
-        return PeriodicService(
-            clock=self._clock,
-            interval=self._poll_interval,
-            callable=self._remote_snapshot_creator.upload_local_snapshots,
-        )
-
-    @classmethod
-    def from_config(cls, clock, config, remote_snapshot_creator):
-        """
-        Create an UploaderService from the MagicFolder configuration.
-        """
-        mf_config = config
-        poll_interval = mf_config.poll_interval
-        return cls(
-            clock=clock,
-            poll_interval=poll_interval,
-            remote_snapshot_creator=remote_snapshot_creator,
-        )
-
-    def __attrs_post_init__(self):
-        super(UploaderService, self).__init__()
-        self._periodic_service.setServiceParent(self)
-
-    def startService(self):
-        """
-        Start UploaderService and initiate a periodic task
-        to poll for LocalSnapshots in the database.
-        """
-        # if we started with any local snapshots already in the
-        # database we must reflect this in our status service.
-        self._remote_snapshot_creator.initialize_upload_status()
-        super(UploaderService, self).startService()
-
-    def perform_upload(self):
-        """
-        Do an upload unless we are already doing one.
-        """
-        self._periodic_service.call_soon()

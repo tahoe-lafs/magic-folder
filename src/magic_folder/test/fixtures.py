@@ -34,19 +34,30 @@ from hyperlink import (
 )
 from treq.client import HTTPClient
 from twisted.internet.task import Clock
+from twisted.internet.defer import (
+    DeferredList,
+)
 from twisted.python.filepath import FilePath
 
 from ..client import create_testing_http_client
 from ..status import FolderStatus
+from ..uploader import (
+    LocalSnapshotService,
+    LocalSnapshotCreator,
+)
+from ..downloader import (
+    InMemoryMagicFolderFilesystem,
+    RemoteSnapshotCacheService,
+)
+from ..magic_file import (
+    MagicFileFactory,
+)
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
 from ..tahoe_client import (
     create_tahoe_client,
-)
-from ..magic_folder import (
-    RemoteSnapshotCreator,
 )
 from ..participants import participants_from_collective
 from ..snapshot import create_local_author
@@ -134,9 +145,9 @@ class NodeDirectory(Fixture):
         self.api_auth_token.setContent(self.token)
 
 
-class RemoteSnapshotCreatorFixture(Fixture):
+class MagicFileFactoryFixture(Fixture):
     """
-    A fixture which provides a ``RemoteSnapshotCreator`` connected to a
+    A fixture which provides a ``MagicFileFactory`` connected to a
     ``MagicFolderConfig``.
     """
     def __init__(self, temp, author, upload_dircap, root=None):
@@ -145,7 +156,7 @@ class RemoteSnapshotCreatorFixture(Fixture):
             likes.
 
         :param LocalAuthor author: The author which will be used to sign
-            snapshots the ``RemoteSnapshotCreator`` creates.
+            created snapshots.
 
         :param bytes upload_dircap: The Tahoe-LAFS capability for a writeable
             directory into which new snapshots will be linked.
@@ -193,24 +204,51 @@ class RemoteSnapshotCreatorFixture(Fixture):
             self.scan_interval,
         )
 
+        self.filesystem = InMemoryMagicFolderFilesystem()
+
         self._global_config = create_testing_configuration(
             self.temp.child(b"config"),
             self.temp.child(b"tahoe-node"),
         )
         self.status = WebSocketStatusService(Clock(), self._global_config)
-        self.remote_snapshot_creator = RemoteSnapshotCreator(
-            config=self.config,
-            local_author=self.author,
-            tahoe_client=self.tahoe_client,
-            status=FolderStatus(self.config.name, self.status),
-            write_participant=participants.writer,
+        folder_status = FolderStatus(self.config.name, self.status)
+
+        local_snapshot_service = LocalSnapshotService(
+            self.config,
+            LocalSnapshotCreator(
+                self.config,
+                self.config.author,
+                self.config.stash_path,
+                self.config.magic_path,
+                self.tahoe_client,
+            ),
+            status=folder_status,
         )
+        local_snapshot_service.startService()
+        self.addCleanup(local_snapshot_service.stopService)
+
+        self.magic_file_factory = MagicFileFactory(
+            config=self.config,
+            tahoe_client=self.tahoe_client,
+            folder_status=folder_status,
+            local_snapshot_service=local_snapshot_service,
+            write_participant=participants.writer,
+            remote_cache=RemoteSnapshotCacheService.from_config(
+                self.config,
+                self.tahoe_client,
+            ),
+            magic_fs=self.filesystem,
+            synchronous=True,
+        )
+        self.addCleanup(self.magic_file_factory.finish)
+
 
 @attr.s
 class MagicFolderNode(object):
     # FIXME docstring
     tahoe_root = attr.ib()
     http_client = attr.ib(validator=attr.validators.instance_of(HTTPClient))
+    tahoe_client = attr.ib()
     global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
     global_config = attr.ib(validator=attr.validators.instance_of(GlobalConfigDatabase))
 
@@ -277,12 +315,14 @@ class MagicFolderNode(object):
                         name,
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
+                        # collective DMD
                         "URI:DIR2{}:{}:{}".format(
                             "" if config["admin"] else "-RO",
                             b2a("\0" * 16),
                             b2a("\1" * 32),
                         ),
 
+                        # personal DMD
                         u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
                         config[u"poll-interval"],
                         config[u"scan-interval"],
@@ -320,8 +360,6 @@ class MagicFolderNode(object):
                     folder_config = global_config.get_magic_folder(name)
                     folder_config.collective_dircap = to_readonly_capability(folder_config.collective_dircap)
 
-
-
         # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
         # See https://github.com/LeastAuthority/magic-folder/issues/334
         if start_folder_services:
@@ -332,11 +370,27 @@ class MagicFolderNode(object):
             for name in folders:
                 global_service.get_folder_service(name).startService()
 
-        http_client = create_testing_http_client(reactor, global_config, global_service, lambda: auth_token, status_service)
+        http_client = create_testing_http_client(
+            reactor,
+            global_config,
+            global_service,
+            lambda: auth_token,
+            status_service,
+        )
 
         return cls(
             tahoe_root=tahoe_root,
             http_client=http_client,
+            tahoe_client=tahoe_client,
             global_service=global_service,
             global_config=global_config,
         )
+
+    def cleanup(self):
+        """
+        Stop the (selected) services we started
+        """
+        return DeferredList([
+            magic_folder.stopService()
+            for magic_folder in self.global_service._iter_magic_folder_services()
+        ])

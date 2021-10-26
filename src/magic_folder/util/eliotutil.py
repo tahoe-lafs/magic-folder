@@ -250,7 +250,6 @@ class _EliotLogging(Service):
         return Service.stopService(self)
 
 
-
 @implementer(ILogObserver)
 @attr.s(frozen=True)
 class _TwistedLoggerToEliotObserver(object):

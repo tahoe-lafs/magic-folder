@@ -7,7 +7,11 @@ Scan a Magic Folder for changes.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import attr
-from eliot import current_action, start_action, write_failure
+from eliot import (
+    current_action,
+    start_action,
+    write_failure,
+)
 from eliot.twisted import inline_callbacks
 from twisted.application.internet import TimerService
 from twisted.application.service import MultiService
@@ -44,17 +48,17 @@ class ScannerService(MultiService):
     """
 
     _config = attr.ib()
-    _local_snapshot_service = attr.ib()
+    _file_factory = attr.ib()
     _status = attr.ib()
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
 
     @classmethod
-    def from_config(cls, clock, folder_config, local_snapshot_service, status):
+    def from_config(cls, clock, folder_config, file_factory, status):
         return cls(
             config=folder_config,
-            local_snapshot_service=local_snapshot_service,
+            file_factory=file_factory,
             status=status,
             cooperator=_create_cooperator(clock),
             scan_interval=folder_config.scan_interval,
@@ -68,6 +72,10 @@ class ScannerService(MultiService):
                 self._loop,
             ).setServiceParent(self)
 
+    def startService(self):
+        self._deserialize_local_snapshots()
+        return super(ScannerService, self).startService()
+
     def stopService(self):
         return (
             super(ScannerService, self)
@@ -80,6 +88,18 @@ class ScannerService(MultiService):
         Perform a scan for new files.
         """
         return self._scan()
+
+    def _deserialize_local_snapshots(self):
+        """
+        Initialize state for existing, serialized LocalSnapshots that are
+        in the database.
+        """
+        localsnapshot_paths = self._config.get_all_localsnapshot_paths()
+        for relpath in localsnapshot_paths:
+            abspath = self._config.magic_path.preauthChild(relpath)
+            mf = self._file_factory.magic_file_for(abspath)
+            snap = self._config.get_local_snapshot(relpath)
+            mf.local_snapshot_exists(snap)
 
     def _loop(self):
         """
@@ -96,16 +116,15 @@ class ScannerService(MultiService):
         Perform a scan for new files, and wait for all the snapshots to be
         complete.
         """
-        # TODO: Do we always want to wait for all the files to be snapshotted?
-        # If we don't wait for snapshotting to complete, then we probably want
-        # to coalesce multiple outstanding snapshot requests for the same file,
-        # or otherwise ensure that we don't end up snapshotting an unchanged
-        # file.
         results = []
 
         def process(path):
-            d = self._local_snapshot_service.add_file(path)
-            d.addErrback(write_failure)
+            magic_file = self._file_factory.magic_file_for(path)
+            # if "path" _is_ a conflict-file it should not be uploaded
+            if self._config.is_conflict_marker(path):
+                return
+            d = magic_file.create_update()
+            assert d is not None, "Internal error: no snapshot produced"
             results.append(d)
 
         with start_action(action_type="scanner:find-updates"):
@@ -138,7 +157,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     magic_path = folder_config.magic_path
     bytes_path = magic_path.asBytesMode("utf-8")
 
-    # XXX we don't handle deletes
     def process_file(path):
         with action.context():
             relpath = "/".join(path.segmentsFrom(magic_path))
@@ -156,6 +174,10 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
 
                 if not path_info.is_file:
                     if snapshot_state is not None:
+                        # XXX this is basically a delete, right? the
+                        # "file" has gone away, and we should
+                        # recursively scan the now-directory and
+                        # create new snapshots for any files.
                         status.error_occurred(
                             "File {} was a file, and now is {}.".format(
                                 relpath, "a directory" if path_info.is_dir else "not"
@@ -164,8 +186,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                     action.add_success_fields(changed_type=True)
                     return
                 if path_info.state != snapshot_state:
-                    # TODO: We may also want to compare checksums here,
-                    # to avoid `touch(1)` creating a new snapshot.
                     action.add_success_fields(update=True)
                     on_new_file(path)
                 else:

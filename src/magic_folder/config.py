@@ -712,6 +712,12 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
+# maps UUIDs->LocalSnapshot instances
+# used by _construct_local_snapshot to ensure that there is at most 1
+# LocalSnapshot instance in memory for each one in the database)
+_local_snapshots = WeakValueDictionary()
+
+
 def _construct_local_snapshot(identifier, relpath, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
@@ -733,8 +739,13 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
     :return LocalSnapshot: The requested snapshot, populated with information
         from the given parameters, including fully initialized local parents.
     """
-    return LocalSnapshot(
-        identifier=UUID(hex=identifier),
+    uuid = UUID(hex=identifier)
+    try:
+        return _local_snapshots[uuid]
+    except KeyError:
+        pass
+    rtn = _local_snapshots[uuid] = LocalSnapshot(
+        identifier=uuid,
         relpath=relpath,
         author=author,
         content_path=None if content_paths[identifier] is None else FilePath(content_paths[identifier]),
@@ -753,6 +764,7 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
             ),
         ),
     )
+    return rtn
 
 
 @attr.s
@@ -1121,7 +1133,7 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with delete_local_snapshot
+        # TODO: We should consider merging this with local_snapshot_become_remote
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,

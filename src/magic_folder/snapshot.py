@@ -271,6 +271,7 @@ class LocalSnapshot(object):
         validator=attr.validators.instance_of(UUID),
         default=attr.Factory(uuid4),
     )
+    remote_snapshot = attr.ib(default=None)  # if non-None, we've uploaded this one
 
     def get_content_producer(self):
         """
@@ -546,19 +547,21 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     if modified_time is None:
         modified_time = now
 
-    returnValue(
-        LocalSnapshot(
-            relpath=relpath,
-            author=author,
-            metadata={
-                "mtime": modified_time,
-                "ctime": now,
-            },
-            content_path=None if data_producer is None else FilePath(temp_file_name),
-            parents_local=parents_local,
-            parents_remote=parents_remote,
-        )
+    local_snap = LocalSnapshot(
+        relpath=relpath,
+        author=author,
+        metadata={
+            "mtime": modified_time,
+            "ctime": now,
+        },
+        content_path=None if data_producer is None else FilePath(temp_file_name),
+        parents_local=parents_local,
+        parents_remote=parents_remote,
     )
+    from .config import _local_snapshots
+    _local_snapshots[local_snap.identifier] = local_snap
+
+    returnValue(local_snap)
 
 
 def format_filenode(cap, metadata=None):
@@ -583,7 +586,6 @@ def format_filenode(cap, metadata=None):
         u"filenode",
         node,
     ]
-
 
 
 @inline_callbacks
@@ -614,7 +616,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent)#.capability)
+            parents_raw.append(parent)
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
@@ -623,6 +625,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         # if parent is a RemoteSnapshot, we are sure that its parents
         # are themselves RemoteSnapshot. Recursively upload local parents
         # first.
+
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)

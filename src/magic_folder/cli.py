@@ -356,6 +356,10 @@ def status(options):
         for folder_name, folder in data["folders"].items():
             print('Folder "{}":'.format(folder_name))
             print("  downloads: {}".format(len(folder["downloads"])))
+            if folder["downloads"]:
+                print("    {}".format(
+                    ", ".join(d["name"] for d in folder["downloads"])
+                ))
             print("  uploads: {}".format(len(folder["uploads"])))
             for u in folder["uploads"]:
                 queue = humanize.naturaldelta(now - u["queued-at"])

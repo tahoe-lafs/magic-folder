@@ -8,6 +8,7 @@ from __future__ import (
 import sys
 import time
 import json
+import sqlite3
 import os
 from os import mkdir
 from io import BytesIO
@@ -22,6 +23,7 @@ from treq.client import HTTPClient
 from twisted.internet.defer import (
     returnValue,
     Deferred,
+    maybeDeferred,
 )
 from twisted.internet.task import (
     deferLater,
@@ -1253,7 +1255,6 @@ def _generate_invite(reactor, inviter, invitee_name):
     returnValue(invite)
 
 
-
 @inline_callbacks
 def _command(*args):
     """
@@ -1269,3 +1270,35 @@ def _command(*args):
     return_value = yield run_magic_folder_options(o)
     assert 0 == return_value
     returnValue(o.stdout.getvalue())
+
+
+@inline_callbacks
+def database_retry(reactor, seconds, f, *args, **kwargs):
+    """
+    Call `f` with `args` and `kwargs` .. but retry up to `seconds`
+    times (1s apart) due to an sqlite3 OperationalError.
+
+    Sometimes it's useful to get information from the config / state
+    database but since production code is usually running too, it's
+    possible we access it at the same time as production code. Using
+    this wrapper can make the tests more reliable.
+    """
+    value = nothing = object()
+    for _ in range(seconds):
+        yield twisted_sleep(reactor, 1)
+        try:
+            value = yield maybeDeferred(f, *args, **kwargs)
+            break
+        except sqlite3.OperationalError:
+            # since we're messing with the database while production
+            # code is running, it's possible this will fail if we
+            # access the database while the "real" code is also doing
+            # that.
+            pass
+        except KeyError:
+            pass
+    if value is nothing:
+        raise RuntimeError(
+            "Calling {} kept raising OperationError even after {} tries".format(f, seconds)
+        )
+    returnValue(value)
