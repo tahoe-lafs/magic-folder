@@ -90,13 +90,6 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
-    def failed(folder, relpath):
-        """
-        A file has completely failed to update with some sort of fatal
-        error. No more updates (local nor remote) will happen (until?
-        XXX)
-        """
-
 
 class StatusProtocol(WebSocketServerProtocol):
     """

@@ -172,7 +172,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
                 except KeyError:
                     snapshot_state = None
 
-                ###print(path_info)
                 if not path_info.is_file:
                     if snapshot_state is not None:
                         # XXX this is basically a delete, right? the
