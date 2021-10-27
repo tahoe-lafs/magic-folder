@@ -213,7 +213,14 @@ GET `/v1/magic-folder/<folder-name>/local-scan`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Request an immediate scan of the local filesystem for the given folder.
-Returns an empty `dict`.
+Returns an empty `dict` after the scan is complete.
+
+
+GET `/v1/magic-folder/<folder-name>/remote-scan`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Request an immediate scan of the Collective DMD and remote participants of the given folder.
+Returns an empty `dict` after the scan is complete.
 
 
 
