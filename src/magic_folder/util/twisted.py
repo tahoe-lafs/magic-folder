@@ -75,8 +75,9 @@ class PeriodicService(Service):
     :ivar int interval: The time between periodic calls to the function.
     """
     _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
-    _callable = attr.ib(validator=attr.validators.is_callable())
+    # if "interval" is 0 we only schedule calls explicitly, not periodically
     _interval = attr.ib(validator=attr.validators.instance_of(int))
+    _callable = attr.ib(validator=attr.validators.is_callable())
 
     _delayed_call = attr.ib(
         init=False,
@@ -110,9 +111,22 @@ class PeriodicService(Service):
 
         This may be immediately, if we are waiting between calls. Or it may be
         after the current call to the function is complete.
+
+        :returns Deferred[None]: fires when the scheduled call completes.
         """
         self._should_call = True
         self._schedule()
+        d = Deferred()
+
+        def completed(arg):
+            d.callback(None)
+            return arg
+
+        if self._deferred:
+            self._deferred.addCallback(completed)
+        else:
+            d.callback(None)
+        return d
 
     def _cancel_delayed_call(self):
         """
@@ -162,4 +176,5 @@ class PeriodicService(Service):
             self._should_call = False
             self._call()
         elif self._delayed_call is None:
-            self._delayed_call = self._clock.callLater(self._interval, self._call)
+            if self._interval > 0:
+                self._delayed_call = self._clock.callLater(self._interval, self._call)

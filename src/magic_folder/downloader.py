@@ -35,7 +35,6 @@ from eliot import (
 
 from twisted.application import (
     service,
-    internet,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -60,6 +59,7 @@ from .util.file import (
 )
 from .util.twisted import (
     exclusively,
+    PeriodicService,
 )
 
 
@@ -442,11 +442,11 @@ class RemoteScannerService(service.MultiService):
 
     def __attrs_post_init__(self):
         service.MultiService.__init__(self)
-        self._scanner = internet.TimerService(
+        self._scanner = PeriodicService(
+            self._clock,
             self._config.poll_interval,
             self._loop,
         )
-        self._scanner.clock = self._clock
         self._scanner.setServiceParent(self)
 
     def _loop(self):
@@ -454,6 +454,14 @@ class RemoteScannerService(service.MultiService):
         # in some cases, might want to surface elsewhere
         d.addErrback(write_failure)
         return d
+
+    def scan_once(self):
+        """
+        Perform a scan.
+
+        :returns Deferred[None]: fires when the scan is completed
+        """
+        return self._scanner.call_soon()
 
     @inline_callbacks
     def _scan_collective(self):

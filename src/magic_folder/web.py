@@ -346,15 +346,28 @@ class APIv1(object):
         _application_json(request)
         return json.dumps(dict(_list_all_snapshots(self._global_config)))
 
-    @app.route("/magic-folder/<string:folder_name>/local-scan", methods=['PUT'])
+    @app.route("/magic-folder/<string:folder_name>/scan-local", methods=['PUT'])
     @inline_callbacks
-    def scan_folder(self, request, folder_name):
+    def scan_folder_local(self, request, folder_name):
         """
         Request an immediate local scan on a particular folder
         """
         folder_service = self._global_service.get_folder_service(folder_name)
 
-        yield folder_service.local_scan()
+        yield folder_service.scan_local()
+
+        _application_json(request)
+        returnValue(b"{}")
+
+    @app.route("/magic-folder/<string:folder_name>/scan-remote", methods=['PUT'])
+    @inline_callbacks
+    def scan_folder_remote(self, request, folder_name):
+        """
+        Request an immediate remote scan on a particular folder
+        """
+        folder_service = self._global_service.get_folder_service(folder_name)
+
+        yield folder_service.scan_remote()
 
         _application_json(request)
         returnValue(b"{}")

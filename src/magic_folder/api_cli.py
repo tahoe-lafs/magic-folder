@@ -192,6 +192,9 @@ class ScanFolderOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder participants to scan", to_unicode),
     ]
+    optFlags = [
+        ("remote", "r", "Request a remote scan (instead of local)"),
+    ]
 
     def postOptions(self):
         required_args = [
@@ -202,9 +205,14 @@ class ScanFolderOptions(usage.Options):
                 raise usage.UsageError(error)
 
 def scan_folder(options):
-    return options.parent.client.scan_folder(
-        options['folder'],
-    )
+    if options["remote"]:
+        return options.parent.client.scan_folder_remote(
+            options['folder'],
+        )
+    else:
+        return options.parent.client.scan_folder_local(
+            options['folder'],
+        )
 
 
 class MonitorOptions(usage.Options):
@@ -273,7 +281,7 @@ class MagicFolderApiCommand(BaseOptions):
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
-        ["scan-folder", None, ScanFolderOptions, "Scan for local changes in a magic-folder."],
+        ["scan-folder", None, ScanFolderOptions, "Scan for local or remote changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [

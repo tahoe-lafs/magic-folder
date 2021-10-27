@@ -13,13 +13,15 @@ from eliot import (
     write_failure,
 )
 from eliot.twisted import inline_callbacks
-from twisted.application.internet import TimerService
 from twisted.application.service import MultiService
 from twisted.internet.defer import DeferredLock, gatherResults
 from twisted.internet.task import Cooperator
 
 from .util.file import get_pathinfo
-from .util.twisted import exclusively
+from .util.twisted import (
+    exclusively,
+    PeriodicService,
+)
 
 
 def _create_cooperator(clock):
@@ -52,25 +54,32 @@ class ScannerService(MultiService):
     _status = attr.ib()
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
+    _clock = attr.ib()
     _lock = attr.ib(init=False, factory=DeferredLock)
+    _periodic_service = attr.ib(default=None)
 
     @classmethod
     def from_config(cls, clock, folder_config, file_factory, status):
+        scan_timeout = folder_config.scan_interval
+        if scan_timeout is None:
+            scan_timeout = 0
         return cls(
             config=folder_config,
             file_factory=file_factory,
             status=status,
             cooperator=_create_cooperator(clock),
-            scan_interval=folder_config.scan_interval,
+            scan_interval=scan_timeout,
+            clock=clock,
         )
 
     def __attrs_post_init__(self):
         super(ScannerService, self).__init__()
-        if self._scan_interval is not None:
-            TimerService(
-                self._scan_interval,
-                self._loop,
-            ).setServiceParent(self)
+        self._periodic_service = PeriodicService(
+            self._clock,
+            self._scan_interval,
+            self._loop,
+        )
+        self._periodic_service.setServiceParent(self)
 
     def startService(self):
         self._deserialize_local_snapshots()
@@ -87,7 +96,7 @@ class ScannerService(MultiService):
         """
         Perform a scan for new files.
         """
-        return self._scan()
+        return self._periodic_service.call_soon()
 
     def _deserialize_local_snapshots(self):
         """
