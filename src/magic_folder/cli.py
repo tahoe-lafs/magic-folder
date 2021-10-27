@@ -358,7 +358,7 @@ def status(options):
             print("  downloads: {}".format(len(folder["downloads"])))
             if folder["downloads"]:
                 print("    {}".format(
-                    ", ".join(d["name"] for d in folder["downloads"])
+                    ", ".join(d["relpath"] for d in folder["downloads"])
                 ))
             print("  uploads: {}".format(len(folder["uploads"])))
             for u in folder["uploads"]:
