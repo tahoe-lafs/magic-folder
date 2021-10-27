@@ -172,7 +172,7 @@ class MagicFolder(service.MultiService):
         """
         return defer.succeed(None)
 
-    def scan(self):
+    def local_scan(self):
         """
         Scan the magic folder for changes.
 

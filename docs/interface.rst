@@ -209,6 +209,14 @@ The author-names correspond to the device that conflicts with this file.
 There will also be a file named like ``<relpath>.conflict-<author-name>`` in the magic-folder whose contents match those of the conflicting remote file.
 
 
+GET `/v1/magic-folder/<folder-name>/local-scan`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Request an immediate scan of the local filesystem for the given folder.
+Returns an empty `dict`.
+
+
+
 Status API
 ----------
 
