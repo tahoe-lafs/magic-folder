@@ -287,7 +287,7 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(relpath)
         tmp = None
         if local_path.exists():
-            # As long as the scanner is running in-process, in the reactor,
+            # As long as the poller is running in-process, in the reactor,
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
             tmp = local_path.temporarySibling(b".snaptmp")
@@ -442,40 +442,40 @@ class RemoteScannerService(service.MultiService):
 
     def __attrs_post_init__(self):
         service.MultiService.__init__(self)
-        self._scanner = PeriodicService(
+        self._poller = PeriodicService(
             self._clock,
             self._config.poll_interval,
             self._loop,
         )
-        self._scanner.setServiceParent(self)
+        self._poller.setServiceParent(self)
 
     def _loop(self):
-        d = self._scan_collective()
+        d = self._poll_collective()
         # in some cases, might want to surface elsewhere
         d.addErrback(write_failure)
         return d
 
-    def scan_once(self):
+    def poll_once(self):
         """
-        Perform a scan.
+        Perform a remote poll.
 
-        :returns Deferred[None]: fires when the scan is completed
+        :returns Deferred[None]: fires when the poll is completed
         """
-        return self._scanner.call_soon()
+        return self._poller.call_soon()
 
     @inline_callbacks
-    def _scan_collective(self):
+    def _poll_collective(self):
         with start_action(
-            action_type="downloader:scan-collective", folder=self._config.name
+            action_type="downloader:poll-collective", folder=self._config.name
         ):
             # XXX any errors here should (probably) be reported to the
-            # status service .. meantime, errors will abort this scan
-            # but shouldn't cause subsequent scanning runs to be
+            # status service .. meantime, errors will abort this poll
+            # but shouldn't cause subsequent polling runs to be
             # aborted.
             participants = yield self._participants.list()
             for participant in participants:
                 with start_action(
-                    action_type="downloader:scan-participant",
+                    action_type="downloader:poll-participant",
                     participant=participant.name,
                     is_self=participant.is_self,
                 ):
@@ -497,7 +497,7 @@ class RemoteScannerService(service.MultiService):
         :returns Deferred: fires with None upon completion
         """
         with start_action(
-            action_type="downloader:scan-file",
+            action_type="downloader:poll-file",
             relpath=relpath,
             remote_cap=snapshot_cap,
         ):

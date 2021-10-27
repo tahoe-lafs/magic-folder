@@ -181,13 +181,13 @@ class MagicFolder(service.MultiService):
         """
         return self.scanner_service.scan_once()
 
-    def scan_remote(self):
+    def poll_remote(self):
         """
-        Scan the Collective DMD for remote changes.
+        Poll the Collective DMD for remote changes.
 
-        :returns Deferred[None]: that fires when the scan is complete
+        :returns Deferred[None]: that fires when the polling is complete
         """
-        return self.downloader_service.scan_once()
+        return self.downloader_service.poll_once()
 
     def participants(self):
         # type: () -> Deferred[list[IParticipant]]

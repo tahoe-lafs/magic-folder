@@ -176,8 +176,8 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan-local')
         return self._authorized_request("PUT", api_url, body=b"")
 
-    def scan_folder_remote(self, magic_folder):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan-remote')
+    def poll_folder_remote(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'poll-remote')
         return self._authorized_request("PUT", api_url, body=b"")
 
     def leave_folder(self, magic_folder, really_delete_write_capability):

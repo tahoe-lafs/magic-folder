@@ -206,7 +206,7 @@ class ScanFolderOptions(usage.Options):
 
 def scan_folder(options):
     if options["remote"]:
-        return options.parent.client.scan_folder_remote(
+        return options.parent.client.poll_folder_remote(
             options['folder'],
         )
     else:

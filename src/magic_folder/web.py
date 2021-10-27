@@ -359,15 +359,15 @@ class APIv1(object):
         _application_json(request)
         returnValue(b"{}")
 
-    @app.route("/magic-folder/<string:folder_name>/scan-remote", methods=['PUT'])
+    @app.route("/magic-folder/<string:folder_name>/poll-remote", methods=['PUT'])
     @inline_callbacks
-    def scan_folder_remote(self, request, folder_name):
+    def poll_folder_remote(self, request, folder_name):
         """
-        Request an immediate remote scan on a particular folder
+        Request an immediate remote poll on a particular folder
         """
         folder_service = self._global_service.get_folder_service(folder_name)
 
-        yield folder_service.scan_remote()
+        yield folder_service.poll_remote()
 
         _application_json(request)
         returnValue(b"{}")
