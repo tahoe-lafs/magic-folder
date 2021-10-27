@@ -1,1 +1,1 @@
-Added a .../remote-scan endpoint (and rename /scan to /local-scan)
+Added a .../poll-remote endpoint (and rename /scan to /scan-local)
