@@ -358,7 +358,7 @@ def status(options):
             print("  downloads: {}".format(len(folder["downloads"])))
             if folder["downloads"]:
                 print("    {}".format(
-                    ", ".join(d["name"] for d in folder["downloads"])
+                    ", ".join(d["relpath"] for d in folder["downloads"])
                 ))
             print("  uploads: {}".format(len(folder["uploads"])))
             for u in folder["uploads"]:
@@ -381,6 +381,10 @@ def status(options):
                     modified_text,
                     humanize.naturaldelta(now - f["last-updated"]),
                 ))
+            if folder["errors"]:
+                print("Errors:")
+                for e in folder["errors"]:
+                    print("  {}: {}".format(e["timestamp"], e["summary"]))
     proto.on('message', message)
 
     yield proto.is_closed
