@@ -188,12 +188,9 @@ def list_participants(options):
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
-class ScanFolderOptions(usage.Options):
+class ScanOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder participants to scan", to_unicode),
-    ]
-    optFlags = [
-        ("remote", "r", "Request a remote scan (instead of local)"),
+        ("folder", "n", None, "Name of the magic-folder to scan", to_unicode),
     ]
 
     def postOptions(self):
@@ -204,15 +201,29 @@ class ScanFolderOptions(usage.Options):
             if self[arg] is None:
                 raise usage.UsageError(error)
 
-def scan_folder(options):
-    if options["remote"]:
-        return options.parent.client.poll_folder_remote(
-            options['folder'],
-        )
-    else:
-        return options.parent.client.scan_folder_local(
-            options['folder'],
-        )
+def scan(options):
+    return options.parent.client.scan_folder_local(
+        options['folder'],
+    )
+
+
+class PollOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to poll", to_unicode),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+def poll(options):
+    return options.parent.client.poll_folder_remote(
+        options['folder'],
+    )
 
 
 class MonitorOptions(usage.Options):
@@ -281,7 +292,8 @@ class MagicFolderApiCommand(BaseOptions):
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
-        ["scan-folder", None, ScanFolderOptions, "Scan for local or remote changes in a magic-folder."],
+        ["scan", None, ScanOptions, "Scan for local changes in a magic-folder."],
+        ["poll", None, PollOptions, "Poll for remote changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
     ]
     optFlags = [
@@ -394,7 +406,8 @@ def run_magic_folder_api_options(options):
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
-        "scan-folder": scan_folder,
+        "scan": scan,
+        "poll": poll,
         "monitor": monitor,
     }[options.subCommand]
 
