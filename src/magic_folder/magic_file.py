@@ -128,6 +128,7 @@ class MagicFileFactory(object):
                             old_state=old_state,
                             trigger=the_input,
                             new_state=new_state,
+                            relpath=relpath,
                         )
                     # print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
                 mf.set_trace(tracer)
