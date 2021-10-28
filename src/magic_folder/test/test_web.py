@@ -952,7 +952,7 @@ class ScanFolderTests(SyncTestCase):
     )
     def test_wait_for_completion(self, author_name, folder_name, path_in_folder, some_content):
         """
-        A **PUT** request to **/v1/magic-folder/:folder-name/local-scan** does not receive a
+        A **PUT** request to **/v1/magic-folder/:folder-name/scan-local** does not receive a
         response before the snapshot has been created in the local database.
         """
         local_path = FilePath(self.mktemp())
@@ -983,7 +983,7 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child(folder_name, "local-scan"),
+                self.url.child(folder_name, "scan-local"),
             ),
             has_no_result(),
         )
@@ -996,7 +996,7 @@ class ScanFolderTests(SyncTestCase):
     )
     def test_scan_folder(self, author_name, folder_name, path_in_folder, some_content):
         """
-        A **PUT** to **/v1/magic-folder/:folder-name/local-scan** creates a new local
+        A **PUT** to **/v1/magic-folder/:folder-name/scan-local** creates a new local
         snapshot for a file in the named folder.
         """
         local_path = FilePath(self.mktemp())
@@ -1023,7 +1023,7 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child(folder_name, "local-scan"),
+                self.url.child(folder_name, "scan-local"),
             ),
             succeeded(
                 matches_response(
@@ -1045,7 +1045,7 @@ class ScanFolderTests(SyncTestCase):
 
     def test_snapshot_no_folder(self):
         """
-        An error results from using /v1/magic-folder/<folder-name>/local-scan API on
+        An error results from using /v1/magic-folder/<folder-name>/scan-local API on
         non-existent folder.
         """
         local_path = FilePath(self.mktemp())
@@ -1063,7 +1063,7 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child("a-folder-that-doesnt-exist").child('local-scan'),
+                self.url.child("a-folder-that-doesnt-exist").child('scan-local'),
             ),
             succeeded(
                 matches_response(

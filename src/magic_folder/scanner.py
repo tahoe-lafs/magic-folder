@@ -60,15 +60,12 @@ class ScannerService(MultiService):
 
     @classmethod
     def from_config(cls, clock, folder_config, file_factory, status):
-        scan_timeout = folder_config.scan_interval
-        if scan_timeout is None:
-            scan_timeout = 0
         return cls(
             config=folder_config,
             file_factory=file_factory,
             status=status,
             cooperator=_create_cooperator(clock),
-            scan_interval=scan_timeout,
+            scan_interval=folder_config.scan_interval,
             clock=clock,
         )
 
