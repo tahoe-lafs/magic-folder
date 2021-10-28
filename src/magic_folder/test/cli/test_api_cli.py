@@ -123,8 +123,6 @@ class ScanMagicFolder(AsyncTestCase):
         Polling a magic folder causes the remote to be downloaded
         """
 
-        folder = self.node.global_service.get_folder_service(self.folder_name)
-
         outcome = yield self.api_cli(
             [
                 b"poll",
