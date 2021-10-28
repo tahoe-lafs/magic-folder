@@ -75,8 +75,9 @@ class PeriodicService(Service):
     :ivar int interval: The time between periodic calls to the function.
     """
     _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
+    # if "interval" is 0 we only schedule calls explicitly, not periodically
+    _interval = attr.ib(validator=attr.validators.instance_of((int, type(None))))
     _callable = attr.ib(validator=attr.validators.is_callable())
-    _interval = attr.ib(validator=attr.validators.instance_of(int))
 
     _delayed_call = attr.ib(
         init=False,
@@ -88,11 +89,12 @@ class PeriodicService(Service):
         default=None,
         validator=attr.validators.optional(attr.validators.instance_of(Deferred)),
     )
-    _should_call = attr.ib(init=False, default=True)
+    _should_call = attr.ib(init=False, default=False)
 
     def startService(self):
         super(PeriodicService, self).startService()
-        self._schedule()
+        if self._interval is not None:
+            self.call_soon()
 
     def stopService(self):
         super(PeriodicService, self).stopService()
@@ -110,9 +112,22 @@ class PeriodicService(Service):
 
         This may be immediately, if we are waiting between calls. Or it may be
         after the current call to the function is complete.
+
+        :returns Deferred[None]: fires when the scheduled call completes.
         """
         self._should_call = True
         self._schedule()
+        d = Deferred()
+
+        def completed(arg):
+            d.callback(None)
+            return arg
+
+        if self._deferred:
+            self._deferred.addCallback(completed)
+        else:
+            d.callback(None)
+        return d
 
     def _cancel_delayed_call(self):
         """
@@ -146,20 +161,17 @@ class PeriodicService(Service):
         """
         Schedule a call to the given function.
 
-        - If the service isn't running, we don't do anything;
-          this method will be called again when the service is started.
         - If the function is running, we don't do anything;
           this method will be called again when the function is finished.
         - If a call has been requested, start it now.
         - Otherwise, if we haven't scheduled a future call, we scheduled it
           the given interval into the future.
         """
-        if not self.running:
-            return
         if self._deferred is not None:
             return
         if self._should_call:
             self._should_call = False
             self._call()
         elif self._delayed_call is None:
-            self._delayed_call = self._clock.callLater(self._interval, self._call)
+            if self._interval is not None:
+                self._delayed_call = self._clock.callLater(self._interval, self._call)

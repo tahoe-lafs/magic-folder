@@ -335,6 +335,7 @@ class FindUpdatesTests(SyncTestCase):
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)
@@ -388,6 +389,7 @@ class FindUpdatesTests(SyncTestCase):
             object(),
             cooperator=self.cooperator,
             scan_interval=1,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)
@@ -435,6 +437,7 @@ class FindUpdatesTests(SyncTestCase):
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)
@@ -499,6 +502,7 @@ class FindUpdatesTests(SyncTestCase):
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)

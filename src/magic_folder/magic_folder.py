@@ -172,7 +172,7 @@ class MagicFolder(service.MultiService):
         """
         return defer.succeed(None)
 
-    def scan(self):
+    def scan_local(self):
         """
         Scan the magic folder for changes.
 
@@ -180,6 +180,14 @@ class MagicFolder(service.MultiService):
             been snapshotted.
         """
         return self.scanner_service.scan_once()
+
+    def poll_remote(self):
+        """
+        Poll the Collective DMD for remote changes.
+
+        :returns Deferred[None]: that fires when the polling is complete
+        """
+        return self.downloader_service.poll_once()
 
     def participants(self):
         # type: () -> Deferred[list[IParticipant]]

@@ -389,7 +389,7 @@ class MagicFolderEnabledNode(object):
             self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
-                "scan-folder",
+                "scan",
                 "--folder", folder_name,
             ],
         )
