@@ -385,6 +385,7 @@ def status(options):
                 print("Errors:")
                 for e in folder["errors"]:
                     print("  {}: {}".format(e["timestamp"], e["summary"]))
+            print(folder["remaining-upload-time"])
     proto.on('message', message)
 
     yield proto.is_closed
