@@ -124,6 +124,12 @@ class ScannerService(MultiService):
         """
         results = []
 
+        # this is finding and processing files in parallel .. so it
+        # depends on the @exclusively locks in the TahoeClient to only
+        # create / modify mutables one-at-a-time. That is, everything
+        # to do with a particular Personal/Collective DMD must use the
+        # same TahoeClient instance.
+
         def process(path):
             magic_file = self._file_factory.magic_file_for(path)
             # if "path" _is_ a conflict-file it should not be uploaded
