@@ -334,7 +334,7 @@ class FindUpdatesTests(SyncTestCase):
             file_factory,
             object(),
             cooperator=self.cooperator,
-            scan_interval=0,
+            scan_interval=None,
             clock=self.clock,
         )
         service.startService()
@@ -436,7 +436,7 @@ class FindUpdatesTests(SyncTestCase):
             file_factory,
             object(),
             cooperator=self.cooperator,
-            scan_interval=0,
+            scan_interval=None,
             clock=self.clock,
         )
         service.startService()
@@ -501,7 +501,7 @@ class FindUpdatesTests(SyncTestCase):
             file_factory,
             object(),
             cooperator=self.cooperator,
-            scan_interval=0,
+            scan_interval=None,
             clock=self.clock,
         )
         service.startService()

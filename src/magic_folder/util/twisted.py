@@ -93,7 +93,8 @@ class PeriodicService(Service):
 
     def startService(self):
         super(PeriodicService, self).startService()
-        self.call_soon()
+        if self._interval is not None:
+            self.call_soon()
 
     def stopService(self):
         super(PeriodicService, self).stopService()
