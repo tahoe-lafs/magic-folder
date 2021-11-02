@@ -152,18 +152,25 @@ class ScannerService(MultiService):
             )
 
         results = []
+        pending = []
 
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
             d = magic_file.create_update()
             assert d is not None, "Internal error: no snapshot produced"
             d.addCallback(results.append)
+            pending.append(d)
             return d
 
         yield self._cooperator.coiterate(
             create_update(path)
             for path in updates
         )
+
+        print("appear to be done?")
+        for d in pending:
+            print(d)
+            assert d.called, "not actually done"
         # XXX update/use IStatus to report scan start/end
 
 
