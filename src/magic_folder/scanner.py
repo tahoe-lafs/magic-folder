@@ -129,7 +129,8 @@ class ScannerService(MultiService):
     def _scan(self):
         """
         Perform a scan for new files, and wait for all the snapshots to be
-        complete.
+        complete. This means all LocalSnapshots are created and
+        serialized into the database (they may not yet be uploaded).
         """
 
         # this is finding and processing files in parallel .. so it
@@ -155,14 +156,14 @@ class ScannerService(MultiService):
             )
 
         results = []
-        uploads = []
+        snapshots = []
 
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
             d = magic_file.create_update()
             assert d is not None, "Internal error: no snapshot produced"
             d.addBoth(results.append)
-            uploads.append(magic_file.when_idle())
+            snapshots.append(d)
             return d
 
         yield self._cooperator.coiterate(
@@ -170,7 +171,7 @@ class ScannerService(MultiService):
             for path in updates
         )
 
-        yield gatherResults(uploads)
+        yield gatherResults(snapshots)
         # XXX update/use IStatus to report scan start/end
 
 

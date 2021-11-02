@@ -14,6 +14,8 @@ import random
 
 import pytest_twisted
 
+from .util import twisted_sleep
+
 
 @pytest_twisted.inlineCallbacks
 def test_kittens(request, reactor, temp_filepath, alice, bob):
@@ -66,11 +68,14 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
     state = yield alice.dump_state("kitties")
     print(state)
 
-    status = yield alice.status()
-    data = json.loads(status)
-    print(json.dumps(data, indent=4))
-
-    assert data["state"]["synchronizing"] is False, "Should be finished"
+    # wait up to 10 seconds to be complete
+    for _ in range(10):
+        st = yield alice.status()
+        data = json.loads(st)
+        if data["state"]["synchronizing"] is False:
+            break
+        yield twisted_sleep(reactor, 10)
+    assert data["state"]["synchronizing"] is False, "Should be finished uploading"
 
     kitties = data["state"]["folders"]["kitties"]
     assert kitties["errors"] == [], "Expected zero errors"
