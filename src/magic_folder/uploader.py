@@ -295,7 +295,6 @@ class UploaderService(service.Service):
         while True:
             try:
                 (snap, d) = yield self._queue.get()
-                print(snap, d)
                 remote = yield self._perform_upload(snap)
                 d.callback(remote)
             except CancelledError:

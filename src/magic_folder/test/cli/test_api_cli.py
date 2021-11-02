@@ -61,6 +61,9 @@ class ScanMagicFolder(AsyncTestCase):
         self.folder_service.local_snapshot_service.startService()
         self.addCleanup(self.folder_service.local_snapshot_service.stopService)
 
+        self.folder_service.uploader_service.startService()
+        self.addCleanup(self.folder_service.uploader_service.stopService)
+
         def clean():
             folder = self.node.global_service.get_folder_service(self.folder_name)
             return folder.scanner_service._file_factory.finish()
