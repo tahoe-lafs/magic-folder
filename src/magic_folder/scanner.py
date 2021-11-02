@@ -14,7 +14,10 @@ from eliot import (
 )
 from eliot.twisted import inline_callbacks
 from twisted.application.service import MultiService
-from twisted.internet.defer import DeferredLock, gatherResults
+from twisted.internet.defer import (
+    DeferredLock,
+    gatherResults,
+)
 from twisted.internet.task import Cooperator
 
 from .util.file import get_pathinfo
@@ -101,11 +104,17 @@ class ScannerService(MultiService):
         in the database.
         """
         localsnapshot_paths = self._config.get_all_localsnapshot_paths()
-        for relpath in localsnapshot_paths:
+
+        def existing_snapshot(relpath):
             abspath = self._config.magic_path.preauthChild(relpath)
             mf = self._file_factory.magic_file_for(abspath)
             snap = self._config.get_local_snapshot(relpath)
-            mf.local_snapshot_exists(snap)
+            return mf.local_snapshot_exists(snap)
+
+        self._cooperator.coiterate(
+            existing_snapshot(relpath)
+            for relpath in localsnapshot_paths
+        )
 
     def _loop(self):
         """
@@ -120,18 +129,23 @@ class ScannerService(MultiService):
     def _scan(self):
         """
         Perform a scan for new files, and wait for all the snapshots to be
-        complete.
+        complete. This means all LocalSnapshots are created and
+        serialized into the database (they may not yet be uploaded).
         """
-        results = []
+
+        # this is finding and processing files in parallel .. so it
+        # depends on the @exclusively locks in the TahoeClient to only
+        # create / modify mutables one-at-a-time. That is, everything
+        # to do with a particular Personal/Collective DMD must use the
+        # same TahoeClient instance.
+
+        updates = []
 
         def process(path):
-            magic_file = self._file_factory.magic_file_for(path)
             # if "path" _is_ a conflict-file it should not be uploaded
             if self._config.is_conflict_marker(path):
                 return
-            d = magic_file.create_update()
-            assert d is not None, "Internal error: no snapshot produced"
-            results.append(d)
+            updates.append(path)
 
         with start_action(action_type="scanner:find-updates"):
             yield find_updated_files(
@@ -140,7 +154,24 @@ class ScannerService(MultiService):
             yield find_deleted_files(
                 self._cooperator, self._config, process, self._status
             )
-            yield gatherResults(results)
+
+        results = []
+        snapshots = []
+
+        def create_update(path):
+            magic_file = self._file_factory.magic_file_for(path)
+            d = magic_file.create_update()
+            assert d is not None, "Internal error: no snapshot produced"
+            d.addBoth(results.append)
+            snapshots.append(d)
+            return d
+
+        yield self._cooperator.coiterate(
+            create_update(path)
+            for path in updates
+        )
+
+        yield gatherResults(snapshots)
         # XXX update/use IStatus to report scan start/end
 
 

@@ -81,6 +81,7 @@ class MagicFolderServiceTests(SyncTestCase):
         name = u"local-snapshot-service-test"
         config = object()
         participants = object()
+        uploader = Service()
         status_service = WebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
@@ -91,6 +92,7 @@ class MagicFolderServiceTests(SyncTestCase):
             folder_status=folder_status,
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
+            uploader=uploader,
             participants=participants,
             scanner_service=Service(),
             clock=reactor,
@@ -99,7 +101,8 @@ class MagicFolderServiceTests(SyncTestCase):
                 tahoe_client,
                 folder_status,
                 local_snapshot_service,
-                object(),
+                uploader,
+                Service(),
                 Service(),
                 InMemoryMagicFolderFilesystem(),
             ),
@@ -148,6 +151,7 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_creator,
             folder_status,
         )
+        uploader = Service()
 
         tahoe_client = object()
         name = u"local-snapshot-service-test"
@@ -161,6 +165,7 @@ class MagicFolderServiceTests(SyncTestCase):
             scanner_service=Service(),
             remote_snapshot_cache=Service(),
             downloader=MultiService(),
+            uploader=uploader,
             participants=participants,
             clock=clock,
             magic_file_factory=MagicFileFactory(
@@ -168,6 +173,7 @@ class MagicFolderServiceTests(SyncTestCase):
                 tahoe_client,
                 folder_status,
                 local_snapshot_service,
+                uploader,
                 object(),
                 Service(),
                 InMemoryMagicFolderFilesystem(),

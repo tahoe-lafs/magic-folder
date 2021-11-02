@@ -42,7 +42,7 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    succeed,
+    Deferred,
     DeferredList,
     inlineCallbacks,
 )
@@ -204,8 +204,9 @@ class UploadTests(SyncTestCase):
         snapshots = []
 
         def retry(*args, **kw):
-            retries.append((args, kw))
-            return succeed("synchronous, no retry")
+            d = Deferred()
+            retries.append((d, (args, kw)))
+            return d
         mf._delay_later = retry
 
         for content in contents:

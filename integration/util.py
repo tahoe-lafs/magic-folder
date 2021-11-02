@@ -409,6 +409,32 @@ class MagicFolderEnabledNode(object):
             ],
         )
 
+    def scan(self, folder_name):
+        """
+        magic-folder-api scan
+        """
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "scan",
+                "--folder", folder_name,
+            ],
+        )
+
+    def status(self):
+        """
+        magic-folder-api monitor --once
+        """
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "monitor",
+                "--once",
+            ],
+        )
+
     def dump_state(self, folder_name):
         """
         magic-folder-api dump-state

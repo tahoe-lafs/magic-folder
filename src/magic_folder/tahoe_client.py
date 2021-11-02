@@ -13,6 +13,7 @@ import json
 from twisted.internet.defer import (
     inlineCallbacks,
     returnValue,
+    DeferredLock,
 )
 from twisted.web.http import (
     OK,
@@ -42,7 +43,9 @@ from .util.capabilities import (
     is_directory_cap,
     is_file_cap,
 )
-
+from .util.twisted import (
+    exclusively,
+)
 
 def _request(http_client, method, url, **kwargs):
     """
@@ -142,6 +145,7 @@ class TahoeClient(object):
     """
 
     url = attr.ib(validator=attr.validators.instance_of(DecodedURL))
+    _lock = attr.ib(init=False, factory=DeferredLock)
 
     # treq should provide an interface but it doesn't ...  HTTPClient and
     # StubTreq are both the same kind of thing.  HTTPClient is the one that
@@ -163,6 +167,7 @@ class TahoeClient(object):
         )
         returnValue((yield resp.json()))
 
+    @exclusively
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
         """
@@ -187,6 +192,7 @@ class TahoeClient(object):
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(capability_string)
 
+    @exclusively
     @inlineCallbacks
     def create_immutable(self, producer):
         """
@@ -210,6 +216,7 @@ class TahoeClient(object):
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(capability_string)
 
+    @exclusively
     @inlineCallbacks
     def create_mutable_directory(self):
         """
@@ -312,6 +319,7 @@ class TahoeClient(object):
         _, dirinfo = yield response.json()
         returnValue(dirinfo)
 
+    @exclusively
     @inlineCallbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
         """
