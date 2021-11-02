@@ -14,7 +14,10 @@ from eliot import (
 )
 from eliot.twisted import inline_callbacks
 from twisted.application.service import MultiService
-from twisted.internet.defer import DeferredLock
+from twisted.internet.defer import (
+    DeferredLock,
+    gatherResults,
+)
 from twisted.internet.task import Cooperator
 
 from .util.file import get_pathinfo
