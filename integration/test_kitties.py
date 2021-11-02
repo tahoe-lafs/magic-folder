@@ -83,7 +83,5 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
     expected = set(cat_names + ["subdir/{}".format(n) for n in cat_names])
     assert expected == actual_cats, "Data mismatch"
 
-    state = yield alice.dump_state("kitties")
-    print(state)
     # XXX also confirm that we can navigate Collective -> alice
     # and find the correct Snapshots (i.e. one for every cat-pic)
