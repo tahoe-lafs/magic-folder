@@ -704,7 +704,23 @@ class MagicFile(object):
         with self._action.context():
             d = self._factory._uploader.upload_snapshot(snapshot)
 
+            retry_delay_sequence = _delay_sequence()
+
+            def upload_error(f, snap):
+                # upon errors, we wait a little and then retry,
+                # putting the item back in the uploader queue
+                self._factory._folder_status.error_occurred(
+                    "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
+                )
+                delay_amt = next(retry_delay_sequence)
+                delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
+                delay.addErrback(upload_error, snap)
+                return delay
+            d.addErrback(upload_error, snapshot)
+
             def got_remote(remote):
+                # successfully uploaded
+                snapshot.remote_snapshot = remote
                 self._factory._remote_cache._cached_snapshots[remote.capability] = remote
                 self._call_later(self._upload_completed, snapshot)
             d.addCallback(got_remote)

@@ -316,8 +316,8 @@ class UploaderService(service.Service):
     @inline_callbacks
     def _perform_upload(self, snapshot):
         """
-        Do the actual work of performing an upload. Upon Tahoe failures,
-        put the item back into the queue after some waiting time.
+        Do the actual work of performing an upload. Failures are
+        propagated to the caller.
         """
 
         upload_started_at = time.time()
