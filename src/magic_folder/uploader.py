@@ -26,6 +26,7 @@ from zope.interface import (
 from eliot import (
     ActionType,
     MessageType,
+    Message,
     write_traceback,
 )
 from eliot.twisted import (
@@ -39,7 +40,9 @@ from .util.eliotutil import (
 )
 from .snapshot import (
     LocalAuthor,
+    LocalSnapshot,
     create_snapshot,
+    write_snapshot_to_tahoe,
 )
 from .status import (
     FolderStatus,
@@ -263,4 +266,100 @@ class LocalSnapshotService(service.Service):
         # add file into the queue
         d = Deferred()
         self._queue.put((path, d))
+        return d
+
+
+@attr.s
+@implementer(service.IService)
+class UploaderService(service.Service):
+    """
+    Writes LocalSnapshots to Tahoe
+    """
+    _config = attr.ib(validator=attr.validators.instance_of(MagicFolderConfig))
+    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+    _tahoe_client = attr.ib()
+    _queue = attr.ib(default=attr.Factory(DeferredQueue))
+
+    def startService(self):
+        """
+        Start a periodic loop that looks for work and does it.
+        """
+        service.Service.startService(self)
+        self._service_d = self._process_queue()
+
+    @inline_callbacks
+    def _process_queue(self):
+        """
+        Wait for a single item from the queue and process it, forever.
+        """
+        print("_pocess_queue")
+        while True:
+            try:
+                (snap, d) = yield self._queue.get()
+                print(snap, d)
+                remote = yield self._perform_upload(snap)
+                d.callback(remote)
+            except CancelledError:
+                break
+            except Exception:
+                d.errback()
+                write_traceback()
+
+    def stopService(self):
+        """
+        Don't process queued items anymore.
+        """
+        d = self._service_d
+        self._service_d.cancel()
+        service.Service.stopService(self)
+        self._service_d = None
+        return d
+
+    @inline_callbacks
+    def _perform_upload(self, snapshot):
+        """
+        Do the actual work of performing an upload. Upon Tahoe failures,
+        put the item back into the queue after some waiting time.
+        """
+
+        upload_started_at = time.time()
+        Message.log(message_type="uploading")
+
+        self._status.upload_started(snapshot.relpath)
+        remote_snapshot = yield write_snapshot_to_tahoe(
+            snapshot,
+            self._config.author,
+            self._tahoe_client,
+        )
+        Message.log(remote_snapshot=remote_snapshot.capability)
+        snapshot.remote_snapshot = remote_snapshot
+        yield self._config.store_uploaded_snapshot(
+            remote_snapshot.relpath,
+            remote_snapshot,
+            upload_started_at,
+        )
+        Message.log(message_type="upload_completed")
+        returnValue(remote_snapshot)
+
+    @log_call_deferred(u"magic-folder:local-snapshots:upload_snapshot")
+    def upload_snapshot(self, snapshot):
+        """
+        Queue a snapshot for upload to Tahoe
+
+        :param LocalSnapshot snapshot: the item to upload
+
+        :raises: TypeError if the input is not a LocalSnapshot.
+        :returns Deferred[None]: fires when the upload is complete
+        """
+        if not isinstance(snapshot, LocalSnapshot):
+            raise TypeError(
+                "argument must be a LocalSnapshot"
+            )
+
+        # we could check if this one is already queued -- that should be
+        # impossible
+
+        # add file into the queue
+        d = Deferred()
+        self._queue.put((snapshot, d))
         return d

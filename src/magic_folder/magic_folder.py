@@ -29,6 +29,7 @@ from .util.eliotutil import (
 from .uploader import (
     LocalSnapshotService,
     LocalSnapshotCreator,
+    UploaderService,
 )
 from .downloader import (
     RemoteSnapshotCacheService,
@@ -103,11 +104,17 @@ class MagicFolder(service.MultiService):
             ),
             status=folder_status,
         )
+        uploader = UploaderService(
+            mf_config,
+            folder_status,
+            tahoe_client,
+        )
         magic_file_factory = MagicFileFactory(
             mf_config,
             tahoe_client,
             folder_status,
             local_snapshot_service,
+            uploader,
             participants.writer,
             remote_snapshot_cache_service,
             LocalMagicFolderFilesystem(
@@ -136,6 +143,7 @@ class MagicFolder(service.MultiService):
                 file_factory=magic_file_factory,
                 remote_snapshot_cache=remote_snapshot_cache_service,
             ),
+            uploader=uploader,
             folder_status=folder_status,
             scanner_service=scanner_service,
             participants=participants,
@@ -148,7 +156,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, participants, clock, magic_file_factory):
+    def __init__(self, client, config, name, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -157,12 +165,14 @@ class MagicFolder(service.MultiService):
         self.file_factory = magic_file_factory
         self.local_snapshot_service = local_snapshot_service
         self.downloader_service = downloader
+        self.uploader_service = uploader
         self.folder_status = folder_status
         self.scanner_service = scanner_service
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
         downloader.setServiceParent(self)
+        uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
 
     def ready(self):

@@ -72,6 +72,7 @@ class MagicFileFactory(object):
     _tahoe_client = attr.ib()
     _folder_status = attr.ib()
     _local_snapshot_service = attr.ib()
+    _uploader = attr.ib()
     _write_participant = attr.ib()
     _remote_cache = attr.ib()
     _magic_fs = attr.ib()  # IMagicFolderFilesystem
@@ -654,9 +655,11 @@ class MagicFile(object):
     def _status_upload_queued(self):
         self._factory._folder_status.upload_queued(self._relpath)
 
-    @_machine.output()
-    def _status_upload_started(self):
-        self._factory._folder_status.upload_started(self._relpath)
+    # the uploader does this status because only it knows when the
+    # item is out of the queue and "actually" starts uploading..
+    # @_machine.output()
+    # def _status_upload_started(self):
+    #     self._factory._folder_status.upload_started(self._relpath)
 
     @_machine.output()
     def _status_upload_finished(self):
@@ -702,43 +705,13 @@ class MagicFile(object):
         Begin uploading a LocalSnapshot (to create a RemoteSnapshot)
         """
         assert snapshot is not None, "Internal inconsistency: no snapshot _begin_upload"
+        with self._action.context():
+            d = self._factory._uploader.upload_snapshot(snapshot)
 
-        @inline_callbacks
-        def perform_upload(snap):
-            with self._action.context():
-                upload_started_at = time.time()
-                Message.log(message_type="uploading")
-
-                remote_snapshot = yield write_snapshot_to_tahoe(
-                    snap,
-                    self._factory._config.author,
-                    self._factory._tahoe_client,
-                )
-                Message.log(remote_snapshot=remote_snapshot.capability)
-                snap.remote_snapshot = remote_snapshot
-                yield self._factory._config.store_uploaded_snapshot(
-                    remote_snapshot.relpath,
-                    remote_snapshot,
-                    upload_started_at,
-                )
-                self._factory._remote_cache._cached_snapshots[remote_snapshot.capability] = remote_snapshot
-                self._call_later(self._upload_completed, snap)
-                Message.log(message_type="upload_completed")
-
-        d = perform_upload(snapshot)
-
-        retry_delay_sequence = _delay_sequence()
-
-        def upload_error(f, snap):
-            self._factory._folder_status.error_occurred(
-                "Error uploading {}: {}".format(self._relpath, f.getErrorMessage())
-            )
-            delay_amt = next(retry_delay_sequence)
-            delay = self._delay_later(delay_amt, perform_upload, snap)
-            delay.addErrback(upload_error, snap)
-            return delay
-        d.addErrback(upload_error, snapshot)
-        return d
+            def got_remote(remote):
+                self._factory._remote_cache._cached_snapshots[remote.capability] = remote
+                self._call_later(self._upload_completed, snapshot)
+            d.addCallback(got_remote)
 
     @_machine.output()
     def _mark_download_conflict(self, snapshot, staged_path):
@@ -966,13 +939,13 @@ class MagicFile(object):
     _up_to_date.upon(
         _existing_local_snapshot,
         enter=_uploading,
-        outputs=[_working, _status_upload_queued, _status_upload_started, _begin_upload],
+        outputs=[_working, _status_upload_queued, _begin_upload],
         collector=_last_one,
     )
     _creating_snapshot.upon(
         _snapshot_completed,
         enter=_uploading,
-        outputs=[_status_upload_started, _begin_upload],
+        outputs=[_begin_upload],
         collector=_last_one,
     )
 
@@ -1024,7 +997,7 @@ class MagicFile(object):
     _checking_for_local_work.upon(
         _snapshot_completed,
         enter=_uploading,
-        outputs=[_status_upload_queued, _status_upload_started, _begin_upload],
+        outputs=[_status_upload_queued, _begin_upload],
         collector=_last_one,
     )
     _checking_for_local_work.upon(
