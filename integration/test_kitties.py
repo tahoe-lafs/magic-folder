@@ -14,11 +14,16 @@ import random
 
 import pytest_twisted
 
-from .util import twisted_sleep
+from magic_folder.magicpath import (
+    magic2path,
+)
+from .util import (
+    twisted_sleep,
+)
 
 
 @pytest_twisted.inlineCallbacks
-def test_kittens(request, reactor, temp_filepath, alice, bob):
+def test_kittens(request, reactor, temp_filepath, alice):
     """
     Create a series of large files -- including in sub-directories --
     for an initial, new magic-folder. (This simulates the 'Cat Pics'
@@ -62,11 +67,10 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
         pytest_twisted.blockon(alice.leave("kitties"))
     request.addfinalizer(cleanup)
 
-    print("scanning...")
+    # perform a scan, which will create LocalSnapshots for all the
+    # files we already created in the magic-folder (not _not_ upload
+    # them, necessarily, yet)
     yield alice.scan("kitties")
-    print("done")
-    state = yield alice.dump_state("kitties")
-    print(state)
 
     # wait up to 10 seconds to be complete
     for _ in range(10):
@@ -83,5 +87,14 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
     expected = set(cat_names + ["subdir/{}".format(n) for n in cat_names])
     assert expected == actual_cats, "Data mismatch"
 
-    # XXX also confirm that we can navigate Collective -> alice
-    # and find the correct Snapshots (i.e. one for every cat-pic)
+    # confirm that we can navigate Collective -> alice and find the
+    # correct Snapshots (i.e. one for every cat-pic)
+    folders = yield alice.list_(True)
+
+    files = yield alice.tahoe_client().list_directory(folders["kitties"]["upload_dircap"])
+    names = {
+        magic2path(k)
+        for k in files.keys()
+        if k not in {"@metadata"}
+    }
+    assert expected == names, "Data mismatch"
