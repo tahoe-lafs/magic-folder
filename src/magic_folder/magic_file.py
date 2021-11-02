@@ -5,7 +5,6 @@ from __future__ import (
     unicode_literals,
 )
 
-import time
 import itertools
 
 import automat
@@ -31,9 +30,6 @@ from twisted.application.internet import (
     backoffPolicy,
 )
 
-from .snapshot import (
-    write_snapshot_to_tahoe,
-)
 from .util.file import (
     get_pathinfo,
 )

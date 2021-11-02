@@ -14,11 +14,6 @@ import random
 
 import pytest_twisted
 
-from .util import (
-    twisted_sleep,
-)
-
-
 
 @pytest_twisted.inlineCallbacks
 def test_kittens(request, reactor, temp_filepath, alice, bob):
@@ -60,7 +55,6 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
 
     # add this as a new folder
     yield alice.add("kitties", magic.path)
-    kitties_cfg = alice.global_config().get_magic_folder("kitties")
 
     def cleanup():
         pytest_twisted.blockon(alice.leave("kitties"))
@@ -76,7 +70,7 @@ def test_kittens(request, reactor, temp_filepath, alice, bob):
     data = json.loads(status)
     print(json.dumps(data, indent=4))
 
-    assert data["state"]["synchronizing"] == False, "Should be finished"
+    assert data["state"]["synchronizing"] is False, "Should be finished"
 
     kitties = data["state"]["folders"]["kitties"]
     assert kitties["errors"] == [], "Expected zero errors"
