@@ -167,6 +167,7 @@ class TahoeClient(object):
         )
         returnValue((yield resp.json()))
 
+    @exclusively
     @inlineCallbacks
     def create_immutable_directory(self, directory_data):
         """
@@ -191,6 +192,7 @@ class TahoeClient(object):
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(capability_string)
 
+    @exclusively
     @inlineCallbacks
     def create_immutable(self, producer):
         """
