@@ -292,7 +292,6 @@ class UploaderService(service.Service):
         """
         Wait for a single item from the queue and process it, forever.
         """
-        print("_pocess_queue")
         while True:
             try:
                 (snap, d) = yield self._queue.get()

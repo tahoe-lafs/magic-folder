@@ -13,7 +13,10 @@ from testtools.matchers import (
     MatchesStructure,
 )
 from testtools.twistedsupport import succeeded
-from twisted.internet.defer import succeed
+from twisted.internet.defer import (
+    succeed,
+    Deferred,
+)
 from twisted.internet.task import Clock, Cooperator
 from twisted.python import runtime
 from twisted.python.filepath import FilePath
@@ -318,11 +321,16 @@ class FindUpdatesTests(SyncTestCase):
                 files.append(f)
                 return succeed(FakeLocalSnapshot())
 
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
         file_factory = MagicFileFactory(
             self.config,
             self.tahoe_client,
             self.folder_status,
             SnapshotService(),
+            FakeUploader(),
             object(), # write_participant,
             object(), # remote_cache,
             object(), # filesystem,
@@ -372,11 +380,19 @@ class FindUpdatesTests(SyncTestCase):
                     FakeLocalSnapshot()
                 )
 
+        class FakeRemoteSnapshot(object):
+            pass
+
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
         file_factory = MagicFileFactory(
             self.config,
             self.tahoe_client,
             self.folder_status,
             SnapshotService(),
+            FakeUploader(),
             object(), # write_participant,
             object(), # remote_cache,
             object(), # filesystem,
@@ -426,6 +442,7 @@ class FindUpdatesTests(SyncTestCase):
             self.tahoe_client,
             self.folder_status,
             SnapshotService(),
+            object(), # uploader,
             object(), # write_participant,
             object(), # remote_cache,
             object(), # filesystem,
@@ -485,11 +502,16 @@ class FindUpdatesTests(SyncTestCase):
                 files.append(f)
                 return succeed(local_snap)
 
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
         file_factory = MagicFileFactory(
             self.config,
             self.tahoe_client,
             self.folder_status,
             SnapshotService(),
+            FakeUploader(),
             object(), # write_participant,
             object(), # remote_cache,
             object(), # filesystem,

@@ -44,6 +44,7 @@ from ..status import FolderStatus
 from ..uploader import (
     LocalSnapshotService,
     LocalSnapshotCreator,
+    UploaderService,
 )
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
@@ -227,11 +228,20 @@ class MagicFileFactoryFixture(Fixture):
         local_snapshot_service.startService()
         self.addCleanup(local_snapshot_service.stopService)
 
+        uploader = UploaderService(
+            self.config,
+            folder_status,
+            self.tahoe_client,
+        )
+        uploader.startService()
+        self.addCleanup(uploader.stopService)
+
         self.magic_file_factory = MagicFileFactory(
             config=self.config,
             tahoe_client=self.tahoe_client,
             folder_status=folder_status,
             local_snapshot_service=local_snapshot_service,
+            uploader=uploader,
             write_participant=participants.writer,
             remote_cache=RemoteSnapshotCacheService.from_config(
                 self.config,
