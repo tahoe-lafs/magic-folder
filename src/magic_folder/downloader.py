@@ -465,6 +465,13 @@ class RemoteScannerService(service.MultiService):
 
     @inline_callbacks
     def _poll_collective(self):
+        """
+        Internal helper.
+        Download the collective dircap.
+        For every participant that's not us, download any updated entries.
+        """
+        updates = []
+
         with start_action(
             action_type="downloader:poll-collective", folder=self._config.name
         ):
@@ -484,7 +491,14 @@ class RemoteScannerService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        yield self._process_snapshot(relpath, file_data.snapshot_cap)
+                        d = self._process_snapshot(relpath, file_data.snapshot_cap)
+                        updates.append(d)
+
+        # ensure we process this batch before trying again .. but in
+        # parallel
+        # XXX report errors to the user?
+        for d in updates:
+            yield d
 
     @inline_callbacks
     def _process_snapshot(self, relpath, snapshot_cap):
