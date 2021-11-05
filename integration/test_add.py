@@ -1,4 +1,4 @@
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import pytest_twisted
 from twisted.internet.error import ProcessTerminated
@@ -94,3 +94,31 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
         recover_folder.child("sylvester").path,
         timeout=25,
     )
+
+
+@pytest_twisted.inlineCallbacks
+def test_leave_many(request, reactor, temp_filepath, alice, bob):
+    """
+    Many magic-folders can be added and left in rapid succession
+
+    See also https://github.com/LeastAuthority/magic-folder/issues/587
+    """
+    magic = temp_filepath
+
+    names = [
+        "folder_{}".format(x)
+        for x in range(10)
+    ]
+
+    for name in names:
+        folder = magic.child(name)
+        folder.makedirs()
+
+        yield alice.add(name, folder.path)
+
+    alice_folders = yield alice.list_(True)
+    assert set(alice_folders.keys()) == set(names)
+
+    for name in names:
+        print("leaving", name)
+        yield alice.leave(name)
