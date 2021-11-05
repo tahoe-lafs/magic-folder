@@ -2,6 +2,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import pytest_twisted
 from twisted.internet.error import ProcessTerminated
+from twisted.internet.defer import (
+    DeferredList,
+)
 
 from magic_folder.util.capabilities import to_readonly_capability
 
@@ -118,6 +121,26 @@ def test_leave_many(request, reactor, temp_filepath, alice, bob):
 
     alice_folders = yield alice.list_(True)
     assert set(alice_folders.keys()) == set(names)
+
+    # try and ensure that the folders are "doing some work" by adding
+    # files to them all (sizes are in KiB)
+    fake_files = (
+        ('zero', 100),
+        ('one', 10000),
+    )
+    for fname, size in fake_files:
+        for name in names:
+            with magic.child(name).child(fname).open("wb") as f:
+                for _ in range(size):
+                    f.write("xxxxxxx\n" * (1024 // 8))
+
+    # initiate a scan on them all
+    scans = []
+    for name in names:
+        print("scan: {}".format(name))
+        scans.append(alice.scan_folder(name))
+    res = yield DeferredList(scans)
+    print(res)
 
     for name in names:
         print("leaving", name)
