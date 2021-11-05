@@ -26,6 +26,10 @@ from twisted.internet.defer import (
     DeferredSemaphore,
     maybeDeferred,
     succeed,
+    CancelledError,
+)
+from twisted.web.client import (
+    ResponseNeverReceived,
 )
 from twisted.application.internet import (
     backoffPolicy,
@@ -468,6 +472,12 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def failed(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                return f
+
             self._factory._folder_status.error_occurred(
                 "Failed to download snapshot for '{}'.".format(
                     self._relpath,
@@ -638,6 +648,12 @@ class MagicFile(object):
         # get us here.
 
         def error(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                return f
+
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
@@ -720,6 +736,19 @@ class MagicFile(object):
             retry_delay_sequence = _delay_sequence()
 
             def upload_error(f, snap):
+                if f.check(CancelledError):
+                    self._factory._folder_status.error_occurred(
+                        "Cancelled: {}".format(self._relpath)
+                    )
+                    return f
+                if f.check(ResponseNeverReceived):
+                    for reason in f.value.reasons:
+                        if reason.check(CancelledError):
+                            self._factory._folder_status.error_occurred(
+                                "Cancelled: {}".format(self._relpath)
+                            )
+                        return f
+
                 # upon errors, we wait a little and then retry,
                 # putting the item back in the uploader queue
                 self._factory._folder_status.error_occurred(
@@ -759,6 +788,12 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def error(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                return f
+
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )

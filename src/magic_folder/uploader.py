@@ -320,6 +320,9 @@ class UploaderService(service.Service):
         propagated to the caller.
         """
 
+        if not self.running:
+            raise CancelledError()
+
         upload_started_at = time.time()
         Message.log(message_type="uploading")
 
