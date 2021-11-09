@@ -204,6 +204,7 @@ class LocalSnapshotService(service.Service):
                     snap = yield self._snapshot_creator.store_local_snapshot(path)
                     d.callback(snap)
             except CancelledError:
+                d.cancel()
                 break
             except Exception:
                 d.errback()
@@ -213,11 +214,9 @@ class LocalSnapshotService(service.Service):
         """
         Don't process queued items anymore.
         """
-        d = self._service_d
         self._service_d.cancel()
-        service.Service.stopService(self)
         self._service_d = None
-        return d
+        return service.Service.stopService(self)
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
@@ -301,6 +300,7 @@ class UploaderService(service.Service):
                 remote = yield self._perform_upload(snap)
                 d.callback(remote)
             except CancelledError:
+                d.cancel()
                 break
             except Exception:
                 d.errback()
@@ -310,11 +310,9 @@ class UploaderService(service.Service):
         """
         Don't process queued items anymore.
         """
-        d = self._service_d
         self._service_d.cancel()
-        service.Service.stopService(self)
         self._service_d = None
-        return d
+        return service.Service.stopService(self)
 
     @inline_callbacks
     def _perform_upload(self, snapshot):

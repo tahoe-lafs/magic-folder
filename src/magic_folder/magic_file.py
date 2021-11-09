@@ -747,7 +747,7 @@ class MagicFile(object):
                             self._factory._folder_status.error_occurred(
                                 "Cancelled: {}".format(self._relpath)
                             )
-                        return reason
+                            return reason
 
                 # upon errors, we wait a little and then retry,
                 # putting the item back in the uploader queue

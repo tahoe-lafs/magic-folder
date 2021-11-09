@@ -125,8 +125,8 @@ def test_leave_many(request, reactor, temp_filepath, alice, bob):
     # try and ensure that the folders are "doing some work" by adding
     # files to them all (sizes are in KiB)
     fake_files = (
-        ('zero', 100),
-        ('one', 10000),
+        ('zero', 100),  # 100K
+        ('one', 10000), # 10M
     )
     for fname, size in fake_files:
         for name in names:
