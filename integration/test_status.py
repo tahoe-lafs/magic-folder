@@ -2,15 +2,12 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import json
 import pytest_twisted
-from twisted.internet.error import ProcessTerminated
 
 from magic_folder.util.capabilities import (
     to_readonly_capability,
 )
 
 from .util import (
-    await_file_contents,
-    ensure_file_not_created,
     twisted_sleep,
 )
 
