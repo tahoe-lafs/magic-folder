@@ -406,6 +406,7 @@ class WebSocketStatusService(service.Service):
         """
         IStatus API
         """
+        self.download_queued(folder, relpath)  # ensure relpath exists
         self._folders[folder]["downloads"][relpath]["started-at"] = self._clock.seconds()
         self._maybe_update_clients()
 

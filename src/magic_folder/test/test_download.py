@@ -1330,6 +1330,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
         yield self.file_factory.finish()
@@ -1425,6 +1426,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
 
@@ -1498,6 +1500,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
 
