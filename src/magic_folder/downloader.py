@@ -43,6 +43,7 @@ from twisted.internet.defer import (
     DeferredLock,
     maybeDeferred,
     returnValue,
+    gatherResults,
     succeed,
 )
 from twisted.internet.interfaces import (
@@ -488,11 +489,8 @@ class RemoteScannerService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        updates.append((relpath, file_data.snapshot_cap))
-                        self._status.download_queued(self._config.name, relpath)
-
-            for relpath, snap_cap in updates:
-                yield self._process_snapshot(relpath, snap_cap)
+                        updates.append(self._process_snapshot(relpath, file_data.snapshot_cap))
+            yield gatherResults(updates)
 
     @inline_callbacks
     def _process_snapshot(self, relpath, snapshot_cap):

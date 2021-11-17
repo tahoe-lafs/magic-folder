@@ -662,6 +662,10 @@ class MagicFile(object):
         self._factory._folder_status.upload_finished(self._relpath)
 
     @_machine.output()
+    def _status_download_queued(self):
+        self._factory._folder_status.download_started(self._relpath)
+
+    @_machine.output()
     def _status_download_started(self):
         self._factory._folder_status.download_started(self._relpath)
 
@@ -880,14 +884,14 @@ class MagicFile(object):
     _up_to_date.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_working, _status_download_started, _begin_download],
+        outputs=[_working, _status_download_queued, _status_download_started, _begin_download],
         collector=_last_one,
     )
 
     _download_checking_ancestor.upon(
         _remote_update,
         enter=_download_checking_ancestor,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
 
@@ -920,7 +924,7 @@ class MagicFile(object):
     _downloading.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
 
@@ -1050,13 +1054,13 @@ class MagicFile(object):
     _creating_snapshot.upon(
         _remote_update,
         enter=_creating_snapshot,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _uploading.upon(
         _remote_update,
         enter=_uploading,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _downloading.upon(
@@ -1068,7 +1072,7 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _remote_update,
         enter=_updating_personal_dmd_download,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1081,7 +1085,7 @@ class MagicFile(object):
     _updating_personal_dmd_upload.upon(
         _remote_update,
         enter=_updating_personal_dmd_upload,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _updating_personal_dmd_upload.upon(
