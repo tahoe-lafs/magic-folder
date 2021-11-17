@@ -460,6 +460,12 @@ class MagicFile(object):
         The proposed update is _our_ ancestor.
         """
 
+    @_machine.input()
+    def _cancel(self, snapshot):
+        """
+        We have been cancelled
+        """
+
     @_machine.output()
     def _begin_download(self, snapshot):
         """
@@ -476,6 +482,7 @@ class MagicFile(object):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
                 )
+                self._call_later(self._cancel, snapshot)
                 return f
 
             self._factory._folder_status.error_occurred(
@@ -652,6 +659,7 @@ class MagicFile(object):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
                 )
+                self._call_later(self._cancel, snapshot)
                 return f
 
             self._factory._folder_status.error_occurred(
@@ -740,6 +748,7 @@ class MagicFile(object):
                     self._factory._folder_status.error_occurred(
                         "Cancelled: {}".format(self._relpath)
                     )
+                    self._call_later(self._cancel, snapshot)
                     return f
                 if f.check(ResponseNeverReceived):
                     for reason in f.value.reasons:
@@ -747,6 +756,7 @@ class MagicFile(object):
                             self._factory._folder_status.error_occurred(
                                 "Cancelled: {}".format(self._relpath)
                             )
+                            self._call_later(self._cancel, snapshot)
                             return reason
 
                 # upon errors, we wait a little and then retry,
@@ -792,6 +802,7 @@ class MagicFile(object):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
                 )
+                self._call_later(self._cancel, snapshot)
                 return f
 
             self._factory._folder_status.error_occurred(
@@ -971,6 +982,12 @@ class MagicFile(object):
         outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
+    _downloading.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_done_working],
+        collector=_last_one,
+    )
 
     _download_checking_local.upon(
         _download_matches,
@@ -1032,6 +1049,12 @@ class MagicFile(object):
         outputs=[_queue_local_update],
         collector=_last_one,
     )
+    _uploading.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_done_working],
+        collector=_last_one,
+    )
 
     # there is async-work done by _update_personal_dmd_upload, after
     # which personal_dmd_updated is input back to the machine
@@ -1041,10 +1064,22 @@ class MagicFile(object):
         outputs=[_status_upload_finished, _check_for_local_work],
         collector=_last_one,
     )
+    _updating_personal_dmd_upload.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_upload_finished, _done_working],
+        collector=_last_one,
+    )
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
         outputs=[_status_download_finished, _check_for_local_work],
+        collector=_last_one,
+    )
+    _updating_personal_dmd_download.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(

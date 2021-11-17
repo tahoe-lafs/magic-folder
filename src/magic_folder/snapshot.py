@@ -27,6 +27,9 @@ from twisted.python.filepath import (
 from twisted.internet.defer import (
     returnValue,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.web.client import (
     FileBodyProducer,
 )
@@ -503,6 +506,8 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     parents_local = []
     parents_remote = []
 
+    from twisted.internet import reactor
+
     for idx, parent in enumerate(parents):
         if isinstance(parent, LocalSnapshot):
             parents_local.append(parent)
@@ -539,7 +544,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
                     else:
                         done = True
                         break
-                yield
+                yield deferLater(reactor, 0)
         finally:
             os.close(temp_file_fd)
 

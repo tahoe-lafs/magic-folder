@@ -205,7 +205,7 @@ class LocalSnapshotService(service.Service):
                     d.callback(snap)
             except CancelledError:
                 d.cancel()
-                break
+                return
             except Exception:
                 d.errback()
                 write_traceback()
@@ -214,9 +214,12 @@ class LocalSnapshotService(service.Service):
         """
         Don't process queued items anymore.
         """
+        d = self._service_d
         self._service_d.cancel()
         self._service_d = None
-        return service.Service.stopService(self)
+        d.addBoth(lambda _: super(LocalSnapshotService, self).stopService())
+        self._queue.cancelGet()
+        return d
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
@@ -301,7 +304,7 @@ class UploaderService(service.Service):
                 d.callback(remote)
             except CancelledError:
                 d.cancel()
-                break
+                return
             except Exception:
                 d.errback()
                 write_traceback()
@@ -310,9 +313,12 @@ class UploaderService(service.Service):
         """
         Don't process queued items anymore.
         """
+        d = self._service_d
         self._service_d.cancel()
         self._service_d = None
-        return service.Service.stopService(self)
+        d.addBoth(lambda _: super(UploaderService, self).stopService())
+        self._queue.cancelGet()
+        return d
 
     @inline_callbacks
     def _perform_upload(self, snapshot):
@@ -320,9 +326,6 @@ class UploaderService(service.Service):
         Do the actual work of performing an upload. Failures are
         propagated to the caller.
         """
-
-        if not self.running:
-            raise CancelledError()
 
         upload_started_at = time.time()
         Message.log(message_type="uploading")
