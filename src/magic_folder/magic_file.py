@@ -23,6 +23,7 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
+    DeferredSemaphore,
     maybeDeferred,
     succeed,
 )
@@ -75,6 +76,7 @@ class MagicFileFactory(object):
     _synchronous = attr.ib(default=False)  # if True, _call_later doesn't use reactor
 
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
+    _download_parallel = attr.ib(default=attr.Factory(lambda: DeferredSemaphore(5)))
 
     def magic_file_for(self, path):
         """
@@ -477,16 +479,27 @@ class MagicFile(object):
             delay.addErrback(failed)
             return None
 
+        @inline_callbacks
         def perform_download():
             if snapshot.content_cap is None:
                 d = succeed(None)
             else:
-                d = maybeDeferred(
-                    self._factory._magic_fs.download_content_to_staging,
-                    snapshot.relpath,
-                    snapshot.content_cap,
-                    self._factory._tahoe_client,
-                )
+                d = self._factory._download_parallel.acquire()
+
+                def work(ignore):
+                    self._factory._folder_status.download_started(self._relpath)
+                    return maybeDeferred(
+                        self._factory._magic_fs.download_content_to_staging,
+                        snapshot.relpath,
+                        snapshot.content_cap,
+                        self._factory._tahoe_client,
+                    )
+                d.addCallback(work)
+
+                def clean(arg):
+                    self._factory._download_parallel.release()
+                    return arg
+                d.addBoth(clean)
             d.addCallback(downloaded)
             d.addErrback(failed)
             return d
@@ -663,11 +676,7 @@ class MagicFile(object):
 
     @_machine.output()
     def _status_download_queued(self):
-        self._factory._folder_status.download_started(self._relpath)
-
-    @_machine.output()
-    def _status_download_started(self):
-        self._factory._folder_status.download_started(self._relpath)
+        self._factory._folder_status.download_queued(self._relpath)
 
     @_machine.output()
     def _status_download_finished(self):
@@ -884,7 +893,7 @@ class MagicFile(object):
     _up_to_date.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_working, _status_download_queued, _status_download_started, _begin_download],
+        outputs=[_working, _status_download_queued, _begin_download],
         collector=_last_one,
     )
 
@@ -1026,7 +1035,7 @@ class MagicFile(object):
     _checking_for_remote_work.upon(
         _queued_download,
         enter=_downloading,
-        outputs=[_status_download_started, _begin_download],
+        outputs=[_begin_download],
         collector=_last_one,
     )
     _checking_for_remote_work.upon(
