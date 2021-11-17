@@ -142,6 +142,7 @@ class MagicFolder(service.MultiService):
                 participants=participants,
                 file_factory=magic_file_factory,
                 remote_snapshot_cache=remote_snapshot_cache_service,
+                status_service=status_service,
             ),
             uploader=uploader,
             folder_status=folder_status,

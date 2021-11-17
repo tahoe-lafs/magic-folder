@@ -52,6 +52,9 @@ from twisted.internet.interfaces import (
 from .snapshot import (
     create_snapshot_from_capability,
 )
+from .status import (
+    IStatus,
+)
 from .util.file import (
     PathState,
     get_pathinfo,
@@ -426,9 +429,10 @@ class RemoteScannerService(service.MultiService):
     _participants = attr.ib()
     _file_factory = attr.ib()  # MagicFileFactory instance
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache):
+    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache, status_service):
         """
         Create a RemoteScannerService from the MagicFolder configuration.
         """
@@ -438,6 +442,7 @@ class RemoteScannerService(service.MultiService):
             participants,
             file_factory,
             remote_snapshot_cache,
+            status_service,
         )
 
     def __attrs_post_init__(self):
@@ -469,10 +474,9 @@ class RemoteScannerService(service.MultiService):
             action_type="downloader:poll-collective", folder=self._config.name
         ):
             # XXX any errors here should (probably) be reported to the
-            # status service .. meantime, errors will abort this poll
-            # but shouldn't cause subsequent polling runs to be
-            # aborted.
+            # status service ..
             participants = yield self._participants.list()
+            updates = []  # 2-tuples (relpath, snapshot-cap)
             for participant in participants:
                 with start_action(
                     action_type="downloader:poll-participant",
@@ -484,7 +488,11 @@ class RemoteScannerService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        yield self._process_snapshot(relpath, file_data.snapshot_cap)
+                        updates.append((relpath, file_data.snapshot_cap))
+                        self._status.download_queued(self._config.name, relpath)
+
+            for relpath, snap_cap in updates:
+                yield self._process_snapshot(relpath, snap_cap)
 
     @inline_callbacks
     def _process_snapshot(self, relpath, snapshot_cap):
