@@ -74,6 +74,14 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
+    def download_queued(folder, relpath):
+        """
+        An item is added to our download queue
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
     def download_started(folder, relpath):
         """
         Started downloading a Snapshot + content from Tahoe
@@ -381,15 +389,25 @@ class WebSocketStatusService(service.Service):
         del self._folders[folder]["uploads"][relpath]
         self._maybe_update_clients()
 
+    def download_queued(self, folder, relpath):
+        """
+        IStatus API
+        """
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["downloads"]:
+            self._folders[folder]["downloads"][relpath] = {
+                "relpath": relpath,
+                "queued-at": self._clock.seconds(),
+            }
+        self._maybe_update_clients()
+
     def download_started(self, folder, relpath):
         """
         IStatus API
         """
-        data = {
-            "relpath": relpath,
-            "started-at": self._clock.seconds(),
-        }
-        self._folders[folder]["downloads"][relpath] = data
+        self.download_queued(folder, relpath)  # ensure relpath exists
+        self._folders[folder]["downloads"][relpath]["started-at"] = self._clock.seconds()
         self._maybe_update_clients()
 
     def download_finished(self, folder, relpath):
