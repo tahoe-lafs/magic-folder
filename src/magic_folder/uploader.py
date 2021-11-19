@@ -240,9 +240,6 @@ class LocalSnapshotService(service.Service):
         :raises: TypeError if the input is not a FilePath.
         :returns Deferred[LocalSnapshot]: the completed snapshot
         """
-        if not self.running:
-            raise CancelledError()
-
         if not isinstance(path, FilePath):
             raise TypeError(
                 "argument must be a FilePath"

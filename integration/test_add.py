@@ -49,7 +49,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     """
     magic = temp_filepath
     original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+    recover_folder = magic.child("cats_recover")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -81,7 +81,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
     yield bob.add_participant("recovery", "alice", alice_cap)
 
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("grumpy").path,
         content0,
         timeout=25,
@@ -93,28 +93,26 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     original_folder.child("sylvester").setContent(content1)
     yield alice.add_snapshot("original", "sylvester")
 
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester").path,
         timeout=25,
     )
 
 
 @pytest_twisted.inlineCallbacks
-def test_leave_many(request, reactor, temp_filepath, alice, bob):
+def test_leave_many(request, reactor, temp_filepath, alice):
     """
     Many magic-folders can be added and left in rapid succession
 
     See also https://github.com/LeastAuthority/magic-folder/issues/587
     """
-    magic = temp_filepath
-
     names = [
         "folder_{}".format(x)
         for x in range(10)
     ]
 
     for name in names:
-        folder = magic.child(name)
+        folder = temp_filepath.child(name)
         folder.makedirs()
 
         yield alice.add(name, folder.path)
@@ -130,18 +128,19 @@ def test_leave_many(request, reactor, temp_filepath, alice, bob):
     )
     for fname, size in fake_files:
         for name in names:
-            with magic.child(name).child(fname).open("wb") as f:
+            with temp_filepath.child(name).child(fname).open("wb") as f:
                 for _ in range(size):
                     f.write("xxxxxxx\n" * (1024 // 8))
 
     # initiate a scan on them all
-    scans = []
-    for name in names:
-        print("scan: {}".format(name))
-        scans.append(alice.scan_folder(name))
-    res = yield DeferredList(scans)
-    print(res)
+    scans = yield DeferredList([
+        alice.scan_folder(name)
+        for name in names
+    ])
+    assert all(ok for ok, _ in scans), "at least one scan failed"
 
-    for name in names:
-        print("leaving", name)
-        yield alice.leave(name)
+    leaves = yield DeferredList([
+        alice.leave(name)
+        for name in names
+    ])
+    assert all(ok for ok, _ in leaves), "at least one leave() failed"
