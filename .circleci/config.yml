@@ -53,6 +53,8 @@ workflows:
       # Other assorted tasks and configurations
       - "lint":
           <<: *DOCKERHUB_CONTEXT
+      - "checknews":
+          <<: *DOCKERHUB_CONTEXT
       - "c-locale":
           <<: *DOCKERHUB_CONTEXT
       # Any locale other than C or UTF-8.
@@ -150,6 +152,24 @@ jobs:
 
       - store_test_results:
           path: "junit/"
+
+  checknews:
+    docker:
+      - auth: *DOCKERHUB_AUTH
+        image: "circleci/python:3"
+
+    steps:
+      - "checkout"
+
+      - run:
+          name: "Install tox"
+          command: |
+            pip install --user tox
+
+      - run:
+          name: "Check for newsfragments on branch."
+          command: |
+            ~/.local/bin/tox -e checknews
 
   debian-10: &DEBIAN
     docker:
