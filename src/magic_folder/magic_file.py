@@ -776,6 +776,7 @@ class MagicFile(object):
                 self._factory._remote_cache._cached_snapshots[remote.capability] = remote
                 self._call_later(self._upload_completed, snapshot)
             d.addCallback(got_remote)
+            return d
 
     @_machine.output()
     def _mark_download_conflict(self, snapshot, staged_path):
