@@ -650,9 +650,6 @@ class AsyncMagicFileTests(AsyncTestCase):
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
-
-        # arrange to fail the Personal DMD update that will result
-        # while uploading this update
         yield mf.create_update()
         yield mf.when_idle()
 
