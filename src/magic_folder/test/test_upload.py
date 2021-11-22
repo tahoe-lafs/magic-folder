@@ -45,7 +45,6 @@ from twisted.internet.defer import (
     Deferred,
     DeferredList,
     inlineCallbacks,
-    CancelledError,
 )
 from twisted.web.resource import (
     ErrorPage,

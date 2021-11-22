@@ -44,7 +44,6 @@ from twisted.web import (
 
 from twisted.internet.defer import (
     succeed,
-    Deferred,
 )
 
 from ..util.encoding import normalize
