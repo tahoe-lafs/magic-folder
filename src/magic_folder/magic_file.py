@@ -1193,3 +1193,14 @@ class MagicFile(object):
         enter=_conflicted,
         outputs=[],  # nothing, likely: user messing with resolution file?
     )
+
+    _failed.upon(
+        _local_update,
+        enter=_failed,
+        outputs=[],  # should perhaps record (another) error?
+    )
+    _failed.upon(
+        _remote_update,
+        enter=_failed,
+        outputs=[],  # should perhaps record (another) error?
+    )
