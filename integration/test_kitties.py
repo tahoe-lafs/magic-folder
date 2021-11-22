@@ -72,13 +72,13 @@ def test_kittens(request, reactor, temp_filepath, alice):
     # them, necessarily, yet)
     yield alice.scan("kitties")
 
-    # wait up to 10 seconds to be complete
+    # wait for a limited time to be complete
     for _ in range(10):
         st = yield alice.status()
         data = json.loads(st)
         if data["state"]["synchronizing"] is False:
             break
-        yield twisted_sleep(reactor, 10)
+        yield twisted_sleep(reactor, 1)
     assert data["state"]["synchronizing"] is False, "Should be finished uploading"
 
     kitties = data["state"]["folders"]["kitties"]
