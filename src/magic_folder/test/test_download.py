@@ -1547,7 +1547,7 @@ class CancelTests(AsyncTestCase):
     """
 
     @inline_callbacks
-    def _test_cancel_download_dmd_update(self):
+    def test_cancel_download_dmd_update(self):
         """
         An update arrives but one of the tahoe requests is cancelled
         """
