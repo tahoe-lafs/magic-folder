@@ -1640,6 +1640,8 @@ class ConflictTests(AsyncTestCase):
         remote_snapshot = FakeRemoteSnapshot()
 
         mf = service.file_factory.magic_file_for(local)
+        # when .stream_capability() is called it will receive an
+        # already cancelled Deferred
         yield mf.found_new_remote(remote_snapshot)
 
         # status system should report our error
