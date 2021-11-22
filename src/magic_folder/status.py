@@ -98,6 +98,13 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
+    def folder_gone(folder):
+        """
+        The given folder is gone and all state for it should be deleted.
+
+        :param unicode folder: the folder that is gone
+        """
+
 
 class StatusProtocol(WebSocketServerProtocol):
     """
@@ -343,6 +350,17 @@ class WebSocketStatusService(service.Service):
                     # XXX disconnect / remove client?
 
     # IStatus API
+
+    def folder_gone(self, folder):
+        """
+        IStatus API
+
+        :param unicode folder: the folder which is removed
+        """
+        try:
+            del self._folders[folder]
+        except KeyError:
+            pass
 
     def error_occurred(self, folder, message):
         """

@@ -988,7 +988,7 @@ class MagicFile(object):
     _downloading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_done_working],
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1055,7 +1055,7 @@ class MagicFile(object):
     _uploading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_done_working],
+        outputs=[_status_upload_finished, _done_working],
         collector=_last_one,
     )
 
