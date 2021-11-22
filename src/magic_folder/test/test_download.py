@@ -111,6 +111,7 @@ from ..util.capabilities import (
 from .common import (
     SyncTestCase,
     AsyncTestCase,
+    AsyncBrokenTestCase,
 )
 from .matchers import (
     matches_flushed_traceback,
@@ -928,7 +929,7 @@ class UpdateTests(AsyncTestCase):
         )
 
 
-class ConflictTests(AsyncTestCase):
+class ConflictTests(AsyncBrokenTestCase):
     """
     Tests relating to conflict cases
     """
