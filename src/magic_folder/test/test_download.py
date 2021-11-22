@@ -111,7 +111,6 @@ from ..util.capabilities import (
 from .common import (
     SyncTestCase,
     AsyncTestCase,
-    AsyncBrokenTestCase,
 )
 from .matchers import (
     matches_flushed_traceback,
@@ -929,7 +928,7 @@ class UpdateTests(AsyncTestCase):
         )
 
 
-class ConflictTests(AsyncBrokenTestCase):
+class ConflictTests(AsyncTestCase):
     """
     Tests relating to conflict cases
     """
@@ -1540,6 +1539,12 @@ class ConflictTests(AsyncBrokenTestCase):
                 matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
             ]),
         )
+
+
+class CancelTests(AsyncTestCase):
+    """
+    Tests relating to cancelling operations
+    """
 
     @inline_callbacks
     def test_cancel_download_dmd_update(self):
