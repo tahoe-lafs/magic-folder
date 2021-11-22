@@ -1543,12 +1543,12 @@ class ConflictTests(AsyncTestCase):
     @inline_callbacks
     def test_cancel_download_dmd_update(self):
         """
-        An update arrives the tahoe request is cancelled
+        An update arrives but one of the tahoe requests is cancelled
         """
 
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
-        relpath = "random_local_file"
+        relpath = "some_file"
 
         # we provide our own Tahoe client here so that we can control
         # when uploads etc complete ..
@@ -1558,19 +1558,19 @@ class ConflictTests(AsyncTestCase):
             create_tahoe_treq_client(tahoe_root),
         )
 
-        class Wrap(object):
+        def stream_capability(cap, filething):
+            d = Deferred()
+            d.cancel()
+            return d
+
+        class CancelTahoe(object):
             def __getattr__(self, name):
                 if name == "stream_capability":
                     return stream_capability
                 else:
                     return getattr(_tahoe_client, name)
 
-        def stream_capability(cap, filething):
-            d = Deferred()
-            d.cancel()
-            return d
-
-        tahoe_client = Wrap()
+        tahoe_client = CancelTahoe()
 
         from twisted.internet import reactor
 
@@ -1635,8 +1635,8 @@ class ConflictTests(AsyncTestCase):
             local_f.write(b"dummy\n" * 50)
 
         class FakeRemoteSnapshot(object):
-            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
-            relpath = "random_file"
+            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('x' * 26, 'y' * 52)
+            relpath = "some_file"  # match earlier relpath
         remote_snapshot = FakeRemoteSnapshot()
 
         mf = service.file_factory.magic_file_for(local)
@@ -1653,7 +1653,7 @@ class ConflictTests(AsyncTestCase):
                                 lambda errors: errors[0],
                                 ContainsDict({
                                     "summary": Equals(
-                                        "Cancelled: random_local_file"
+                                        "Cancelled: some_file"
                                     )
                                 }),
                             ),
