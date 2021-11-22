@@ -1670,6 +1670,8 @@ class CancelTests(AsyncTestCase):
                 }),
             })
         )
+        # XXX hack around windows?
+        yield deferLater(reactor, 0.5, lambda: None)
 
 
 class FilesystemModificationTests(SyncTestCase):
