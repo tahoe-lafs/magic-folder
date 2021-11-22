@@ -45,6 +45,7 @@ from twisted.internet.defer import (
     Deferred,
     DeferredList,
     inlineCallbacks,
+    CancelledError,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -552,4 +553,126 @@ class AsyncMagicFileTests(AsyncTestCase):
             MatchesListwise([
                 matches_flushed_traceback(Exception, "Couldn't add random_local_file to directory. Error code 500")
             ]),
+        )
+
+    @inlineCallbacks
+    def test_cancel_upload(self):
+        """
+        While an upload is ongoing it is cancelled
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "random_local_file"
+
+        # we provide our own Tahoe client here so that we can control
+        # when uploads etc complete ..
+        tahoe_root = create_fake_tahoe_root()
+        _tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(tahoe_root),
+        )
+
+        class Wrap(object):
+            def __getattr__(self, name):
+                if name == "create_immutable":
+                    return create_immutable
+                else:
+                    return getattr(_tahoe_client, name)
+
+        def create_immutable(producer):
+            d = Deferred()
+            d.cancel()
+            return d
+
+        tahoe_client = Wrap()
+
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=tahoe_client,
+            # note: we do start services, but later..
+            start_folder_services=False,
+        )
+        self.addCleanup(alice.cleanup)
+
+        config = alice.global_config.get_magic_folder("default")
+        service = alice.global_service.get_folder_service("default")
+
+        # because we provided a tahoe_root to MagicFolderNode, it
+        # doesn't put the collective/personal mutable DMDs in to the
+        # data-store...and so we also need to delay startup of
+        # services until we've done this, so that the scanner may find
+        # things.
+
+        # Collective DMD
+        tahoe_root._uri.data[config.collective_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {
+                    "alice": [
+                        "dirnode",
+                        {
+                            "mutable": True,
+                            "ro_uri": to_readonly_capability(config.upload_dircap),
+                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "format": "SDMF",
+                        },
+                    ],
+                }
+            }
+        ])
+
+        # Personal DMD
+        tahoe_root._uri.data[config.upload_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {},
+            }
+        ])
+
+        # all data available, we can start services
+        service.startService()
+
+        local = magic_path.child(relpath)
+        with local.asBytesMode("utf8").open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        mf = service.file_factory.magic_file_for(local)
+
+        # arrange to fail the Personal DMD update that will result
+        # while uploading this update
+        yield mf.create_update()
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: random_local_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
         )

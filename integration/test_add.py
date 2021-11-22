@@ -144,3 +144,6 @@ def test_leave_many(request, reactor, temp_filepath, alice):
         for name in names
     ])
     assert all(ok for ok, _ in leaves), "at least one leave() failed"
+
+    alice_folders = yield alice.list_(True)
+    assert not alice_folders, "should be zero folders"

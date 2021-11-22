@@ -483,7 +483,7 @@ class MagicFile(object):
                     "Cancelled: {}".format(self._relpath)
                 )
                 self._call_later(self._cancel, snapshot)
-                return f
+                return
 
             self._factory._folder_status.error_occurred(
                 "Failed to download snapshot for '{}'.".format(
@@ -517,6 +517,7 @@ class MagicFile(object):
                     self._factory._download_parallel.release()
                     return arg
                 d.addBoth(clean)
+
             d.addCallback(downloaded)
             d.addErrback(failed)
             return d
@@ -660,7 +661,7 @@ class MagicFile(object):
                     "Cancelled: {}".format(self._relpath)
                 )
                 self._call_later(self._cancel, snapshot)
-                return f
+                return
 
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
@@ -749,7 +750,7 @@ class MagicFile(object):
                         "Cancelled: {}".format(self._relpath)
                     )
                     self._call_later(self._cancel, snapshot)
-                    return f
+                    return
                 if f.check(ResponseNeverReceived):
                     for reason in f.value.reasons:
                         if reason.check(CancelledError):
@@ -757,7 +758,7 @@ class MagicFile(object):
                                 "Cancelled: {}".format(self._relpath)
                             )
                             self._call_later(self._cancel, snapshot)
-                            return reason
+                            return
 
                 # upon errors, we wait a little and then retry,
                 # putting the item back in the uploader queue
@@ -768,14 +769,15 @@ class MagicFile(object):
                 delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
                 delay.addErrback(upload_error, snap)
                 return delay
-            d.addErrback(upload_error, snapshot)
 
             def got_remote(remote):
                 # successfully uploaded
                 snapshot.remote_snapshot = remote
                 self._factory._remote_cache._cached_snapshots[remote.capability] = remote
                 self._call_later(self._upload_completed, snapshot)
+
             d.addCallback(got_remote)
+            d.addErrback(upload_error, snapshot)
             return d
 
     @_machine.output()
@@ -804,7 +806,7 @@ class MagicFile(object):
                     "Cancelled: {}".format(self._relpath)
                 )
                 self._call_later(self._cancel, snapshot)
-                return f
+                return
 
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
