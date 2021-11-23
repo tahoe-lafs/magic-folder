@@ -144,7 +144,6 @@ class MagicFileFactory(object):
         Cancel any files we know about (e.g. service is shutting down)
         """
         for d in self._delays:
-            print("cancel", d)
             d.cancel()
         return self.finish()
 
@@ -153,10 +152,6 @@ class MagicFileFactory(object):
         Mostly for testing, this will yield on .when_idle() for every
         MagicFile we know about
         """
-        print("finish")
-        for mf in self._magic_files.values():
-            print(mf._relpath)
-        print("----")
         return DeferredList([
             mf.when_idle()
             for mf in self._magic_files.values()
@@ -218,11 +213,9 @@ class MagicFile(object):
 
             def delay(seconds, f, *args, **kwargs):
                 d = deferLater(reactor, seconds, f, *args, **kwargs)
-                print("DELAY", seconds, d)
                 self._factory._delays.append(d)
 
                 def remove(arg):
-                    print("remove", d)
                     self._factory._delays.remove(d)
                     return arg
                 d.addBoth(remove)

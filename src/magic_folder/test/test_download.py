@@ -1550,8 +1550,10 @@ class CancelTests(AsyncTestCase):
     Tests relating to cancelling operations
     """
 
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
     @inline_callbacks
-    def test_cancel_download_dmd_update(self):
+    def test_cancel0(self):
         """
         An update arrives but one of the tahoe requests is cancelled
         """
@@ -1653,6 +1655,7 @@ class CancelTests(AsyncTestCase):
         # when .stream_capability() is called it will receive an
         # already cancelled Deferred
         yield mf.found_new_remote(remote_snapshot)
+        yield mf.when_idle()
 
         # status system should report our error
         self.assertThat(

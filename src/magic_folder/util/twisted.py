@@ -147,7 +147,6 @@ class PeriodicService(Service):
             if isinstance(result, Failure):
                 if isinstance(result.value, CancelledError):
                     if self._deferred is not None:
-                        print("CANCEL", self._deferred)
                         self._deferred.cancel()
                 write_failure(result)
             self._deferred = None

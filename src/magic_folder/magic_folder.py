@@ -181,9 +181,7 @@ class MagicFolder(service.MultiService):
 
     @inline_callbacks
     def stopService(self):
-        print("stopping files")
         yield self.file_factory.cancel()
-        print("done")
         yield super(MagicFolder, self).stopService()
 
     def ready(self):
