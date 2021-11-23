@@ -18,6 +18,9 @@ from eliot import (
     ActionType,
     MessageType,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from .common import APIError
 from .util.eliotutil import (
@@ -175,6 +178,13 @@ class MagicFolder(service.MultiService):
         downloader.setServiceParent(self)
         uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
+
+    @inline_callbacks
+    def stopService(self):
+        print("stopping files")
+        yield self.file_factory.cancel()
+        print("done")
+        yield super(MagicFolder, self).stopService()
 
     def ready(self):
         """
