@@ -969,7 +969,6 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-    # XXX local-update possible here too? then->conflict
     _download_checking_ancestor.upon(
         _ancestor_mismatch,
         enter=_conflicted,
