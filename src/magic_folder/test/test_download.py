@@ -1678,6 +1678,163 @@ class CancelTests(AsyncTestCase):
             })
         )
 
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
+    @inline_callbacks
+    def test_cancel1(self):
+        """
+        An update arrives but our attempt to update our Personal DMD is
+        cancelled
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=create_local_author("carol"),
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "a_file"
+
+        # we provide our own Tahoe client here so that we can control
+        # when uploads etc complete ..
+        tahoe_root = create_fake_tahoe_root()
+        _tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(tahoe_root),
+        )
+
+        def stream_capability(cap, filething):
+            d = Deferred()
+            d.callback(None)
+            return d
+
+        class CancelTahoe(object):
+            def __getattr__(self, name):
+                if name == "stream_capability":
+                    return stream_capability
+                else:
+                    return getattr(_tahoe_client, name)
+
+        tahoe_client = CancelTahoe()
+
+        from twisted.internet import reactor
+
+        carol = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "carol",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=tahoe_client,
+            # note: we do start services, but later..
+            start_folder_services=False,
+        )
+        self.addCleanup(carol.cleanup)
+
+        config = carol.global_config.get_magic_folder("default")
+        service = carol.global_service.get_folder_service("default")
+
+        # because we provided a tahoe_root to MagicFolderNode, it
+        # doesn't put the collective/personal mutable DMDs in to the
+        # data-store...and so we also need to delay startup of
+        # services until we've done this, so that the scanner may find
+        # things.
+
+        # Collective DMD
+        tahoe_root._uri.data[config.collective_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {
+                    "carol": [
+                        "dirnode",
+                        {
+                            "mutable": True,
+                            "ro_uri": to_readonly_capability(config.upload_dircap),
+                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "format": "SDMF",
+                        },
+                    ],
+                }
+            }
+        ])
+
+        # Personal DMD
+        tahoe_root._uri.data[config.upload_dircap] = dumps([
+            "dirnode",
+            {
+                "children": {
+                    relpath: [
+                        "dirnode",
+                        {
+                            "mutable": False,
+                            "ro_uri": parent_cap,
+                            "verify_uri": to_verify_capability(parent_cap),
+                            "format": "SDMF",
+                        },
+                    ],
+                },
+            }
+        ])
+
+        # data is available; start the service
+        service.startService()
+
+        # arrange to cancel the Personal DMD update
+
+        def cancel_it(*args, **kw):
+            d = Deferred()
+            d.cancel()
+            return d
+
+        class CancelFile(object):
+            def __getattr__(self, name):
+                if name == "update_snapshot":
+                    return cancel_it
+                else:
+                    return getattr(service.file_factory._write_participant, name)
+
+        service.file_factory._write_participant = CancelFile()
+
+        mf = service.file_factory.magic_file_for(magic_path.child(relpath))
+        # when .stream_capability() is called it will receive an
+        # already cancelled Deferred
+        yield mf.found_new_remote(parent)
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(carol.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: a_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
 
 class FilesystemModificationTests(SyncTestCase):
     """
