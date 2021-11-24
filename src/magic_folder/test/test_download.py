@@ -123,10 +123,6 @@ from .fixtures import (
 )
 
 
-from twisted.internet.base import DelayedCall
-DelayedCall.debug = True
-
-
 class CacheTests(SyncTestCase):
     """
     Tests for ``RemoteSnapshotCacheService``
