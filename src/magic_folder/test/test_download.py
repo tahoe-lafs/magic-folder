@@ -108,6 +108,12 @@ from ..util.capabilities import (
     to_readonly_capability,
     to_verify_capability,
 )
+from ..util.wrap import (
+    wrap_frozen,
+)
+from ..util.twisted import (
+    cancelled,
+)
 from .common import (
     SyncTestCase,
     AsyncTestCase,
@@ -1566,19 +1572,10 @@ class CancelTests(AsyncTestCase):
             create_tahoe_treq_client(tahoe_root),
         )
 
-        def stream_capability(cap, filething):
-            d = Deferred()
-            d.cancel()
-            return d
-
-        class CancelTahoe(object):
-            def __getattr__(self, name):
-                if name == "stream_capability":
-                    return stream_capability
-                else:
-                    return getattr(_tahoe_client, name)
-
-        tahoe_client = CancelTahoe()
+        tahoe_client = wrap_frozen(
+            _tahoe_client,
+            stream_capability=cancelled,
+        )
 
         from twisted.internet import reactor
 
@@ -1706,19 +1703,15 @@ class CancelTests(AsyncTestCase):
             create_tahoe_treq_client(tahoe_root),
         )
 
+        # shortcut the download, always succeed
         def stream_capability(cap, filething):
             d = Deferred()
             d.callback(None)
             return d
-
-        class CancelTahoe(object):
-            def __getattr__(self, name):
-                if name == "stream_capability":
-                    return stream_capability
-                else:
-                    return getattr(_tahoe_client, name)
-
-        tahoe_client = CancelTahoe()
+        tahoe_client = wrap_frozen(
+            _tahoe_client,
+            stream_capability=stream_capability,
+        )
 
         from twisted.internet import reactor
 
@@ -1789,24 +1782,12 @@ class CancelTests(AsyncTestCase):
         service.startService()
 
         # arrange to cancel the Personal DMD update
-
-        def cancel_it(*args, **kw):
-            d = Deferred()
-            d.cancel()
-            return d
-
-        class CancelFile(object):
-            def __getattr__(self, name):
-                if name == "update_snapshot":
-                    return cancel_it
-                else:
-                    return getattr(service.file_factory._write_participant, name)
-
-        service.file_factory._write_participant = CancelFile()
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=cancelled,
+        )
 
         mf = service.file_factory.magic_file_for(magic_path.child(relpath))
-        # when .stream_capability() is called it will receive an
-        # already cancelled Deferred
         yield mf.found_new_remote(parent)
         yield mf.when_idle()
 

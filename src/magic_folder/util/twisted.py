@@ -38,6 +38,16 @@ def exclusively(maybe_f=None, lock_name="_lock"):
         return wrap(maybe_f)
 
 
+def cancelled(*args, **kw):
+    """
+    A function that takes any arguments at all and returns a Deferred
+    that is already cancelled.
+    """
+    d = Deferred()
+    d.cancel()
+    return d
+
+
 @attr.s
 class PeriodicService(Service):
     """

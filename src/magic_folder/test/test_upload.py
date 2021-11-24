@@ -75,6 +75,12 @@ from ..util.capabilities import (
 from ..util.file import (
     get_pathinfo,
 )
+from ..util.wrap import (
+    wrap_frozen,
+)
+from ..util.twisted import (
+    cancelled,
+)
 
 from .common import (
     SyncTestCase,
@@ -572,19 +578,10 @@ class AsyncMagicFileTests(AsyncTestCase):
             create_tahoe_treq_client(tahoe_root),
         )
 
-        class Wrap(object):
-            def __getattr__(self, name):
-                if name == "create_immutable":
-                    return create_immutable
-                else:
-                    return getattr(_tahoe_client, name)
-
-        def create_immutable(producer):
-            d = Deferred()
-            d.cancel()
-            return d
-
-        tahoe_client = Wrap()
+        tahoe_client = wrap_frozen(
+            _tahoe_client,
+            create_immutable=cancelled,
+        )
 
         from twisted.internet import reactor
 
@@ -755,21 +752,12 @@ class AsyncMagicFileTests(AsyncTestCase):
             local_f.write(b"dummy\n" * 50)
 
         # arrange to fail the personal-dmd update
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=cancelled,
+        )
 
-        def cancel_it(*args, **kw):
-            d = Deferred()
-            d.cancel()
-            return d
-
-        class CancelFile(object):
-            def __getattr__(self, name):
-                if name == "update_snapshot":
-                    return cancel_it
-                else:
-                    return getattr(service.file_factory._write_participant, name)
-
-        service.file_factory._write_participant = CancelFile()
-
+        # simulate the update
         mf = service.file_factory.magic_file_for(local)
         yield mf.create_update()
         yield mf.when_idle()
