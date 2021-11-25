@@ -166,7 +166,11 @@ this:
 - `<magic folder location>/`
   - `README`: a file containing information about magic-folder
   - `state.sqlite`: the state database
-  - `stash/`: the stash-directory containing LocalSnapshot content
+  - `api_client_endpoint`: a Twisted endpoint-string describing how to connect to the HTTP API
+  - `api_token`: the token required to authenticate to the HTTP API
+  - `folder-<hash>`: one subdirectory for each magic-folder in the daemon
+    - `stash/`: the stash-directory containing LocalSnapshot content
+    - `state.sqlite`: state database for this magic-folder
 
 The `state.sqlite` for each magic-folder shall contain the following
 tables:
