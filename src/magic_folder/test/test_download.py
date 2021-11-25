@@ -54,6 +54,7 @@ from twisted.internet.task import (
     Clock,
 )
 from twisted.internet.defer import (
+    Deferred,
     inlineCallbacks,
     returnValue,
     succeed,
@@ -103,13 +104,25 @@ from ..util.file import (
     get_pathinfo,
     seconds_to_ns,
 )
+from ..util.wrap import (
+    wrap_frozen,
+)
+from ..util.twisted import (
+    cancelled,
+)
 from .common import (
     SyncTestCase,
     AsyncTestCase,
 )
-from .matchers import matches_flushed_traceback
+from .matchers import (
+    matches_flushed_traceback,
+)
 from .strategies import (
     tahoe_lafs_immutable_dir_capabilities,
+)
+from .fixtures import (
+    MagicFolderNode,
+    TahoeClientWrapper,
 )
 
 
@@ -926,8 +939,6 @@ class ConflictTests(AsyncTestCase):
     def setUp(self):
         super(ConflictTests, self).setUp()
 
-        from .fixtures import MagicFolderNode
-
         self.alice_magic_path = FilePath(self.mktemp())
         self.alice_magic_path.makedirs()
         self.alice = MagicFolderNode.create(
@@ -1330,6 +1341,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
         yield self.file_factory.finish()
@@ -1425,6 +1437,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
 
@@ -1498,6 +1511,7 @@ class ConflictTests(AsyncTestCase):
             alice_participants,
             self.file_factory,
             self.remote_cache,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
 
@@ -1527,6 +1541,165 @@ class ConflictTests(AsyncTestCase):
             MatchesListwise([
                 matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
             ]),
+        )
+
+
+class CancelTests(AsyncTestCase):
+    """
+    Tests relating to cancelling operations
+    """
+
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
+    @inline_callbacks
+    def test_cancel0(self):
+        """
+        An update arrives but one of the tahoe requests is cancelled
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "some_file"
+
+        carol = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "carol",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=TahoeClientWrapper(
+                stream_capability=cancelled,
+            ),
+            start_folder_services=True,
+        )
+        self.addCleanup(carol.cleanup)
+
+        service = carol.global_service.get_folder_service("default")
+
+        local = magic_path.child(relpath)
+        with local.asBytesMode("utf8").open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        class FakeRemoteSnapshot(object):
+            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('x' * 26, 'y' * 52)
+            relpath = "some_file"  # match earlier relpath
+        remote_snapshot = FakeRemoteSnapshot()
+
+        mf = service.file_factory.magic_file_for(local)
+        # when .stream_capability() is called it will receive an
+        # already cancelled Deferred
+        yield mf.found_new_remote(remote_snapshot)
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(carol.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: some_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
+    @inline_callbacks
+    def test_cancel1(self):
+        """
+        An update arrives but our attempt to update our Personal DMD is
+        cancelled
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=create_local_author("carol"),
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "a_file"
+
+        # shortcut the download, always succeed
+        def stream_capability(cap, filething):
+            d = Deferred()
+            d.callback(None)
+            return d
+
+        from twisted.internet import reactor
+
+        carol = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "carol",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=TahoeClientWrapper(
+                stream_capability=stream_capability,
+            ),
+            start_folder_services=True,
+        )
+        self.addCleanup(carol.cleanup)
+
+        service = carol.global_service.get_folder_service("default")
+
+        # arrange to cancel the Personal DMD update
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=cancelled,
+        )
+
+        mf = service.file_factory.magic_file_for(magic_path.child(relpath))
+        yield mf.found_new_remote(parent)
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(carol.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: a_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
         )
 
 

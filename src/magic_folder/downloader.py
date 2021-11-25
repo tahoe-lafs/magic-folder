@@ -43,6 +43,7 @@ from twisted.internet.defer import (
     DeferredLock,
     maybeDeferred,
     returnValue,
+    gatherResults,
     succeed,
 )
 from twisted.internet.interfaces import (
@@ -51,6 +52,9 @@ from twisted.internet.interfaces import (
 
 from .snapshot import (
     create_snapshot_from_capability,
+)
+from .status import (
+    IStatus,
 )
 from .util.file import (
     PathState,
@@ -426,9 +430,10 @@ class RemoteScannerService(service.MultiService):
     _participants = attr.ib()
     _file_factory = attr.ib()  # MagicFileFactory instance
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache):
+    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache, status_service):
         """
         Create a RemoteScannerService from the MagicFolder configuration.
         """
@@ -438,6 +443,7 @@ class RemoteScannerService(service.MultiService):
             participants,
             file_factory,
             remote_snapshot_cache,
+            status_service,
         )
 
     def __attrs_post_init__(self):
@@ -463,6 +469,19 @@ class RemoteScannerService(service.MultiService):
         """
         return self._poller.call_soon()
 
+    def _is_remote_update(self, relpath, snapshot_cap):
+        """
+        Predicate to determine if the given snapshot_cap for a particular
+        relpath is an update or not
+        """
+        # if this remote matches what we believe to be the latest then
+        # it is _not_ an update. otherwise, it is.
+        try:
+            our_snapshot_cap = self._config.get_remotesnapshot(relpath)
+            return our_snapshot_cap != snapshot_cap
+        except KeyError:
+            return True
+
     @inline_callbacks
     def _poll_collective(self):
         """
@@ -476,10 +495,9 @@ class RemoteScannerService(service.MultiService):
             action_type="downloader:poll-collective", folder=self._config.name
         ):
             # XXX any errors here should (probably) be reported to the
-            # status service .. meantime, errors will abort this poll
-            # but shouldn't cause subsequent polling runs to be
-            # aborted.
+            # status service ..
             participants = yield self._participants.list()
+            updates = []  # 2-tuples (relpath, snapshot-cap)
             for participant in participants:
                 with start_action(
                     action_type="downloader:poll-participant",
@@ -491,14 +509,15 @@ class RemoteScannerService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        d = self._process_snapshot(relpath, file_data.snapshot_cap)
-                        updates.append(d)
+                        if self._is_remote_update(relpath, file_data.snapshot_cap):
+                            self._status.download_queued(self._config.name, relpath)
+                            updates.append((relpath, file_data.snapshot_cap))
 
-        # ensure we process this batch before trying again .. but in
-        # parallel
-        # XXX report errors to the user?
-        for d in updates:
-            yield d
+            # allow for parallel downloads
+            yield gatherResults([
+                self._process_snapshot(relpath, snapshot_cap)
+                for relpath, snapshot_cap in updates
+            ])
 
     @inline_callbacks
     def _process_snapshot(self, relpath, snapshot_cap):
@@ -516,18 +535,17 @@ class RemoteScannerService(service.MultiService):
             remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-            # if this remote matches what we believe to be the latest,
-            # there is nothing to do .. otherwise, we tell the
-            # state-machine for this file that there's a remote update
             try:
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
 
-            if snapshot.capability != our_snapshot_cap:
-                # make sure "our_snapshot_cap" is cached
-                if our_snapshot_cap is not None:
-                    yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                abspath = self._config.magic_path.preauthChild(snapshot.relpath)
-                mf = self._file_factory.magic_file_for(abspath)
-                yield maybeDeferred(mf.found_new_remote, snapshot)
+            # this method is only called if snapshot.capability != our_snapshot_cap
+            assert snapshot.capability != our_snapshot_cap, "invalid input"
+
+            # make sure "our_snapshot_cap" is cached
+            if our_snapshot_cap is not None:
+                yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+            abspath = self._config.magic_path.preauthChild(snapshot.relpath)
+            mf = self._file_factory.magic_file_for(abspath)
+            yield maybeDeferred(mf.found_new_remote, snapshot)

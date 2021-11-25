@@ -1,7 +1,10 @@
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import pytest_twisted
 from twisted.internet.error import ProcessTerminated
+from twisted.internet.defer import (
+    DeferredList,
+)
 
 from magic_folder.util.capabilities import to_readonly_capability
 
@@ -46,7 +49,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     """
     magic = temp_filepath
     original_folder = magic.child("cats")
-    recover_folder = magic.child("kitties")
+    recover_folder = magic.child("cats_recover")
     original_folder.makedirs()
     recover_folder.makedirs()
 
@@ -78,7 +81,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
     yield bob.add_participant("recovery", "alice", alice_cap)
 
-    await_file_contents(
+    yield await_file_contents(
         recover_folder.child("grumpy").path,
         content0,
         timeout=25,
@@ -90,7 +93,57 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     original_folder.child("sylvester").setContent(content1)
     yield alice.add_snapshot("original", "sylvester")
 
-    ensure_file_not_created(
+    yield ensure_file_not_created(
         recover_folder.child("sylvester").path,
         timeout=25,
     )
+
+
+@pytest_twisted.inlineCallbacks
+def test_leave_many(request, reactor, temp_filepath, alice):
+    """
+    Many magic-folders can be added and left in rapid succession
+
+    See also https://github.com/LeastAuthority/magic-folder/issues/587
+    """
+    names = [
+        "folder_{}".format(x)
+        for x in range(10)
+    ]
+
+    for name in names:
+        folder = temp_filepath.child(name)
+        folder.makedirs()
+
+        yield alice.add(name, folder.path)
+
+    alice_folders = yield alice.list_(True)
+    assert set(alice_folders.keys()) == set(names)
+
+    # try and ensure that the folders are "doing some work" by adding
+    # files to them all (sizes are in KiB)
+    fake_files = (
+        ('zero', 100),  # 100K
+        ('one', 10000), # 10M
+    )
+    for fname, size in fake_files:
+        for name in names:
+            with temp_filepath.child(name).child(fname).open("wb") as f:
+                for _ in range(size):
+                    f.write("xxxxxxx\n" * (1024 // 8))
+
+    # initiate a scan on them all
+    scans = yield DeferredList([
+        alice.scan_folder(name)
+        for name in names
+    ])
+    assert all(ok for ok, _ in scans), "at least one scan failed"
+
+    leaves = yield DeferredList([
+        alice.leave(name)
+        for name in names
+    ])
+    assert all(ok for ok, _ in leaves), "at least one leave() failed"
+
+    alice_folders = yield alice.list_(True)
+    assert not alice_folders, "should be zero folders"

@@ -163,7 +163,6 @@ class ScannerService(MultiService):
             d = magic_file.create_update()
             assert d is not None, "Internal error: no snapshot produced"
             d.addBoth(results.append)
-            snapshots.append(d)
             return d
 
         yield self._cooperator.coiterate(

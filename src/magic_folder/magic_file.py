@@ -23,8 +23,13 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
+    DeferredSemaphore,
     maybeDeferred,
     succeed,
+    CancelledError,
+)
+from twisted.web.client import (
+    ResponseNeverReceived,
 )
 from twisted.application.internet import (
     backoffPolicy,
@@ -75,6 +80,8 @@ class MagicFileFactory(object):
     _synchronous = attr.ib(default=False)  # if True, _call_later doesn't use reactor
 
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
+    _download_parallel = attr.ib(default=attr.Factory(lambda: DeferredSemaphore(5)))
+    _delays = attr.ib(default=attr.Factory(list))
 
     def magic_file_for(self, path):
         """
@@ -131,6 +138,14 @@ class MagicFileFactory(object):
                 mf.set_trace(tracer)
 
             return mf
+
+    def cancel(self):
+        """
+        Cancel any files we know about (e.g. service is shutting down)
+        """
+        for d in self._delays:
+            d.cancel()
+        return self.finish()
 
     def finish(self):
         """
@@ -197,7 +212,14 @@ class MagicFile(object):
         if self._delay_later is None:
 
             def delay(seconds, f, *args, **kwargs):
-                return deferLater(reactor, seconds, f, *args, **kwargs)
+                d = deferLater(reactor, seconds, f, *args, **kwargs)
+                self._factory._delays.append(d)
+
+                def remove(arg):
+                    self._factory._delays.remove(d)
+                    return arg
+                d.addBoth(remove)
+                return d
             self._delay_later = delay
 
     # these are API methods intended to be called by other code in
@@ -454,6 +476,12 @@ class MagicFile(object):
         The proposed update is _our_ ancestor.
         """
 
+    @_machine.input()
+    def _cancel(self, snapshot):
+        """
+        We have been cancelled
+        """
+
     @_machine.output()
     def _begin_download(self, snapshot):
         """
@@ -466,6 +494,13 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def failed(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                self._call_later(self._cancel, snapshot)
+                return
+
             self._factory._folder_status.error_occurred(
                 "Failed to download snapshot for '{}'.".format(
                     self._relpath,
@@ -477,16 +512,28 @@ class MagicFile(object):
             delay.addErrback(failed)
             return None
 
+        @inline_callbacks
         def perform_download():
             if snapshot.content_cap is None:
                 d = succeed(None)
             else:
-                d = maybeDeferred(
-                    self._factory._magic_fs.download_content_to_staging,
-                    snapshot.relpath,
-                    snapshot.content_cap,
-                    self._factory._tahoe_client,
-                )
+                d = self._factory._download_parallel.acquire()
+
+                def work(ignore):
+                    self._factory._folder_status.download_started(self._relpath)
+                    return maybeDeferred(
+                        self._factory._magic_fs.download_content_to_staging,
+                        snapshot.relpath,
+                        snapshot.content_cap,
+                        self._factory._tahoe_client,
+                    )
+                d.addCallback(work)
+
+                def clean(arg):
+                    self._factory._download_parallel.release()
+                    return arg
+                d.addBoth(clean)
+
             d.addCallback(downloaded)
             d.addErrback(failed)
             return d
@@ -625,6 +672,13 @@ class MagicFile(object):
         # get us here.
 
         def error(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                self._call_later(self._cancel, snapshot)
+                return
+
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
@@ -662,8 +716,8 @@ class MagicFile(object):
         self._factory._folder_status.upload_finished(self._relpath)
 
     @_machine.output()
-    def _status_download_started(self):
-        self._factory._folder_status.download_started(self._relpath)
+    def _status_download_queued(self):
+        self._factory._folder_status.download_queued(self._relpath)
 
     @_machine.output()
     def _status_download_finished(self):
@@ -707,6 +761,21 @@ class MagicFile(object):
             retry_delay_sequence = _delay_sequence()
 
             def upload_error(f, snap):
+                if f.check(CancelledError):
+                    self._factory._folder_status.error_occurred(
+                        "Cancelled: {}".format(self._relpath)
+                    )
+                    self._call_later(self._cancel, snapshot)
+                    return
+                if f.check(ResponseNeverReceived):
+                    for reason in f.value.reasons:
+                        if reason.check(CancelledError):
+                            self._factory._folder_status.error_occurred(
+                                "Cancelled: {}".format(self._relpath)
+                            )
+                            self._call_later(self._cancel, snapshot)
+                            return
+
                 # upon errors, we wait a little and then retry,
                 # putting the item back in the uploader queue
                 self._factory._folder_status.error_occurred(
@@ -716,14 +785,16 @@ class MagicFile(object):
                 delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
                 delay.addErrback(upload_error, snap)
                 return delay
-            d.addErrback(upload_error, snapshot)
 
             def got_remote(remote):
                 # successfully uploaded
                 snapshot.remote_snapshot = remote
                 self._factory._remote_cache._cached_snapshots[remote.capability] = remote
                 self._call_later(self._upload_completed, snapshot)
+
             d.addCallback(got_remote)
+            d.addErrback(upload_error, snapshot)
+            return d
 
     @_machine.output()
     def _mark_download_conflict(self, snapshot, staged_path):
@@ -746,6 +817,13 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def error(f):
+            if f.check(CancelledError):
+                self._factory._folder_status.error_occurred(
+                    "Cancelled: {}".format(self._relpath)
+                )
+                self._call_later(self._cancel, snapshot)
+                return
+
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
@@ -880,18 +958,17 @@ class MagicFile(object):
     _up_to_date.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_working, _status_download_started, _begin_download],
+        outputs=[_working, _status_download_queued, _begin_download],
         collector=_last_one,
     )
 
     _download_checking_ancestor.upon(
         _remote_update,
         enter=_download_checking_ancestor,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
 
-    # XXX local-update possible here too? then->conflict
     _download_checking_ancestor.upon(
         _ancestor_mismatch,
         enter=_conflicted,
@@ -920,7 +997,13 @@ class MagicFile(object):
     _downloading.upon(
         _remote_update,
         enter=_downloading,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
+        collector=_last_one,
+    )
+    _downloading.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -984,6 +1067,12 @@ class MagicFile(object):
         outputs=[_queue_local_update],
         collector=_last_one,
     )
+    _uploading.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_upload_finished, _done_working],
+        collector=_last_one,
+    )
 
     # there is async-work done by _update_personal_dmd_upload, after
     # which personal_dmd_updated is input back to the machine
@@ -993,10 +1082,22 @@ class MagicFile(object):
         outputs=[_status_upload_finished, _check_for_local_work],
         collector=_last_one,
     )
+    _updating_personal_dmd_upload.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_upload_finished, _done_working],
+        collector=_last_one,
+    )
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
         outputs=[_status_download_finished, _check_for_local_work],
+        collector=_last_one,
+    )
+    _updating_personal_dmd_download.upon(
+        _cancel,
+        enter=_failed,
+        outputs=[_status_download_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1022,7 +1123,7 @@ class MagicFile(object):
     _checking_for_remote_work.upon(
         _queued_download,
         enter=_downloading,
-        outputs=[_status_download_started, _begin_download],
+        outputs=[_begin_download],
         collector=_last_one,
     )
     _checking_for_remote_work.upon(
@@ -1050,13 +1151,13 @@ class MagicFile(object):
     _creating_snapshot.upon(
         _remote_update,
         enter=_creating_snapshot,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _uploading.upon(
         _remote_update,
         enter=_uploading,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _downloading.upon(
@@ -1068,7 +1169,7 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _remote_update,
         enter=_updating_personal_dmd_download,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1081,7 +1182,7 @@ class MagicFile(object):
     _updating_personal_dmd_upload.upon(
         _remote_update,
         enter=_updating_personal_dmd_upload,
-        outputs=[_queue_remote_update],
+        outputs=[_status_download_queued, _queue_remote_update],
         collector=_last_one,
     )
     _updating_personal_dmd_upload.upon(
@@ -1106,4 +1207,15 @@ class MagicFile(object):
         _local_update,
         enter=_conflicted,
         outputs=[],  # nothing, likely: user messing with resolution file?
+    )
+
+    _failed.upon(
+        _local_update,
+        enter=_failed,
+        outputs=[],  # should perhaps record (another) error?
+    )
+    _failed.upon(
+        _remote_update,
+        enter=_failed,
+        outputs=[],  # should perhaps record (another) error?
     )
