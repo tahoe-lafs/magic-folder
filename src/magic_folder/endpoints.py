@@ -28,6 +28,13 @@ class CannotConvertEndpointError(Exception):
 
 def _quote_endpoint_argument(s):
     # type: (unicode) -> unicode
+    """
+    Twisted endpoint strings cannot contain colon characters inside
+    individual pieces of the endpoint string (because they're
+    :-delimiated).
+
+    :returns: `s` with all : characters replaced with backslash-:
+    """
     return re.sub(
         r"[\:]",
         lambda m: r"\{}".format(m.group(0)),
@@ -36,8 +43,15 @@ def _quote_endpoint_argument(s):
 
 def client_endpoint_from_address(address):
     # type: (IAddress) -> Optional[unicode]
+    """
+    Turn certain kinds of IAddress into a Twisted client-style
+    endpoint string. Supports only TCP on IPv4 or IPv6.
+
+    :returns: unicode like "tcp:<host>:<port>" for and `address` of
+        type IPV4Address or IPv6Address. None otherwise.
+    """
     if isinstance(address, (IPv4Address, IPv6Address)) and address.type == "TCP":
-        return "tcp:host={host}:port={port}".format(
+        return "tcp:{host}:{port}".format(
             host=_quote_endpoint_argument(address.host.encode("utf-8")),
             port=address.port,
         )
