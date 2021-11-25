@@ -31,7 +31,6 @@ from ..util.capabilities import (
     to_readonly_capability,
 )
 from ..util.wrap import (
-    wrap_frozen,
     delayed_wrap_frozen,
 )
 
@@ -269,7 +268,7 @@ class TahoeClientWrapper(object):
     A sentinel passed to MagicFolderNode asking it to apply some
     wrapping functions to the TahoeClient that is created.
 
-    This saves all kwargs for use with wrap_frozen(), which will be
+    This saves all kwargs for use with delayed_wrap_frozen(), which will be
     used to transform the TahoeClient -- that is, to override any of
     its methods or attributes.
     """

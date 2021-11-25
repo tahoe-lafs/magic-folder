@@ -104,10 +104,6 @@ from ..util.file import (
     get_pathinfo,
     seconds_to_ns,
 )
-from ..util.capabilities import (
-    to_readonly_capability,
-    to_verify_capability,
-)
 from ..util.wrap import (
     wrap_frozen,
 )
