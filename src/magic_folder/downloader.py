@@ -489,8 +489,6 @@ class RemoteScannerService(service.MultiService):
         Download the collective dircap.
         For every participant that's not us, download any updated entries.
         """
-        updates = []
-
         with start_action(
             action_type="downloader:poll-collective", folder=self._config.name
         ):
