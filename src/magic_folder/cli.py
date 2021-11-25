@@ -637,20 +637,26 @@ class BaseOptions(usage.Options):
     def api_client_endpoint(self):
         """
         retrieve the client API endpoint (from the filesystem, not config
-        database)
+        database) falling back to the database
         """
-        with self._config_path.child("api_client_endpoint").open("rb") as f:
-            endpoint_str = f.read().decode("utf8")
-        return endpoint_str.strip()
+        try:
+            with self._config_path.child("api_client_endpoint").open("rb") as f:
+                endpoint_str = f.read().decode("utf8")
+                return endpoint_str.strip()
+        except Exception:
+            return self.config.api_client_endpoint
 
     @property
     def api_token(self):
         """
         retrieve the client API token (from the filesystem, not config
-        database)
+        database) falling back to the database
         """
-        with self._config_path.child("api_token").open("rb") as f:
-            return f.read()
+        try:
+            with self._config_path.child("api_token").open("rb") as f:
+                return f.read()
+        except Exception:
+            return self.config.api_token
 
     @property
     def client(self):
