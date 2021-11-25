@@ -344,9 +344,11 @@ class MagicFolderNode(object):
                 create_tahoe_treq_client(tahoe_root),
             )
             if isinstance(maybe_wrapper, TahoeClientWrapper):
+                # the "delayed" means these overrides won't take
+                # effect until we call .enable_wrapper() below just
+                # before returning .. that is, after setup
                 tahoe_client = delayed_wrap_frozen(
                     tahoe_client,
-                    _wrapper_enabled=False,  # wait until after setup (see below)
                     **maybe_wrapper.wrappers
                 )
         else:
