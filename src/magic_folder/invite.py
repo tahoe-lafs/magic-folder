@@ -31,9 +31,10 @@ from twisted.internet.defer import (
 from .util.capabilities import (
     tahoe_uri_from_string,
 )
-from .web import (
-    _InputError,
-)
+##circular import
+#from .web import (
+#    _InputError,
+#)
 
 import attr
 import wormhole
@@ -336,11 +337,11 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     :param int scan_interval:
     """
     if poll_interval < 1:
-        raise _InputError(
+        raise ValueError(
             "'poll-interval' must be a positive integer"
         )
     if not local_dir.exists() and local_dir.isdir():
-        raise _InputError(
+        raise ValueError(
             "Local path '{}' must be an existing directory".format(
                 local_dir.path,
             )

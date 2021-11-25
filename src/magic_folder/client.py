@@ -136,9 +136,9 @@ class MagicFolderClient(object):
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
         return self._authorized_request("GET", api_url)
 
-    def add_snapshot(self, magic_folder, path):
+    def add_snapshot(self, magic_folder, relpath):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'snapshot')
-        api_url = api_url.set(u'path', path)
+        api_url = api_url.set(u'path', relpath)
         return self._authorized_request("POST", api_url)
 
     def add_participant(self, magic_folder, author_name, personal_dmd):
@@ -157,6 +157,10 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'participants')
         return self._authorized_request("GET", api_url)
 
+    def tahoe_objects(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'tahoe-objects')
+        return self._authorized_request("GET", api_url)
+
     def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
         # type: (unicode, unicode, FilePath, int, int) -> dict
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
@@ -168,8 +172,12 @@ class MagicFolderClient(object):
             'scan_interval': scan_interval,
         }, ensure_ascii=False).encode('utf-8'))
 
-    def scan_folder(self, magic_folder):
-        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan')
+    def scan_folder_local(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'scan-local')
+        return self._authorized_request("PUT", api_url, body=b"")
+
+    def poll_folder_remote(self, magic_folder):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'poll-remote')
         return self._authorized_request("PUT", api_url, body=b"")
 
     def leave_folder(self, magic_folder, really_delete_write_capability):

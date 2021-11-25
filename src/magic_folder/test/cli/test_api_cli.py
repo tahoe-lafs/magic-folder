@@ -61,6 +61,14 @@ class ScanMagicFolder(AsyncTestCase):
         self.folder_service.local_snapshot_service.startService()
         self.addCleanup(self.folder_service.local_snapshot_service.stopService)
 
+        self.folder_service.uploader_service.startService()
+        self.addCleanup(self.folder_service.uploader_service.stopService)
+
+        def clean():
+            folder = self.node.global_service.get_folder_service(self.folder_name)
+            return folder.scanner_service._file_factory.finish()
+        self.addCleanup(clean)
+
     @inline_callbacks
     def test_scan_magic_folder(self):
         """
@@ -72,7 +80,7 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan-folder",
+                b"scan",
                 b"--folder",
                 self.folder_name.encode("utf-8"),
             ],
@@ -91,7 +99,7 @@ class ScanMagicFolder(AsyncTestCase):
     @inline_callbacks
     def test_scan_magic_folder_missing_name(self):
         """
-        If a folder is not passed to ``magic-folder-api scan-folder``,
+        If a folder is not passed to ``magic-folder-api scan``,
         an error is returned.
         """
         relpath = "file"
@@ -100,7 +108,49 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan-folder",
+                b"scan",
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(False),
+        )
+        self.assertIn(
+            "--folder / -n is required",
+            outcome.stderr,
+        )
+
+    @inline_callbacks
+    def test_poll_magic_folder(self):
+        """
+        Polling a magic folder causes the remote to be downloaded
+        """
+
+        outcome = yield self.api_cli(
+            [
+                b"poll",
+                b"--folder",
+                self.folder_name.encode("utf-8"),
+            ],
+        )
+        self.assertThat(
+            outcome.succeeded(),
+            Equals(True),
+        )
+
+    @inline_callbacks
+    def test_poll_magic_folder_missing_name(self):
+        """
+        If a folder is not passed to ``magic-folder-api poll``,
+        an error is returned.
+        """
+        relpath = "file"
+        local = self.magic_path.child(relpath)
+        local.setContent(b"content")
+
+        outcome = yield self.api_cli(
+            [
+                b"poll",
             ],
         )
         self.assertThat(

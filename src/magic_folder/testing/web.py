@@ -95,6 +95,12 @@ class _FakeTahoeRoot(Resource, object):
         # Adding mutable data always makes a new object.
         return self._uri.add_mutable_data(kind, data)
 
+    def fail_next_directory_update(self):
+        """
+        Cause the next mutable directory-entry update to fail.
+        """
+        self._uri._put_errors.append(object())
+
 
 class _FakeTahoeWelcome(Resource, object):
     """
@@ -219,6 +225,9 @@ class _FakeTahoeUriHandler(Resource, object):
     data = attr.ib(default=attr.Factory(dict))
     capability_generators = attr.ib(default=attr.Factory(dict))
 
+    # allow tests to cause failures
+    _put_errors = attr.ib(default=attr.Factory(list))
+
     def _generate_capability(self, kind):
         """
         :param str kind: any valid capability-string type
@@ -315,6 +324,10 @@ class _FakeTahoeUriHandler(Resource, object):
         Adds an entry to a mutable directory. Only handles a single-level
         deep.
         """
+        if self._put_errors:
+            self._put_errors.pop(0)
+            return None
+
         if len(segments) != 1:
             raise Exception(
                 "Need exactly one path segment (got {})".format(len(segments))

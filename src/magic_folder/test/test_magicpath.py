@@ -25,9 +25,11 @@ from hypothesis.strategies import (
     randoms,
 )
 
+from testtools import ExpectedException
 from testtools.matchers import (
     AfterPreprocessing,
     Equals,
+    StartsWith,
 )
 
 from .common import (
@@ -42,6 +44,7 @@ from .strategies import (
 )
 
 from ..magicpath import (
+    InvalidMangledPath,
     path2magic,
     magic2path,
     should_ignore_file,
@@ -60,6 +63,19 @@ class MagicPath(SyncTestCase):
         self.assertThat(
             magic2path(path2magic(path)),
             Equals(path),
+        )
+
+    def test_invalid(self):
+        with ExpectedException(InvalidMangledPath):
+            magic2path("@metadata")
+
+    def test_invalid_exception_str(self):
+        """
+        confirm the __str__ method of InvalidMangledPath doesn't fail
+        """
+        self.assertThat(
+            str(InvalidMangledPath("@invalid", "sequence error")),
+            StartsWith("Invalid escape sequence")
         )
 
     @given(relative_paths(), sampled_from([u"backup", u"tmp", u"conflict"]))

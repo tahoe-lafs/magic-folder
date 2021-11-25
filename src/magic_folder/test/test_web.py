@@ -137,7 +137,7 @@ from .strategies import (
 )
 from ..util.capabilities import (
     to_readonly_capability,
-    cap_size,
+    capability_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -652,6 +652,7 @@ class MagicFolderInstanceTests(SyncTestCase):
             },
             False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # Make the magic-folder config directory readonly (and restore it after
         # the test) so that removing the folder state directory fails.
@@ -713,6 +714,8 @@ class MagicFolderInstanceTests(SyncTestCase):
             },
             False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+
         self.assertThat(
             authorized_request(
                 node.http_client,
@@ -752,6 +755,8 @@ class MagicFolderInstanceTests(SyncTestCase):
             },
             False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+
         self.assertThat(
             authorized_request(
                 node.http_client,
@@ -947,7 +952,7 @@ class ScanFolderTests(SyncTestCase):
     )
     def test_wait_for_completion(self, author_name, folder_name, path_in_folder, some_content):
         """
-        A **PUT** request to **/v1/magic-folder/:folder-name/scan** does not receive a
+        A **PUT** request to **/v1/magic-folder/:folder-name/scan-local** does not receive a
         response before the snapshot has been created in the local database.
         """
         local_path = FilePath(self.mktemp())
@@ -971,13 +976,14 @@ class ScanFolderTests(SyncTestCase):
             # alternative case.
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         self.assertThat(
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child(folder_name, "scan"),
+                self.url.child(folder_name, "scan-local"),
             ),
             has_no_result(),
         )
@@ -990,7 +996,7 @@ class ScanFolderTests(SyncTestCase):
     )
     def test_scan_folder(self, author_name, folder_name, path_in_folder, some_content):
         """
-        A **PUT** to **/v1/magic-folder/:folder-name/scan** creates a new local
+        A **PUT** to **/v1/magic-folder/:folder-name/scan-local** creates a new local
         snapshot for a file in the named folder.
         """
         local_path = FilePath(self.mktemp())
@@ -1010,12 +1016,14 @@ class ScanFolderTests(SyncTestCase):
             # our request to receive a response.
             start_folder_services=True,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+
         self.assertThat(
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child(folder_name, "scan"),
+                self.url.child(folder_name, "scan-local"),
             ),
             succeeded(
                 matches_response(
@@ -1037,7 +1045,7 @@ class ScanFolderTests(SyncTestCase):
 
     def test_snapshot_no_folder(self):
         """
-        An error results from using /v1/magic-folder/<folder-name>/scan API on
+        An error results from using /v1/magic-folder/<folder-name>/scan-local API on
         non-existent folder.
         """
         local_path = FilePath(self.mktemp())
@@ -1055,7 +1063,7 @@ class ScanFolderTests(SyncTestCase):
                 node.http_client,
                 AUTH_TOKEN,
                 b"PUT",
-                self.url.child("a-folder-that-doesnt-exist").child('scan'),
+                self.url.child("a-folder-that-doesnt-exist").child('scan-local'),
             ),
             succeeded(
                 matches_response(
@@ -1096,7 +1104,7 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1113,7 +1121,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
@@ -1139,7 +1147,7 @@ class CreateSnapshotTests(SyncTestCase):
         not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
-        treq = treq_for_folders(
+        node = MagicFolderNode.create(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
@@ -1151,7 +1159,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         self.assertThat(
             authorized_request(
-                treq,
+                node.http_client,
                 AUTH_TOKEN,
                 b"POST",
                 self.url.child(folder_name, "snapshot").set(u"path", path_in_folder),
@@ -1212,6 +1220,8 @@ class CreateSnapshotTests(SyncTestCase):
             # our request to receive a response.
             start_folder_services=True,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+
         folder_config = node.global_config.get_magic_folder(folder_name)
 
         self.assertThat(
@@ -1418,6 +1428,8 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+
         folder_config = node.global_config.get_magic_folder(folder_name)
         # we can't add a new participant if their DMD is the same as
         # one we already have .. and because Hypothesis is 'sneaky' we
@@ -1501,6 +1513,7 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # add a participant using the API
         self.assertThat(
@@ -1546,6 +1559,7 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # add a participant using the API
         self.assertThat(
@@ -1593,6 +1607,7 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # add a participant using the API
         self.assertThat(
@@ -1643,6 +1658,7 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # add a participant using the API
         self.assertThat(
@@ -1692,6 +1708,7 @@ class ParticipantsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
 
         # add a participant using the API
         self.assertThat(
@@ -1913,6 +1930,8 @@ class FileStatusTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service("default").file_factory._synchronous = True
+
         mf_config = node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
@@ -2016,6 +2035,8 @@ class ConflictStatusTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service("default").file_factory._synchronous = True
+
         mf_config = node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
@@ -2100,6 +2121,8 @@ class TahoeObjectsTests(SyncTestCase):
             },
             start_folder_services=False,
         )
+        node.global_service.get_folder_service("default").file_factory._synchronous = True
+
         mf_config = node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_downloaded_snapshot(
@@ -2109,7 +2132,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            cap_size(cap)
+            capability_size(cap)
             for cap in [
                     remote_snap.capability,
                     remote_snap.content_cap,

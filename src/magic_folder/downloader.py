@@ -10,11 +10,11 @@ from __future__ import (
 )
 
 import os
+import hashlib
 from collections import deque
 
 import attr
 from attr.validators import (
-    provides,
     instance_of,
 )
 
@@ -35,26 +35,26 @@ from eliot import (
 
 from twisted.application import (
     service,
-    internet,
 )
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
     DeferredLock,
+    maybeDeferred,
     returnValue,
+    gatherResults,
     succeed,
 )
 from twisted.internet.interfaces import (
     IReactorTime,
 )
 
-from .config import (
-    MagicFolderConfig,
-)
-from .participants import IWriteableParticipant
 from .snapshot import (
     create_snapshot_from_capability,
+)
+from .status import (
+    IStatus,
 )
 from .util.file import (
     PathState,
@@ -63,9 +63,7 @@ from .util.file import (
 )
 from .util.twisted import (
     exclusively,
-)
-from .status import (
-    FolderStatus,
+    PeriodicService,
 )
 
 
@@ -224,7 +222,7 @@ class IMagicFolderFilesystem(Interface):
         :return PathState: The path state of the file that was written.
         """
 
-    def mark_conflict(relpath, remote_snapshot, staged_content):
+    def mark_conflict(relpath, conflict_path, staged_content):
         """
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
@@ -240,221 +238,11 @@ class IMagicFolderFilesystem(Interface):
             content.
         """
 
-    def mark_delete(relpath, remote_snapshot):
+    def mark_delete(relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-
-
-
-
-@attr.s
-class MagicFolderUpdater(object):
-    """
-    Updates the local magic-folder when given locally-cached
-    RemoteSnapshots. These RemoteSnapshot instance must have all
-    relevant parents available (via the cache service).
-    FIXME: we aren't guaranteed this
-    -> why not?
-
-    "Relevant" here means all parents unless we find a common
-    ancestor.
-    """
-    _magic_fs = attr.ib(validator=provides(IMagicFolderFilesystem))
-    _config = attr.ib(validator=instance_of(MagicFolderConfig))
-    _remote_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    tahoe_client = attr.ib() # validator=instance_of(TahoeClient))
-    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
-    _write_participant = attr.ib(validator=provides(IWriteableParticipant))
-    _lock = attr.ib(init=False, factory=DeferredLock)
-
-    @exclusively
-    @inline_callbacks
-    def add_remote_snapshot(self, relpath, snapshot):
-        """
-        :returns Deferred: fires with None when this RemoteSnapshot has
-            been processed (or errback if that fails).
-        """
-        # the lock ensures we only run _process() one at a time per
-        # process
-        with start_action(action_type="downloader:modify_filesystem"):
-            yield self._process(relpath, snapshot)
-
-    @inline_callbacks
-    def _process(self, relpath, snapshot):
-        """
-        Internal helper.
-
-        Determine the disposition of 'snapshot' and propose
-        appropriate filesystem modifications. Once these are done,
-        note the new snapshot-cap in our database and then push it to
-        Tahoe (i.e. to our Personal DMD)
-        """
-        conflict_path = relpath + ".conflict-{}".format(snapshot.author.name)
-
-        with start_action(action_type="downloader:updater:process",
-                          relpath=relpath,
-                          capability=snapshot.capability,
-                          ) as action:
-            # if we're already conflicted, no further processing
-            if self._config.list_conflicts_for(relpath):
-                action.add_success_fields(is_conflict=True)
-                return
-
-            local_path = self._config.magic_path.preauthChild(relpath)
-
-            # TODO: We should be able to get all this info from a single
-            # database request
-            # see if we have existing local or remote snapshots for
-            # this relpath already
-            try:
-                current_pathstate = self._config.get_currentsnapshot_pathstate(relpath)
-            except KeyError:
-                current_pathstate = None
-
-            try:
-                remote_cap = self._config.get_remotesnapshot(relpath)
-                # w/ no KeyError we have seen this before
-                action.add_success_fields(remote=remote_cap)
-            except KeyError:
-                remote_cap = None
-
-            try:
-                local_snap = self._config.get_local_snapshot(relpath)
-                action.add_success_fields(
-                    local=local_snap.content_path.path,
-                )
-            except KeyError:
-                local_snap = None
-
-            assert current_pathstate is None or (
-                local_snap is not None or remote_cap is not None
-            ), "current_snapshots table is inconsistent"
-
-            # note: if local_snap and remote_cap are both non-None
-            # then remote_cap should already be the ancestor of
-            # local_snap by definition.
-
-            # XXX check if we're already conflicted; if so, do not continue
-
-            # XXX not dealing with deletes yet
-
-            is_conflict = False
-            local_pathinfo = get_pathinfo(local_path)
-            if local_pathinfo.exists:
-                # We have a conflict if:
-                # - the currently recorded snapshot is remote and is neither an
-                #   ancestor (update) or descendant (no-op) of the remote
-                #   snapshot we are evaluating.
-                if (
-                    # the file exists locally and we haven't recorded a
-                    # pathstate corresponding to snapshot of it
-                    current_pathstate is None
-                    # the pathstate on disk does not match the pathstate of the
-                    # currently recorded snapshot
-                    or current_pathstate != local_pathinfo.state
-                    # the currently recorded snapshot is local
-                    or local_snap is not None
-                    # we've never recorded a remote snapshot (so the local file
-                    # must have an unrelated history to the remote snapshot we
-                    # are considering)
-                    or remote_cap is None
-                ):
-                    is_conflict = True
-                    action.add_success_fields(conflict_reason="existing-file-no-remote")
-                else:
-                    assert remote_cap != snapshot.capability, "already match"
-
-                    # "If the new snapshot is a descendant of the client's
-                    # existing snapshot, then this update is an 'overwrite'"
-
-                    ancestor = self._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
-                    action.add_success_fields(ancestor=ancestor)
-
-                    if not ancestor:
-                        # if the incoming remotesnapshot is actually an
-                        # ancestor of _our_ snapshot, then we have nothing
-                        # to do because we are newer
-                        if self._remote_cache.is_ancestor_of(snapshot.capability, remote_cap):
-                            return
-                        action.add_success_fields(conflict_reason="no-ancestor")
-                        is_conflict = True
-
-            else:
-                # there is no local file
-                # XXX we don't handle deletes yet
-                assert current_pathstate is None, "Internal inconsistency: record of a Snapshot for this relpath but no local file"
-                is_conflict = False
-
-            action.add_success_fields(is_conflict=is_conflict)
-            self._status.download_started(relpath)
-            try:
-                with start_action(
-                    action_type=u"downloader:updater:content-to-staging",
-                    relpath=relpath,
-                    capability=snapshot.capability,
-                ):
-                    try:
-                        staged = yield self._magic_fs.download_content_to_staging(relpath, snapshot.content_cap, self.tahoe_client)
-                    except Exception:
-                        self._status.error_occurred(
-                            "Failed to download snapshot for '{}'.".format(relpath)
-                        )
-                        raise
-
-            finally:
-                self._status.download_finished(relpath)
-
-            # once here, we know if we have a conflict or not. if
-            # there is nothing to do, we shold have returned
-            # already. so mark an overwrite or conflict into the
-            # filesystem.
-            if is_conflict:
-                self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                self._config.add_conflict(snapshot)
-
-            else:
-                # there is a longer dance described in detail in
-                # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-                # which may do even better at reducing the window for
-                # local changes to get overwritten. Currently, that
-                # window is the 3 python statements between here and
-                # ".mark_overwrite()"
-                if local_pathinfo != get_pathinfo(local_path):
-                    # The file changed since we started processing this item
-                    action.add_success_fields(conflict_reason="last-minute-change")
-                    self._magic_fs.mark_conflict(relpath, conflict_path, staged)
-                    self._config.add_conflict(snapshot)
-                else:
-                    try:
-                        path_state = self._magic_fs.mark_overwrite(relpath, snapshot.metadata["modification_time"], staged)
-                    except OSError as e:
-                        self._status.error_occurred(
-                            "Failed to overwrite file '{}': {}".format(relpath, str(e))
-                        )
-                        raise
-
-                    # Note, if we crash here (after moving the file into place
-                    # but before noting that in our database) then we could
-                    # produce LocalSnapshots referencing the wrong parent. We
-                    # will no longer produce snapshots with the wrong parent
-                    # once we re-run and get past this point.
-
-                    # remember the last remote we've downloaded
-                    self._config.store_downloaded_snapshot(
-                        relpath, snapshot, path_state
-                    )
-
-                    # XXX careful here, we still need something that makes
-                    # sure mismatches between remotesnapshots in our db and
-                    # the Personal DMD are reconciled .. that is, if we crash
-                    # here and/or can't update our Personal DMD we need to
-                    # retry later.
-                    yield self._write_participant.update_snapshot(
-                        relpath,
-                        snapshot.capability.encode("ascii"),
-                    )
 
 
 @implementer(IMagicFolderFilesystem)
@@ -472,7 +260,7 @@ class LocalMagicFolderFilesystem(object):
         """
         IMagicFolderFilesystem API
         """
-        import hashlib
+        assert file_cap is not None, "must supply a file-cap"
         h = hashlib.sha256()
         h.update(file_cap)
         staged_path = self.staging_path.child(h.hexdigest())
@@ -503,7 +291,7 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(relpath)
         tmp = None
         if local_path.exists():
-            # As long as the scanner is running in-process, in the reactor,
+            # As long as the poller is running in-process, in the reactor,
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
             tmp = local_path.temporarySibling(b".snaptmp")
@@ -525,6 +313,17 @@ class LocalMagicFolderFilesystem(object):
             action_type=u"downloader:filesystem:mark-overwrite:emplace",
             content_final_path=local_path.path,
         ):
+            if not local_path.parent().exists():
+                local_path.parent().makedirs()
+            else:
+                if not local_path.parent().isdir():
+                    # XXX this probably needs a better answer but for
+                    # now at least we can signal a problem.
+                    raise RuntimeError(
+                        "Wanted to write a subdir of {} but it's not a directory".format(
+                            local_path.parent().path,
+                        )
+                    )
             staged_content.moveTo(local_path)
         path_state = get_pathinfo(local_path).state
         if (
@@ -566,12 +365,13 @@ class LocalMagicFolderFilesystem(object):
         local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
 
-    def mark_delete(remote_snapshot):
+    def mark_delete(self, relpath):
         """
         Mark this snapshot as a delete. The existing magic-folder file
         shall be deleted.
         """
-        raise NotImplementedError()
+        local_path = self.magic_path.preauthChild(relpath)
+        local_path.remove()
 
 
 @implementer(IMagicFolderFilesystem)
@@ -594,7 +394,7 @@ class InMemoryMagicFolderFilesystem(object):
         return succeed(marker)
 
     def mark_overwrite(self, relpath, mtime, staged_content):
-        assert staged_content in self._staged_content
+        assert staged_content in self._staged_content, "Overwrite but no staged content"
         self.actions.append(
             ("overwrite", relpath, self._staged_content[staged_content])
         )
@@ -611,15 +411,15 @@ class InMemoryMagicFolderFilesystem(object):
             ("conflict", relpath, conflict_path, self._staged_content[staged_content])
         )
 
-    def mark_delete(self, relpath, remote_snapshot):
+    def mark_delete(self, relpath):
         self.actions.append(
-            ("delete", relpath, remote_snapshot)
+            ("delete", relpath)
         )
 
 
 @attr.s
 @implementer(service.IService)
-class DownloaderService(service.MultiService):
+class RemoteScannerService(service.MultiService):
     """
     A service that periodically polls the Colletive DMD for new
     RemoteSnapshot capabilities to download.
@@ -628,48 +428,72 @@ class DownloaderService(service.MultiService):
     _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
     _config = attr.ib()
     _participants = attr.ib()
-    _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
+    _file_factory = attr.ib()  # MagicFileFactory instance
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    _folder_updater = attr.ib(validator=instance_of(MagicFolderUpdater))
-    _tahoe_client = attr.ib()
+    _status = attr.ib(validator=attr.validators.provides(IStatus))
 
     @classmethod
-    def from_config(cls, clock, name, config, participants, status, remote_snapshot_cache, folder_updater, tahoe_client):
+    def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache, status_service):
         """
-        Create a DownloaderService from the MagicFolder configuration.
+        Create a RemoteScannerService from the MagicFolder configuration.
         """
         return cls(
             clock,
             config,
             participants,
-            status,
+            file_factory,
             remote_snapshot_cache,
-            folder_updater,
-            tahoe_client,
+            status_service,
         )
 
     def __attrs_post_init__(self):
         service.MultiService.__init__(self)
-        self._scanner = internet.TimerService(
+        self._poller = PeriodicService(
+            self._clock,
             self._config.poll_interval,
             self._loop,
         )
-        self._scanner.clock = self._clock
-        self._scanner.setServiceParent(self)
+        self._poller.setServiceParent(self)
 
     def _loop(self):
-        d = self._scan_collective()
+        d = self._poll_collective()
         # in some cases, might want to surface elsewhere
         d.addErrback(write_failure)
+        return d
+
+    def poll_once(self):
+        """
+        Perform a remote poll.
+
+        :returns Deferred[None]: fires when the poll is completed
+        """
+        return self._poller.call_soon()
+
+    def _is_remote_update(self, relpath, snapshot_cap):
+        """
+        Predicate to determine if the given snapshot_cap for a particular
+        relpath is an update or not
+        """
+        # if this remote matches what we believe to be the latest then
+        # it is _not_ an update. otherwise, it is.
+        try:
+            our_snapshot_cap = self._config.get_remotesnapshot(relpath)
+            return our_snapshot_cap != snapshot_cap
+        except KeyError:
+            return True
 
     @inline_callbacks
-    def _scan_collective(self):
+    def _poll_collective(self):
         with start_action(
-            action_type="downloader:scan-collective", folder=self._config.name
+            action_type="downloader:poll-collective", folder=self._config.name
         ):
-            for participant in (yield self._participants.list()):
+            # XXX any errors here should (probably) be reported to the
+            # status service ..
+            participants = yield self._participants.list()
+            updates = []  # 2-tuples (relpath, snapshot-cap)
+            for participant in participants:
                 with start_action(
-                    action_type="downloader:scan-participant",
+                    action_type="downloader:poll-participant",
                     participant=participant.name,
                     is_self=participant.is_self,
                 ):
@@ -678,7 +502,15 @@ class DownloaderService(service.MultiService):
                         continue
                     files = yield participant.files()
                     for relpath, file_data in files.items():
-                        yield self._process_snapshot(relpath, file_data.snapshot_cap)
+                        if self._is_remote_update(relpath, file_data.snapshot_cap):
+                            self._status.download_queued(self._config.name, relpath)
+                            updates.append((relpath, file_data.snapshot_cap))
+
+            # allow for parallel downloads
+            yield gatherResults([
+                self._process_snapshot(relpath, snapshot_cap)
+                for relpath, snapshot_cap in updates
+            ])
 
     @inline_callbacks
     def _process_snapshot(self, relpath, snapshot_cap):
@@ -691,19 +523,22 @@ class DownloaderService(service.MultiService):
         :returns Deferred: fires with None upon completion
         """
         with start_action(
-            action_type="downloader:scan-file",
+            action_type="downloader:poll-file",
             relpath=relpath,
             remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
-            # if this remote matches what we believe to be the
-            # latest, there is nothing to do .. otherwise, we
-            # have to figure out what to do
             try:
                 our_snapshot_cap = self._config.get_remotesnapshot(relpath)
             except KeyError:
                 our_snapshot_cap = None
-            if snapshot.capability != our_snapshot_cap:
-                if our_snapshot_cap is not None:
-                    yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
-                yield self._folder_updater.add_remote_snapshot(relpath, snapshot)
+
+            # this method is only called if snapshot.capability != our_snapshot_cap
+            assert snapshot.capability != our_snapshot_cap, "invalid input"
+
+            # make sure "our_snapshot_cap" is cached
+            if our_snapshot_cap is not None:
+                yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
+            abspath = self._config.magic_path.preauthChild(snapshot.relpath)
+            mf = self._file_factory.magic_file_for(abspath)
+            yield maybeDeferred(mf.found_new_remote, snapshot)

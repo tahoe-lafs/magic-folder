@@ -70,7 +70,7 @@ class PeriodicServiceRuleMachine(RuleBasedStateMachine):
 
     @service.default
     def _create_service(self):
-        return PeriodicService(self.clock, self.f, 1)
+        return PeriodicService(self.clock, 1, self.f)
 
     def __attrs_post_init__(self):
         super(PeriodicServiceRuleMachine, self).__init__()
