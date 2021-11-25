@@ -41,10 +41,7 @@ class ListenObserver(object):
         return d
 
     def _deliver_result(self, result):
-        if isinstance(result, Failure):
-            self._listened_result = result
-        else:
-            self._listened_result = result.getHost()
+        self._listened_result = result
         observers = self._observers
         self._observers = []
         for o in observers:
