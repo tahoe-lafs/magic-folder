@@ -302,6 +302,7 @@ class MagicFolderService(MultiService):
                     )
 
             yield folder.disownServiceParent()
+            self.status_service.folder_gone(name)
             fails = self.config.remove_magic_folder(name)
             if fails:
                 raise APIError(

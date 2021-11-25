@@ -20,9 +20,19 @@ from errno import (
     ENOENT,
 )
 
-from allmydata.util.base32 import b2a
-from ..util.encoding import load_yaml, dump_yaml
-from ..util.capabilities import to_readonly_capability
+from allmydata.util.base32 import (
+    b2a,
+)
+from ..util.encoding import (
+    load_yaml,
+    dump_yaml,
+)
+from ..util.capabilities import (
+    to_readonly_capability,
+)
+from ..util.wrap import (
+    delayed_wrap_frozen,
+)
 
 import attr
 
@@ -253,6 +263,20 @@ class MagicFileFactoryFixture(Fixture):
         self.addCleanup(self.magic_file_factory.finish)
 
 
+class TahoeClientWrapper(object):
+    """
+    A sentinel passed to MagicFolderNode asking it to apply some
+    wrapping functions to the TahoeClient that is created.
+
+    This saves all kwargs for use with delayed_wrap_frozen(), which will be
+    used to transform the TahoeClient -- that is, to override any of
+    its methods or attributes.
+    """
+
+    def __init__(self, **kwargs):
+        self.wrappers = kwargs
+
+
 @attr.s
 class MagicFolderNode(object):
     # FIXME docstring
@@ -291,9 +315,12 @@ class MagicFolderNode(object):
             service objects.  Otherwise, don't.
 
         :param TahoeClient tahoe_client: if provided, used as the
-            tahoe-client. If it is not provided, an in-memory Tahoe instance will
-            be used, and populated with empty folders corresponding to the
-            requested folders.
+            tahoe-client. If it is not provided, an in-memory Tahoe
+            instance will be used, and populated with empty folders
+            corresponding to the requested folders. (You may also pass
+            a TahoeClientWrapper to get the default instance, but with
+            some overridden methods -- the overrides only take place
+            after setup).
 
         :return MagicFolderNode:
         """
@@ -303,16 +330,26 @@ class MagicFolderNode(object):
         )
         if auth_token is None:
             auth_token = global_config.api_token
+        maybe_wrapper = None
 
-        if tahoe_client is None:
+        if tahoe_client is None or isinstance(tahoe_client, TahoeClientWrapper):
             # Setup a Tahoe client backed by a fake Tahoe instance Since we
             # know it is a working instance, we can delegate to
             # py:`MagicFolderService.create_folder` below to create folders.
+            maybe_wrapper = tahoe_client
             tahoe_root = create_fake_tahoe_root()
             tahoe_client = create_tahoe_client(
                 DecodedURL.from_text(u"http://invalid./"),
                 create_tahoe_treq_client(tahoe_root),
             )
+            if isinstance(maybe_wrapper, TahoeClientWrapper):
+                # the "delayed" means these overrides won't take
+                # effect until we call .enable_wrapper() below just
+                # before returning .. that is, after setup
+                tahoe_client = delayed_wrap_frozen(
+                    tahoe_client,
+                    **maybe_wrapper.wrappers
+                )
         else:
             tahoe_root = None
             # If we've been supplied a custom Tahoe client, we can't assume
@@ -387,6 +424,10 @@ class MagicFolderNode(object):
             lambda: auth_token,
             status_service,
         )
+
+        # if we wrapper out client, enable that now (after setup)
+        if isinstance(maybe_wrapper, TahoeClientWrapper):
+            tahoe_client.enable_wrapper()
 
         return cls(
             tahoe_root=tahoe_root,

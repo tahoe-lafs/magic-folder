@@ -539,6 +539,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
                     else:
                         done = True
                         break
+                # XXX should "actually yield" with deferLater(0), approx
                 yield
         finally:
             os.close(temp_file_fd)
