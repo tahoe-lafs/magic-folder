@@ -634,6 +634,25 @@ class BaseOptions(usage.Options):
         return self._config
 
     @property
+    def api_client_endpoint(self):
+        """
+        retrieve the client API endpoint (from the filesystem, not config
+        database)
+        """
+        with self._config_path.child("api_client_endpoint").open("rb") as f:
+            endpoint_str = f.read().decode("utf8")
+        return endpoint_str.strip()
+
+    @property
+    def api_token(self):
+        """
+        retrieve the client API token (from the filesystem, not config
+        database)
+        """
+        with self._config_path.child("api_token").open("rb") as f:
+            return f.read()
+
+    @property
     def client(self):
         if self._client is None:
             from twisted.internet import reactor
