@@ -1646,23 +1646,11 @@ class CancelTests(AsyncTestCase):
         magic_path.makedirs()
         relpath = "a_file"
 
-        # we provide our own Tahoe client here so that we can control
-        # when uploads etc complete ..
-        tahoe_root = create_fake_tahoe_root()
-        _tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(tahoe_root),
-        )
-
         # shortcut the download, always succeed
         def stream_capability(cap, filething):
             d = Deferred()
             d.callback(None)
             return d
-        tahoe_client = wrap_frozen(
-            _tahoe_client,
-            stream_capability=stream_capability,
-        )
 
         from twisted.internet import reactor
 
@@ -1678,59 +1666,14 @@ class CancelTests(AsyncTestCase):
                     "scan-interval": 100,
                 }
             },
-            tahoe_client=tahoe_client,
-            # note: we do start services, but later..
-            start_folder_services=False,
+            tahoe_client=TahoeClientWrapper(
+                stream_capability=stream_capability,
+            ),
+            start_folder_services=True,
         )
         self.addCleanup(carol.cleanup)
 
-        config = carol.global_config.get_magic_folder("default")
         service = carol.global_service.get_folder_service("default")
-
-        # because we provided a tahoe_root to MagicFolderNode, it
-        # doesn't put the collective/personal mutable DMDs in to the
-        # data-store...and so we also need to delay startup of
-        # services until we've done this, so that the scanner may find
-        # things.
-
-        # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {
-                    "carol": [
-                        "dirnode",
-                        {
-                            "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
-                            "format": "SDMF",
-                        },
-                    ],
-                }
-            }
-        ])
-
-        # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {
-                    relpath: [
-                        "dirnode",
-                        {
-                            "mutable": False,
-                            "ro_uri": parent_cap,
-                            "verify_uri": to_verify_capability(parent_cap),
-                            "format": "SDMF",
-                        },
-                    ],
-                },
-            }
-        ])
-
-        # data is available; start the service
-        service.startService()
 
         # arrange to cancel the Personal DMD update
         service.file_factory._write_participant = wrap_frozen(
