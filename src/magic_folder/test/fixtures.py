@@ -32,6 +32,7 @@ from ..util.capabilities import (
 )
 from ..util.wrap import (
     wrap_frozen,
+    delayed_wrap_frozen,
 )
 
 import attr
@@ -319,16 +320,18 @@ class MagicFolderNode(object):
             instance will be used, and populated with empty folders
             corresponding to the requested folders. (You may also pass
             a TahoeClientWrapper to get the default instance, but with
-            some overridden methods).
+            some overridden methods -- the overrides only take place
+            after setup).
 
         :return MagicFolderNode:
-    """
+        """
         global_config = create_testing_configuration(
             basedir,
             FilePath(u"/non-tahoe-directory"),
         )
         if auth_token is None:
             auth_token = global_config.api_token
+        maybe_wrapper = None
 
         if tahoe_client is None or isinstance(tahoe_client, TahoeClientWrapper):
             # Setup a Tahoe client backed by a fake Tahoe instance Since we
@@ -341,8 +344,9 @@ class MagicFolderNode(object):
                 create_tahoe_treq_client(tahoe_root),
             )
             if isinstance(maybe_wrapper, TahoeClientWrapper):
-                tahoe_client = wrap_frozen(
+                tahoe_client = delayed_wrap_frozen(
                     tahoe_client,
+                    _wrapper_enabled=False,  # wait until after setup (see below)
                     **maybe_wrapper.wrappers
                 )
         else:
@@ -419,6 +423,10 @@ class MagicFolderNode(object):
             lambda: auth_token,
             status_service,
         )
+
+        # if we wrapper out client, enable that now (after setup)
+        if isinstance(maybe_wrapper, TahoeClientWrapper):
+            tahoe_client.enable_wrapper()
 
         return cls(
             tahoe_root=tahoe_root,

@@ -95,6 +95,7 @@ from .strategies import (
 from .fixtures import (
     MagicFileFactoryFixture,
     MagicFolderNode,
+    TahoeClientWrapper,
 )
 
 from magic_folder.tahoe_client import (
@@ -570,19 +571,6 @@ class AsyncMagicFileTests(AsyncTestCase):
         magic_path.makedirs()
         relpath = "random_local_file"
 
-        # we provide our own Tahoe client here so that we can control
-        # when uploads etc complete ..
-        tahoe_root = create_fake_tahoe_root()
-        _tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(tahoe_root),
-        )
-
-        tahoe_client = wrap_frozen(
-            _tahoe_client,
-            create_immutable=cancelled,
-        )
-
         from twisted.internet import reactor
 
         alice = MagicFolderNode.create(
@@ -597,49 +585,15 @@ class AsyncMagicFileTests(AsyncTestCase):
                     "scan-interval": 100,
                 }
             },
-            tahoe_client=tahoe_client,
+            tahoe_client=TahoeClientWrapper(
+                create_immutable=cancelled,
+            ),
             # note: we do start services, but later..
-            start_folder_services=False,
+            start_folder_services=True,
         )
         self.addCleanup(alice.cleanup)
 
-        config = alice.global_config.get_magic_folder("default")
         service = alice.global_service.get_folder_service("default")
-
-        # because we provided a tahoe_root to MagicFolderNode, it
-        # doesn't put the collective/personal mutable DMDs in to the
-        # data-store...and so we also need to delay startup of
-        # services until we've done this, so that the scanner may find
-        # things.
-
-        # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {
-                    "alice": [
-                        "dirnode",
-                        {
-                            "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
-                            "format": "SDMF",
-                        },
-                    ],
-                }
-            }
-        ])
-
-        # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {},
-            }
-        ])
-
-        # all data available, we can start services
-        service.startService()
 
         local = magic_path.child(relpath)
         with local.asBytesMode("utf8").open("w") as local_f:
@@ -681,14 +635,6 @@ class AsyncMagicFileTests(AsyncTestCase):
         magic_path.makedirs()
         relpath = "a_local_file"
 
-        # we provide our own Tahoe client here so that we can control
-        # when uploads etc complete ..
-        tahoe_root = create_fake_tahoe_root()
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            create_tahoe_treq_client(tahoe_root),
-        )
-
         from twisted.internet import reactor
 
         alice = MagicFolderNode.create(
@@ -703,50 +649,11 @@ class AsyncMagicFileTests(AsyncTestCase):
                     "scan-interval": 100,
                 }
             },
-            tahoe_client=tahoe_client,
-            # note: we do start services, but later..
-            start_folder_services=False,
+            start_folder_services=True,
         )
         self.addCleanup(alice.cleanup)
 
-        config = alice.global_config.get_magic_folder("default")
         service = alice.global_service.get_folder_service("default")
-
-        # because we provided a tahoe_root to MagicFolderNode, it
-        # doesn't put the collective/personal mutable DMDs in to the
-        # data-store...and so we also need to delay startup of
-        # services until we've done this, so that the scanner may find
-        # things.
-
-        # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {
-                    "alice": [
-                        "dirnode",
-                        {
-                            "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
-                            "format": "SDMF",
-                        },
-                    ],
-                }
-            }
-        ])
-
-        # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
-            "dirnode",
-            {
-                "children": {},
-            }
-        ])
-
-        # all data available, we can start services
-        service.startService()
-
         local = magic_path.child(relpath)
         with local.asBytesMode("utf8").open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
