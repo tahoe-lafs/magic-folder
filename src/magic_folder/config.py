@@ -1742,6 +1742,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_client_endpoint FROM config")
+            endpoint = cursor.fetchone()[0]
             if endpoint is not None:
                 endpoint = endpoint.encode("utf8")
             return endpoint
