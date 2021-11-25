@@ -18,6 +18,9 @@ from eliot import (
     ActionType,
     MessageType,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from .common import APIError
 from .util.eliotutil import (
@@ -30,13 +33,14 @@ from .uploader import (
     LocalSnapshotService,
     LocalSnapshotCreator,
     UploaderService,
-    RemoteSnapshotCreator,
 )
 from .downloader import (
     RemoteSnapshotCacheService,
-    DownloaderService,
-    MagicFolderUpdater,
+    RemoteScannerService,
     LocalMagicFolderFilesystem,
+)
+from .magic_file import (
+    MagicFileFactory,
 )
 from .participants import (
     IParticipant,
@@ -97,17 +101,6 @@ class MagicFolder(service.MultiService):
             config=mf_config,
             tahoe_client=tahoe_client,
         )
-        uploader_service = UploaderService.from_config(
-            clock=reactor,
-            config=mf_config,
-            remote_snapshot_creator=RemoteSnapshotCreator(
-                config=mf_config,
-                local_author=mf_config.author,
-                tahoe_client=tahoe_client,
-                write_participant=participants.writer,
-                status=folder_status,
-            ),
-        )
         local_snapshot_service = LocalSnapshotService(
             mf_config,
             LocalSnapshotCreator(
@@ -118,13 +111,30 @@ class MagicFolder(service.MultiService):
                 tahoe_client,
             ),
             status=folder_status,
-            uploader_service=uploader_service,
+        )
+        uploader = UploaderService(
+            mf_config,
+            folder_status,
+            tahoe_client,
+        )
+        magic_file_factory = MagicFileFactory(
+            mf_config,
+            tahoe_client,
+            folder_status,
+            local_snapshot_service,
+            uploader,
+            participants.writer,
+            remote_snapshot_cache_service,
+            LocalMagicFolderFilesystem(
+                mf_config.magic_path,
+                mf_config.stash_path,
+            ),
         )
         scanner_service = ScannerService.from_config(
             reactor,
             mf_config,
-            local_snapshot_service,
-            status=folder_status,
+            magic_file_factory,
+            folder_status,
         )
 
         return cls(
@@ -133,32 +143,22 @@ class MagicFolder(service.MultiService):
             name=name,
             invite_manager=InMemoryInviteManager(tahoe_client),
             local_snapshot_service=local_snapshot_service,
-            uploader_service=uploader_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
-            downloader=DownloaderService.from_config(
+            downloader=RemoteScannerService.from_config(
                 clock=reactor,
                 name=name,
                 config=mf_config,
                 participants=participants,
-                status=folder_status,
+                file_factory=magic_file_factory,
                 remote_snapshot_cache=remote_snapshot_cache_service,
-                folder_updater=MagicFolderUpdater(
-                    LocalMagicFolderFilesystem(
-                        mf_config.magic_path,
-                        mf_config.stash_path,
-                    ),
-                    mf_config,
-                    remote_snapshot_cache_service,
-                    tahoe_client,
-                    status=folder_status,
-                    write_participant=participants.writer,
-                ),
-                tahoe_client=tahoe_client,
+                status_service=status_service,
             ),
+            uploader=uploader,
             folder_status=folder_status,
             scanner_service=scanner_service,
             participants=participants,
             clock=reactor,
+            magic_file_factory=magic_file_factory,
         )
 
     @property
@@ -166,27 +166,31 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, invite_manager, local_snapshot_service, uploader_service, folder_status, scanner_service, remote_snapshot_cache, downloader, participants, clock):
+    def __init__(self, client, config, name, invite_manager, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
         self.config = config  # a MagicFolderConfig instance
         self._participants = participants
+        self.file_factory = magic_file_factory
         self.local_snapshot_service = local_snapshot_service
-        self.uploader_service = uploader_service
         self.downloader_service = downloader
+        self.uploader_service = uploader
         self.folder_status = folder_status
         self.scanner_service = scanner_service
         self.invite_manager = invite_manager
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
-        uploader_service.setServiceParent(self)
         downloader.setServiceParent(self)
-        local_snapshot_service.setServiceParent(self)
-        uploader_service.setServiceParent(self)
+        uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
         invite_manager.setServiceParent(self)
+
+    @inline_callbacks
+    def stopService(self):
+        yield self.file_factory.cancel()
+        yield super(MagicFolder, self).stopService()
 
     def ready(self):
         """
@@ -195,7 +199,7 @@ class MagicFolder(service.MultiService):
         """
         return defer.succeed(None)
 
-    def scan(self):
+    def scan_local(self):
         """
         Scan the magic folder for changes.
 
@@ -203,6 +207,14 @@ class MagicFolder(service.MultiService):
             been snapshotted.
         """
         return self.scanner_service.scan_once()
+
+    def poll_remote(self):
+        """
+        Poll the Collective DMD for remote changes.
+
+        :returns Deferred[None]: that fires when the polling is complete
+        """
+        return self.downloader_service.poll_once()
 
     def participants(self):
         # type: () -> Deferred[list[IParticipant]]
@@ -218,6 +230,9 @@ class MagicFolder(service.MultiService):
         # type: (unicode) -> Deferred[None]
         """
         Create a new snapshot of the given file.
+
+        :returns Deferred: fires (with None) after the local state has
+            been serialized to the database.
         """
 
         # preauthChild allows path-separators in the "path" (i.e. not
@@ -232,7 +247,9 @@ class MagicFolder(service.MultiService):
             return defer.fail(
                 APIError.from_exception(http.NOT_ACCEPTABLE, e)
             )
-        return self.local_snapshot_service.add_file(path)
+        mf = self.file_factory.magic_file_for(path)
+        d = mf.create_update()
+        return d
 
 
 _NICKNAME = Field.for_types(
@@ -349,7 +366,7 @@ REMOVE_FROM_PENDING = ActionType(
 
 PATH = Field(
     u"path",
-    lambda fp: fp.asTextMode().path,
+    lambda fp: "<None>" if fp is None else fp.asTextMode().path,
     u"A local filesystem path.",
     validateInstanceOf(FilePath),
 )

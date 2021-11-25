@@ -38,6 +38,9 @@ from testtools.matchers import (
     ContainsDict,
     AfterPreprocessing,
 )
+from testtools import (
+    ExpectedException,
+)
 from testtools.twistedsupport import (
     succeeded,
     failed,
@@ -51,14 +54,15 @@ from twisted.internet.task import (
     Clock,
 )
 from twisted.internet.defer import (
+    Deferred,
     inlineCallbacks,
     returnValue,
+    succeed,
 )
 from twisted.python.filepath import (
     FilePath,
 )
 from treq.testing import (
-    StubTreq,
     StringStubbingResource,
 )
 
@@ -67,9 +71,9 @@ from ..config import (
 )
 from ..downloader import (
     RemoteSnapshotCacheService,
-    MagicFolderUpdater,
     InMemoryMagicFolderFilesystem,
-    DownloaderService,
+    RemoteScannerService,
+    LocalMagicFolderFilesystem,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -83,7 +87,6 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
-    FolderStatus,
     WebSocketStatusService,
 )
 from ..tahoe_client import (
@@ -101,13 +104,25 @@ from ..util.file import (
     get_pathinfo,
     seconds_to_ns,
 )
+from ..util.wrap import (
+    wrap_frozen,
+)
+from ..util.twisted import (
+    cancelled,
+)
 from .common import (
     SyncTestCase,
     AsyncTestCase,
 )
-from .matchers import matches_flushed_traceback
+from .matchers import (
+    matches_flushed_traceback,
+)
 from .strategies import (
     tahoe_lafs_immutable_dir_capabilities,
+)
+from .fixtures import (
+    MagicFolderNode,
+    TahoeClientWrapper,
 )
 
 
@@ -444,9 +459,11 @@ class UpdateTests(AsyncTestCase):
         )
         self.service.startService()
 
+    @inlineCallbacks
     def tearDown(self):
-        super(UpdateTests, self).tearDown()
-        return self.service.stopService()
+        yield super(UpdateTests, self).tearDown()
+        yield self.service.file_factory.finish()
+        yield self.service.stopService()
 
     @inlineCallbacks
     def test_create(self):
@@ -801,8 +818,8 @@ class UpdateTests(AsyncTestCase):
         # immediately _after_ the download has occurred...
 
         # "our" folder updater service
-        folder_updater = self.service.downloader_service._folder_updater
-        orig_method = folder_updater._magic_fs.download_content_to_staging
+        file_factory = self.service.file_factory
+        orig_method = file_factory._magic_fs.download_content_to_staging
 
         @inline_callbacks
         def do_download(relpath, cap, tahoe_client):
@@ -816,7 +833,7 @@ class UpdateTests(AsyncTestCase):
             self.magic_path.preauthChild(relpath).setContent("So conflicted")
             returnValue(x)
 
-        with patch.object(folder_updater._magic_fs, "download_content_to_staging", do_download):
+        with patch.object(file_factory._magic_fs, "download_content_to_staging", do_download):
             # create a change in zara's Personal DMD
             remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
             yield self.tahoe_client.add_entry_to_mutable_directory(
@@ -849,70 +866,109 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
+    @inlineCallbacks
+    def test_state_mismatch(self):
+        """
+        If the database-stored pathstate doesn't match what's on disk when
+        we receive an update a conflict results.
+        """
+
+        relpath = "a"
+
+        # give alice current knowledge of this file
+        local_path = self.magic_path.child(relpath)
+        local_path.setContent(b"dummy contents")
+
+        alice_snap = yield create_snapshot(
+            relpath,
+            self.author,
+            io.BytesIO(b"dummy contents"),
+            self.state_path,
+        )
+        current_pathstate = get_pathinfo(local_path).state
+        alice_remote = yield write_snapshot_to_tahoe(alice_snap, self.author, self.tahoe_client)
+        # mess with the time, so it doesn't match what's on disk
+        self.config.store_currentsnapshot_state(
+            relpath,
+            PathState(
+                current_pathstate.size,
+                current_pathstate.mtime_ns + 60000000,
+                current_pathstate.ctime_ns + 60000000,
+            )
+        )
+
+        # zara creates a snapshot
+        content0 = b"zara was here" * 1000
+        local_snap0 = yield create_snapshot(
+            relpath,
+            self.other,
+            io.BytesIO(content0),
+            self.state_path,
+            raw_remote_parents=[alice_remote.capability],
+        )
+
+        # create a change in zara's Personal DMD
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap0, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            relpath,
+            remote_snap0.capability.encode("utf8"),
+        )
+
+        # wait for the downloader to detect zara's change
+        expected_files = {
+            "{}.conflict-zara".format(relpath),
+            relpath,
+        }
+        for _ in range(15):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if set(self.magic_path.listdir()) == expected_files:
+                break
+
+        self.assertThat(
+            set(self.magic_path.listdir()),
+            Equals(expected_files),
+        )
+
 
 class ConflictTests(AsyncTestCase):
     """
-    Tests for ``MagicFolderUpdater``
+    Tests relating to conflict cases
     """
 
     def setUp(self):
         super(ConflictTests, self).setUp()
-        self.alice = create_local_author("alice")
-        self.carol = create_local_author("carol")
 
         self.alice_magic_path = FilePath(self.mktemp())
         self.alice_magic_path.makedirs()
-        self.state_path = FilePath(self.mktemp())
-        self.state_path.makedirs()
+        self.alice = MagicFolderNode.create(
+            reactor,
+            FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": self.alice_magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                },
+            },
+            start_folder_services=True,
+        )
 
+        self.file_factory = self.alice.global_service.getServiceNamed("magic-folder-default").file_factory
+        self.remote_cache = self.file_factory._remote_cache
+        self.state_path = self.alice.global_config._get_state_path("default")
+        self.alice_config = self.alice.global_config.get_magic_folder("default")
+        self.alice_author = self.alice_config.author
         self.filesystem = InMemoryMagicFolderFilesystem()
+        self.file_factory._magic_fs = self.filesystem
 
-        self._global_config = create_testing_configuration(
-            self.state_path,
-            FilePath("dummy"),
-        )
+        self.carol_author = create_local_author("carol")
 
-        self.alice_collective = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
-        self.alice_personal = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
-
-        self.alice_config = self._global_config.create_magic_folder(
-            "default",
-            self.alice_magic_path,
-            self.alice,
-            self.alice_collective,
-            self.alice_personal,
-            1,
-            None,
-        )
-
-        # note, we don't "run" this service, just populate ._cached_snapshots
-        self.remote_cache = RemoteSnapshotCacheService(
-            folder_config=self.alice_config,
-            tahoe_client=None,
-        )
-
-        self.tahoe_calls = []
-
-        def get_resource_for(method, url, params, headers, data):
-            self.tahoe_calls.append((method, url, params, headers, data))
-            return (200, {}, b"{}")
-
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text(u"http://invalid./"),
-            StubTreq(StringStubbingResource(get_resource_for)),
-        )
-        particiapnts = participants_from_collective(
-            self.alice_collective, self.alice_personal, tahoe_client
-        )
-        self.status = WebSocketStatusService(reactor, self._global_config)
-        self.updater = MagicFolderUpdater(
-            magic_fs=self.filesystem,
-            config=self.alice_config,
-            remote_cache=self.remote_cache,
-            tahoe_client=tahoe_client,
-            status=FolderStatus(self.alice_config.name, self.status),
-            write_participant=particiapnts.writer,
-        )
+    def tearDown(self):
+        super(ConflictTests, self).tearDown()
+        return self.alice.cleanup()
 
     @inline_callbacks
     def test_update_with_local(self):
@@ -923,7 +979,7 @@ class ConflictTests(AsyncTestCase):
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             relpath="foo",
-            author=self.carol,
+            author=self.carol_author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
@@ -935,7 +991,7 @@ class ConflictTests(AsyncTestCase):
         local0_content = b"dummy content"
         local0 = yield create_snapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             data_producer=io.BytesIO(local0_content),
             snapshot_stash_dir=self.state_path,
             parents=None,
@@ -947,17 +1003,21 @@ class ConflictTests(AsyncTestCase):
         self.alice_config.store_local_snapshot(local0)
         self.alice_config.store_currentsnapshot_state("foo", get_pathinfo(local_path).state)
 
-        # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot("foo", remote0)
+        # tell the state-machine about the local, and then get it to
+        # examine the remote-snapshot
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.local_snapshot_exists(local0)
+        yield mf.found_new_remote(remote0)
+
+        yield mf.when_idle()
 
         # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
-
         self.assertThat(
             self.filesystem.actions,
             Equals([
                 ("download", "foo", remote0.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.carol.name), remote0.content_cap),
+                ("conflict", "foo", "foo.conflict-carol", remote0.content_cap),
             ])
         )
 
@@ -971,7 +1031,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -988,7 +1048,7 @@ class ConflictTests(AsyncTestCase):
         cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             relpath="foo",
-            author=self.carol,
+            author=self.carol_author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
@@ -997,9 +1057,10 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
-
         # tell the updater to examine the remote-snapshot
-        yield self.updater.add_remote_snapshot("foo", remote0)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(remote0)
+        yield mf.when_idle()
 
         # we have a local-snapshot for the same relpath as the incoming
         # remote, so this is a conflict
@@ -1021,11 +1082,14 @@ class ConflictTests(AsyncTestCase):
 
         remotes = []
 
-        for letter in 'abcd':
-            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(letter * 26, letter * 52)
+        for letter in b'abcd':
+            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(
+                base64.b32encode(letter * 16).rstrip('=').lower(),
+                base64.b32encode(letter * 32).rstrip('=').lower(),
+            )
             parent = RemoteSnapshot(
                 relpath="foo",
-                author=self.alice,
+                author=self.alice_author,
                 metadata={"modification_time": 0},
                 capability=parent_cap,
                 parents_raw=[] if not remotes else [remotes[-1].capability],
@@ -1043,7 +1107,9 @@ class ConflictTests(AsyncTestCase):
 
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
-        yield self.updater.add_remote_snapshot("foo", youngest)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(youngest)
+        yield mf.when_idle()
 
         # we have a common ancestor so this should be an update
         self.assertThat(
@@ -1063,7 +1129,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1075,7 +1141,7 @@ class ConflictTests(AsyncTestCase):
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
@@ -1087,7 +1153,7 @@ class ConflictTests(AsyncTestCase):
         other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=other_cap,
             parents_raw=[],
@@ -1103,14 +1169,71 @@ class ConflictTests(AsyncTestCase):
         ))
 
         # ...child->parent aren't related to "other"
-        yield self.updater.add_remote_snapshot("foo", child)
+        mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
+        yield mf.found_new_remote(child)
+        yield mf.when_idle()
 
         # so, no common ancestor: a conflict
         self.assertThat(
             self.filesystem.actions,
             Equals([
                 ("download", "foo", child.content_cap),
-                ("conflict", "foo", "foo.conflict-{}".format(self.alice.name), child.content_cap),
+                ("conflict", "foo", "foo.conflict-alice", child.content_cap),
+            ])
+        )
+
+    @inline_callbacks
+    def test_update_delete(self):
+        """
+        Give the updater a remote update which is a delete
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice,
+            metadata={"modification_time": 0},
+            capability=child_cap,
+            parents_raw=[parent_cap],
+            content_cap=None,
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[child_cap] = child
+
+        class FakeWriteParticipant(object):
+            def update_snapshot(self, relpath, cap):
+                return succeed(None)
+        self.file_factory._write_participant = FakeWriteParticipant()
+
+        # so "alice" has "parent" already
+        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_config.store_downloaded_snapshot(
+            "foo",
+            parent,
+            get_pathinfo(self.alice_magic_path.child("foo")).state,
+        )
+
+        # deletion snapshot
+        mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
+        yield mf.found_new_remote(child)
+        yield mf.when_idle()
+
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([
+                ("delete", "foo"),
             ])
         )
 
@@ -1123,7 +1246,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1135,7 +1258,7 @@ class ConflictTests(AsyncTestCase):
         child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap],
@@ -1150,12 +1273,19 @@ class ConflictTests(AsyncTestCase):
         self.alice_config.store_downloaded_snapshot("foo", child, get_pathinfo(local_path).state)
 
         # we update with the parent (so, it's old)
-        yield self.updater.add_remote_snapshot("foo", parent)
+        mf = self.file_factory.magic_file_for(local_path)
+        yield mf.found_new_remote(parent)
+        yield mf.when_idle()
+
+        # XXX to fix this need to add another state in the
+        # state-machine to "maybe bail out early" if the updater is
+        # newer before _begin_download()
 
         # so we should do nothing
         self.assertThat(
             self.filesystem.actions,
             Equals([
+                (u'download', u'foo', 'URI:CHK:'),
             ])
         )
 
@@ -1168,7 +1298,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"relpath": "foo", "modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1189,12 +1319,7 @@ class ConflictTests(AsyncTestCase):
         # .. but it needs to be "real" since we have to run the
         # top-level scanner which discovers snapshots (because it
         # handles the top-level errors)
-        root = create_fake_tahoe_root()
-        client = create_tahoe_treq_client(root)
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text("http://invalid./"),
-            client,
-        )
+        tahoe_client = self.alice.tahoe_client
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
@@ -1210,20 +1335,20 @@ class ConflictTests(AsyncTestCase):
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
         # scan.
-        top_service = DownloaderService(
+        top_service = RemoteScannerService(
             Clock(),
             self.alice_config,
             alice_participants,
-            self.updater._status,
+            self.file_factory,
             self.remote_cache,
-            self.updater,
-            tahoe_client,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
+        yield self.file_factory.finish()
 
         # status system should report our error
         self.assertThat(
-            loads(self.status._marshal_state()),
+            loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
@@ -1258,7 +1383,7 @@ class ConflictTests(AsyncTestCase):
         parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
@@ -1267,11 +1392,22 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
+        fails = [object()]
+        orig_download = self.filesystem.download_content_to_staging
+
         def network_is_out(relpath, file_cap, tahoe_client):
             """
             download fails for some reason
+
+            We only want a single error; if we let the network
+            "always" be down then the `yield top_service._loop()` call
+            below will never succeed because it'll just keep re-
+            trying.
             """
-            raise Exception("something bad")
+            if not fails:
+                return orig_download(relpath, file_cap, tahoe_client)
+            fails.pop(0)
+            raise Exception("the network is down")
         self.filesystem.download_content_to_staging = network_is_out
 
         # set up a collective for 'alice' to pull an update from
@@ -1279,12 +1415,7 @@ class ConflictTests(AsyncTestCase):
         # .. but it needs to be "real" since we have to run the
         # top-level scanner which discovers snapshots (because it
         # handles the top-level errors)
-        root = create_fake_tahoe_root()
-        client = create_tahoe_treq_client(root)
-        tahoe_client = create_tahoe_client(
-            DecodedURL.from_text("http://invalid./"),
-            client,
-        )
+        tahoe_client = self.alice.tahoe_client
         collective = yield tahoe_client.create_mutable_directory()
         alice_personal = yield tahoe_client.create_mutable_directory()
         carol_personal = yield tahoe_client.create_mutable_directory()
@@ -1300,20 +1431,19 @@ class ConflictTests(AsyncTestCase):
         # hook in the top-level service .. we don't "start" it and
         # instead just call _loop() because we just want a single
         # scan.
-        top_service = DownloaderService(
+        top_service = RemoteScannerService(
             Clock(),
             self.alice_config,
             alice_participants,
-            self.updater._status,
+            self.file_factory,
             self.remote_cache,
-            self.updater,
-            tahoe_client,
+            self.alice.global_service.status_service,
         )
         yield top_service._loop()
 
         # status system should report our error
         self.assertThat(
-            loads(self.status._marshal_state()),
+            loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "state": ContainsDict({
                     "folders": ContainsDict({
@@ -1335,6 +1465,336 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.eliot_logger.flush_tracebacks(Exception),
             MatchesListwise([
-                matches_flushed_traceback(Exception, "something bad")
+                matches_flushed_traceback(Exception, "the network is down")
             ]),
+        )
+
+    @inline_callbacks
+    def test_fail_download_dmd_update(self):
+        """
+        An update arrives but we fail to update our Personal DMD
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice_author,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+        self.remote_cache._cached_snapshots[parent_cap] = parent
+
+        tahoe_client = self.alice.tahoe_client
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        self.alice.tahoe_root.fail_next_directory_update()
+
+        # hook in the top-level service .. we don't "start" it and
+        # instead just call _loop() because we just want a single
+        # scan.
+        top_service = RemoteScannerService(
+            Clock(),
+            self.alice_config,
+            alice_participants,
+            self.file_factory,
+            self.remote_cache,
+            self.alice.global_service.status_service,
+        )
+        yield top_service._loop()
+
+        # status system should report our error
+        self.assertThat(
+            loads(self.alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            MatchesListwise([
+                matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
+            ]),
+        )
+
+
+class CancelTests(AsyncTestCase):
+    """
+    Tests relating to cancelling operations
+    """
+
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
+    @inline_callbacks
+    def test_cancel0(self):
+        """
+        An update arrives but one of the tahoe requests is cancelled
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "some_file"
+
+        carol = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "carol",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=TahoeClientWrapper(
+                stream_capability=cancelled,
+            ),
+            start_folder_services=True,
+        )
+        self.addCleanup(carol.cleanup)
+
+        service = carol.global_service.get_folder_service("default")
+
+        local = magic_path.child(relpath)
+        with local.asBytesMode("utf8").open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        class FakeRemoteSnapshot(object):
+            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('x' * 26, 'y' * 52)
+            relpath = "some_file"  # match earlier relpath
+        remote_snapshot = FakeRemoteSnapshot()
+
+        mf = service.file_factory.magic_file_for(local)
+        # when .stream_capability() is called it will receive an
+        # already cancelled Deferred
+        yield mf.found_new_remote(remote_snapshot)
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(carol.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: some_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+    # XXX NOTE if this name gets longer, the resulting temp-paths can
+    # become "too long" on windows causing failures
+    @inline_callbacks
+    def test_cancel1(self):
+        """
+        An update arrives but our attempt to update our Personal DMD is
+        cancelled
+        """
+
+        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=create_local_author("carol"),
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=b"URI:CHK:",
+            metadata_cap=b"URI:CHK:",
+        )
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "a_file"
+
+        # shortcut the download, always succeed
+        def stream_capability(cap, filething):
+            d = Deferred()
+            d.callback(None)
+            return d
+
+        from twisted.internet import reactor
+
+        carol = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "carol",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            tahoe_client=TahoeClientWrapper(
+                stream_capability=stream_capability,
+            ),
+            start_folder_services=True,
+        )
+        self.addCleanup(carol.cleanup)
+
+        service = carol.global_service.get_folder_service("default")
+
+        # arrange to cancel the Personal DMD update
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=cancelled,
+        )
+
+        mf = service.file_factory.magic_file_for(magic_path.child(relpath))
+        yield mf.found_new_remote(parent)
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(carol.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: errors[0],
+                                ContainsDict({
+                                    "summary": Equals(
+                                        "Cancelled: a_file"
+                                    )
+                                }),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+
+
+class FilesystemModificationTests(SyncTestCase):
+    """
+    Tests for LocalMagicFolderFilesystem
+    """
+
+    def setUp(self):
+        super(FilesystemModificationTests, self).setUp()
+        self.magic = FilePath(self.mktemp())
+        self.magic.makedirs()
+        self.staging = FilePath(self.mktemp())
+        self.staging.makedirs()
+        self.filesystem = LocalMagicFolderFilesystem(
+            self.magic,
+            self.staging,
+        )
+
+    def test_delete(self):
+        """
+        Marking a file as deleted removes it
+        """
+        self.magic.child("foo").setContent("dummy")
+
+        self.filesystem.mark_delete("foo")
+
+        self.assertThat(
+            self.magic.child("foo").exists(),
+            Equals(False)
+        )
+
+    def test_delete_already_gone(self):
+        """
+        Error if the file is already gone
+        """
+        try:
+            self.filesystem.mark_delete("foo")
+        except Exception:
+            # in python3, this will always be an OSError, but in
+            # Python2 we get a WindowsError on windows and OSError on
+            # other systems.
+            pass
+        else:
+            raise AssertionError("Expected an exception")
+
+    def test_overwrite_sub_dir(self):
+        """
+        Overwriting a non-existent directory creates the directory
+        """
+        dummy_content = "dummy\n"
+        staged = self.staging.child("new_content")
+        staged.setContent(dummy_content)
+
+        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged)
+
+        self.assertThat(
+            self.magic.child("sub").exists(),
+            Equals(True)
+        )
+        self.assertThat(
+            self.magic.child("sub").child("dir").exists(),
+            Equals(True)
+        )
+        self.assertThat(
+            self.magic.child("sub").child("dir").child("foo").getContent(),
+            Equals(dummy_content)
+        )
+
+    def test_overwrite_sub_dir_is_file(self):
+        """
+        An incoming overwrite where a local file exists is an error
+        """
+        dummy_content = "dummy\n"
+        staged = self.staging.child("new_content")
+        staged.setContent(dummy_content)
+        # we put a _file_ in the way of the incoming directory
+        with self.magic.child("sub").open("w") as f:
+            f.write(b"pre-existing file")
+
+        # for now, it's just an error if we find a file in a spot
+        # where we wanted a directory .. perhaps there should be a
+        # better / different answer?
+        with ExpectedException(RuntimeError, ".*not a directory.*"):
+            self.filesystem.mark_overwrite("sub/foo", 12345, staged)
+        self.assertThat(
+            self.magic.child("sub"),
+            MatchesAll(
+                AfterPreprocessing(
+                    lambda f: f.isfile(),
+                    Equals(True)
+                ),
+                AfterPreprocessing(
+                    lambda f: f.getContent(),
+                    Equals(b"pre-existing file")
+                )
+            )
         )

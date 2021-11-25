@@ -13,18 +13,44 @@ from testtools.matchers import (
     MatchesStructure,
 )
 from testtools.twistedsupport import succeeded
-from twisted.internet.defer import succeed
+from twisted.internet.defer import (
+    succeed,
+    Deferred,
+)
 from twisted.internet.task import Clock, Cooperator
 from twisted.python import runtime
 from twisted.python.filepath import FilePath
 
+from hyperlink import (
+    DecodedURL,
+)
+
 from ..config import create_testing_configuration
-from ..scanner import ScannerService, find_updated_files
-from ..snapshot import RemoteSnapshot, create_local_author
+from ..magic_file import MagicFileFactory
+from ..scanner import (
+    ScannerService,
+    find_updated_files,
+    find_deleted_files,
+)
+from ..snapshot import (
+    LocalSnapshot,
+    RemoteSnapshot,
+    create_local_author,
+)
 from ..status import FolderStatus, WebSocketStatusService
 from ..util.file import PathState, get_pathinfo
+from ..tahoe_client import (
+    create_tahoe_client,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from .common import SyncTestCase, skipIf
-from .strategies import relative_paths
+from .strategies import (
+    relative_paths,
+    path_segments,
+ )
 
 # This is a path state that doesn't correspond to a file written during the test.
 OLD_PATH_STATE = PathState(0, 0, 0)
@@ -65,6 +91,10 @@ class FindUpdatesTests(SyncTestCase):
             scheduler=lambda f: f(),
         )
         self.addCleanup(self.cooperator.stop)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text("http://invalid./"),
+            create_tahoe_treq_client(create_fake_tahoe_root()),
+        )
 
     @given(
         relative_paths(),
@@ -251,28 +281,69 @@ class FindUpdatesTests(SyncTestCase):
     @given(
         relative_paths(),
     )
+    def test_scan_delete(self, relpath):
+        """
+        Scanning a relpath we know about with no local file is a delete
+        """
+        self.config.store_currentsnapshot_state(relpath, OLD_PATH_STATE)
+
+        files = []
+        self.assertThat(
+            find_deleted_files(
+                self.cooperator, self.config, files.append, status=self.folder_status
+            ),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            files,
+            Equals([self.config.magic_path.preauthChild(relpath)])
+        )
+
+    @given(
+        relative_paths(),
+    )
     def test_scan_once(self, relpath):
         """
         The scanner service discovers a_file when a scan is requested.
         """
-        relpath = "a_file"
+        relpath = "a_file0"
         local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
 
         files = []
 
+        class FakeLocalSnapshot(object):
+            pass
+
         class SnapshotService(object):
-            def add_file(self, f):
+            def add_file(self, f, local_parent=None):
                 files.append(f)
-                return succeed(None)
+                return succeed(FakeLocalSnapshot())
+
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            FakeUploader(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
+        )
 
         service = ScannerService(
             self.config,
-            SnapshotService(),
+            file_factory,
             object(),
             cooperator=self.cooperator,
             scan_interval=None,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)
@@ -292,26 +363,177 @@ class FindUpdatesTests(SyncTestCase):
         The scanner service iteself discovers a_file, when a scan interval is
         set.
         """
-        relpath = "a_file"
+        relpath = "a_file1"
         local = self.magic_path.preauthChild(relpath)
         local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
         local.asBytesMode("utf-8").setContent(b"dummy\n")
 
         files = []
 
+        class FakeLocalSnapshot(object):
+            pass
+
         class SnapshotService(object):
-            def add_file(self, f):
+            def add_file(self, f, local_parent=None):
                 files.append(f)
-                return succeed(None)
+                return succeed(
+                    FakeLocalSnapshot()
+                )
+
+        class FakeRemoteSnapshot(object):
+            pass
+
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            FakeUploader(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
+        )
 
         service = ScannerService(
             self.config,
-            SnapshotService(),
+            file_factory,
             object(),
             cooperator=self.cooperator,
             scan_interval=1,
+            clock=self.clock,
         )
         service.startService()
         self.addCleanup(service.stopService)
 
         self.assertThat(files, Equals([local]))
+
+    # XXX should use generated author-names, but get encoding errors
+    # from FilePath on u'0.conflict-\x00' -- that is, a single nul as
+    # an author-name
+    @given(
+        relative_paths(),
+    )
+    def test_scan_conflict_files(self, relpath):
+        """
+        A completely new file is found but it is a conflict-marker file
+        and shouldn't be uploaded
+        """
+        local = self.magic_path.preauthChild(relpath + u".conflict-author")
+        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        local.asBytesMode("utf-8").setContent(b"dummy\n")
+
+        files = []
+
+        class FakeLocalSnapshot(object):
+            pass
+
+        class SnapshotService(object):
+            def add_file(self, f, local_parent=None):
+                files.append(f)
+                return succeed(FakeLocalSnapshot())
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            object(), # uploader,
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+        )
+
+        service = ScannerService(
+            self.config,
+            file_factory,
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=None,
+            clock=self.clock,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
+
+        self.assertThat(
+            service.scan_once(),
+            succeeded(Always()),
+        )
+
+        self.assertThat(files, Equals([]))
+
+    @given(
+        path_segments(),
+    )
+    def test_scan_preexisting_local_snapshot(self, relpath):
+        """
+        A pre-existing LocalSnapshot is in our database so the scanner
+        finds it at startup
+        """
+        # make a pre-existing local snapshot
+        self.setup_example()
+        local = self.magic_path.preauthChild(relpath)
+        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        # pretend we stashed it, too
+        stash = FilePath(self.mktemp())
+        stash.makedirs()
+        stash.child(relpath).asBytesMode("utf8").setContent(b"dummy\n")
+
+        local_snap = LocalSnapshot(
+            relpath,
+            author=self.author,
+            metadata={
+                "modification_time": 1234,
+            },
+            content_path=stash.child(relpath),
+            parents_local=[],
+        )
+        self.config.store_local_snapshot(local_snap)
+
+        files = []
+
+        class SnapshotService(object):
+            def add_file(self, f):
+                files.append(f)
+                return succeed(local_snap)
+
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            FakeUploader(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
+        )
+
+        service = ScannerService(
+            self.config,
+            file_factory,
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=None,
+            clock=self.clock,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
+
+        self.assertThat(
+            service._loop(),
+            succeeded(Always()),
+        )
+        self.assertThat(
+            files,
+            Equals([local])
+        )

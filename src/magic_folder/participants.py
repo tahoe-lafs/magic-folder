@@ -52,7 +52,7 @@ class IParticipant(Interface):
         """
         Get all of the files this participant has uploaded to this magic folder.
 
-        :return Deferred[dict[unicode, FolderFile]]: All of the contents
+        :return Deferred[dict[unicode, SnapshotEntry]]: All of the contents
             belonging to this participant.  The keys are relative paths and
             the associated values provide some details about the contents at
             those paths.
@@ -240,6 +240,7 @@ class _CollectiveDirnodeParticipants(object):
             )
             for (name, (dirobj, metadata))
             in result.items()
+            if name not in ["@metadata"]
         ))
 
     def _is_self(self, dirobj):
@@ -280,6 +281,7 @@ class _CollectiveDirnodeParticipant(object):
             magic2path(mangled_relpath): SnapshotEntry(child, metadata)
             for (mangled_relpath, (child, metadata))
             in result.items()
+            if mangled_relpath not in ["@metadata"]
         })
 
 

@@ -185,6 +185,7 @@ def relative_paths(segments=path_segments()):
         lambda xs: u"/".join(xs),
     ).filter(_short_enough_path)
 
+
 def absolute_paths(relative_paths=relative_paths()):
     """
     Build unicode strings which are usable as absolute filesystem paths.
