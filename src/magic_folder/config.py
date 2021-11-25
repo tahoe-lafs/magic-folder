@@ -1760,7 +1760,10 @@ class GlobalConfigDatabase(object):
         Write the current API client-endpoint to a file in our state directory
         """
         with self.basedir.child("api_client_endpoint").open("wb") as f:
-            f.write("{}\n".format(self.api_client_endpoint))
+            if self.api_client_endpoint is None:
+                f.write("not running\n")
+            else:
+                f.write("{}\n".format(self.api_client_endpoint))
 
     @property
     def tahoe_client_url(self):
