@@ -646,6 +646,8 @@ class BaseOptions(usage.Options):
                     raise Exception("Service not running.")
                 return endpoint_str
         except Exception:
+            if self.config.api_client_endpoint is None:
+                raise Exception("Service not running.")
             return self.config.api_client_endpoint
 
     @property

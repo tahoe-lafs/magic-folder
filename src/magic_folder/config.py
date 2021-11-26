@@ -1749,7 +1749,8 @@ class GlobalConfigDatabase(object):
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
-        _validate_connect_endpoint_str(ep_string)
+        if ep_string is not None:
+            _validate_connect_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))

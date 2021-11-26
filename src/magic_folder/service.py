@@ -192,13 +192,14 @@ class MagicFolderService(MultiService):
     def startService(self):
         MultiService.startService(self)
 
-        def _set_api_endpoint(address):
-            endpoint = client_endpoint_from_address(address)
+        def _set_api_endpoint(port):
+            endpoint = client_endpoint_from_address(port.getHost())
             if endpoint is not None:
                 self.config.api_client_endpoint = endpoint
             return None
 
         def _stop_reactor(failure):
+            self.config.api_client_endpoint = None
             self._run_deferred.errback(failure)
 
         ds = []
