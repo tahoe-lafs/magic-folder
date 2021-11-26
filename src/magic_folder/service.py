@@ -4,11 +4,12 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import json
-import attr
+import signal
 from configparser import (
     ConfigParser,
 )
 
+import attr
 from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
@@ -183,11 +184,21 @@ class MagicFolderService(MultiService):
 
         return poll("connected enough", enough, self.reactor)
 
+    @inline_callbacks
     def run(self):
-        d = self._when_connected_enough()
-        d.addCallback(lambda ignored: self.startService())
-        d.addCallback(lambda ignored: self._run_deferred)
-        return d
+        yield self._when_connected_enough()
+        yield self.startService()
+
+        def handle_sigint(num, stack):
+            self._run_deferred.callback(None)
+            if callable(orig_sig_int):
+                orig_sig_int(num, stack)
+
+        orig_sig_int = signal.signal(signal.SIGINT, handle_sigint)
+        try:
+            yield self._run_deferred
+        finally:
+            yield self.stopService()
 
     def startService(self):
         MultiService.startService(self)
@@ -221,10 +232,12 @@ class MagicFolderService(MultiService):
 
     @inline_callbacks
     def stopService(self):
-        self._starting.cancel()
-        yield MultiService.stopService(self)
-        yield self._starting
-        self.config.api_client_endpoint = None
+        try:
+            self._starting.cancel()
+            yield MultiService.stopService(self)
+            yield self._starting
+        finally:
+            self.config.api_client_endpoint = None
 
     @inline_callbacks
     def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):
