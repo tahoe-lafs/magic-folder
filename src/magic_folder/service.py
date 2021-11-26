@@ -189,16 +189,12 @@ class MagicFolderService(MultiService):
         yield self._when_connected_enough()
         yield self.startService()
 
-        def handle_sigint(num, stack):
+        def do_shutdown():
             self._run_deferred.callback(None)
-            if callable(orig_sig_int):
-                orig_sig_int(num, stack)
+            return self.stopService()
+        self.reactor.addSystemEventTrigger("before", "shutdown", do_shutdown)
 
-        orig_sig_int = signal.signal(signal.SIGINT, handle_sigint)
-        try:
-            yield self._run_deferred
-        finally:
-            yield self.stopService()
+        yield self._run_deferred
 
     def startService(self):
         MultiService.startService(self)
