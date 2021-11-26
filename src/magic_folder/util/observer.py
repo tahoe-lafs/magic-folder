@@ -11,7 +11,6 @@ from twisted.internet.defer import (
     succeed,
     Deferred,
 )
-from twisted.python.failure import Failure
 
 import attr
 
