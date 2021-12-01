@@ -208,13 +208,12 @@ class MagicFolderService(MultiService):
         def _stop_reactor(failure):
             self.config.api_client_endpoint = None
             self._run_deferred.errback(failure)
+            return None
 
-        ds = []
-        ds.append(
-            self._listen_endpoint.observe().addCallbacks(
-                _set_api_endpoint, _stop_reactor,
-            )
-        )
+        observe = self._listen_endpoint.observe()
+        observe.addCallback(_set_api_endpoint)
+        observe.addErrback(_stop_reactor)
+        ds = [observe]
         for magic_folder in self._iter_magic_folder_services():
             ds.append(magic_folder.ready())
 

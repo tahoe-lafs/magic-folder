@@ -11,6 +11,9 @@ from twisted.internet.defer import (
     succeed,
     Deferred,
 )
+from twisted.python.failure import (
+    Failure,
+)
 
 import attr
 
@@ -45,4 +48,8 @@ class ListenObserver(object):
         self._observers = []
         for o in observers:
             o.callback(result)
+        if isinstance(result, Failure):
+            # we've handled the error -- by passing it off to our
+            # observer(s) -- so this chain doesn't need to anymore
+            return None
         return result

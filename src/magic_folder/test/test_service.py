@@ -118,6 +118,22 @@ class TestService(AsyncTestCase):
             Equals("not running"),
         )
 
+    @inline_callbacks
+    def test_listen_error(self):
+        """
+        an error trying to listen shuts down
+        """
+        def bad(*args, **kw):
+            raise RuntimeError("the bad stuff")
+        self.reactor.listenTCP = bad
+        d = self.service.run()
+        with self.assertRaises(RuntimeError):
+            yield d
+        self.assertThat(
+            self.basedir.child("api_client_endpoint").getContent().strip(),
+            Equals("not running"),
+        )
+
 
 
 class TestAdd(SyncTestCase):
