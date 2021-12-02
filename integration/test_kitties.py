@@ -76,7 +76,7 @@ def test_kittens(request, reactor, temp_filepath, alice):
     for _ in range(10):
         st = yield alice.status()
         print(st)
-        data = json.loads(st)
+        data = json.loads(st.strip())
         if data["state"]["synchronizing"] is False:
             break
         yield twisted_sleep(reactor, 1)
