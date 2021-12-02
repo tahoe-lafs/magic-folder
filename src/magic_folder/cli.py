@@ -87,7 +87,11 @@ from .join import (
 from .service import (
     MagicFolderService,
 )
-from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
+from .util.eliotutil import (
+    maybe_enable_eliot_logging,
+    with_eliot_options,
+)
+
 
 if six.PY2:
     def to_unicode(s):
@@ -352,20 +356,35 @@ def status(options):
         for folder_name, folder in data["folders"].items():
             print('Folder "{}":'.format(folder_name))
             print("  downloads: {}".format(len(folder["downloads"])))
+            if folder["downloads"]:
+                print("    {}".format(
+                    ", ".join(d["relpath"] for d in folder["downloads"])
+                ))
             print("  uploads: {}".format(len(folder["uploads"])))
             for u in folder["uploads"]:
                 queue = humanize.naturaldelta(now - u["queued-at"])
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(u["name"], queue, start))
+                print("    {}: queued {} ago{}".format(u["relpath"], queue, start))
             print("  recent:")
             for f in folder["recent"]:
                 if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
                     continue
-                print("    {}: modified {} ago (updated {} ago)".format(
+                if f["modified"] is not None:
+                    modified_text = "modified {} ago".format(
+                        humanize.naturaldelta(now - f["modified"])
+                    )
+                else:
+                    modified_text = "[deleted]"
+                print("    {}: {}{} (updated {} ago)".format(
                     f["relpath"],
-                    humanize.naturaldelta(now - f["modified"]),
+                    "[CONFLICT] " if f["conflicted"] else "",
+                    modified_text,
                     humanize.naturaldelta(now - f["last-updated"]),
                 ))
+            if folder["errors"]:
+                print("Errors:")
+                for e in folder["errors"]:
+                    print("  {}: {}".format(e["timestamp"], e["summary"]))
     proto.on('message', message)
 
     yield proto.is_closed
@@ -613,6 +632,31 @@ class BaseOptions(usage.Options):
                     u"Unable to load configuration: {}".format(e)
                 )
         return self._config
+
+    @property
+    def api_client_endpoint(self):
+        """
+        retrieve the client API endpoint (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_client_endpoint").open("rb") as f:
+                endpoint_str = f.read().decode("utf8")
+                return endpoint_str.strip()
+        except Exception:
+            return self.config.api_client_endpoint
+
+    @property
+    def api_token(self):
+        """
+        retrieve the client API token (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_token").open("rb") as f:
+                return f.read()
+        except Exception:
+            return self.config.api_token
 
     @property
     def client(self):

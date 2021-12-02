@@ -23,6 +23,9 @@ __all__ = [
 import re
 import hashlib
 import time
+from collections import (
+    deque,
+)
 from os import (
     urandom,
 )
@@ -108,8 +111,15 @@ from eliot import (
     start_action,
 )
 
-from .util.capabilities import is_readonly_directory_cap, is_directory_cap
-from .util.database import with_cursor, LockableDatabase
+from .util.capabilities import (
+    is_readonly_directory_cap,
+    is_directory_cap,
+    capability_size,
+)
+from .util.database import (
+    with_cursor,
+    LockableDatabase,
+)
 from .util.eliotutil import (
     RELPATH,
     validateSetMembership,
@@ -235,9 +245,9 @@ _magicfolder_config_schema = Schema([
                                                  -- or uploaded from local changes
             [content_cap]      TEXT,             -- Tahoe-LAFS URI of the content capability
             [metadata_cap]     TEXT,             -- Tahoe-LAFS URI of the metadata capability
-            [mtime_ns]         INTEGER NOT NULL, -- ctime of current snapshot
-            [ctime_ns]         INTEGER NOT NULL, -- mtime of current snapshot
-            [size]             INTEGER NOT NULL, -- size of current snapshot
+            [mtime_ns]         INTEGER,          -- ctime of current snapshot
+            [ctime_ns]         INTEGER,          -- mtime of current snapshot
+            [size]             INTEGER,          -- size of current snapshot
             [last_updated_ns]  INTEGER NOT NULL, -- timestamp when last changed
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
@@ -702,6 +712,12 @@ def _get_local_parents(identifier, parents, construct_parent_snapshot):
     )
 
 
+# maps UUIDs->LocalSnapshot instances
+# used by _construct_local_snapshot to ensure that there is at most 1
+# LocalSnapshot instance in memory for each one in the database)
+_local_snapshots = WeakValueDictionary()
+
+
 def _construct_local_snapshot(identifier, relpath, author, content_paths, metadata, parents):
     """
     Instantiate a ``LocalSnapshot`` corresponding to the given identifier.
@@ -723,11 +739,16 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
     :return LocalSnapshot: The requested snapshot, populated with information
         from the given parameters, including fully initialized local parents.
     """
-    return LocalSnapshot(
-        identifier=UUID(hex=identifier),
+    uuid = UUID(hex=identifier)
+    try:
+        return _local_snapshots[uuid]
+    except KeyError:
+        pass
+    rtn = _local_snapshots[uuid] = LocalSnapshot(
+        identifier=uuid,
         relpath=relpath,
         author=author,
-        content_path=FilePath(content_paths[identifier]),
+        content_path=None if content_paths[identifier] is None else FilePath(content_paths[identifier]),
         metadata=metadata.get(identifier, {}),
         parents_remote=_get_remote_parents(identifier, parents),
         parents_local=_get_local_parents(
@@ -743,6 +764,7 @@ def _construct_local_snapshot(identifier, relpath, author, content_paths, metada
             ),
         ),
     )
+    return rtn
 
 
 @attr.s
@@ -920,6 +942,7 @@ class MagicFolderConfig(object):
 
         try:
             # Create the primary row.
+            content_path = None if snapshot.content_path is None else snapshot.content_path.asTextMode("utf-8").path
             cursor.execute(
                 """
                 INSERT INTO
@@ -927,7 +950,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, snapshot.content_path.asTextMode("utf-8").path),
+                (unicode(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -996,9 +1019,93 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
-    def delete_localsnapshot(self, cursor, relpath):
+    def delete_local_snapshot(self, cursor, local_snapshot, remote_snapshot):
         """
-        remove the row corresponding to the given relpath from the local_snapshots table
+        Delete a single LocalSnapshot from the database. You may not
+        delete a LocalSnapshot that has any local parents. If any
+        LocalSnapshots exist with this as their parent, they will be
+        adjustd to have the remote as parent instead.
+
+        :param LocalSnapshot local_snapshot: the snapshot to delete
+
+        :param RemoteSnapshot remote_snapshot: the RemoteSnapshot that
+            has replaced local_snapshot
+        """
+        assert local_snapshot.relpath == remote_snapshot.relpath, "Unrelated snapshots"
+        relpath = local_snapshot.relpath
+        # this will raise KeyError if there are no snpashots at all for this relpath
+        youngest_snapshot = self.get_local_snapshot.__wrapped__(self, cursor, relpath)
+
+        # breadth-first traversal of the (local) parents of our
+        # youngest snapshot
+        our_snap = None
+        child = None
+        q = deque([youngest_snapshot])
+        while q:
+            child = q.popleft()
+            if child.identifier == local_snapshot.identifier:
+                our_snap = child
+                child = None
+                break
+            for parent in child.parents_local:
+                if parent.identifier == local_snapshot.identifier:
+                    # we've found ours!
+                    our_snap = parent
+                    break
+                else:
+                    q.append(parent)
+
+        # even though there maybe be _some_ snapshots for this
+        # relpath, it's possible the one we've been asked to delete
+        # doesn't exist..
+        if not our_snap:
+            raise ValueError(
+                "No such snapshot '{}' for '{}'".format(local_snapshot.identifier, relpath)
+            )
+
+        # turn the 'parent' entry for 'child' to remtoe_snapshot.capability
+        if child:
+            cursor.execute(
+                """
+                UPDATE
+                    local_snapshot_parent
+                SET
+                    local_only=?, parent_identifier=?
+                WHERE
+                   [snapshot_identifier]=?
+                """,
+                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+            )
+            child.parents_local = [
+                snap
+                for snap in child.parents_local
+                if snap.identifier != local_snapshot.identifier
+            ]
+            child.parents_remote.append(remote_snapshot.capability)
+        # delete 'ours'
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshot_metadata]
+            WHERE
+                [snapshot_identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
+        cursor.execute(
+            """
+            DELETE FROM
+                [local_snapshots]
+            WHERE
+                [identifier]=?
+            """,
+            (unicode(our_snap.identifier),)
+        )
+
+    @with_cursor
+    def delete_all_local_snapshots_for(self, cursor, relpath):
+        """
+        remove all rows corresponding to the given relpath from the local_snapshots table
 
         :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
@@ -1026,7 +1133,7 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with delete_localsnapshot
+        # TODO: We should consider merging this with local_snapshot_become_remote
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,
@@ -1072,7 +1179,17 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (relpath, snapshot_cap, metadata_cap, content_cap, mtime_ns, ctime_ns, size, last_updated_ns, upload_duration_ns)"
                     " VALUES (?,?,?,?,?,?,?,?,?)",
-                    (relpath, snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None),
+                    (
+                        relpath,
+                        snapshot_cap,
+                        remote_snapshot.metadata_cap,
+                        remote_snapshot.content_cap,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        None,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1085,7 +1202,17 @@ class MagicFolderConfig(object):
                     WHERE
                         [relpath]=?
                     """,
-                    (snapshot_cap, remote_snapshot.metadata_cap, remote_snapshot.content_cap, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, None, relpath),
+                    (
+                        snapshot_cap,
+                        remote_snapshot.metadata_cap,
+                        remote_snapshot.content_cap,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        None,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1106,7 +1233,13 @@ class MagicFolderConfig(object):
                 cursor.execute(
                     "INSERT INTO current_snapshots (relpath, mtime_ns, ctime_ns, size, last_updated_ns)"
                     " VALUES (?,?,?,?,?)",
-                    (relpath, path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns),
+                    (
+                        relpath,
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="insert")
             except (sqlite3.IntegrityError, sqlite3.OperationalError):
@@ -1114,7 +1247,13 @@ class MagicFolderConfig(object):
                     "UPDATE current_snapshots"
                     " SET mtime_ns=?, ctime_ns=?, size=?, last_updated_ns=?"
                     " WHERE [relpath]=?",
-                    (path_state.mtime_ns, path_state.ctime_ns, path_state.size, now_ns, relpath),
+                    (
+                        None if path_state is None else path_state.mtime_ns,
+                        None if path_state is None else path_state.ctime_ns,
+                        None if path_state is None else path_state.size,
+                        now_ns,
+                        relpath,
+                    ),
                 )
                 action.add_success_fields(insert_or_update="update")
 
@@ -1127,6 +1266,35 @@ class MagicFolderConfig(object):
         cursor.execute("SELECT [relpath] FROM [current_snapshots]")
         rows = cursor.fetchall()
         return set(r[0] for r in rows)
+
+    @with_cursor
+    def get_tahoe_object_sizes(self, cursor):
+        """
+        :returns: list of triples containing the sizes of the snapshot,
+            metadata and content capabilities for all objects uploaded or
+            downloaded by this magic-folder.
+        """
+        # this __wrapped__ business is to get around the non-recursive
+        # with_cursor transaction handling .. because we already have
+        # a cursor here
+        snapshots = self.get_all_snapshot_paths.__wrapped__(self, cursor)
+        sizes = []
+        for relpath in snapshots:
+            try:
+                caps = self.get_remotesnapshot_caps.__wrapped__(self, cursor, relpath)
+            except KeyError:
+                # this will happen if we know about "relpath" but
+                # there is no snapshot_cap at all for it yet .. so
+                # then there are no Tahoe objects for it yet
+                # either. We could take a guess here at how big the
+                # Tahoe object will be but also the UI could update
+                # whenever we do finally upload.
+                continue
+            sizes.extend([
+                capability_size(c)
+                for c in caps
+            ])
+        return sizes
 
     @with_cursor
     def get_recent_remotesnapshot_paths(self, cursor, n):
@@ -1173,6 +1341,8 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return row[0].encode("utf-8")
+            # XXX weird to have "KeyError" if snapshot_cap is there,
+            # but null _as well_ as when the row is simply missing.
             raise KeyError(relpath)
 
 
@@ -1206,9 +1376,11 @@ class MagicFolderConfig(object):
             if row and row[0] is not None:
                 return (
                     row[0].encode("utf-8"),  # snapshot-cap
-                    row[1].encode("utf-8"),  # content-cap
+                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
                     row[2].encode("utf-8"),  # metadata-cap
                 )
+            # XXX kind of weird to throw KeyError for things we know
+            # abou, but the snapshot_cap is still null...
             raise KeyError(relpath)
 
     @with_cursor
@@ -1577,6 +1749,14 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
+        self._write_api_client_endpoint()
+
+    def _write_api_client_endpoint(self):
+        """
+        Write the current API client-endpoint to a file in our state directory
+        """
+        with self.basedir.child("api_client_endpoint").open("wb") as f:
+            f.write("{}\n".format(self.api_client_endpoint))
 
     @property
     def tahoe_client_url(self):

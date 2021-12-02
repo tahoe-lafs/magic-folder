@@ -115,7 +115,16 @@ class PathInfoTests(SyncTestCase):
         """
         :py:`get_pathinfo` returns a :py:`PathInfo` when given regulare file.
         """
-        now = int(time.time())
+        # this fails sometimes with int(time.time()) .. I believe
+        # because there isn't enough resolution to always "round down"
+        # to the right second when the time is right near the
+        # boundary. So see this, change below to int(time.time())
+        # without the float fudging and run:
+        #
+        #   python -m twisted.trial -u magic_folder.test.test_util_file
+        #
+        # to run this until it fails
+        now = int(time.time() - 0.5)
         match_after_now = AfterPreprocessing(
             ns_to_seconds,
             Not(LessThan(now)),

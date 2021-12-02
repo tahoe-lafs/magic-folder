@@ -2,11 +2,13 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
 
 import sys
 import time
 import json
+import sqlite3
 import os
 from os import mkdir
 from io import BytesIO
@@ -21,6 +23,7 @@ from treq.client import HTTPClient
 from twisted.internet.defer import (
     returnValue,
     Deferred,
+    maybeDeferred,
 )
 from twisted.internet.task import (
     deferLater,
@@ -68,6 +71,10 @@ from magic_folder.config import (
 from magic_folder.tahoe_client import (
     create_tahoe_client,
 )
+from magic_folder.client import (
+    create_http_client,
+    create_magic_folder_client,
+)
 from magic_folder.util.eliotutil import (
     log_inline_callbacks,
 )
@@ -102,6 +109,7 @@ class MagicFolderEnabledNode(object):
     magic_folder_web_port = attr.ib()
 
     _global_config = attr.ib(init=False, default=None)
+    _client = attr.ib(default=None)
 
     @property
     def node_directory(self):
@@ -122,6 +130,19 @@ class MagicFolderEnabledNode(object):
             config.tahoe_client_url,
             HTTPClient(Agent(self.reactor)),
         )
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = create_magic_folder_client(
+                self.reactor,
+                self.global_config(),
+                create_http_client(
+                    self.reactor,
+                    unicode(self.global_config().api_client_endpoint),
+                ),
+            )
+        return self._client
 
     @property
     def magic_directory(self):
@@ -368,7 +389,7 @@ class MagicFolderEnabledNode(object):
             self.reactor, self.request, self.name,
             [
                 "--config", self.magic_config_directory,
-                "scan-folder",
+                "scan",
                 "--folder", folder_name,
             ],
         )
@@ -385,6 +406,32 @@ class MagicFolderEnabledNode(object):
                 "--folder", folder_name,
                 "--author", author_name,
                 "--personal-dmd", personal_dmd,
+            ],
+        )
+
+    def scan(self, folder_name):
+        """
+        magic-folder-api scan
+        """
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "scan",
+                "--folder", folder_name,
+            ],
+        )
+
+    def status(self):
+        """
+        magic-folder-api monitor --once
+        """
+        return _magic_folder_api_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "monitor",
+                "--once",
             ],
         )
 
@@ -670,10 +717,11 @@ def _cleanup_service_process(process, exited, action):
             def report(m):
                 Message.log(message_type="integration:cleanup", message=m)
                 print(m)
-            report("signaling {} with TERM".format(process.pid))
-            process.signalProcess('TERM')
-            report("signaled, blocking on exit")
-            pytest_twisted.blockon(exited)
+            if process.pid is not None:
+                report("signaling {} with TERM".format(process.pid))
+                process.signalProcess('TERM')
+                report("signaled, blocking on exit")
+                pytest_twisted.blockon(exited)
             report("exited, goodbye")
     except ProcessExitedAlready:
         pass
@@ -895,7 +943,6 @@ class FileShouldVanishException(Exception):
         )
 
 
-
 @log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
 def await_file_contents(path, contents, timeout=15):
     """
@@ -937,6 +984,7 @@ def await_file_contents(path, contents, timeout=15):
     if exists(path):
         raise ExpectedFileMismatchException(path, timeout)
     raise ExpectedFileUnfoundException(path, timeout)
+
 
 @inline_callbacks
 def ensure_file_not_created(path, timeout=15):
@@ -980,13 +1028,15 @@ def await_files_exist(paths, timeout=15, await_all=False):
     raise ExpectedFileUnfoundException(nice_paths, timeout)
 
 
+@inline_callbacks
 def await_file_vanishes(path, timeout=10):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    from twisted.internet import reactor
+    start_time = reactor.seconds()
+    while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}' to vanish".format(path))
         if not exists(path):
             return
-        sleep(1)
+        yield twisted_sleep(reactor, 1)
     raise FileShouldVanishException(path, timeout)
 
 
@@ -1232,7 +1282,6 @@ def _generate_invite(reactor, inviter, invitee_name):
     returnValue(invite)
 
 
-
 @inline_callbacks
 def _command(*args):
     """
@@ -1248,3 +1297,35 @@ def _command(*args):
     return_value = yield run_magic_folder_options(o)
     assert 0 == return_value
     returnValue(o.stdout.getvalue())
+
+
+@inline_callbacks
+def database_retry(reactor, seconds, f, *args, **kwargs):
+    """
+    Call `f` with `args` and `kwargs` .. but retry up to `seconds`
+    times (1s apart) due to an sqlite3 OperationalError.
+
+    Sometimes it's useful to get information from the config / state
+    database but since production code is usually running too, it's
+    possible we access it at the same time as production code. Using
+    this wrapper can make the tests more reliable.
+    """
+    value = nothing = object()
+    for _ in range(seconds):
+        yield twisted_sleep(reactor, 1)
+        try:
+            value = yield maybeDeferred(f, *args, **kwargs)
+            break
+        except sqlite3.OperationalError:
+            # since we're messing with the database while production
+            # code is running, it's possible this will fail if we
+            # access the database while the "real" code is also doing
+            # that.
+            pass
+        except KeyError:
+            pass
+    if value is nothing:
+        raise RuntimeError(
+            "Calling {} kept raising OperationError even after {} tries".format(f, seconds)
+        )
+    returnValue(value)

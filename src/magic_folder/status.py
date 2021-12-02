@@ -74,6 +74,14 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
+    def download_queued(folder, relpath):
+        """
+        An item is added to our download queue
+
+        :param unicode folder: the name of the folder that started download
+        :param unicode relpath: relative local path of the snapshot
+        """
+
     def download_started(folder, relpath):
         """
         Started downloading a Snapshot + content from Tahoe
@@ -88,6 +96,13 @@ class IStatus(Interface):
 
         :param unicode folder: the name of the folder that started download
         :param unicode relpath: relative local path of the snapshot
+        """
+
+    def folder_gone(folder):
+        """
+        The given folder is gone and all state for it should be deleted.
+
+        :param unicode folder: the folder that is gone
         """
 
 
@@ -262,16 +277,6 @@ class WebSocketStatusService(service.Service):
 
         def folder_data_for(name):
             mf_config = self._config.get_magic_folder(name)
-            most_recent = [
-                {
-                    "relpath": relpath,
-                    "modified": timestamp,
-                    "last-updated": last_updated,
-                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
-                }
-                for relpath, timestamp, last_updated
-                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
-            ]
             uploads = [
                 upload
                 for upload in sorted(
@@ -287,6 +292,25 @@ class WebSocketStatusService(service.Service):
                         key=lambda d: d.get("queued-at", 0),
                         reverse=True,
                 )
+            ]
+
+            def uploads_and_downloads():
+                for d in downloads:
+                    yield d["relpath"]
+                for d in uploads:
+                    yield d["relpath"]
+            down_up = set(uploads_and_downloads())
+
+            most_recent = [
+                {
+                    "relpath": relpath,
+                    "modified": timestamp,
+                    "last-updated": last_updated,
+                    "conflicted": bool(len(mf_config.list_conflicts_for(relpath))),
+                }
+                for relpath, timestamp, last_updated
+                in self._config.get_magic_folder(name).get_recent_remotesnapshot_paths(30)
+                if relpath not in down_up
             ]
             return {
                 "uploads": uploads,
@@ -327,6 +351,17 @@ class WebSocketStatusService(service.Service):
 
     # IStatus API
 
+    def folder_gone(self, folder):
+        """
+        IStatus API
+
+        :param unicode folder: the folder which is removed
+        """
+        try:
+            del self._folders[folder]
+        except KeyError:
+            pass
+
     def error_occurred(self, folder, message):
         """
         IStatus API
@@ -353,7 +388,7 @@ class WebSocketStatusService(service.Service):
         # relpath, but we should keep the _oldest_ queued time.
         if relpath not in self._folders[folder]["uploads"]:
             self._folders[folder]["uploads"][relpath] = {
-                "name": relpath,
+                "relpath": relpath,
                 "queued-at": self._clock.seconds(),
             }
         self._maybe_update_clients()
@@ -372,15 +407,25 @@ class WebSocketStatusService(service.Service):
         del self._folders[folder]["uploads"][relpath]
         self._maybe_update_clients()
 
+    def download_queued(self, folder, relpath):
+        """
+        IStatus API
+        """
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["downloads"]:
+            self._folders[folder]["downloads"][relpath] = {
+                "relpath": relpath,
+                "queued-at": self._clock.seconds(),
+            }
+        self._maybe_update_clients()
+
     def download_started(self, folder, relpath):
         """
         IStatus API
         """
-        data = {
-            "name": relpath,
-            "started-at": self._clock.seconds(),
-        }
-        self._folders[folder]["downloads"][relpath] = data
+        self.download_queued(folder, relpath)  # ensure relpath exists
+        self._folders[folder]["downloads"][relpath]["started-at"] = self._clock.seconds()
         self._maybe_update_clients()
 
     def download_finished(self, folder, relpath):

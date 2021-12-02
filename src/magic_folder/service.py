@@ -190,6 +190,10 @@ class MagicFolderService(MultiService):
         ds = []
         for magic_folder in self._iter_magic_folder_services():
             ds.append(magic_folder.ready())
+
+        # double-check that our api-endpoint exists properly in the "output" file
+        self.config._write_api_client_endpoint()
+
         # The integration tests look for this message.  You cannot get rid of
         # it (without also changing the tests).
         print("Completed initial Magic Folder setup")
@@ -302,6 +306,7 @@ class MagicFolderService(MultiService):
                     )
 
             yield folder.disownServiceParent()
+            self.status_service.folder_gone(name)
             fails = self.config.remove_magic_folder(name)
             if fails:
                 raise APIError(
