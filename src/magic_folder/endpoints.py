@@ -6,11 +6,18 @@ from __future__ import (
     absolute_import,
     division,
     print_function,
+    unicode_literals,
 )
+
+import re
+from typing import Optional
+
+from twisted.internet.address import IPv4Address, IPv6Address
 
 from twisted.internet.endpoints import (
     _parse as twisted_endpoint_parse,
 )
+from twisted.internet.interfaces import IAddress
 
 
 class CannotConvertEndpointError(Exception):
@@ -18,6 +25,37 @@ class CannotConvertEndpointError(Exception):
     Failed to convert a server endpoint-string into a corresponding
     client one.
     """
+
+def _quote_endpoint_argument(s):
+    # type: (unicode) -> unicode
+    """
+    Twisted endpoint strings cannot contain colon characters inside
+    individual pieces of the endpoint string (because they're
+    :-delimiated).
+
+    :returns: `s` with all : characters replaced with backslash-:
+    """
+    return re.sub(
+        r"[\:]",
+        lambda m: r"\{}".format(m.group(0)),
+        s
+    )
+
+def client_endpoint_from_address(address):
+    # type: (IAddress) -> Optional[unicode]
+    """
+    Turn certain kinds of IAddress into a Twisted client-style
+    endpoint string. Supports only TCP on IPv4 or IPv6.
+
+    :returns: unicode like "tcp:<host>:<port>" for and `address` of
+        type IPV4Address or IPv6Address. None otherwise.
+    """
+    if isinstance(address, (IPv4Address, IPv6Address)) and address.type == "TCP":
+        return "tcp:{host}:{port}".format(
+            host=_quote_endpoint_argument(address.host.encode("utf-8")),
+            port=address.port,
+        )
+    return None
 
 
 def server_endpoint_str_to_client(server_ep):
@@ -54,6 +92,8 @@ def _tcp_endpoint_to_client(args, kwargs):
     """
     host = kwargs.get(u"interface", None) or u"127.0.0.1"
     port = args[0]
+    if port == "0":
+        return None
     return u"tcp:{}:{}".format(host, port)
 
 

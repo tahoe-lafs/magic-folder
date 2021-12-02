@@ -45,6 +45,9 @@ from ..config import (
 from ..endpoints import (
     CannotConvertEndpointError,
 )
+from ..cli import (
+    BaseOptions,
+)
 from magic_folder.util.observer import (
     ListenObserver,
 )
@@ -96,6 +99,25 @@ class TestListenObserver(AsyncTestCase):
         for d in [d0, d1, d2]:
             self.assertTrue(d.called)
             self.assertEqual(d.result, "we listened")
+
+
+class TestBaseOptions(SyncTestCase):
+    """
+    Confirm operations of BaseOptions features
+    """
+
+    def setUp(self):
+        super(TestBaseOptions, self).setUp()
+        self.base = FilePath(self.mktemp())
+        self.base.makedirs()
+        self.options = BaseOptions()
+        self.options['config'] = self.base.path
+
+    def test_client_endpoint(self):
+        with self.base.child("api_client_endpoint").open("w") as f:
+            f.write("not running\n")
+        with self.assertRaises(Exception):
+            self.options.api_client_endpoint
 
 
 class TestInitialize(SyncTestCase):
