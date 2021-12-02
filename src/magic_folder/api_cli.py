@@ -242,10 +242,13 @@ class StatusProtocol(WebSocketClientProtocol):
         super(StatusProtocol, self).__init__()
         self._output = output
         self._single_message = single_message
+        self._done = False
 
     def onMessage(self, payload, is_binary):
-        print(payload, file=self._output)
+        if not self._done:
+            print(payload, file=self._output)
         if self._single_message:
+            self._done = True
             self.sendClose()
 
 
