@@ -484,6 +484,11 @@ class RemoteScannerService(service.MultiService):
 
     @inline_callbacks
     def _poll_collective(self):
+        """
+        Internal helper.
+        Download the collective dircap.
+        For every participant that's not us, download any updated entries.
+        """
         with start_action(
             action_type="downloader:poll-collective", folder=self._config.name
         ):

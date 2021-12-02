@@ -1749,6 +1749,14 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
+        self._write_api_client_endpoint()
+
+    def _write_api_client_endpoint(self):
+        """
+        Write the current API client-endpoint to a file in our state directory
+        """
+        with self.basedir.child("api_client_endpoint").open("wb") as f:
+            f.write("{}\n".format(self.api_client_endpoint))
 
     @property
     def tahoe_client_url(self):
