@@ -75,6 +75,7 @@ def test_kittens(request, reactor, temp_filepath, alice):
     # wait for a limited time to be complete
     for _ in range(10):
         st = yield alice.status()
+        print(st)
         data = json.loads(st)
         if data["state"]["synchronizing"] is False:
             break
