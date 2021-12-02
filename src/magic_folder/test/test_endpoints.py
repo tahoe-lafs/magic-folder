@@ -10,15 +10,7 @@ from __future__ import (
 )
 
 from testtools.matchers import (
-    Is,
-    IsInstance,
-    MatchesStructure,
     Equals,
-    AfterPreprocessing,
-)
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
 )
 from twisted.internet.address import (
     IPv4Address,
@@ -27,7 +19,6 @@ from twisted.internet.address import (
 
 from .common import (
     SyncTestCase,
-    AsyncTestCase,
 )
 from ..endpoints import (
     client_endpoint_from_address,
