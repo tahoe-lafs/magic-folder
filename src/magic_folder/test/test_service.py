@@ -27,12 +27,8 @@ from twisted.internet.task import Clock
 from twisted.python.filepath import (
     FilePath,
 )
-
-# this should be twisted.internet.testing.MemoryReactorClock,
-# probably, but NixOS 19.09 doesn't support Twisted 19.7.0 so I guess
-# we'll limp along with this until NixOS is updated?
-from autobahn.twisted.testing import (
-    MemoryReactorClockResolver,
+from twisted.internet.testing import (
+    MemoryReactorClock,
 )
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
@@ -87,7 +83,7 @@ class TestService(AsyncTestCase):
             self.node.path,
             u"tcp:localhost:0",
         )
-        self.reactor = MemoryReactorClockResolver()
+        self.reactor = MemoryReactorClock()
         self.service = MagicFolderService(
             self.reactor,
             self.config,
