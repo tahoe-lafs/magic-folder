@@ -197,14 +197,19 @@ class LocalSnapshotService(service.Service):
         """
         Wait for a single item from the queue and process it, forever.
         """
-        while True:
+        while self.running:
             try:
                 (path, d) = yield self._queue.get()
+            except CancelledError:
+                return
+
+            try:
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     snap = yield self._snapshot_creator.store_local_snapshot(path)
                     d.callback(snap)
             except CancelledError:
-                break
+                d.cancel()
+                return
             except Exception:
                 d.errback()
                 write_traceback()
@@ -213,10 +218,10 @@ class LocalSnapshotService(service.Service):
         """
         Don't process queued items anymore.
         """
+        super(LocalSnapshotService, self).stopService()
         d = self._service_d
-        self._service_d.cancel()
-        service.Service.stopService(self)
         self._service_d = None
+        d.cancel()
         return d
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
@@ -292,13 +297,18 @@ class UploaderService(service.Service):
         """
         Wait for a single item from the queue and process it, forever.
         """
-        while True:
+        while self.running:
             try:
                 (snap, d) = yield self._queue.get()
+            except CancelledError:
+                return
+
+            try:
                 remote = yield self._perform_upload(snap)
                 d.callback(remote)
             except CancelledError:
-                break
+                d.cancel()
+                return
             except Exception:
                 d.errback()
                 write_traceback()
@@ -307,10 +317,10 @@ class UploaderService(service.Service):
         """
         Don't process queued items anymore.
         """
+        super(UploaderService, self).stopService()
         d = self._service_d
-        self._service_d.cancel()
-        service.Service.stopService(self)
         self._service_d = None
+        d.cancel()
         return d
 
     @inline_callbacks

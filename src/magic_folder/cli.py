@@ -637,14 +637,42 @@ class BaseOptions(usage.Options):
         return self._config
 
     @property
+    def api_client_endpoint(self):
+        """
+        retrieve the client API endpoint (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_client_endpoint").open("rb") as f:
+                endpoint_str = f.read().decode("utf8").strip()
+                if endpoint_str == "not running":
+                    raise Exception("Service not running.")
+                return endpoint_str
+        except Exception:
+            if self.config.api_client_endpoint is None:
+                raise Exception("Service not running.")
+            return self.config.api_client_endpoint
+
+    @property
+    def api_token(self):
+        """
+        retrieve the client API token (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_token").open("rb") as f:
+                return f.read()
+        except Exception:
+            return self.config.api_token
+
+    @property
     def client(self):
         if self._client is None:
             from twisted.internet import reactor
+            endpoint_str = self.api_client_endpoint
 
             if self._http_client is None:
-                self._http_client = create_http_client(
-                    reactor, self.config.api_client_endpoint
-                )
+                self._http_client = create_http_client(reactor, endpoint_str)
             self._client = create_magic_folder_client(
                 reactor,
                 self.config,

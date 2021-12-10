@@ -717,10 +717,11 @@ def _cleanup_service_process(process, exited, action):
             def report(m):
                 Message.log(message_type="integration:cleanup", message=m)
                 print(m)
-            report("signaling {} with TERM".format(process.pid))
-            process.signalProcess('TERM')
-            report("signaled, blocking on exit")
-            pytest_twisted.blockon(exited)
+            if process.pid is not None:
+                report("signaling {} with TERM".format(process.pid))
+                process.signalProcess('TERM')
+                report("signaled, blocking on exit")
+                pytest_twisted.blockon(exited)
             report("exited, goodbye")
     except ProcessExitedAlready:
         pass

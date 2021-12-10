@@ -242,10 +242,13 @@ class StatusProtocol(WebSocketClientProtocol):
         super(StatusProtocol, self).__init__()
         self._output = output
         self._single_message = single_message
+        self._done = False
 
     def onMessage(self, payload, is_binary):
-        print(payload, file=self._output)
+        if not self._done:
+            print(payload, file=self._output)
         if self._single_message:
+            self._done = True
             self.sendClose()
 
 
@@ -255,7 +258,7 @@ def monitor(options):
     Print out updates from the WebSocket status API
     """
 
-    endpoint_str = options.parent.config.api_client_endpoint
+    endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
     agent = options.parent.get_websocket_agent()
@@ -263,7 +266,7 @@ def monitor(options):
         websocket_uri,
         {
             "headers": {
-                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+                "Authorization": "Bearer {}".format(options.parent.api_token),
             }
         },
         lambda: StatusProtocol(
@@ -425,7 +428,7 @@ def run_magic_folder_api_options(options):
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
             print(u"Error: {}".format(e), file=options.stderr)
-            print(u"   Attempted access via {}".format(options.config.api_client_endpoint), file=options.stderr)
+            print(u"   Attempted access via {}".format(options.api_client_endpoint), file=options.stderr)
             raise SystemExit(1)
 
         except MagicFolderApiError as e:

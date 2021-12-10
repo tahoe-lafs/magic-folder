@@ -62,15 +62,15 @@ def scan_folder(node, folder_name, path):
 
 def periodic_scan(node, folder_name, path):
     """
-    Wait to given the given magic folder a change to run a periodic scan.
-    This should cause the given path to be
-    snapshotted.
+    Wait for the given magic folder to run a periodic scan.  This
+    should cause the given path to be snapshotted.
 
     :param MagicFolderEnabledNode node: The node on which to do the scan.
     """
     from twisted.internet import reactor
     Message.log(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
-    return twisted_sleep(reactor, 1)
+    # XXX need a better way than "wait 3 seconds" to know if the scan is completed...
+    return twisted_sleep(reactor, 3.0)
 
 @pytest.fixture(name='periodic_scan')
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):

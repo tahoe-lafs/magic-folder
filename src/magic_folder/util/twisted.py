@@ -12,7 +12,7 @@ from functools import wraps
 import attr
 from eliot import write_failure
 from twisted.application.service import Service
-from twisted.internet.defer import Deferred, maybeDeferred, succeed
+from twisted.internet.defer import Deferred, maybeDeferred, succeed, CancelledError
 from twisted.internet.interfaces import IDelayedCall, IReactorTime
 from twisted.python.failure import Failure
 
@@ -36,6 +36,16 @@ def exclusively(maybe_f=None, lock_name="_lock"):
         return wrap
     else:
         return wrap(maybe_f)
+
+
+def cancelled(*args, **kw):
+    """
+    A function that takes any arguments at all and returns a Deferred
+    that is already cancelled.
+    """
+    d = Deferred()
+    d.cancel()
+    return d
 
 
 @attr.s
@@ -144,9 +154,12 @@ class PeriodicService(Service):
         next call when it completes.
         """
         def cb(result):
-            self._deferred = None
             if isinstance(result, Failure):
+                if isinstance(result.value, CancelledError):
+                    if self._deferred is not None:
+                        self._deferred.cancel()
                 write_failure(result)
+            self._deferred = None
             if self.running:
                 self._schedule()
 

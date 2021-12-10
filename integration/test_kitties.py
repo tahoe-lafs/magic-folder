@@ -68,17 +68,18 @@ def test_kittens(request, reactor, temp_filepath, alice):
     request.addfinalizer(cleanup)
 
     # perform a scan, which will create LocalSnapshots for all the
-    # files we already created in the magic-folder (not _not_ upload
+    # files we already created in the magic-folder (but _not_ upload
     # them, necessarily, yet)
     yield alice.scan("kitties")
 
-    # wait up to 10 seconds to be complete
+    # wait for a limited time to be complete
     for _ in range(10):
         st = yield alice.status()
-        data = json.loads(st)
+        print(st)
+        data = json.loads(st.strip())
         if data["state"]["synchronizing"] is False:
             break
-        yield twisted_sleep(reactor, 10)
+        yield twisted_sleep(reactor, 1)
     assert data["state"]["synchronizing"] is False, "Should be finished uploading"
 
     kitties = data["state"]["folders"]["kitties"]
