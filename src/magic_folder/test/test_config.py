@@ -1164,7 +1164,6 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         """
         If there are no recent snapshots there's no time estimate
         """
-        # 3000 + 2000 + 1000 bytes in the files, 30 seconds per upload
         self.assertThat(
             self.db.get_recent_upload_speed(),
             Equals(None),
@@ -1177,7 +1176,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         relpath = "time_estimate"
         # a consistent current-time so we can compute exact duration
         self.patch(self.db, '_get_current_timestamp', lambda: 42)
-        sizes = (3000, 2000, 1000)
+        # 3000 bytes in each file, 30 seconds per upload
+        sizes = (3000, 3000, 3000)
         for size in sizes:
             remote = RemoteSnapshot(
                 relpath,
@@ -1195,7 +1195,6 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             # "upload_started_at=12" means each snapshot took (42 - 12) seconds to upload
             self.db.store_uploaded_snapshot(relpath, remote, 12)
 
-        # 3000 + 2000 + 1000 bytes in the files, 30 seconds per upload
         self.assertThat(
             int(self.db.get_recent_upload_speed()),
             Equals(sum(sizes) / (30 * 3)),
