@@ -43,9 +43,6 @@ workflows:
       - "centos-8":
           <<: *DOCKERHUB_CONTEXT
 
-      - "nixos-19.09":
-          <<: *DOCKERHUB_CONTEXT
-
       # Test against PyPy 2.7/7.3.0
       - "pypy2.7-7.3":
           <<: *DOCKERHUB_CONTEXT
@@ -391,90 +388,6 @@ jobs:
       - auth: *DOCKERHUB_AUTH
         image: "magicfolderci/fedora:34"
         user: "nobody"
-
-
-  nixos-19.09:
-    docker:
-      # Run in a highly Nix-capable environment.
-      - auth: *DOCKERHUB_AUTH
-        image: "nixos/nix:latest"
-
-    environment:
-      # CACHIX_AUTH_TOKEN is manually set in the CircleCI web UI and allows us to push to CACHIX_NAME.
-      CACHIX_NAME: "privatestorage-magic-folder-ci"
-
-      NIX_PATH: "nixpkgs=https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09-small.tar.gz"
-
-    steps:
-      - run:
-          name: "Set up Cachix"
-          command: |
-            nix-env -iA nixpkgs.cachix nixpkgs.bash
-            cachix use "${CACHIX_NAME}"
-            nix path-info --all > /tmp/store-path-pre-build
-
-      - "checkout"
-
-      - "run":
-          name: "Build and Test"
-          command: |
-            # CircleCI build environment looks like it has a zillion and a
-            # half cores.  Don't let Nix autodetect this high core count
-            # because it blows up memory usage and fails the test run.  Pick a
-            # number of cores that suites the build environment we're paying
-            # for (the free one!).
-            #
-            # Also, let it run more than one job at a time because we have to
-            # build a couple simple little dependencies that don't take
-            # advantage of multiple cores and we get a little speedup by doing
-            # them in parallel.
-            #
-            # Keep failed build intermediates so we can upload logs for failed
-            # runs as artifacts, too.
-            nix-build --show-trace --keep-failed --cores 3 --max-jobs 2 nix/
-
-      - "run":
-          name: "Prepare logs for upload"
-          # They need to be moved to the right place always, whether tests
-          # passed or failed.
-          when: "always"
-          shell: /usr/bin/env bash -eo pipefail
-          command: |
-            mkdir -p /tmp/artifacts/logs
-
-            # Let a glob expand to nothing if there are no matches.
-            shopt -s nullglob
-
-            # Copy any logs from a failed build we can find.  Note that in
-            # this CircleCI build context, the source directory is named
-            # "project" instead of magic-folder.
-            for p in /tmp/nix-build-*-magic-folder-*.drv-0/project/_trial_temp/*; do
-              out="/tmp/artifacts/logs/$(basename "$p")"
-              mkdir "$out"
-              cp "$p"/*.log "$out"
-            done
-
-      - store_artifacts:
-          path: "/tmp/artifacts/logs"
-
-      - run:
-          name: "Push to Cachix"
-          when: "always"
-          command: |
-            # Cribbed from
-            # https://circleci.com/blog/managing-secrets-when-you-have-pull-requests-from-outside-contributors/
-            if [ -n "$CIRCLE_PR_NUMBER" ]; then
-              # I'm sure you're thinking "CIRCLE_PR_NUMBER must just be the
-              # number of the PR being built".  Sorry, dear reader, you have
-              # guessed poorly.  It is also conditionally set based on whether
-              # this is a PR from a fork or not.
-              #
-              # https://circleci.com/docs/2.0/env-vars/#built-in-environment-variables
-              echo "Skipping Cachix push for forked PR."
-            else
-              # https://docs.cachix.org/continuous-integration-setup/circleci.html
-              bash -c "comm -13 <(sort /tmp/store-path-pre-build | grep -v '\.drv$') <(nix path-info --all | grep -v '\.drv$' | sort) | cachix push $CACHIX_NAME"
-            fi
 
   build-image: &BUILD_IMAGE
     # This is a template for a job to build a Docker image that has as much of
