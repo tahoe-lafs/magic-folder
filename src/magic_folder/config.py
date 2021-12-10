@@ -1326,7 +1326,7 @@ class MagicFolderConfig(object):
                 continue
             total_size += size
             total_duration += ns_to_seconds_float(duration_ns)
-        if total_duration == 0:
+        if total_duration == 0 or total_size == 0:
             return None
         return float(total_size) / total_duration
 
