@@ -62,7 +62,7 @@ def _request(http_client, method, url, **kwargs):
     """
     return http_client.request(
         method,
-        url.to_uri().to_text().encode("ascii"),
+        url,#.to_uri().to_text().encode("ascii"),
         **kwargs
     )
 
@@ -185,9 +185,9 @@ class TahoeClient(object):
         )
         res = yield _request(
             self.http_client,
-            b"POST",
+            u"POST",
             post_uri,
-            data=json.dumps(directory_data),
+            data=json.dumps(directory_data).encode("utf8"),
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(capability_string)
@@ -209,7 +209,7 @@ class TahoeClient(object):
         put_uri = self.url.child(u"uri")
         res = yield _request(
             self.http_client,
-            b"PUT",
+            u"PUT",
             put_uri,
             data=producer,
         )
@@ -230,7 +230,7 @@ class TahoeClient(object):
         )
         response = yield _request(
             self.http_client,
-            b"POST",
+            u"POST",
             post_uri,
         )
         # Response code should probably be CREATED but it seems to be OK
@@ -355,7 +355,7 @@ class TahoeClient(object):
         )
         response = yield _request(
             self.http_client,
-            b"PUT",
+            u"PUT",
             post_uri,
             data=entry_cap,
         )
@@ -402,7 +402,7 @@ class TahoeClient(object):
         get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
             self.http_client,
-            b"GET",
+            u"GET",
             get_uri,
         )
         data = yield _get_content_check_code({OK}, res)

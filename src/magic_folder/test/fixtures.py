@@ -12,10 +12,6 @@ from __future__ import (
 Common fixtures to let the test suite focus on application logic.
 """
 
-from __future__ import (
-    absolute_import,
-)
-
 from errno import (
     ENOENT,
 )

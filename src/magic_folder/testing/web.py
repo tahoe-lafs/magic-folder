@@ -113,8 +113,8 @@ class _FakeTahoeWelcome(Resource, object):
         Normally the "welcome" / front page. We only need to support the
         ?t=json for tests.
         """
-        assert "t" in request.args, "must pass ?t= query argument"
-        assert request.args["t"][0] == "json", "must pass ?t=json query argument"
+        assert b"t" in request.args, "must pass ?t= query argument"
+        assert request.args[b"t"][0] == b"json", "must pass ?t=json query argument"
         return json.dumps({
             "introducers": {
                 "statuses": ["Fake test status"]
@@ -133,7 +133,7 @@ class _FakeTahoeWelcome(Resource, object):
 
 
 KNOWN_CAPABILITIES = [
-    getattr(allmydata.uri, t).BASE_STRING
+    getattr(allmydata.uri, t).BASE_STRING.decode("ascii")
     for t in dir(allmydata.uri)
     if hasattr(getattr(allmydata.uri, t), 'BASE_STRING')
 ]
@@ -176,11 +176,11 @@ def capability_generator(kind):
     # capabilities are "prefix:<128-bits-base32>:<256-bits-base32>:N:K:size"
     while True:
         number += 1
-        key_hasher.update("\x00")
-        ueb_hasher.update("\x00")
+        key_hasher.update("\x00".encode("utf8"))
+        ueb_hasher.update("\x00".encode("utf8"))
 
-        key = base32.b2a(key_hasher.digest()[:16])  # key is 16 bytes
-        ueb_hash = base32.b2a(ueb_hasher.digest())  # ueb hash is 32 bytes
+        key = base32.b2a(key_hasher.digest()[:16]).decode("ascii")  # key is 16 bytes
+        ueb_hash = base32.b2a(ueb_hasher.digest()).decode("ascii")  # ueb hash is 32 bytes
 
         cap = u"{kind}{key}:{ueb_hash}:{n}:{k}:{size}".format(
             kind=kind,
@@ -240,8 +240,8 @@ class _FakeTahoeUriHandler(Resource, object):
         if kind.startswith("URI:DIR2") and not kind.startswith("URI:DIR2-CHK"):
             # directory-capabilities don't have the trailing size etc
             # information unless they're immutable ...
-            parts = capability.split(":")
-            capability = ":".join(parts[:4])
+            parts = capability.split(b":")
+            capability = b":".join(parts[:4])
         return capability
 
     def _add_new_data(self, kind, data):
@@ -395,7 +395,7 @@ class _FakeTahoeUriHandler(Resource, object):
             {
                 "children": data,
             }
-        ])
+        ]).encode("utf8")
 
     def _add_immutable_directory(self, raw_data):
         return self.add_data(
@@ -410,12 +410,12 @@ class _FakeTahoeUriHandler(Resource, object):
         )
 
     def render_POST(self, request):
-        t = request.args[u"t"][0]
+        t = request.args[b"t"][0]
         data = request.content.read()
 
         type_to_handler = {
-            "mkdir-immutable": self._add_immutable_directory,
-            "mkdir": self._add_mutable_directory,
+            b"mkdir-immutable": self._add_immutable_directory,
+            b"mkdir": self._add_mutable_directory,
         }
         handler = type_to_handler[t]
         fresh, cap = handler(data)

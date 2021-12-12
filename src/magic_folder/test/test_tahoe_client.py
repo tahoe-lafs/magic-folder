@@ -263,7 +263,7 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.list_directory(cap),
@@ -290,7 +290,7 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.directory_data(cap),
