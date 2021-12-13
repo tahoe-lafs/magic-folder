@@ -52,7 +52,8 @@ def does_not_have_keys(*keys):
     return validator
 
 
-@attr.s(auto_exc=True, frozen=True)
+# this cannot be frozen=True because of Twisted
+@attr.s(auto_exc=True)
 class APIError(Exception):
     """
     An error to be reported from the API.
@@ -107,7 +108,7 @@ class APIError(Exception):
         return self.reason
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class NoSuchMagicFolder(APIError):
     """
     There is not a magic folder of the given name.
@@ -147,7 +148,7 @@ def atomic_makedirs(path):
         raise
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class InvalidMagicFolderName(APIError):
     """
     The given magic folder name contains an invalid character.

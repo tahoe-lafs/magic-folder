@@ -20,7 +20,7 @@ import attr
 
 MAXIMUM_UPGRADES = 1000
 
-@attr.s(frozen=True)
+@attr.s()
 class DatabaseSchemaTooNew(Exception):
     """
     The schema in the database is newer than the Python schema representation.

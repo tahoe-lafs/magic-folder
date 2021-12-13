@@ -24,7 +24,7 @@ __all__ = [
 ]
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class WithCursorGenerator(TypeError):
     """
     :py:`with_cursor` cannot be used on a generator.
@@ -44,7 +44,7 @@ class WithCursorGenerator(TypeError):
         )
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class _LockableDatabaseTransactionError(Exception):
     """
     An error from calling :py:`LockableDatabase.transaction`.
@@ -85,7 +85,7 @@ class _LockableDatabaseTransactionError(Exception):
         return message
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class ClosedDatabase(_LockableDatabaseTransactionError):
     """
     :py:`with_cursor` or :py:`LockableDatabase.transaction` was called on a
@@ -95,7 +95,7 @@ class ClosedDatabase(_LockableDatabaseTransactionError):
     message = attr.ib(init=False, default="Tried to operate on a closed database")
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class RecusiveTransaction(_LockableDatabaseTransactionError):
     """
     :py:`with_cursor` or :py:`LockableDatabase.transaction` was called while a

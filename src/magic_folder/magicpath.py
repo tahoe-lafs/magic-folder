@@ -11,7 +11,7 @@ import attr
 from pyutil.assertutil import _assert, precondition
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class InvalidMangledPath(Exception):
     path = attr.ib()
     sequence = attr.ib()

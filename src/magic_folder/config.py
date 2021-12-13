@@ -309,7 +309,7 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class LocalSnapshotMissingParent(Exception):
     """
     An attempt was made to store a local snapshot whose parents aren't in
@@ -318,7 +318,7 @@ class LocalSnapshotMissingParent(Exception):
     parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class RemoteSnapshotWithoutPathState(Exception):
     """
     An attempt was made to insert a remote snapshot into the database without
