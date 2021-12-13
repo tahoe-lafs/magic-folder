@@ -138,8 +138,8 @@ class CacheTests(SyncTestCase):
             FilePath(self.mktemp()),
             FilePath("dummy"),
         )
-        self.collective_cap = "URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq"
-        self.personal_cap = "URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        self.collective_cap = b"URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq"
+        self.personal_cap = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
 
         self.config = self._global_config.create_magic_folder(
             "default",
@@ -187,7 +187,7 @@ class CacheTests(SyncTestCase):
             "parents": [],
         }
         _, content_cap = self.root.add_data("URI:CHK:", b"content\n" * 1000)
-        _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))
+        _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata).encode("utf8"))
 
         data = dumps([
             "dirnode",
@@ -198,7 +198,7 @@ class CacheTests(SyncTestCase):
                         "filenode",
                         {
                             "format": "CHK",
-                            "ro_uri": content_cap,
+                            "ro_uri": content_cap.decode("ascii"),
                             "mutable": False,
                             "metadata": {},
                             "size": 4704
@@ -208,7 +208,7 @@ class CacheTests(SyncTestCase):
                         "filenode",
                         {
                             "format": "CHK",
-                            "ro_uri": metadata_cap,
+                            "ro_uri": metadata_cap.decode("ascii"),
                             "mutable": False,
                             "metadata": {
                                 "magic_folder": {
@@ -219,7 +219,7 @@ class CacheTests(SyncTestCase):
                                             content_cap,
                                             metadata_cap
                                         ).signature
-                                    ),
+                                    ).decode("utf8"),
                                 }
                             },
                             "size": 246
@@ -227,7 +227,7 @@ class CacheTests(SyncTestCase):
                     ]
                 }
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:DIR2-CHK:", data)
 
         # we've set up some fake data; lets see if the cache service
@@ -263,7 +263,7 @@ class CacheTests(SyncTestCase):
             }
             content_data = u"content {}\n".format(who).encode("utf8") * 1000
             content_cap = self.root.add_data("URI:CHK:", content_data)[1]
-            metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))[1]
+            metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata).encode("utf8"))[1]
 
             _, cap = self.root.add_data(
                 "URI:DIR2-CHK:",
@@ -276,7 +276,7 @@ class CacheTests(SyncTestCase):
                                 "filenode",
                                 {
                                     "format": "CHK",
-                                    "ro_uri": content_cap,
+                                    "ro_uri": content_cap.decode("ascii"),
                                     "mutable": False,
                                     "metadata": {},
                                     "size": 4704
@@ -286,7 +286,7 @@ class CacheTests(SyncTestCase):
                                 "filenode",
                                 {
                                     "format": "CHK",
-                                    "ro_uri": metadata_cap,
+                                    "ro_uri": metadata_cap.decode("ascii"),
                                     "mutable": False,
                                     "metadata": {
                                         "magic_folder": {
@@ -297,7 +297,7 @@ class CacheTests(SyncTestCase):
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature
-                                            ),
+                                            ).decode("ascii"),
                                         }
                                     },
                                     "size": 246
@@ -305,9 +305,9 @@ class CacheTests(SyncTestCase):
                             ]
                         }
                     }
-                ])
+                ]).encode("utf8")
             )
-            parents = [cap]
+            parents = [cap.decode("ascii")]
             if genesis is None:
                 genesis = cap
 
@@ -931,6 +931,12 @@ class UpdateTests(AsyncTestCase):
         )
 
 
+def _plausible_dir2_chk_cap(a, b):
+    """
+    """
+    return b"URI:DIR2-CHK:" + a + b":" + b + b":1:5:376"
+
+
 class ConflictTests(AsyncTestCase):
     """
     Tests relating to conflict cases
@@ -1083,7 +1089,7 @@ class ConflictTests(AsyncTestCase):
         remotes = []
 
         for letter in b'abcd':
-            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(
+            parent_cap = _plausible_dir2_chk_cap(
                 base64.b32encode(letter * 16).rstrip('=').lower(),
                 base64.b32encode(letter * 32).rstrip('=').lower(),
             )
@@ -1126,7 +1132,7 @@ class ConflictTests(AsyncTestCase):
         Give the updater a remote update with no ancestors
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1138,7 +1144,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap(b'b' * 26, b'c' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1150,7 +1156,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
-        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
+        other_cap = _plausible_dir2_chk_cap(b'z' * 26, b'z' * 52)
         other = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1188,7 +1194,7 @@ class ConflictTests(AsyncTestCase):
         Give the updater a remote update which is a delete
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice,
@@ -1200,7 +1206,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap(b'b' * 26, b'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice,
@@ -1243,7 +1249,7 @@ class ConflictTests(AsyncTestCase):
         An update that's older than our local one
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1255,7 +1261,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap(b'b' * 26, b'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1295,7 +1301,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to write to the filesystem
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1380,7 +1386,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to download some content
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1475,7 +1481,7 @@ class ConflictTests(AsyncTestCase):
         An update arrives but we fail to update our Personal DMD
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1587,7 +1593,7 @@ class CancelTests(AsyncTestCase):
             local_f.write(b"dummy\n" * 50)
 
         class FakeRemoteSnapshot(object):
-            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('x' * 26, 'y' * 52)
+            content_cap = _plausible_dir2_chk_cap(b'x' * 26, b'y' * 52)
             relpath = "some_file"  # match earlier relpath
         remote_snapshot = FakeRemoteSnapshot()
 
@@ -1627,7 +1633,7 @@ class CancelTests(AsyncTestCase):
         cancelled
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap(b'a' * 26, b'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=create_local_author("carol"),

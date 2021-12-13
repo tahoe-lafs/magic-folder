@@ -74,7 +74,7 @@ class RemoteAuthor(object):
         """
         return {
             "name": self.name,
-            "verify_key": self.verify_key.encode(encoder=Base64Encoder),
+            "verify_key": self.verify_key.encode(encoder=Base64Encoder).decode("utf8"),
         }
 
 
@@ -219,6 +219,8 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
+    assert isinstance(content_capability, bytes), "capabilities are bytes"
+    assert isinstance(metadata_capability, bytes), "capabilities are bytes"
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
@@ -235,6 +237,8 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
 
     :returns: True on success or exception otherwise
     """
+    assert isinstance(content_capability, bytes), "capabilities are bytes"
+    assert isinstance(metadata_capability, bytes), "capabilities are bytes"
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = _snapshot_signature_string(
         snapshot_relpath,
@@ -406,7 +410,6 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     :return Deferred[Snapshot]: RemoteSnapshot instance on success.
         Otherwise an appropriate exception is raised.
     """
-
     action = start_action(
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot_from_capability",
     )
@@ -420,7 +423,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # capabilities at this point .. that might be better anyway?
         # (A key advantage is not even trying to deserialize anything
         # that's not verified by a signature).
-        metadata_cap = snapshot["metadata"][1]["ro_uri"]
+        metadata_cap = snapshot["metadata"][1]["ro_uri"].encode("ascii")
         author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
 
         metadata_json = yield tahoe_client.download_file(metadata_cap)
@@ -440,7 +443,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
         relpath = metadata["relpath"]
         # if 'ro_uri' is missing, there's no content_cap here (so it's a delete)
-        content_cap = snapshot["content"][1].get("ro_uri", None)
+        content_cap = snapshot["content"][1].get("ro_uri", None).encode("ascii")
 
         # create SnapshotAuthor
         author = create_author_from_json(metadata["author"])
@@ -450,7 +453,10 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         verify_snapshot_signature(author, signature, content_cap, metadata_cap, relpath)
 
         # find all parents
-        parent_caps = metadata["parents"]
+        parent_caps = [
+            cap.encode("ascii")
+            for cap in metadata["parents"]
+        ]
 
     returnValue(
         RemoteSnapshot(
@@ -460,7 +466,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
             content_cap=content_cap,
             metadata_cap=metadata_cap,
             parents_raw=parent_caps,
-            capability=snapshot_cap.decode("ascii"),
+            capability=snapshot_cap,
         )
     )
 
@@ -618,6 +624,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
+            assert isinstance(parent, bytes), "capabilities are bytes"
             parents_raw.append(parent)
 
     # we can't reference any LocalSnapshot objects we have, so they
@@ -631,6 +638,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
+            assert isinstance(parent_remote_snapshot.capability, bytes), "capabilities are bytes"
             parents_raw.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 
@@ -687,7 +695,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
             parents_raw=parents_raw,
-            capability=snapshot_cap.decode("ascii"),
+            capability=snapshot_cap,
             content_cap=content_cap,
             metadata_cap=metadata_cap,
         )

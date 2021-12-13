@@ -692,7 +692,7 @@ class MagicFile(object):
             d = maybeDeferred(
                 self._factory._write_participant.update_snapshot,
                 snapshot.relpath,
-                snapshot.capability.encode("ascii"),
+                snapshot.capability,
             )
             d.addCallback(updated_snapshot)
             d.addErrback(error)

@@ -426,7 +426,7 @@ class _FakeTahoeUriHandler(Resource, object):
         capability = None
         for arg, value in uri.query:
             if arg == u"uri":
-                capability = value
+                capability = value.encode("ascii")
         # it's legal to use the form "/uri/<capability>"
         if capability is None and request.postpath and request.postpath[0]:
             capability = request.postpath[0]

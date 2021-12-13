@@ -118,8 +118,8 @@ class RemoteSnapshotCacheService(service.Service):
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
         """
-        with start_action(action_type="cache-service:locate_snapshot",
-                          capability=snapshot_cap) as t:
+        assert type(snapshot_cap) == bytes, "capabilities are bytes"
+        with start_action(action_type="cache-service:locate_snapshot") as t:
             try:
                 snapshot = self._cached_snapshots[snapshot_cap]
                 t.add_success_fields(cached=True)
@@ -138,14 +138,16 @@ class RemoteSnapshotCacheService(service.Service):
         Cache a single snapshot, which we shall return. We also cache
         all parent snapshots.
         """
+        assert type(snapshot_cap) == bytes, "capabilities are bytes"
         snapshot = yield create_snapshot_from_capability(
             snapshot_cap,
             self.tahoe_client,
         )
         self._cached_snapshots[snapshot_cap] = snapshot
-        Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata["relpath"],
-                    capability=snapshot.capability)
+        Message.log(
+            message_type="remote-cache:cached",
+            relpath=snapshot.metadata["relpath"],
+        )
 
         # breadth-first traversal of the parents
         q = deque([snapshot])
