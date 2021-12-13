@@ -9,10 +9,10 @@ six >= 1.10.0
 
 # Eliot is contemplating dropping Python 2 support.  Stick to a version we
 # know works on Python 2.7.
-eliot ~= 1.7
+eliot
 
 # A great way to define types of values. (The upper bound matches tahoe 1.15.1)
-attrs >= 19.1.0, < 20.0
+attrs
 
 # WebSocket library for twisted and asyncio
 autobahn >= 19.5.2
@@ -48,7 +48,7 @@ klein>=20.6.0
 
 # Loading old magic-folders config for migration
 # Minimum version is the version packaged in the nix snapshot we use.
-PyYAML >= 5.1.1
+#PyYAML >= 5.1.1
 
 # Backported configparser for Python 2:
-configparser ; python_version < '3.0'
+#configparser ; python_version < '3.0'

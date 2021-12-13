@@ -48,8 +48,7 @@ def main(base_requirements, platform_requirements, remove):
         print("ERROR: Requirement files must be in the same directory.")
         raise SystemExit(1)
 
-    original_reqs = base_requirements.getContent()
-
+    original_reqs = base_requirements.getContent().decode("utf8")
     if remove:
         lines = original_reqs.splitlines()
         # pip-compile-multi generates files with this header
@@ -61,7 +60,7 @@ def main(base_requirements, platform_requirements, remove):
         new_reqs = "\n".join([HEADER, "-r {}".format(platform_requirements.basename()), original_reqs])
 
     with base_requirements.open("w") as f:
-        f.write(new_reqs)
+        f.write(new_reqs.encode("utf8"))
 
 
 if __name__ == "__main__":
