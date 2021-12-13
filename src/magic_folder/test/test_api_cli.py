@@ -91,7 +91,7 @@ class TestApiAddSnapshot(AsyncTestCase):
 
     def setUp(self):
         super(TestApiAddSnapshot, self).setUp()
-        self.magic_config = FilePath(self.mktemp())
+        self.magic_config = FilePath(self.mktemp()).asTextMode()
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -110,13 +110,13 @@ class TestApiAddSnapshot(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text(),
                  {b"path": [b"foo"]},
                  {
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'0'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b""),
@@ -218,7 +218,7 @@ class TestMagicApi(AsyncTestCase):
         """
         Correctly loads existing configuration
         """
-        basedir = FilePath(self.mktemp())
+        basedir = FilePath(self.mktemp()).asTextMode()
         create_global_configuration(basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1")
         options = MagicFolderApiCommand()
         options.parseOptions([
@@ -369,7 +369,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp())
+        basedir = FilePath(self.mktemp()).asTextMode()
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -421,7 +421,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp())
+        basedir = FilePath(self.mktemp()).asTextMode()
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -434,13 +434,13 @@ class TestMagicApi(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text(),
                  {b"path": [b"foo"]},
                  {
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'0'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + global_config.api_token.encode("ascii")],
+                     b'Authorization': [b'Bearer ' + global_config.api_token],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b""),
@@ -485,7 +485,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp())
+        basedir = FilePath(self.mktemp()).asTextMode()
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -532,7 +532,7 @@ class TestDumpState(AsyncTestCase):
 
     def setUp(self):
         super(TestDumpState, self).setUp()
-        self.magic_config = FilePath(self.mktemp())
+        self.magic_config = FilePath(self.mktemp()).asTextMode()
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -545,7 +545,7 @@ class TestDumpState(AsyncTestCase):
         """
 
         author = create_local_author("zara")
-        magic_path = FilePath(self.mktemp())
+        magic_path = FilePath(self.mktemp()).asTextMode()
         magic_path.makedirs()
         config = self.global_config.create_magic_folder(
             name="test",
@@ -591,9 +591,9 @@ class TestDumpState(AsyncTestCase):
         options.stdout = StringIO()
         options.stderr = StringIO()
         options.parseOptions([
-            b"--config", self.magic_config.path,
-            b"dump-state",
-            b"--folder", b"test",
+            "--config", self.magic_config.path,
+            "dump-state",
+            "--folder", "test",
         ])
         options._config = self.global_config
         yield run_magic_folder_api_options(options)
@@ -637,7 +637,7 @@ class TestApiParticipants(AsyncTestCase):
 
     def setUp(self):
         super(TestApiParticipants, self).setUp()
-        self.magic_config = FilePath(self.mktemp())
+        self.magic_config = FilePath(self.mktemp()).asTextMode()
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -691,15 +691,16 @@ class TestApiParticipants(AsyncTestCase):
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'149'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
                      b'Accept-Encoding': [b'gzip']
                  },
+                 # XXX args, this fails because of different sorting of keys in body serialization
                  json.dumps({
                      "personal_dmd": "URI:DIR2-CHK:lq34kr5sp7mnvkhce4ahl2nw4m:dpujdl7sol6xih5gzil525tormolzaucq4re7snn5belv7wzsdha:1:5:328",
                      "author": {
                          "name": "amaya",
                      }
-                 }).encode("utf8")
+                 }).encode("utf8"),
                 ),
                 # expected response
                 (200, {}, b"{}"),
@@ -775,12 +776,12 @@ class TestApiParticipants(AsyncTestCase):
             (
                 # expected request
                 (b"get",
-                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "participants").to_text(),
                  {},
                  {
                      b'Host': [b'invalid.'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b"",
@@ -826,7 +827,7 @@ class TestApiMonitor(AsyncTestCase):
 
     def setUp(self):
         super(TestApiMonitor, self).setUp()
-        self.magic_config = FilePath(self.mktemp())
+        self.magic_config = FilePath(self.mktemp()).asTextMode()
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),

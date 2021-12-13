@@ -432,7 +432,7 @@ def create_testing_configuration(basedir, tahoe_node_directory):
         sqlite3.connect(":memory:"),
     )
     api_endpoint_str = "tcp:-1"
-    api_client_endpoint_str = "tcp:127.0.0.1:-1"
+    api_client_endpoint_str = "tcp:127.0.0.1:1"
     with connection:
         cursor = connection.cursor()
         cursor.execute(
