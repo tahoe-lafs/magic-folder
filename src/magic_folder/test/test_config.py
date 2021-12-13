@@ -6,12 +6,15 @@ from __future__ import (
 )
 
 import sqlite3
+import itertools
 from io import (
     BytesIO,
 )
-import itertools
 from re import (
     escape,
+)
+from functools import (
+    partial,
 )
 
 from twisted.python.filepath import (
@@ -112,8 +115,8 @@ class TestGlobalConfig(SyncTestCase):
         self.setup_tempdir()
 
     def setup_tempdir(self):
-        self.temp = FilePath(self.mktemp())
-        self.node_dir = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
+        self.node_dir = FilePath(self.mktemp()).asTextMode()
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     @given(
@@ -1127,7 +1130,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         Add 35 RemoteSnapshots and ensure we only get 30 back from
         'recent' list.
         """
-        self.patch(self.db, '_get_current_timestamp', itertools.count().next)
+        self.patch(self.db, '_get_current_timestamp', partial(next, itertools.count()))
         for x in range(35):
             relpath = "foo_{}".format(x)
             remote = RemoteSnapshot(

@@ -526,7 +526,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
         # 1. create a temp-file in our stash area
         temp_file_fd, temp_file_name = mkstemp(
             prefix="snap",
-            dir=snapshot_stash_dir.asBytesMode("utf-8").path,
+            dir=snapshot_stash_dir.asTextMode().path,
         )
         try:
             # 2. stream data_producer into our temp-file
