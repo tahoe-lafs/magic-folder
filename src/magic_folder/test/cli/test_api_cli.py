@@ -80,9 +80,9 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan",
-                b"--folder",
-                self.folder_name.encode("utf-8"),
+                u"scan",
+                u"--folder",
+                self.folder_name,
             ],
         )
         self.assertThat(
@@ -108,7 +108,7 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan",
+                u"scan",
             ],
         )
         self.assertThat(
@@ -128,9 +128,9 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"poll",
-                b"--folder",
-                self.folder_name.encode("utf-8"),
+                u"poll",
+                u"--folder",
+                self.folder_name,
             ],
         )
         self.assertThat(
@@ -150,7 +150,7 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"poll",
+                u"poll",
             ],
         )
         self.assertThat(

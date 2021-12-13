@@ -61,8 +61,8 @@ def add_snapshot(options):
     magic-folder.
     """
     res = yield options.parent.client.add_snapshot(
-        options['folder'].decode("utf8"),
-        options['file'].decode("utf8"),
+        options['folder'],
+        options['file'],
     )
     print("{}".format(res), file=options.stdout)
 

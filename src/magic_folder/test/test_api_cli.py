@@ -116,7 +116,7 @@ class TestApiAddSnapshot(AsyncTestCase):
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'0'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b""),
@@ -164,7 +164,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             # ((method, url, params, headers, data), (code, headers, body)),
             (
                 (b"post",
-                 self.url.child("magic-folder", "default", "snapshot").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "snapshot").to_text(),
                  {b"path": [b"../../../foo"]},
                  {
                      b'Host': [b'invalid.'],
@@ -440,7 +440,7 @@ class TestMagicApi(AsyncTestCase):
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'0'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + global_config.api_token],
+                     b'Authorization': [b'Bearer ' + global_config.api_token.encode("ascii")],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b""),
@@ -685,13 +685,13 @@ class TestApiParticipants(AsyncTestCase):
             (
                 # expected request
                 (b"post",
-                 self.url.child("magic-folder", "default", "participants").to_text().encode("utf8"),
+                 self.url.child("magic-folder", "default", "participants").to_text(),
                  {},
                  {
                      b'Host': [b'invalid.'],
                      b'Content-Length': [b'149'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
                      b'Accept-Encoding': [b'gzip']
                  },
                  json.dumps({
@@ -780,7 +780,7 @@ class TestApiParticipants(AsyncTestCase):
                  {
                      b'Host': [b'invalid.'],
                      b'Connection': [b'close'],
-                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token.decode("ascii")],
                      b'Accept-Encoding': [b'gzip']
                  },
                  b"",

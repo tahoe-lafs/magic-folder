@@ -1762,9 +1762,9 @@ class GlobalConfigDatabase(object):
         """
         with self.basedir.child("api_client_endpoint").open("wb") as f:
             if self.api_client_endpoint is None:
-                f.write("not running\n")
+                f.write("not running\n".encode("utf8"))
             else:
-                f.write("{}\n".format(self.api_client_endpoint))
+                f.write("{}\n".format(self.api_client_endpoint).encode("utf8"))
 
     @property
     def tahoe_client_url(self):

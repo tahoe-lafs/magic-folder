@@ -393,7 +393,7 @@ class APIv1(object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        include_secret_information = int(request.args.get(b"include_secret_information", [0])[0])
         _application_json(request)  # set reply headers
 
         def get_folder_info(name, mf):
@@ -401,7 +401,7 @@ class APIv1(object):
                 u"name": name,
                 u"author": {
                     u"name": mf.author.name,
-                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                    u"verify_key": mf.author.verify_key.encode(Base32Encoder).decode("ascii"),
                 },
                 u"stash_path": mf.stash_path.path,
                 u"magic_path": mf.magic_path.path,
@@ -410,7 +410,7 @@ class APIv1(object):
                 u"is_admin": mf.is_admin(),
             }
             if include_secret_information:
-                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder).decode("ascii")
                 info[u"collective_dircap"] = mf.collective_dircap
                 info[u"upload_dircap"] = mf.upload_dircap
             return info

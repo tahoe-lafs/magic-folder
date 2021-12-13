@@ -320,7 +320,7 @@ def authorized_request(http_client, auth_token, method, url, body=b""):
 
     :param http_client: A treq.HTTPClient instance
 
-    :param unicode auth_token: The Magic Folder authorization token to
+    :param bytes auth_token: The Magic Folder authorization token to
         present.
 
     :param bytes method: The HTTP request method to use.
@@ -332,7 +332,7 @@ def authorized_request(http_client, auth_token, method, url, body=b""):
     :return: Whatever ``treq.request`` returns.
     """
     headers = {
-        b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+        b"Authorization": b"Bearer " + auth_token,
     }
     return http_client.request(
         method,
