@@ -1342,7 +1342,7 @@ class MagicFolderConfig(object):
                            (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
-                return row[0].encode("utf-8")
+                return row[0]
             # XXX weird to have "KeyError" if snapshot_cap is there,
             # but null _as well_ as when the row is simply missing.
             raise KeyError(relpath)
@@ -1377,9 +1377,9 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return (
-                    row[0].encode("utf-8"),  # snapshot-cap
-                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
-                    row[2].encode("utf-8"),  # metadata-cap
+                    row[0],  # snapshot-cap
+                    None if row[1] is None else row[1],  # content-cap
+                    row[2],  # metadata-cap
                 )
             # XXX kind of weird to throw KeyError for things we know
             # abou, but the snapshot_cap is still null...
@@ -1536,7 +1536,7 @@ class MagicFolderConfig(object):
             conflict (like "foo.conflict-laptop" for a file "foo"
             conflicting with device "laptop")
         """
-        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        relpath = u"/".join(path.asTextMode().segmentsFrom(self.magic_path.asTextMode()))
         m = _conflict_file_re.match(relpath)
         if m:
             # the plain relpath is .group(1)
@@ -1561,7 +1561,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return cursor.fetchone()[0]
 
     @collective_dircap.setter
     @with_cursor
@@ -1581,7 +1581,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return cursor.fetchone()[0]
 
     @property
     @with_cursor
@@ -1651,8 +1651,8 @@ class FilesystemTokenProvider(object):
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
         self._api_token = urlsafe_b64encode(urandom(32))
-        with self.api_token_path.open('wb') as f:
-            f.write(self._api_token.encode("utf8"))
+        with self.api_token_path.open("wb") as f:
+            f.write(self._api_token)
         return self._api_token
 
     def _load_token(self):

@@ -230,7 +230,7 @@ class AuthorizationTests(SyncTestCase):
         # logic we'll just magic up the child resource being requested.
         branch = Data(
             content,
-            b"application/binary",
+            u"application/binary",
         )
         segments_remaining = child_segments[:]
         while segments_remaining:
@@ -512,7 +512,7 @@ class MagicFolderTests(SyncTestCase):
         }
 
         self.assertThat(
-            authorized_request(node.http_client, AUTH_TOKEN, b"GET", self.url),
+            authorized_request(node.http_client, AUTH_TOKEN, u"GET", self.url),
             succeeded(
                 matches_response(
                     code_matcher=Equals(OK),
@@ -555,7 +555,7 @@ class MagicFolderInstanceTests(SyncTestCase):
         self.author_name = "alice"
 
     @given(
-        sampled_from([b"GET", b"POST", b"PUT", b"PATCH", b"OPTIONS"]), folder_names()
+        sampled_from([u"GET", u"POST", u"PUT", u"PATCH", u"OPTIONS"]), folder_names()
     )
     def test_method_not_allowed(self, method, folder_name):
         """
@@ -873,7 +873,7 @@ class RedirectTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child(folder_name, "", "snapshot"),
             ),
             succeeded(
@@ -1242,7 +1242,7 @@ class CreateSnapshotTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 DecodedURL.from_text(u"http://example.invalid./v1/snapshot")
             ),
             succeeded(
@@ -1333,7 +1333,7 @@ class CreateSnapshotTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child("a-folder-that-doesnt-exist").child('snapshot'),
             ),
             succeeded(
@@ -1375,7 +1375,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("a-folder-that-doesnt-exist", "participants"),
             ),
             succeeded(
@@ -1395,7 +1395,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child("a-folder-that-doesnt-exist", "participants"),
             ),
             succeeded(
@@ -1444,7 +1444,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
@@ -1468,7 +1468,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child(folder_name, "participants"),
             ),
             succeeded(
@@ -1520,7 +1520,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 "not-json".encode("utf-8"),
             ),
@@ -1566,7 +1566,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "not-the-author": {"name": "kelly"},
@@ -1614,7 +1614,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"not-the-name": "kelly"},
@@ -1665,7 +1665,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
@@ -1715,7 +1715,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
@@ -1773,7 +1773,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child(folder_name, "participants"),
             ),
             succeeded(
@@ -1835,7 +1835,7 @@ class ParticipantsTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"POST",
+                u"POST",
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
@@ -1893,7 +1893,7 @@ class FileStatusTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("default", "file-status"),
             ),
             succeeded(
@@ -1943,7 +1943,7 @@ class FileStatusTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("default", "file-status"),
             ),
             succeeded(
@@ -1999,7 +1999,7 @@ class ConflictStatusTests(SyncTestCase):
             authorized_request(
                 treq,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("default", "conflicts"),
             ),
             succeeded(
@@ -2073,7 +2073,7 @@ class ConflictStatusTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("default", "conflicts"),
             ),
             succeeded(
@@ -2144,7 +2144,7 @@ class TahoeObjectsTests(SyncTestCase):
             authorized_request(
                 node.http_client,
                 AUTH_TOKEN,
-                b"GET",
+                u"GET",
                 self.url.child("default", "tahoe-objects"),
             ),
             succeeded(
