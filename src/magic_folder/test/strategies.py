@@ -6,6 +6,7 @@ Hypothesis strategies useful for testing Magic Folder.
 """
 
 from __future__ import (
+    unicode_literals,
     absolute_import,
     division,
     print_function,
@@ -229,7 +230,7 @@ def tahoe_lafs_chk_capabilities():
             # Total is how many you need plus how many more there might be.
             needed + extra,
             size,
-        ).encode("ascii"),
+        ),
         binary(min_size=16, max_size=16),
         binary(min_size=32, max_size=32),
         integers(min_value=1, max_value=128),
@@ -243,7 +244,7 @@ def tahoe_lafs_dir_capabilities():
     Build unicode strings which look like Tahoe-LAFS directory capability strings.
     """
     return builds(
-        lambda a, b: b"URI:DIR2:" + base32.b2a(a) + b":" + base32.b2a(b),
+        lambda a, b: "URI:DIR2:{}:{}".format(base32.b2a(a).decode(), base32.b2a(b).decode()),
         binary(min_size=16, max_size=16),
 
         binary(min_size=32, max_size=32),
@@ -256,7 +257,7 @@ def tahoe_lafs_immutable_dir_capabilities():
     capability strings.
     """
     return tahoe_lafs_chk_capabilities().map(
-        lambda chkcap: chkcap.replace(b":CHK:", b":DIR2-CHK:"),
+        lambda chkcap: chkcap.replace(":CHK:", ":DIR2-CHK:"),
     )
 
 def tahoe_lafs_readonly_dir_capabilities():
@@ -265,7 +266,7 @@ def tahoe_lafs_readonly_dir_capabilities():
     capability strings.
     """
     return tahoe_lafs_dir_capabilities().map(
-        lambda chkcap: chkcap.replace(b":DIR2:", b":DIR2-RO:"),
+        lambda chkcap: chkcap.replace(":DIR2:", ":DIR2-RO:"),
     )
 
 

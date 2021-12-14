@@ -138,12 +138,12 @@ KNOWN_CAPABILITIES = [
     if hasattr(getattr(allmydata.uri, t), 'BASE_STRING')
 ]
 MUTABLE_CAPABILITIES = [
-    b'URI:DIR2:',
-    b'URI:DIR2-RO:',
-    b'URI:SSK:',
-    b'URI:SSK-RO:',
-    b'URI:MDMF:',
-    b'URI:MDMF-RO:',
+    u'URI:DIR2:',
+    u'URI:DIR2-RO:',
+    u'URI:SSK:',
+    u'URI:SSK-RO:',
+    u'URI:MDMF:',
+    u'URI:MDMF-RO:',
 ]
 
 def capability_generator(kind):
@@ -190,7 +190,7 @@ def capability_generator(kind):
             k=1,
             size=number * 1000,
         )
-        yield cap.encode("ascii")
+        yield cap
 
 
 def _get_node_format(cap):
@@ -240,8 +240,8 @@ class _FakeTahoeUriHandler(Resource, object):
         if kind.startswith("URI:DIR2") and not kind.startswith("URI:DIR2-CHK"):
             # directory-capabilities don't have the trailing size etc
             # information unless they're immutable ...
-            parts = capability.split(b":")
-            capability = b":".join(parts[:4])
+            parts = capability.split(":")
+            capability = ":".join(parts[:4])
         return capability
 
     def _add_new_data(self, kind, data):
@@ -317,7 +317,7 @@ class _FakeTahoeUriHandler(Resource, object):
             request.setResponseCode(http.CREATED)  # real code does this for brand-new files
         else:
             request.setResponseCode(http.OK)  # replaced/modified files
-        return cap
+        return cap.encode("utf8")
 
     def _add_entry_to_dir(self, request, dircap, segments):
         """
@@ -332,21 +332,21 @@ class _FakeTahoeUriHandler(Resource, object):
             raise Exception(
                 "Need exactly one path segment (got {})".format(len(segments))
             )
-        path = normalize(segments[0].decode("utf-8"))
-        dircap = request.postpath[0].decode("ascii")
+        path = normalize(segments[0].decode("utf8"))
+        dircap = request.postpath[0].decode("utf8")
         if not dircap.startswith("URI:DIR2"):
             raise Exception(
                 "Can't add entry to non-mutable directory '{}'".format(dircap)
             )
         try:
-            dir_raw_data = self.data[dircap.encode("ascii")]
+            dir_raw_data = self.data[dircap]
         except KeyError:
             raise Exception(
                 "No directory for '{}'".format(dircap)
             )
 
         content_cap = request.content.read().decode("utf8")
-        content = allmydata.uri.from_string(content_cap.encode("ascii"))
+        content = allmydata.uri.from_string(content_cap)
 
         kind = "dirnode" if IDirnodeURI.providedBy(content) else "filenode"
 
@@ -375,7 +375,7 @@ class _FakeTahoeUriHandler(Resource, object):
                 return b""
 
         dir_data[1]["children"][segments[0].decode("utf8")] = [kind, metadata]
-        self.data[dircap.encode("utf8")] = json.dumps(dir_data).encode("utf8")
+        self.data[dircap] = json.dumps(dir_data).encode("utf8")
         return b""
 
     def _mkdir_data_to_internal(self, raw_data):
@@ -419,17 +419,17 @@ class _FakeTahoeUriHandler(Resource, object):
         }
         handler = type_to_handler[t]
         fresh, cap = handler(data)
-        return cap
+        return cap.encode("utf8")
 
     def render_GET(self, request):
         uri = DecodedURL.from_text(request.uri.decode('utf8'))
         capability = None
         for arg, value in uri.query:
             if arg == u"uri":
-                capability = value.encode("ascii")
+                capability = value
         # it's legal to use the form "/uri/<capability>"
         if capability is None and request.postpath and request.postpath[0]:
-            capability = request.postpath[0]
+            capability = request.postpath[0].decode("utf8")
 
         # Tahoe lets you get the children of directory-nodes by
         # appending names after the capability; we support up to 1

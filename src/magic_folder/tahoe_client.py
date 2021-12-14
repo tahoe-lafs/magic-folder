@@ -62,7 +62,7 @@ def _request(http_client, method, url, **kwargs):
     """
     return http_client.request(
         method,
-        url,#.to_uri().to_text().encode("ascii"),
+        url.to_uri().to_text().encode("ascii"),
         **kwargs
     )
 
@@ -190,7 +190,7 @@ class TahoeClient(object):
             data=json.dumps(directory_data).encode("utf8"),
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
-        returnValue(capability_string)
+        returnValue(capability_string.decode("utf8"))
 
     @exclusively
     @inlineCallbacks
@@ -214,7 +214,7 @@ class TahoeClient(object):
             data=producer,
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
-        returnValue(capability_string)
+        returnValue(capability_string.decode("utf8"))
 
     @exclusively
     @inlineCallbacks
@@ -240,7 +240,7 @@ class TahoeClient(object):
             capability_string = yield _get_content_check_code({OK, CREATED}, response)
         except TahoeAPIError as e:
             raise CannotCreateDirectoryError(e)
-        returnValue(capability_string)
+        returnValue(capability_string.decode("utf8"))
 
     @inline_callbacks
     def list_directory(self, dir_cap):
@@ -251,14 +251,14 @@ class TahoeClient(object):
         """
         api_uri = self.url.child(
             u"uri",
-            dir_cap.decode("ascii"),
+            dir_cap,
         ).add(
             u"t",
             u"json",
         ).to_uri().to_text().encode("ascii")
         action = start_action(
             action_type=u"magic-folder:cli:list-dir",
-            # leaks secrets: dirnode_uri=dir_cap.decode("ascii"),
+            # leaks secrets: dirnode_uri=dir_cap,
             # leaks secrets: api_uri=api_uri,
         )
         with action.context():
@@ -280,7 +280,7 @@ class TahoeClient(object):
 
         returnValue({
             name: (
-                json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
+                json_metadata.get("rw_uri", json_metadata["ro_uri"]),
                 json_metadata.get(u"metadata", {}),
             )
             for (name, (child_kind, json_metadata))
@@ -303,7 +303,7 @@ class TahoeClient(object):
             )
         api_uri = self.url.child(
             u"uri",
-            dir_cap.decode("ascii"),
+            dir_cap,
         ).add(
             u"t",
             u"json",
@@ -347,7 +347,7 @@ class TahoeClient(object):
         else:
             raise TypeError("replace value should be a boolean")
 
-        post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
+        post_uri = self.url.child(u"uri", mutable_cap, path_name).replace(
             query=[
                 (u"t", u"uri"),
                 (u"replace", replace_arg),
@@ -369,7 +369,7 @@ class TahoeClient(object):
                 entry_name=path_name,
                 tahoe_error=e,
             )
-        returnValue(capability_string)
+        returnValue(capability_string.decode("utf8"))
 
     @inlineCallbacks
     def download_file(self, cap):
@@ -397,7 +397,7 @@ class TahoeClient(object):
                 "{} is not a file capability".format(cap)
             )
 
-        query_args = [(u"uri", cap.decode("ascii"))]
+        query_args = [(u"uri", cap)]
 
         get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
@@ -422,7 +422,7 @@ class TahoeClient(object):
         :returns: Deferred that fires with `None`
         """
         get_uri = self.url.child(u"uri").replace(
-            query=[(u"uri", cap.decode("ascii"))],
+            query=[(u"uri", cap)],
         )
         res = yield self.http_client.get(get_uri.to_text())
         if res.code != OK:

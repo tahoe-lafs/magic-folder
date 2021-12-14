@@ -1561,7 +1561,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
-        return cursor.fetchone()[0].encode("ascii")
+        return cursor.fetchone()[0]
 
     @collective_dircap.setter
     @with_cursor
@@ -1581,7 +1581,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return cursor.fetchone()[0].encode("ascii")
+        return cursor.fetchone()[0]
 
     @property
     @with_cursor

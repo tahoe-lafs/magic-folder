@@ -187,7 +187,7 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
 
     :param bytes metadata_capability: Tahoe immutable capability-string
 
-    :returns: bytes
+    :returns bytes: the snapshop signature string encoded to utf8
     """
     snapshot_string = (
         u"magic-folder-snapshot-v1\n"
@@ -219,8 +219,8 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
-    assert isinstance(content_capability, bytes), "capabilities are bytes"
-    assert isinstance(metadata_capability, bytes), "capabilities are bytes"
+    assert isinstance(content_capability, str), "capabilities are strings"
+    assert isinstance(metadata_capability, str), "capabilities are strings"
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
@@ -423,7 +423,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # capabilities at this point .. that might be better anyway?
         # (A key advantage is not even trying to deserialize anything
         # that's not verified by a signature).
-        metadata_cap = snapshot["metadata"][1]["ro_uri"].encode("ascii")
+        metadata_cap = snapshot["metadata"][1]["ro_uri"]
         author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
 
         metadata_json = yield tahoe_client.download_file(metadata_cap)
@@ -443,7 +443,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
         relpath = metadata["relpath"]
         # if 'ro_uri' is missing, there's no content_cap here (so it's a delete)
-        content_cap = snapshot["content"][1].get("ro_uri", None).encode("ascii")
+        content_cap = snapshot["content"][1].get("ro_uri", None)
 
         # create SnapshotAuthor
         author = create_author_from_json(metadata["author"])
@@ -453,10 +453,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         verify_snapshot_signature(author, signature, content_cap, metadata_cap, relpath)
 
         # find all parents
-        parent_caps = [
-            cap.encode("ascii")
-            for cap in metadata["parents"]
-        ]
+        parent_caps = metadata["parents"]
 
     returnValue(
         RemoteSnapshot(
@@ -655,10 +652,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "relpath": snapshot.relpath,
         "author": snapshot.author.to_remote_author().to_json(),
         "modification_time": snapshot.metadata["mtime"],
-        "parents": [
-            parent_cap.encode("utf8")
-            for parent_cap in parents_raw
-        ]
+        "parents": parents_raw,
     }
     metadata_cap = yield tahoe_client.create_immutable(
         json.dumps(snapshot_metadata).encode("utf8")

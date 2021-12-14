@@ -484,7 +484,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap.capability.encode("utf8"),
+            remote_snap.capability,
         )
 
         # wait for the downloader to put this into Alice's magic-folder
@@ -527,7 +527,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap.capability.encode("utf8"),
+            remote_snap.capability,
         )
 
         # wait for the downloader to put this into Alice's magic-folder
@@ -574,7 +574,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -590,7 +590,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -642,7 +642,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -657,7 +657,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -688,7 +688,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap2.capability.encode("utf8"),
+            remote_snap2.capability,
             replace=True,
         )
 
@@ -728,7 +728,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -748,7 +748,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -782,7 +782,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap2.capability.encode("utf8"),
+            remote_snap2.capability,
             replace=True,
         )
 
@@ -839,7 +839,7 @@ class UpdateTests(AsyncTestCase):
             yield self.tahoe_client.add_entry_to_mutable_directory(
                 self.other_personal_cap,
                 u"foo",
-                remote_snap0.capability.encode("utf8"),
+                remote_snap0.capability,
             )
 
             # wait for the downloader to detect zara's change
@@ -912,7 +912,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             relpath,
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # wait for the downloader to detect zara's change
@@ -934,7 +934,7 @@ class UpdateTests(AsyncTestCase):
 def _plausible_dir2_chk_cap(a, b):
     """
     """
-    return b"URI:DIR2-CHK:" + a + b":" + b + b":1:5:376"
+    return u"URI:DIR2-CHK:{}:{}:1:5:376".format(a, b)
 
 
 class ConflictTests(AsyncTestCase):

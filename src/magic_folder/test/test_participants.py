@@ -178,8 +178,8 @@ class CollectiveParticipantsTests(SyncTestCase):
         author = sorted(collective_contents)[0]
         upload_dircap = collective_contents[author]
 
-        rw_collective_dircap = rw_collective_dircap.encode("ascii")
-        upload_dircap = upload_dircap.encode("ascii")
+        rw_collective_dircap = rw_collective_dircap
+        upload_dircap = upload_dircap
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -247,11 +247,11 @@ class CollectiveParticipantsTests(SyncTestCase):
         """
         # The collective can't be anyone's DMD.
         assume(rw_collective_dircap not in collective_contents.values())
-        rw_collective_dircap = rw_collective_dircap.encode("ascii")
+        rw_collective_dircap = rw_collective_dircap
 
         # Pick someone in the collective to be us.
         author = sorted(collective_contents)[0]
-        upload_dircap = collective_contents[author].encode("ascii")
+        upload_dircap = collective_contents[author]
         upload_dircap_ro = to_readonly_capability(upload_dircap)
 
         root = create_fake_tahoe_root()
@@ -513,7 +513,7 @@ class CollectiveParticipantTests(SyncTestCase):
             http_client,
         )
 
-        upload_dircap = upload_dircap.encode("ascii")
+        upload_dircap = upload_dircap
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {

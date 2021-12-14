@@ -70,9 +70,9 @@ from .util.file import (
 
 
 def _ensure_utf8_bytes(value):
-    if isinstance(value, unicode):
-        return value.encode('utf-8')
-    return value
+    if isinstance(value, bytes):
+        return value
+    return value.encode("utf8")
 
 
 def magic_folder_resource(get_auth_token, v1_resource):
