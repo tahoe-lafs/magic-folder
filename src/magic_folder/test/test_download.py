@@ -1511,6 +1511,8 @@ class ConflictTests(AsyncTestCase):
             tahoe_client,
         )
 
+        # now that we're set up, arrange to fail the next "add a thing
+        # to a dir" call
         self.alice.tahoe_root.fail_next_directory_update()
 
         # hook in the top-level service .. we don't "start" it and
