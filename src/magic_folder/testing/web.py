@@ -361,7 +361,7 @@ class _FakeTahoeUriHandler(Resource, object):
             "verify_uri": content.get_verify_cap().to_string().decode("ascii"),
             "format": _get_node_format(content),
         }
-        if content_cap != content.get_readonly().to_string():
+        if content_cap != content.get_readonly().to_string().decode("utf8"):
             metadata["rw_uri"] = content_cap
 
         if kind == "filenode" and content.get_size() is not None:
@@ -375,7 +375,7 @@ class _FakeTahoeUriHandler(Resource, object):
                 return b""
 
         dir_data[1]["children"][segments[0].decode("utf8")] = [kind, metadata]
-        self.data[dircap] = json.dumps(dir_data).encode("utf8")
+        self.data[dircap.encode("utf8")] = json.dumps(dir_data).encode("utf8")
         return b""
 
     def _mkdir_data_to_internal(self, raw_data):

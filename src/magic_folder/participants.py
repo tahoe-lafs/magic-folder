@@ -318,9 +318,9 @@ class _WriteableParticipant(object):
         Update the snapshot with the given relpath.
         """
         return self._tahoe_client.add_entry_to_mutable_directory(
-            self.upload_cap.encode("ascii"),
+            self.upload_cap,
             path2magic(relpath),
-            capability.encode("ascii"),
+            capability,
             replace=True,
         )
 

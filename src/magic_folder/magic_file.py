@@ -672,6 +672,8 @@ class MagicFile(object):
         # get us here.
 
         def error(f):
+            # XXX really need to "more visibly" log things like syntax
+            # errors etc...
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)

@@ -532,7 +532,6 @@ class RemoteScannerService(service.MultiService):
         with start_action(
             action_type="downloader:poll-file",
             relpath=relpath,
-            remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
             try:

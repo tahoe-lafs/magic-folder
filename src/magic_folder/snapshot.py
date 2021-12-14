@@ -586,7 +586,7 @@ def format_filenode(cap, metadata=None):
         information.
     """
     node = {
-        u"ro_uri": cap,
+        u"ro_uri": cap.decode("ascii"),
     }
     if metadata is not None:
         node[u"metadata"] = metadata
@@ -661,13 +661,13 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         ]
     }
     metadata_cap = yield tahoe_client.create_immutable(
-        json.dumps(snapshot_metadata)
+        json.dumps(snapshot_metadata).encode("utf8")
     )
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
     author_signature = sign_snapshot(author_key, snapshot.relpath, content_cap, metadata_cap)
-    author_signature_base64 = base64.b64encode(author_signature.signature)
+    author_signature_base64 = base64.b64encode(author_signature.signature).decode("utf8")
 
     # create the actual snapshot: an immutable directory with
     # some children:
