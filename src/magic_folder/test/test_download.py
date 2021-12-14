@@ -1088,10 +1088,13 @@ class ConflictTests(AsyncTestCase):
 
         remotes = []
 
-        for letter in b'abcd':
+        def b32(x):
+            return base64.b32encode(x).rstrip(b"=").lower()
+
+        for letter in u'abcd':
             parent_cap = _plausible_dir2_chk_cap(
-                base64.b32encode(letter * 16).rstrip('=').lower(),
-                base64.b32encode(letter * 32).rstrip('=').lower(),
+                b32(letter.encode("ascii") * 16),
+                b32(letter.encode("ascii") * 32),
             )
             parent = RemoteSnapshot(
                 relpath="foo",
