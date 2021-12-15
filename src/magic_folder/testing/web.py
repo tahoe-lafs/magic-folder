@@ -437,7 +437,7 @@ class _FakeTahoeUriHandler(Resource, object):
         if len(request.postpath) > 1:
             if len(request.postpath) > 2:
                 raise NotImplementedError
-            child_name = request.postpath[1]
+            child_name = request.postpath[1].decode("utf8")
             return self._get_child_of_directory(request, capability, child_name)
 
         # if we don't yet have a capability, that's an error

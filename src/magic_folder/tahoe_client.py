@@ -325,13 +325,13 @@ class TahoeClient(object):
         """
         Adds an entry to a mutable directory
 
-        :param bytes mutable_cap: the capability-string of a mutable
+        :param str mutable_cap: the capability-string of a mutable
             to add an entry into
 
         :param unicode path_name: the name of the entry (i.e. the path
             segment)
 
-        :param bytes entry_cap: the capability of the entry (could be
+        :param str entry_cap: the capability of the entry (could be
             any sort of capability).
 
         :param boolean replace: if set to True and if the entry already
@@ -357,8 +357,9 @@ class TahoeClient(object):
             self.http_client,
             u"PUT",
             post_uri,
-            data=entry_cap,
+            data=entry_cap.encode("utf8"),
         )
+
         # Response code should probably be CREATED but it seems to be OK
         # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
         # artifact of the test double.

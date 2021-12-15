@@ -386,7 +386,7 @@ class TahoeClientTests(SyncTestCase):
         """
         mutable_d = self.tahoe_client.create_mutable_directory()
         child_d = self.tahoe_client.create_immutable(content)
-        self.assertThat(gatherResults([mutable_d, child_d]), Always())
+        self.assertThat(gatherResults([mutable_d, child_d]), succeeded(Always()))
 
         mutable_cap = mutable_d.result
         child_cap = child_d.result
