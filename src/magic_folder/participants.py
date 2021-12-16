@@ -181,6 +181,10 @@ class _CollectiveDirnodeParticipants(object):
         """
         The Upload DMD must be a writable directory capability
         """
+        if not isinstance(value, six.text_type):
+            raise TypeError(
+                "mutable_dirnode must be text"
+            )
         if is_mutable_directory_cap(value):
             return
         raise TypeError(
