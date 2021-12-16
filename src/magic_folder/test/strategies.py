@@ -246,7 +246,6 @@ def tahoe_lafs_dir_capabilities():
     return builds(
         lambda a, b: "URI:DIR2:{}:{}".format(base32.b2a(a).decode(), base32.b2a(b).decode()),
         binary(min_size=16, max_size=16),
-
         binary(min_size=32, max_size=32),
     )
 

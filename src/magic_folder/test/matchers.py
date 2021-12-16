@@ -8,6 +8,7 @@ from __future__ import (
     print_function,
 )
 
+import six
 import base64
 from uuid import (
     UUID,
@@ -86,16 +87,23 @@ def matches_response(code_matcher=Always(), headers_matcher=Always(), body_match
 
     :return: A matcher.
     """
-    return MatchesAll(
+    matchers = [
         MatchesStructure(
             code=code_matcher,
             headers=headers_matcher,
         ),
-        AfterPreprocessing(
-            lambda response: content(response),
-            succeeded(body_matcher),
-        ),
-    )
+    ]
+    # see comment in test_web.MagicFolderTests.test_method_not_allowed
+    # which is one user that wants nothing to try and read the content
+    # in some cases..
+    if body_matcher is not None:
+        matchers.append(
+            AfterPreprocessing(
+                lambda response: content(response),
+                succeeded(body_matcher),
+            )
+        )
+    return MatchesAll(*matchers)
 
 def contained_by(container):
     """
@@ -117,9 +125,9 @@ def header_contains(header_dict):
     Match a ``twisted.web.http_headers.HTTPHeaders`` containing at least the
     given items.
 
-    :param dict[unicode, Matcher] header_dict: A dictionary mapping header
+    :param dict[bytes, Matcher] header_dict: A dictionary mapping header
         names (canonical case) to matchers for the associated values (a list
-        of unicode strings).
+        of byte-strings).
 
     :return: A matcher.
     """
@@ -149,12 +157,12 @@ def provides(*interfaces):
 
 def is_hex_uuid():
     """
-    Match unicode strings giving a hex representation of a UUID.
+    Match text strings giving a hex representation of a UUID.
 
     :return: A matcher.
     """
     def _is_hex_uuid(value):
-        if not isinstance(value, unicode):
+        if not isinstance(value, six.text_type):
             return False
         try:
             UUID(hex=value)

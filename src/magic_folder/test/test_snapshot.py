@@ -195,7 +195,7 @@ class TestLocalSnapshot(SyncTestCase):
             failed(
                 AfterPreprocessing(
                     str,
-                    Contains("Parent 0 is type <type 'str'> not LocalSnapshot")
+                    Contains("Parent 0 is type <class 'str'> not LocalSnapshot")
                 )
             )
         )
@@ -566,7 +566,7 @@ class TestRemoteSnapshot(SyncTestCase):
         # definitely-invalid versions)
         metadata_caps = []
 
-        d = self.tahoe_client.create_immutable(json.dumps(raw_metadata))
+        d = self.tahoe_client.create_immutable(json.dumps(raw_metadata).encode("utf8"))
         d.addCallback(metadata_caps.append)
         self.assertThat(d, succeeded(Always()))
 

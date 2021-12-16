@@ -1555,7 +1555,7 @@ class MagicFolderConfig(object):
     def magic_path(self, cursor):
         cursor.execute("SELECT magic_directory FROM config")
         path_raw = cursor.fetchone()[0]
-        return FilePath(path_raw)
+        return FilePath(path_raw).asTextMode()
 
     @property
     @with_cursor
@@ -1661,7 +1661,7 @@ class FilesystemTokenProvider(object):
         """
         with self.api_token_path.open('rb') as f:
             data = f.read()
-            self._api_token = data.decode("utf8")
+            self._api_token = data
 
 
 @attr.s

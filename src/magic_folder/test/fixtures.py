@@ -141,7 +141,7 @@ class NodeDirectory(Fixture):
             u"directory": directory.path,
             u"poll_interval": u"{}".format(poll_interval),
         }
-        self.magic_folder_yaml.setContent(dump_yaml(magic_folder_config))
+        self.magic_folder_yaml.setContent(dump_yaml(magic_folder_config).encode("utf8"))
 
     def _setUp(self):
         self.path.makedirs()
@@ -301,7 +301,7 @@ class MagicFolderNode(object):
         :param FilePath basedir: A non-existant directory to create and populate
             with a new Magic Folder service configuration.
 
-        :param unicode auth_token: The authorization token accepted by the
+        :param bytes auth_token: The authorization token accepted by the
             service.
 
         :param folders: A mapping from Magic Folder names to their configurations.
@@ -327,6 +327,8 @@ class MagicFolderNode(object):
         if auth_token is None:
             auth_token = global_config.api_token
         maybe_wrapper = None
+
+        assert isinstance(auth_token, bytes), "token is bytes"
 
         if tahoe_client is None or isinstance(tahoe_client, TahoeClientWrapper):
             # Setup a Tahoe client backed by a fake Tahoe instance Since we
@@ -359,14 +361,14 @@ class MagicFolderNode(object):
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
                         # collective DMD
-                        "URI:DIR2{}:{}:{}".format(
+                        u"URI:DIR2{}:{}:{}".format(
                             "" if config["admin"] else "-RO",
-                            b2a("\0" * 16),
-                            b2a("\1" * 32),
+                            b2a(("\0" * 16).encode("ascii")).decode("ascii"),
+                            b2a(("\1" * 32).encode("ascii")).decode("ascii"),
                         ),
 
                         # personal DMD
-                        u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
+                        u"URI:DIR2:{}:{}".format(b2a(("\2" * 16).encode("ascii")).decode("ascii"), b2a(("\3" * 32).encode("ascii")).decode("ascii")),
                         config[u"poll-interval"],
                         config[u"scan-interval"],
                     )

@@ -75,7 +75,7 @@ class TestService(AsyncTestCase):
         self.node = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
         # when the "service" is run it wants to check shares-needed from Tahoe
         with self.node.tahoe_cfg.open("w") as f:
-            f.write("[client]\nshares.needed = 1\n")
+            f.write(b"[client]\nshares.needed = 1\n")
         self.basedir = FilePath(self.mktemp())
         self.config = create_global_configuration(
             self.basedir,
@@ -103,7 +103,7 @@ class TestService(AsyncTestCase):
         )
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("tcp:0.0.0.0:0"),
+            Equals(b"tcp:0.0.0.0:0"),
         )
         self.assertThat(
             len(self.reactor.triggers),
@@ -117,7 +117,7 @@ class TestService(AsyncTestCase):
         yield d
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("not running"),
+            Equals(b"not running"),
         )
 
     @inline_callbacks
@@ -133,7 +133,7 @@ class TestService(AsyncTestCase):
             yield d
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("not running"),
+            Equals(b"not running"),
         )
 
 

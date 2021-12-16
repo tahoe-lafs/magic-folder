@@ -53,7 +53,7 @@ class PathInfoTests(SyncTestCase):
         :py:`get_pathinfo` returns a :py:`PathInfo` when given a symlink.
         """
         dest = FilePath(self.mktemp())
-        dest.setContent("content")
+        dest.setContent(b"content")
         path = FilePath(self.mktemp())
         dest.linkTo(path)
         path_info = get_pathinfo(path)
@@ -130,7 +130,7 @@ class PathInfoTests(SyncTestCase):
             Not(LessThan(now)),
         )
 
-        content = "content"
+        content = b"content"
         path = FilePath(self.mktemp())
         path.setContent(content)
         path_info = get_pathinfo(path)

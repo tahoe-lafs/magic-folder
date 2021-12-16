@@ -336,7 +336,7 @@ def authorized_request(http_client, auth_token, method, url, body=b""):
     }
     return http_client.request(
         method,
-        url_to_bytes(url),
+        url,
         headers=headers,
         data=body,
     )

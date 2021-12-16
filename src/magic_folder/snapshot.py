@@ -183,9 +183,9 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
 
     :param unicode relpath: arbitrary snapshot name
 
-    :param bytes content_capability: Tahoe immutable capability-string
+    :param str content_capability: Tahoe immutable capability-string
 
-    :param bytes metadata_capability: Tahoe immutable capability-string
+    :param str metadata_capability: Tahoe immutable capability-string
 
     :returns bytes: the snapshop signature string encoded to utf8
     """
@@ -195,8 +195,8 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
         u"{metadata_capability}\n"
         u"{relpath}\n"
     ).format(
-        content_capability=content_capability.decode("ascii"),
-        metadata_capability=metadata_capability.decode("ascii"),
+        content_capability=content_capability,
+        metadata_capability=metadata_capability,
         relpath=relpath,
     )
     return snapshot_string.encode("utf8")
@@ -210,10 +210,10 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
 
     :param unicode snapshot_name: snapshot name to sign
 
-    :param bytes content_capability: the Tahoe immutable
+    :param str content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
 
-    :param bytes metadata capability: the Tahoe immutable
+    :param str metadata_capability: the Tahoe immutable
         capability-string of the metadata (which is serialized JSON)
 
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
@@ -237,8 +237,6 @@ def verify_snapshot_signature(remote_author, alleged_signature, content_capabili
 
     :returns: True on success or exception otherwise
     """
-    assert isinstance(content_capability, bytes), "capabilities are bytes"
-    assert isinstance(metadata_capability, bytes), "capabilities are bytes"
     # See comments about "data_to_sign" in sign_snapshot
     data_to_verify = _snapshot_signature_string(
         snapshot_relpath,
@@ -259,7 +257,7 @@ class LocalSnapshot(object):
     :ivar [LocalSnapshot] parents_local: The parents of this snapshot that are
         only known to exist locally.
 
-    :ivar [bytes] parents_remote: The capability strings of snapshots that are
+    :ivar [str] parents_remote: The capability strings of snapshots that are
         known to exist remotely.
     """
     relpath = attr.ib()
@@ -363,14 +361,13 @@ class RemoteSnapshot(object):
         can be anything JSON can serialize (so text, numbers, booleans
         or lists and dicts of the same).
 
-    :ivar parents_raw: list of capability-strings of our
-        parents. Capability-strings are bytes.
+    :ivar parents_raw: list of capability-strings of our parents.
 
     :ivar RemoteAuthor author: The author of this snapshot.
 
-    :ivar bytes capability: an immutable CHK:DIR2 capability-string.
+    :ivar str capability: an immutable CHK:DIR2 capability-string.
 
-    :ivar bytes content_cap: a capability-string for the actual
+    :ivar str content_cap: a capability-string for the actual
         content of this RemoteSnapshot. Use `fetch_content()` to
         retrieve the contents.
     """
@@ -493,6 +490,8 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
 
     :param int modified_time: timestamp to use as last-modified time
         (or None for "now")
+
+    :returns LocalSnapshot: the new snapshot instance
     """
     if parents is None:
         parents = []
@@ -573,7 +572,7 @@ def format_filenode(cap, metadata=None):
     """
     Create the data structure Tahoe-LAFS uses to represent a filenode.
 
-    :param bytes cap: The read-only capability string for the content of the
+    :param str cap: The read-only capability string for the content of the
         filenode.
 
     :param dict: Any metadata to associate with the filenode (or None
@@ -583,7 +582,7 @@ def format_filenode(cap, metadata=None):
         information.
     """
     node = {
-        u"ro_uri": cap.decode("ascii"),
+        u"ro_uri": cap,
     }
     if metadata is not None:
         node[u"metadata"] = metadata
@@ -621,7 +620,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            assert isinstance(parent, bytes), "capabilities are bytes"
             parents_raw.append(parent)
 
     # we can't reference any LocalSnapshot objects we have, so they
@@ -635,7 +633,6 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
         for parent in to_upload:
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
-            assert isinstance(parent_remote_snapshot.capability, bytes), "capabilities are bytes"
             parents_raw.append(parent_remote_snapshot.capability)
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 

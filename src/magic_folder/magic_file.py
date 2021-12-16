@@ -11,6 +11,7 @@ import automat
 import attr
 from eliot import (
     write_traceback,
+    write_failure,
     start_action,
     Message,
 )
@@ -82,6 +83,7 @@ class MagicFileFactory(object):
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
     _download_parallel = attr.ib(default=attr.Factory(lambda: DeferredSemaphore(5)))
     _delays = attr.ib(default=attr.Factory(list))
+    _logger = attr.ib(default=None)  # mainly for tests
 
     def magic_file_for(self, path):
         """
@@ -90,7 +92,7 @@ class MagicFileFactory(object):
         """
         # this segmentsFrom call also ensures this relpath doesn't
         # 'escape' our magic-path
-        relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
+        relpath = u"/".join(path.segmentsFrom(self._config.magic_path.asTextMode()))
         try:
             return self._magic_files[relpath]
         except KeyError:
@@ -103,6 +105,7 @@ class MagicFileFactory(object):
                 action=start_action(
                     action_type="magic_file",
                     relpath=relpath,
+                    logger=self._logger,
                 ),
             )
             if self._synchronous:
@@ -506,7 +509,8 @@ class MagicFile(object):
                     self._relpath,
                 )
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_download)
             delay.addErrback(failed)
@@ -637,7 +641,8 @@ class MagicFile(object):
                 self._factory._folder_status.error_occurred(
                     "Failed to overwrite file '{}': {}".format(snapshot.relpath, str(e))
                 )
-                write_traceback()
+                with self._action.context():
+                    write_traceback()
                 self._call_later(self._fatal_error_download, snapshot)
                 return
 
@@ -684,7 +689,8 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_update)
             delay.addErrback(error)
@@ -829,7 +835,8 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, update_personal_dmd)
             delay.addErrback(error)

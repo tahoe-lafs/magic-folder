@@ -217,7 +217,7 @@ class WebSocketTests(AsyncTestCase):
                 messages.append(json.loads(msg))
 
         # upon open, we should receive the current state
-        proto = yield self.agent.open("ws://127.0.0.1:-1/v1/status", {}, TestProto)
+        proto = yield self.agent.open("ws://127.0.0.1:2/v1/status", {}, TestProto)
         self.pumper._flush()
         self.assertThat(
             messages,
@@ -270,7 +270,7 @@ class WebSocketTests(AsyncTestCase):
 
         # we send a message, which is a protocol violation .. so we
         # should see a disconnect
-        self.agent.open("ws://127.0.0.1:-1/v1/status", {}, TestProto)
+        self.agent.open("ws://127.0.0.1:6/v1/status", {}, TestProto)
         self.pumper._flush()
         self.assertThat(
             closed,

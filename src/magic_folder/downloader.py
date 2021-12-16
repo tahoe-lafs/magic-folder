@@ -112,13 +112,12 @@ class RemoteSnapshotCacheService(service.Service):
         (When we have signatures this should verify the signature
         before downloading anything else)
 
-        :param bytes snapshot_cap: an immutable directory capability-string
+        :param str snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
         """
-        assert type(snapshot_cap) == bytes, "capabilities are bytes"
         with start_action(action_type="cache-service:locate_snapshot") as t:
             try:
                 snapshot = self._cached_snapshots[snapshot_cap]
@@ -133,12 +132,11 @@ class RemoteSnapshotCacheService(service.Service):
         """
         Internal helper.
 
-        :param bytes snapshot_cap: capability-string of a Snapshot
+        :param str snapshot_cap: capability-string of a Snapshot
 
         Cache a single snapshot, which we shall return. We also cache
         all parent snapshots.
         """
-        assert type(snapshot_cap) == bytes, "capabilities are bytes"
         snapshot = yield create_snapshot_from_capability(
             snapshot_cap,
             self.tahoe_client,
@@ -264,7 +262,7 @@ class LocalMagicFolderFilesystem(object):
         """
         assert file_cap is not None, "must supply a file-cap"
         h = hashlib.sha256()
-        h.update(file_cap)
+        h.update(file_cap.encode("ascii"))
         staged_path = self.staging_path.child(h.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
@@ -301,7 +299,7 @@ class LocalMagicFolderFilesystem(object):
             Message.log(
                 message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
                 source_path=local_path.path,
-                target_path=tmp.path,
+                target_path=tmp.asTextMode().path,
             )
         os.utime(staged_content.path, (mtime, mtime))
 

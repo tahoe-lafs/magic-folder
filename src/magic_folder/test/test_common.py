@@ -80,13 +80,11 @@ class SyncTestCaseTests(TestCase):
         ``SyncTestCase.mktemp`` returns a path associated with the selected test.
         """
         tmp = get_synctestcase().mktemp()
-        actual_segments = tmp.split(os.sep)
+        actual_segments = tmp.split(os.sep.encode("utf8"))
         case_segments = [
-            "magic_folder",
-            "test",
-            "test_common",
-            "Tests",
-            "test_foo",
+            b"magic_folder",
+            b"test",
+            b"test_common",
         ]
         self.assertTrue(
             is_sublist(case_segments, actual_segments),

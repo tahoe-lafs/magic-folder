@@ -12,6 +12,7 @@ from __future__ import (
 )
 
 import os
+import six
 from json import (
     dumps,
 )
@@ -113,8 +114,8 @@ class CollectiveParticipantsTests(SyncTestCase):
     """
     @given(
         sampled_from([
-            b"",
-            b"URI:CHK:::0:0:0",
+            "",
+            "URI:CHK:::0:0:0",
         ]),
     )
     def test_invalid_upload_dirnode(self, upload_dircap):
@@ -126,7 +127,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-write
         """
         tahoe_client = None
-        collective_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        collective_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(
                 collective_dircap,
@@ -136,8 +137,8 @@ class CollectiveParticipantsTests(SyncTestCase):
 
     @given(
         sampled_from([
-            b"",
-            b"URI:SSK::",
+            "",
+            "URI:SSK::",
         ]),
     )
     def test_invalid_collective_dirnode(self, collective_dirnode):
@@ -149,7 +150,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-only
         """
         tahoe_client = None
-        upload_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        upload_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Collective dirnode was.*"):
             participants_from_collective(
                 collective_dirnode,
@@ -195,12 +196,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                 for (name, cap)
                 in collective_contents.items()
             }},
-        ])
+        ]).encode("utf8")
 
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {}},
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -268,12 +269,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                     normalize(author): format_filenode(upload_dircap_ro, {}),
                 },
             },
-        ])
+        ]).encode("utf8")
 
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {}},
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -384,7 +385,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: six.text_type(f.value),
                     Equals(
                         "Author must be a RemoteAuthor instance"
                     )
@@ -427,7 +428,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             {
                 u"children": {},
             }
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -453,7 +454,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: six.text_type(f.value),
                     StartsWith(
                         "Already have a participant with Personal DMD"
                     )
@@ -470,7 +471,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: six.text_type(f.value),
                     StartsWith(
                         "Already have a participant called"
                     )
@@ -521,7 +522,7 @@ class CollectiveParticipantTests(SyncTestCase):
                 for (relpath, (cap, version))
                 in children.items()
             }},
-        ])
+        ]).encode("utf8")
 
         participant = participant_from_dmd(
             author_name,

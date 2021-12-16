@@ -52,7 +52,7 @@ def client_endpoint_from_address(address):
     """
     if isinstance(address, (IPv4Address, IPv6Address)) and address.type == "TCP":
         return "tcp:{host}:{port}".format(
-            host=_quote_endpoint_argument(address.host.encode("utf-8")),
+            host=_quote_endpoint_argument(address.host),
             port=address.port,
         )
     return None

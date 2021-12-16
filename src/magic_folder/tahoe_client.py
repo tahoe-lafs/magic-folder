@@ -414,7 +414,7 @@ class TahoeClient(object):
         """
         Retrieve the raw data for a capability from Tahoe
 
-        :param cap: a capability-string
+        :param str cap: a capability-string
 
         :param filelike: a writable file object. `.write` will be
             called on it an arbitrary number of times, but no other

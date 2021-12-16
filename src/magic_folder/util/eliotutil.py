@@ -312,8 +312,6 @@ def _stdlib_logging_to_eliot_configuration(stdlib_logger, eliot_logger=None):
 
 class _DestinationParser(object):
     def parse(self, description):
-        description = description.decode(u"ascii")
-
         try:
             kind, args = description.split(u":", 1)
         except ValueError:

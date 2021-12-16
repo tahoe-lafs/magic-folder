@@ -95,7 +95,7 @@ class FakeWebTest(TestCase):
             self.assertThat(cap, IsInstance(CHKFileURI))
 
             resp = yield http_client.get(
-                "http://example.com/uri?uri={}".format(cap.to_string())
+                "http://example.com/uri?uri={}".format(cap.to_string().decode("ascii"))
             )
             self.assertThat(resp.code, Equals(200))
 
@@ -104,7 +104,7 @@ class FakeWebTest(TestCase):
             # using the form "/uri/<cap>" is also valid
 
             resp = yield http_client.get(
-                "http://example.com/uri/{}".format(cap.to_string())
+                "http://example.com/uri/{}".format(cap.to_string().decode("ascii"))
             )
             self.assertEqual(resp.code, 200)
 
@@ -207,7 +207,7 @@ class FakeWebTest(TestCase):
 
         # prove we can access the expected file via a GET
         uri = DecodedURL.from_text(u"http://example.com/uri/")
-        uri = uri.child(mut_cap.decode("ascii"), u"foo")
+        uri = uri.child(mut_cap, u"foo")
         resp = http_client.get(uri.to_uri().to_text())
 
         self.assertThat(

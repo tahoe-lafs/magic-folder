@@ -140,7 +140,7 @@ class UploadTests(SyncTestCase):
         if not local_path_bytes.parent().exists():
             local_path_bytes.parent().makedirs()
         with local_path_bytes.open("w") as local_file:
-            local_file.write("foo\n" * 20)
+            local_file.write(b"foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
         self.assertThat(
             mf.create_update(),
@@ -159,7 +159,7 @@ class UploadTests(SyncTestCase):
             Equals({
                 path2magic(relpath): [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
+                        u"ro_uri": remote_snapshot_cap,
                         u"verify_uri": to_verify_capability(remote_snapshot_cap),
                         u"mutable": False,
                         u"format": u"CHK",
@@ -448,7 +448,6 @@ class AsyncMagicFileTests(AsyncTestCase):
         While uploading a local snapshot we fail to update our Personal
         DMD. A retry is attempted.
         """
-
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "random_local_file"
@@ -508,7 +507,7 @@ class AsyncMagicFileTests(AsyncTestCase):
                     ],
                 }
             }
-        ])
+        ]).encode("utf8")
 
         # Personal DMD
         tahoe_root._uri.data[config.upload_dircap] = dumps([
@@ -516,7 +515,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             {
                 "children": {},
             }
-        ])
+        ]).encode("utf8")
 
         # all data available, we can start services
         service.startService()

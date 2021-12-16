@@ -164,6 +164,10 @@ class _CollectiveDirnodeParticipants(object):
         The Collective DMD must be a directory capability (but could be a
         read-only one or a read-write one).
         """
+        if not isinstance(value, six.text_type):
+            raise TypeError(
+                "dirnode must be text"
+            )
         if is_directory_cap(value):
             return
         raise TypeError(
@@ -219,7 +223,7 @@ class _CollectiveDirnodeParticipants(object):
             yield self._tahoe_client.add_entry_to_mutable_directory(
                 self._collective_cap,
                 author.name,
-                personal_dmd_cap.encode("ascii"),
+                personal_dmd_cap,
                 replace=False,
             )
         except CannotAddDirectoryEntryError:
@@ -267,7 +271,7 @@ class _CollectiveDirnodeParticipant(object):
         to the directory node.
     """
     name = attr.ib(validator=attr.validators.instance_of(six.text_type))
-    dircap = attr.ib(validator=attr.validators.instance_of(bytes))
+    dircap = attr.ib(validator=attr.validators.instance_of(six.text_type))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
     _tahoe_client = attr.ib()
 
@@ -297,7 +301,7 @@ class _WriteableParticipant(object):
     :ivar bytes upload_cap: Read-write directory-capability containing this
         participant's files.
     """
-    upload_cap = attr.ib(validator=attr.validators.instance_of(bytes))
+    upload_cap = attr.ib(validator=attr.validators.instance_of(six.text_type))
     _tahoe_client = attr.ib(eq=False)
 
     @upload_cap.validator
