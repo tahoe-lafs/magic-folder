@@ -839,12 +839,6 @@ class RedirectTests(SyncTestCase):
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
-    @skipIf(
-        # The version in the nixos snapshot we are using is <1
-        # so don't test redirect handling there.
-        StrictVersion(werkzeug.__version__) < StrictVersion("1.0.0"),
-        "Old versions of werkzeug don't merge slashes."
-    )
     @given(
         folder_names(),
     )

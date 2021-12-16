@@ -178,26 +178,7 @@ class APIv1(object):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
-        return json.dumps(exc.to_json())
-
-    @app.handle_errors(RequestRedirect)
-    def handle_redirect(self, request, failure):
-        exc = failure.value
-        request.setResponseCode(exc.code, exc.name)
-        # Werkzeug double encodes the path of the redirect URL, when merging
-        # slashes[1]. It does not double encode the path when:
-        # - collapsing trailing slashes
-        # - redirecting aliases to the cannonical URL
-        # - an explicit redirect_to on a URL
-        # Since we don't have rules that trigger the second cases[2],
-        # we can work around this be decoding the path here.
-        # [1] https://github.com/pallets/werkzeug/issues/2157
-        # [2] checked in magic_folder.test.test_web.RedirectTests.test_werkzeug_issue_2157_fix
-        location = DecodedURL.from_text(exc.new_url.decode('utf-8'))
-        location = location.encoded_url.replace(path=location.path).to_text()
-        request.setHeader("location", location)
-        _application_json(request)
-        return json.dumps({"location": location})
+        return json.dumps(exc.to_json()).encode("utf8")
 
     @app.handle_errors(HTTPException)
     def handle_http_error(self, request, failure):
