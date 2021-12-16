@@ -23,7 +23,10 @@ from autobahn.twisted.resource import (
     WebSocketResource,
 )
 
-from eliot import write_failure
+from eliot import (
+    write_failure,
+    start_action,
+)
 from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
