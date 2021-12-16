@@ -484,13 +484,13 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self.output.write(six.text_type(data, "utf8"))
+        self.output.write(data.decode("utf8"))
 
     def errReceived(self, data):
         print("ERR: {}".format(data))
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
-        self.output.write(six.text_type(data, "utf8"))
+        self.output.write(data.decode("utf8"))
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -542,7 +542,7 @@ class EliotLogStream(object):
             except ValueError:
                 self._fallback(line)
             else:
-                logger.write(six.text_type(message, "utf8"))
+                logger.write(message)
 
 
 def run_service(
