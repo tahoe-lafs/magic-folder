@@ -955,13 +955,14 @@ def await_file_contents(path, contents, timeout=15):
     :raises ExpectedFileUnfoundException: if the path doesn't exist after the
         the timeout.
     """
+    assert isinstance(contents, bytes), "file-contents must be bytes"
     from twisted.internet import reactor
     start_time = reactor.seconds()
     while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             try:
-                with open(path, 'r') as f:
+                with open(path, 'rb') as f:
                     current = f.read()
             except IOError:
                 print("IOError; trying again")
@@ -971,9 +972,9 @@ def await_file_contents(path, contents, timeout=15):
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
                 if len(contents) < 80:
-                    print("  wanted: {}".format(contents.replace('\n', ' ')))
-                    print("     got: {}".format(current.replace('\n', ' ')))
-                Message.log(
+                    print("  wanted: {}".format(contents.decode("utf8").replace('\n', ' ')))
+                    print("     got: {}".format(current.decode("utf8").replace('\n', ' ')))
+                log_message(
                     message_type=u"integration:await-file-contents:mismatched",
                     got=current,
                 )
