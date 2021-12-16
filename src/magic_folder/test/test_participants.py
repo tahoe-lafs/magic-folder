@@ -116,6 +116,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         sampled_from([
             "",
             "URI:CHK:::0:0:0",
+            b"not text",
         ]),
     )
     def test_invalid_upload_dirnode(self, upload_dircap):
@@ -139,6 +140,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         sampled_from([
             "",
             "URI:SSK::",
+            b"not text",
         ]),
     )
     def test_invalid_collective_dirnode(self, collective_dirnode):
