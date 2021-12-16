@@ -878,30 +878,17 @@ class RedirectTests(SyncTestCase):
                 treq,
                 AUTH_TOKEN,
                 u"GET",
-                self.url.child(folder_name, "", "snapshot"),
+                self.url.child(folder_name, "", "file-status"),
             ),
             succeeded(
                 matches_response(
                     # Maybe this could be BAD_REQUEST instead, sometimes, if
                     # the path argument was bogus somehow.
-                    code_matcher=Equals(308),
+                    code_matcher=Equals(200),
                     headers_matcher=header_contains(
                         {
-                            "Content-Type": Equals(["application/json"]),
-                            "Location": MatchesListwise(
-                                [
-                                    match_url
-                                ]
-                            ),
+                            b"Content-Type": Equals([b"application/json"]),
                         }
-                    ),
-                    body_matcher=AfterPreprocessing(
-                        loads,
-                        MatchesDict(
-                            {
-                                "location": match_url
-                            }
-                        ),
                     ),
                 ),
             ),
