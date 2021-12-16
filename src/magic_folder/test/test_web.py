@@ -1793,12 +1793,14 @@ class ParticipantsTests(SyncTestCase):
             )
         )
 
-        self.assertThat(
-            self.eliot_logger.flushTracebacks(Exception),
-            MatchesListwise([
-                matches_flushed_traceback(Exception, "an unexpected error")
-            ]),
-        )
+        if True:
+            # XXX FIXME eliot upgrade changed behavior?
+            self.assertThat(
+                self.eliot_logger.flushTracebacks(Exception),
+                MatchesListwise([
+                    matches_flushed_traceback(Exception, "an unexpected error")
+                ]),
+            )
 
     @given(
         author_names(),

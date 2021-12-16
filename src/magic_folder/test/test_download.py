@@ -1376,14 +1376,12 @@ class ConflictTests(AsyncTestCase):
             })
         )
 
-        # XXX eliot upgrade? FIXME
-        if False:
-            self.assertThat(
-                self.eliot_logger.flush_tracebacks(OSError),
-                MatchesListwise([
-                    matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")
-                ]),
-            )
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(OSError),
+            MatchesListwise([
+                matches_flushed_traceback(OSError, r"\[Errno 13\] Permission denied")
+            ]),
+        )
 
     @inline_callbacks
     def test_update_download_error(self):
@@ -1549,14 +1547,12 @@ class ConflictTests(AsyncTestCase):
             })
         )
 
-        # XXX FIXME probably due to eliot upgrade?
-        if False:
-            self.assertThat(
-                self.eliot_logger.flush_tracebacks(Exception),
-                MatchesListwise([
-                    matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
-                ]),
-            )
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            MatchesListwise([
+                matches_flushed_traceback(Exception, "Couldn't add foo to directory. Error code 500")
+            ]),
+        )
 
 
 class CancelTests(AsyncTestCase):
