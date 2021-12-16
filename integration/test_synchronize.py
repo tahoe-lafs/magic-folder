@@ -29,7 +29,7 @@ from .util import (
 
 
 def non_lit_content(s):
-    # type: (unicode) -> unicode
+    # type: (str) -> bytes
     """
     Pad the given string so it is long enough to not fit in a tahoe literal
     URI.
@@ -38,7 +38,7 @@ def non_lit_content(s):
     # See allmydata.immutable.upload.Uploader.URI_LIT_SIZE_THRESHOLD
     # We don't need to be exactly longer than that threshold, as long as we
     # are over it.
-    return "{} {}\n".format(s, "." * max(55 - len(s), 0))
+    return "{} {}\n".format(s, "." * max(55 - len(s), 0)).encode("utf8")
 
 
 def add_snapshot(node, folder_name, path):

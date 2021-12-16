@@ -62,7 +62,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
 
     request.addfinalizer(cleanup_original)
 
-    content0 = "zero\n" * 1000
+    content0 = b"zero\n" * 1000
     original_folder.child("grumpy").setContent(content0)
     yield alice.add_snapshot("original", "grumpy")
 
@@ -89,7 +89,7 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
 
     yield bob.leave("recovery")
 
-    content1 = "one\n" * 1000
+    content1 = b"one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
     yield alice.add_snapshot("original", "sylvester")
 

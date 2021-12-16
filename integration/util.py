@@ -487,7 +487,7 @@ class _CollectOutputProtocol(ProcessProtocol):
         self.output.write(data.decode("utf8"))
 
     def errReceived(self, data):
-        print("ERR: {}".format(data))
+        print("ERR: {}".format(data.decode("utf8")))
         with self._action.context():
             Message.log(message_type=u"err-received", data=data)
         self.output.write(data.decode("utf8"))

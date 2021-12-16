@@ -26,8 +26,8 @@ def test_daemon_inititialize(request, reactor, temp_filepath):
     node_dir = temp_filepath.child("daemon")
     tahoe_dir = temp_filepath.child("tahoe")
     tahoe_dir.makedirs()
-    tahoe_dir.child("tahoe.cfg").setContent("# a fake config\n")
-    tahoe_dir.child("node.url").setContent('http://localhost:1234/')
+    tahoe_dir.child("tahoe.cfg").setContent(b"# a fake config\n")
+    tahoe_dir.child("node.url").setContent(b"http://localhost:1234/")
 
     yield util._magic_folder_runner(
         reactor, request, "daemon",
