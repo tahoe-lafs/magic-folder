@@ -44,7 +44,7 @@ from twisted.web.client import Agent
 import treq
 
 from eliot import (
-    Message,
+    log_message,
     current_action,
     start_action,
     start_task,
@@ -242,7 +242,7 @@ class MagicFolderEnabledNode(object):
 
     @inline_callbacks
     def stop_magic_folder(self):
-        Message.log(message_type=u"integation:magic-folder:stop", node=self.name)
+        log_message(message_type=u"integation:magic-folder:stop", node=self.name)
         if self.magic_folder is None:
             return
         try:
@@ -263,7 +263,7 @@ class MagicFolderEnabledNode(object):
             return
         # We log a notice that we are starting the service in the context of the test
         # but the logs of the service are in the context of the fixture.
-        Message.log(message_type=u"integation:magic-folder:start", node=self.name)
+        log_message(message_type=u"integation:magic-folder:start", node=self.name)
         with self.action.context():
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
@@ -273,11 +273,11 @@ class MagicFolderEnabledNode(object):
             )
 
     def pause_tahoe(self):
-        Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
+        log_message(message_type=u"integation:tahoe-node:pause", node=self.name)
         self.tahoe.suspend()
 
     def resume_tahoe(self):
-        Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
+        log_message(message_type=u"integation:tahoe-node:resume", node=self.name)
         self.tahoe.resume()
 
     # magic-folder CLI API helpers
@@ -489,7 +489,7 @@ class _CollectOutputProtocol(ProcessProtocol):
     def errReceived(self, data):
         print("ERR: {}".format(data.decode("utf8")))
         with self._action.context():
-            Message.log(message_type=u"err-received", data=data)
+            log_message(message_type=u"err-received", data=data)
         self.output.write(data.decode("utf8"))
 
 
@@ -652,7 +652,7 @@ class _MagicTextProtocol(ProcessProtocol):
 
     def processEnded(self, reason):
         with self._action:
-            Message.log(message_type=u"process-ended")
+            log_message(message_type=u"process-ended")
         if self.magic_seen is not None:
             d, self.magic_seen = self.magic_seen, None
             d.errback(Exception("Service failed."))
@@ -673,7 +673,7 @@ class _MagicTextProtocol(ProcessProtocol):
         Called with output from stdout.
         """
         with self._action.context():
-            Message.log(message_type=u"out-received", data=data)
+            log_message(message_type=u"out-received", data=data)
             sys.stdout.write(six.text_type(data, "utf8"))
             self._output.write(six.text_type(data, "utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
@@ -690,7 +690,7 @@ class _MagicTextProtocol(ProcessProtocol):
         no other output there, so we treat it as expected.
         """
         with self._action.context():
-            Message.log(message_type=u"err-received", data=data)
+            log_message(message_type=u"err-received", data=data)
             sys.stdout.write(six.text_type(data, "utf8"))
 
     def eliot_garbage_received(self, data):
@@ -700,7 +700,7 @@ class _MagicTextProtocol(ProcessProtocol):
         Since FD 3 is suppposed to only have eliot-logs, log them as malformed.
         """
         with self._action.context():
-            Message.log(message_type=u"malformed-eliot-log", data=data)
+            log_message(message_type=u"malformed-eliot-log", data=data)
 
 
 def _cleanup_service_process(process, exited, action):
@@ -716,7 +716,7 @@ def _cleanup_service_process(process, exited, action):
     try:
         with action.context():
             def report(m):
-                Message.log(message_type="integration:cleanup", message=m)
+                log_message(message_type="integration:cleanup", message=m)
                 print(m)
             if process.pid is not None:
                 report("signaling {} with TERM".format(process.pid))
@@ -978,7 +978,7 @@ def await_file_contents(path, contents, timeout=15):
                     got=current,
                 )
         else:
-            Message.log(
+            log_message(
                 message_type=u"integration:await-file-contents:missing",
             )
         yield twisted_sleep(reactor, 1)
