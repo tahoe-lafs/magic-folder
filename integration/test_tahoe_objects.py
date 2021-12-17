@@ -30,18 +30,16 @@ from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
-# we need the eliot decorator too so that start_action works properly;
-# the pytest decorator actually only "marks" the function
 
 @inline_callbacks
-@pytest_twisted.inlineCallbacks
-def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+@pytest_twisted.ensureDeferred
+async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
     """
     the 'tahoe-objects' API works concurrently
     (see also ticket #570)
     """
 
-    yolandi = yield util.MagicFolderEnabledNode.create(
+    yolandi = await util.MagicFolderEnabledNode.create(
         reactor,
         tahoe_venv,
         request,
@@ -61,7 +59,7 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
         magic_dir = FilePath(base_dir).child(folder_name)
         magic_dir.makedirs()
 
-        yield yolandi.client.add_folder(
+        await yolandi.client.add_folder(
             folder_name,
             author_name="yolandi",
             local_path=magic_dir,
@@ -114,8 +112,8 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
     # of the magic-folders to upload their single "a_file_name" items
     # so that they each have one Snapshot in Tahoe-LAFS
     for _ in range(10):
-        yield util.twisted_sleep(reactor, 1)
-        results = yield DeferredList([
+        await util.twisted_sleep(reactor, 1)
+        results = await DeferredList([
             yolandi.client.tahoe_objects(folder_name)
             for folder_name in folder_names
         ])

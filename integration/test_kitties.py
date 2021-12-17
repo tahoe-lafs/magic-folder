@@ -13,6 +13,9 @@ import json
 import random
 
 import pytest_twisted
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from magic_folder.magicpath import (
     magic2path,
@@ -22,8 +25,9 @@ from .util import (
 )
 
 
-@pytest_twisted.inlineCallbacks
-def test_kittens(request, reactor, temp_filepath, alice):
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_kittens(request, reactor, temp_filepath, alice):
     """
     Create a series of large files -- including in sub-directories --
     for an initial, new magic-folder. (This simulates the 'Cat Pics'
@@ -61,7 +65,7 @@ def test_kittens(request, reactor, temp_filepath, alice):
         print("  subdir/{} {}KiB".format(sub_level, size))
 
     # add this as a new folder
-    yield alice.add("kitties", magic.path)
+    await alice.add("kitties", magic.path)
 
     def cleanup():
         pytest_twisted.blockon(alice.leave("kitties"))
@@ -70,16 +74,19 @@ def test_kittens(request, reactor, temp_filepath, alice):
     # perform a scan, which will create LocalSnapshots for all the
     # files we already created in the magic-folder (but _not_ upload
     # them, necessarily, yet)
-    yield alice.scan("kitties")
+    print("start scan")
+    await alice.scan("kitties")
+    print("scan done")
 
     # wait for a limited time to be complete
     for _ in range(10):
-        st = yield alice.status()
-        print(st)
+        print("get status")
+        st = await alice.status()
+        print("status: {}".format(st))
         data = json.loads(st.strip())
         if data["state"]["synchronizing"] is False:
             break
-        yield twisted_sleep(reactor, 1)
+        await twisted_sleep(reactor, 1)
     assert data["state"]["synchronizing"] is False, "Should be finished uploading"
 
     kitties = data["state"]["folders"]["kitties"]
@@ -90,9 +97,9 @@ def test_kittens(request, reactor, temp_filepath, alice):
 
     # confirm that we can navigate Collective -> alice and find the
     # correct Snapshots (i.e. one for every cat-pic)
-    folders = yield alice.list_(True)
+    folders = await alice.list_(True)
 
-    files = yield alice.tahoe_client().list_directory(folders["kitties"]["upload_dircap"])
+    files = await alice.tahoe_client().list_directory(folders["kitties"]["upload_dircap"])
     names = {
         magic2path(k)
         for k in files.keys()

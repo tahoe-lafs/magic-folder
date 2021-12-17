@@ -5,19 +5,23 @@ from twisted.internet.error import ProcessTerminated
 from twisted.internet.defer import (
     DeferredList,
 )
+from eliot.twisted import (
+    inline_callbacks,
+)
 
 from magic_folder.util.capabilities import to_readonly_capability
 
 from .util import await_file_contents, ensure_file_not_created
 
 
-@pytest_twisted.inlineCallbacks
-def test_add(request, reactor, alice):
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_add(request, reactor, alice):
     """
     'magic-folder add' happy-path works
     """
 
-    yield alice.add(
+    await alice.add(
         "test",
         alice.magic_directory,
         author="laptop",
@@ -28,7 +32,8 @@ def test_add(request, reactor, alice):
 
     request.addfinalizer(cleanup)
 
-    config = yield alice.show_config()
+    config = await alice.show_config()
+    print("CONFIG", config)
 
     assert "test" in config["magic_folders"]
     mf_config = config["magic_folders"]["test"]
@@ -41,8 +46,9 @@ def test_add(request, reactor, alice):
     )
 
 
-@pytest_twisted.inlineCallbacks
-def test_leave(request, reactor, temp_filepath, alice, bob):
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_leave(request, reactor, temp_filepath, alice, bob):
     """
     After leaving a magic folder, its contents are no longer
     synced.
@@ -54,8 +60,8 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    yield alice.add("original", original_folder.path)
-    alice_folders = yield alice.list_(True)
+    await alice.add("original", original_folder.path)
+    alice_folders = await alice.list_(True)
 
     def cleanup_original():
         pytest_twisted.blockon(alice.leave("original"))
@@ -64,9 +70,9 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
 
     content0 = b"zero\n" * 1000
     original_folder.child("grumpy").setContent(content0)
-    yield alice.add_snapshot("original", "grumpy")
+    await alice.add_snapshot("original", "grumpy")
 
-    yield bob.add("recovery", recover_folder.path)
+    await bob.add("recovery", recover_folder.path)
 
     def cleanup_recovery():
         try:
@@ -79,28 +85,29 @@ def test_leave(request, reactor, temp_filepath, alice, bob):
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
     alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
-    yield bob.add_participant("recovery", "alice", alice_cap)
+    await bob.add_participant("recovery", "alice", alice_cap)
 
-    yield await_file_contents(
+    await await_file_contents(
         recover_folder.child("grumpy").path,
         content0,
         timeout=25,
     )
 
-    yield bob.leave("recovery")
+    await bob.leave("recovery")
 
     content1 = b"one\n" * 1000
     original_folder.child("sylvester").setContent(content1)
-    yield alice.add_snapshot("original", "sylvester")
+    await alice.add_snapshot("original", "sylvester")
 
-    yield ensure_file_not_created(
+    await ensure_file_not_created(
         recover_folder.child("sylvester").path,
         timeout=25,
     )
 
 
-@pytest_twisted.inlineCallbacks
-def test_leave_many(request, reactor, temp_filepath, alice):
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_leave_many(request, reactor, temp_filepath, alice):
     """
     Many magic-folders can be added and left in rapid succession
 
@@ -115,9 +122,9 @@ def test_leave_many(request, reactor, temp_filepath, alice):
         folder = temp_filepath.child(name)
         folder.makedirs()
 
-        yield alice.add(name, folder.path)
+        await alice.add(name, folder.path)
 
-    alice_folders = yield alice.list_(True)
+    alice_folders = await alice.list_(True)
     assert set(alice_folders.keys()) == set(names)
 
     # try and ensure that the folders are "doing some work" by adding
@@ -133,17 +140,17 @@ def test_leave_many(request, reactor, temp_filepath, alice):
                     f.write(b"xxxxxxx\n" * (1024 // 8))
 
     # initiate a scan on them all
-    scans = yield DeferredList([
+    scans = await DeferredList([
         alice.scan_folder(name)
         for name in names
     ])
     assert all(ok for ok, _ in scans), "at least one scan failed"
 
-    leaves = yield DeferredList([
+    leaves = await DeferredList([
         alice.leave(name)
         for name in names
     ])
     assert all(ok for ok, _ in leaves), "at least one leave() failed"
 
-    alice_folders = yield alice.list_(True)
+    alice_folders = await alice.list_(True)
     assert not alice_folders, "should be zero folders"

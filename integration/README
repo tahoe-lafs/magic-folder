@@ -1,3 +1,34 @@
+Integration Tests
+=================
+
+This directory contains "integration"-style tests for magic-folders.
+They are written using the "py.test" framework and use @pytest.fixture functions to set up pre-requisites.
+That is, the Tahoe processes necessary to run a grid and some magic-folders instances.
+
+
+Eliot, Deferreds and co-routines
+--------------------------------
+
+pytest has a special "pytest_twisted.inlineCallbacks" decorator.
+eliot has a special "inline_callbacks" decorator.
+In older versions, it was possible to decorate a test with both because the pytest version just "marked" the test.
+In newer versions of pytest / pytest_twisted, the above is not possible.
+
+Luckily, it _is_ possible to use `@pytest_twisted.ensureDeferred~ alongside the Eliot decorator.
+
+So, this means **all tests must be coroutines specified with async-def**.
+That is::
+
+    @eliot.twisted.inline_callbacks
+    @pytest_twisted.ensureDeferred
+    async def test_foo(fixture, another_fixture):
+        with eliot.start_action(...):
+            pass
+
+
+Install and Run
+---------------
+
 Install:
 
    pip install -e .[test]

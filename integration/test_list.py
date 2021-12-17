@@ -23,18 +23,15 @@ from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
-# we need the eliot decorator too so that start_action works properly;
-# the pytest decorator actually only "marks" the function
-
 @inline_callbacks
-@pytest_twisted.inlineCallbacks
-def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+@pytest_twisted.ensureDeferred
+async def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
     """
     'magic-folder list' happy-path works
     """
 
     with start_action(action_type=u"integration:test_list:zelda", include_args=[], include_result=False):
-        zelda = yield util.MagicFolderEnabledNode.create(
+        zelda = await util.MagicFolderEnabledNode.create(
             reactor,
             tahoe_venv,
             request,
@@ -47,7 +44,7 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
             storage=True,
         )
 
-    output = yield util._magic_folder_runner(
+    output = await util._magic_folder_runner(
         reactor, request, "zelda",
         [
             "--config", zelda.magic_config_directory,
@@ -59,7 +56,7 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
     magic_dir = FilePath(base_dir).child("zelda-magic")
     magic_dir.makedirs()
 
-    output = yield util._magic_folder_runner(
+    output = await util._magic_folder_runner(
         reactor, request, "zelda",
         [
             "--config", zelda.magic_config_directory,
@@ -70,7 +67,7 @@ def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gath
         ],
     )
 
-    output = yield util._magic_folder_runner(
+    output = await util._magic_folder_runner(
         reactor, request, "zelda",
         [
             "--config", zelda.magic_config_directory,
