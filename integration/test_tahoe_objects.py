@@ -75,7 +75,7 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
     for folder_num, folder_name in enumerate(folder_names):
         magic_dir = FilePath(base_dir).child(folder_name)
         with magic_dir.child("a_file_name").open("w") as f:
-            f.write("data {:02d}\n".format(folder_num) * 100)
+            f.write("data {:02d}\n".format(folder_num).encode("utf8") * 100)
         files.append(
             yolandi.client.add_snapshot(
                 folder_name,

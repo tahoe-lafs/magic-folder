@@ -130,7 +130,7 @@ def test_leave_many(request, reactor, temp_filepath, alice):
         for name in names:
             with temp_filepath.child(name).child(fname).open("wb") as f:
                 for _ in range(size):
-                    f.write("xxxxxxx\n" * (1024 // 8))
+                    f.write(b"xxxxxxx\n" * (1024 // 8))
 
     # initiate a scan on them all
     scans = yield DeferredList([

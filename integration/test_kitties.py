@@ -32,7 +32,7 @@ def test_kittens(request, reactor, temp_filepath, alice):
 
     magic = temp_filepath
 
-    KILO_OF_DATA = "I am JPEG data!!" * (1024 // 16)
+    KILO_OF_DATA = b"I am JPEG data!!" * (1024 // 16)
     assert len(KILO_OF_DATA) >= 2**10, "isn't actually a kibibyte"
 
     def create_random_cat_pic(path, kilobytes):

@@ -266,7 +266,7 @@ def monitor(options):
         websocket_uri,
         {
             "headers": {
-                "Authorization": "Bearer {}".format(options.parent.api_token),
+                "Authorization": "Bearer {}".format(options.parent.api_token.decode("utf8")),
             }
         },
         lambda: StatusProtocol(

@@ -227,6 +227,7 @@ class MagicFolderEnabledNode(object):
                 base_dir,
                 name,
             )
+
         returnValue(
             cls(
                 reactor,
@@ -674,8 +675,8 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             log_message(message_type=u"out-received", data=data)
-            sys.stdout.write(six.text_type(data, "utf8"))
-            self._output.write(six.text_type(data, "utf8"))
+            sys.stdout.write(data.decode("utf8"))
+            self._output.write(data.decode("utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
             d, self.magic_seen = self.magic_seen, None
@@ -691,7 +692,7 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             log_message(message_type=u"err-received", data=data)
-            sys.stdout.write(six.text_type(data, "utf8"))
+            sys.stdout.write(data.decode("utf8"))
 
     def eliot_garbage_received(self, data):
         """

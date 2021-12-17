@@ -343,7 +343,7 @@ def status(options):
         websocket_uri,
         {
             "headers": {
-                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+                "Authorization": "Bearer {}".format(options.parent.config.api_token.decode("utf8")),
             }
         },
     )

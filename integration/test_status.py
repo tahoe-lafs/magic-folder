@@ -28,7 +28,7 @@ def test_multiple_outstanding_downloads(request, reactor, alice, temp_filepath):
     for fname in filenames:
         p = magic0.child(fname)
         with p.open("w") as f:
-            f.write(fname * 1024*1024*5)
+            f.write(fname.encode("utf8") * 1024*1024*5)
             yield alice.add_snapshot("outstanding0", p.path)
 
     alice_folders = yield alice.list_(True)
