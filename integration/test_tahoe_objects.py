@@ -47,8 +47,8 @@ async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introd
         introducer_furl,
         flog_gatherer,
         name="yolandi",
-        tahoe_web_port="tcp:9982:interface=localhost",
-        magic_folder_web_port="tcp:19982:interface=localhost",
+        tahoe_web_port="tcp:9983:interface=localhost",
+        magic_folder_web_port="tcp:19983:interface=localhost",
         storage=True,
     )
     number_of_folders = 20
