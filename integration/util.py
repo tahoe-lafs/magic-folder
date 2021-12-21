@@ -577,7 +577,6 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
-        magic_seen = protocol.magic_seen
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -592,7 +591,7 @@ def run_service(
             env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
-        return magic_seen.addCallback(lambda ignored: process)
+        return protocol.magic_seen.addCallback(lambda ignored: process)
 
 def run_tahoe_service(
     reactor,
