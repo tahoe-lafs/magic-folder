@@ -23,7 +23,7 @@ def endpoint_description_to_http_api_root(endpoint_description):
 
     This currently supports only **tcp** and **ssl** endpoints.
 
-    :param unicode endpoint_description: The endpoint description string.
+    :param str endpoint_description: The endpoint description string.
 
     :return DecodedURL: A URL for reaching the given endpoint.
     """

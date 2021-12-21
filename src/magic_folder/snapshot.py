@@ -219,7 +219,8 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
-    assert isinstance(content_capability, str), "capabilities are strings"
+    # deletes have no content
+    assert content_capability is None or isinstance(content_capability, str), "capabilities are strings"
     assert isinstance(metadata_capability, str), "capabilities are strings"
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
