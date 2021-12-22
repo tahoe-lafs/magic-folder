@@ -113,7 +113,7 @@ jobs:
         pip install wheel tox eliot-tree
 
     - name: Test with tox
-      run: tox -e integration${{ matrix.tahoe-version }}
+      run: tox -e integration-${{ matrix.tahoe-version }}
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
