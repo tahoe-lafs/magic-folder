@@ -77,6 +77,13 @@ jobs:
         python-version:
           - "2.7"
 
+        tahoe-version:
+          - "1_14"
+          - "1_15"
+          - "1_16"
+          - "1_17"
+          - "master"
+
     steps:
     - name: Check out source code
       uses: actions/checkout@v2
@@ -106,7 +113,7 @@ jobs:
         pip install wheel tox eliot-tree
 
     - name: Test with tox
-      run: tox -e integration
+      run: tox -e integration-${{ matrix.tahoe-version }}
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
