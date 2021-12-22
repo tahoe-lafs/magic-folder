@@ -490,7 +490,7 @@ class _CollectOutputProtocol(ProcessProtocol):
     def errReceived(self, data):
         print("ERR: {}".format(data.decode("utf8")))
         with self._action.context():
-            log_message(message_type=u"err-received", data=data)
+            log_message(message_type=u"err-received", data=data.decode("utf8"))
         self.output.write(data.decode("utf8"))
 
 
@@ -673,7 +673,7 @@ class _MagicTextProtocol(ProcessProtocol):
         Called with output from stdout.
         """
         with self._action.context():
-            log_message(message_type=u"out-received", data=data)
+            log_message(message_type=u"out-received", data=data.decode("utf8"))
             sys.stdout.write(data.decode("utf8"))
             self._output.write(data.decode("utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
@@ -690,7 +690,7 @@ class _MagicTextProtocol(ProcessProtocol):
         no other output there, so we treat it as expected.
         """
         with self._action.context():
-            log_message(message_type=u"err-received", data=data)
+            log_message(message_type=u"err-received", data=data.decode("utf8"))
             sys.stdout.write(data.decode("utf8"))
 
     def eliot_garbage_received(self, data):
@@ -700,7 +700,7 @@ class _MagicTextProtocol(ProcessProtocol):
         Since FD 3 is suppposed to only have eliot-logs, log them as malformed.
         """
         with self._action.context():
-            log_message(message_type=u"malformed-eliot-log", data=data)
+            log_message(message_type=u"malformed-eliot-log", data=data.decode("utf8"))
 
 
 def _cleanup_service_process(process, exited, action):
