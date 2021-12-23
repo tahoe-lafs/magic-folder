@@ -166,7 +166,7 @@ class _CollectiveDirnodeParticipants(object):
         """
         if not isinstance(value, six.text_type):
             raise TypeError(
-                "dirnode must be text"
+                "Collective dirnode was {} not text".format(type(value))
             )
         if is_directory_cap(value):
             return
@@ -183,7 +183,7 @@ class _CollectiveDirnodeParticipants(object):
         """
         if not isinstance(value, six.text_type):
             raise TypeError(
-                "mutable_dirnode must be text"
+                "Upload dirnode was {} not text".format(type(value))
             )
         if is_mutable_directory_cap(value):
             return

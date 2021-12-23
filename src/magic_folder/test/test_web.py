@@ -533,7 +533,7 @@ class MagicFolderTests(SyncTestCase):
                                 u"name": name,
                                 u"author": {
                                     u"name": config.author.name,
-                                    u"verify_key": config.author.verify_key.encode(Base32Encoder),
+                                    u"verify_key": config.author.verify_key.encode(Base32Encoder).decode("utf8"),
                                 },
                                 u"magic_path": config.magic_path.path,
                                 u"stash_path": config.stash_path.path,
