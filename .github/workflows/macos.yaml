@@ -63,7 +63,6 @@ jobs:
         python-version:
           - "2.7"
         tahoe-version:
-          - "1_14"
           - "1_15"
           - "1_16"
           - "1_17"
