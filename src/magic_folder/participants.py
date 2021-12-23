@@ -11,8 +11,6 @@ from __future__ import (
     print_function,
 )
 
-import six
-
 from zope.interface import (
     Attribute,
     Interface,
@@ -164,7 +162,7 @@ class _CollectiveDirnodeParticipants(object):
         The Collective DMD must be a directory capability (but could be a
         read-only one or a read-write one).
         """
-        if not isinstance(value, six.text_type):
+        if not isinstance(value, str):
             raise TypeError(
                 "Collective dirnode was {} not text".format(type(value))
             )
@@ -181,7 +179,7 @@ class _CollectiveDirnodeParticipants(object):
         """
         The Upload DMD must be a writable directory capability
         """
-        if not isinstance(value, six.text_type):
+        if not isinstance(value, str):
             raise TypeError(
                 "Upload dirnode was {} not text".format(type(value))
             )
@@ -274,8 +272,8 @@ class _CollectiveDirnodeParticipant(object):
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
     """
-    name = attr.ib(validator=attr.validators.instance_of(six.text_type))
-    dircap = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    name = attr.ib(validator=attr.validators.instance_of(str))
+    dircap = attr.ib(validator=attr.validators.instance_of(str))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
     _tahoe_client = attr.ib()
 

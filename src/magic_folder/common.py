@@ -11,7 +11,6 @@ from __future__ import (
     print_function,
 )
 
-import six
 from contextlib import contextmanager
 import unicodedata
 
@@ -66,7 +65,7 @@ class APIError(Exception):
     code = attr.ib(
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
-    reason = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    reason = attr.ib(validator=attr.validators.instance_of(str))
     extra_fields = attr.ib(
         default=None,
         validator=attr.validators.optional(
@@ -114,7 +113,7 @@ class NoSuchMagicFolder(APIError):
     There is not a magic folder of the given name.
     """
 
-    name = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    name = attr.ib(validator=attr.validators.instance_of(str))
     code = attr.ib(
         init=False,
         default=http.NOT_FOUND,
@@ -161,7 +160,7 @@ class InvalidMagicFolderName(APIError):
         u"control characters or unassigned characters."
     )
 
-    name = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    name = attr.ib(validator=attr.validators.instance_of(str))
     code = attr.ib(
         default=http.BAD_REQUEST,
         validator=attr.validators.optional(attr.validators.instance_of(int)),

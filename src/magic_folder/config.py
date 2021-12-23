@@ -21,7 +21,6 @@ __all__ = [
 ]
 
 import re
-import six
 import hashlib
 import time
 from collections import (
@@ -289,7 +288,7 @@ FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
 )
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
-    [six.text_type],
+    [str],
     u"An indication of whether the record for this upload was new or an update to a previous entry.",
     validateSetMembership({u"insert", u"update"}),
 )
@@ -325,8 +324,8 @@ class RemoteSnapshotWithoutPathState(Exception):
     corresponding path state (either provided, or already in the database).
     """
 
-    folder_name = attr.ib(validator=attr.validators.instance_of(six.text_type))
-    relpath = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    folder_name = attr.ib(validator=attr.validators.instance_of(str))
+    relpath = attr.ib(validator=attr.validators.instance_of(str))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -351,11 +350,11 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # our APIs insist on endpoint-strings being unicode, but Twisted
     # only accepts "str" .. so we have to convert on py2. When we
     # support python3 this check only needs to happen on py2
-    if not isinstance(api_endpoint_str, six.text_type):
+    if not isinstance(api_endpoint_str, str):
         raise ValueError(
             "'api_endpoint_str' must be unicode"
         )
-    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, six.text_type):
+    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, str):
         raise ValueError(
             "'api_client_endpoint_str' must be unicode"
         )
@@ -775,7 +774,7 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_name = attr.ib(validator=instance_of(six.text_type))
+    author_name = attr.ib(validator=instance_of(str))
 
 
 @attr.s
@@ -936,7 +935,7 @@ class MagicFolderConfig(object):
                 WHERE
                     identifier= ?
                 """,
-                (six.text_type(parent.identifier),),
+                (str(parent.identifier),),
             )
             count = cursor.fetchone()
             if count[0] != 1:
@@ -952,7 +951,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (six.text_type(snapshot.identifier), snapshot.relpath, content_path),
+                (str(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -968,7 +967,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?)
             """,
             list(
-                (six.text_type(snapshot.identifier), k, v)
+                (str(snapshot.identifier), k, v)
                 for (k, v)
                 in snapshot.metadata.items()
             ),
@@ -994,7 +993,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?, ?)
             """,
             [
-                (six.text_type(snapshot.identifier), index, local_only, parent_identifier)
+                (str(snapshot.identifier), index, local_only, parent_identifier)
                 for (index, (local_only, parent_identifier)) in enumerate(
                     chain(
                         (
@@ -1002,7 +1001,7 @@ class MagicFolderConfig(object):
                             for parent_identifier in snapshot.parents_remote
                         ),
                         (
-                            (True, six.text_type(parent.identifier))
+                            (True, str(parent.identifier))
                             for parent in snapshot.parents_local
                         ),
                     )
@@ -1076,7 +1075,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, six.text_type(remote_snapshot.capability), six.text_type(child.identifier))
+                (False, str(remote_snapshot.capability), str(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1092,7 +1091,7 @@ class MagicFolderConfig(object):
             WHERE
                 [snapshot_identifier]=?
             """,
-            (six.text_type(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
         cursor.execute(
             """
@@ -1101,7 +1100,7 @@ class MagicFolderConfig(object):
             WHERE
                 [identifier]=?
             """,
-            (six.text_type(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
 
     @with_cursor
@@ -1109,7 +1108,7 @@ class MagicFolderConfig(object):
         """
         remove all rows corresponding to the given relpath from the local_snapshots table
 
-        :param six.text_type relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
+        :param str relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
         action = DELETE_SNAPSHOTS(
             relpath=relpath,
