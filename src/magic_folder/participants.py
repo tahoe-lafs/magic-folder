@@ -305,7 +305,7 @@ class _WriteableParticipant(object):
     :ivar bytes upload_cap: Read-write directory-capability containing this
         participant's files.
     """
-    upload_cap = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    upload_cap = attr.ib()
     _tahoe_client = attr.ib(eq=False)
 
     @upload_cap.validator
@@ -313,6 +313,10 @@ class _WriteableParticipant(object):
         """
         The Upload DMD must be a writable directory capability
         """
+        if not isinstance(value, str):
+            raise TypeError(
+                "Upload dirnode was {} not text".format(type(value))
+            )
         if is_mutable_directory_cap(value):
             return
         raise TypeError(
