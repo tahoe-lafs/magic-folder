@@ -1,6 +1,5 @@
 -r test.in
 
 pip
-setuptools
 wheel
 subunitreporter
