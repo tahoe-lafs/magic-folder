@@ -97,9 +97,9 @@ workflows:
                 - "main"
 
     jobs:
-      - "build-image-debian-9":
-          <<: *DOCKERHUB_CONTEXT
       - "build-image-debian-10":
+          <<: *DOCKERHUB_CONTEXT
+      - "build-image-debian-11":
           <<: *DOCKERHUB_CONTEXT
       - "build-image-ubuntu-18.04":
           <<: *DOCKERHUB_CONTEXT
@@ -137,7 +137,7 @@ jobs:
   lint:
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "circleci/python:2"
+        image: "circleci/python:3"
 
     steps:
       - "checkout"
@@ -172,7 +172,7 @@ jobs:
       # filenames and argv).
       LANG: "en_US.UTF-8"
       # Select a tox environment to run for this job.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "py27-coverage"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "py38-coverage"
       # Additional arguments to pass to tox.
       MAGIC_FOLDER_TOX_ARGS: ""
       # The path in which test artifacts will be placed.
@@ -435,6 +435,14 @@ jobs:
       TAG: "10"
 
 
+  build-image-debian-11:
+    <<: *BUILD_IMAGE
+
+    environment:
+      DISTRO: "debian"
+      TAG: "11"
+
+
   build-image-ubuntu-18.04:
     <<: *BUILD_IMAGE
 
@@ -475,9 +483,9 @@ jobs:
       TAG: "34"
 
 
-  build-image-pypy-2.7-7.3.4-buster:
+  build-image-pypy-3.8-7.3.7-buster:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "pypy"
-      TAG: "2.7-7.3.4-buster"
+      TAG: "3.8-7.3.7-buster"
