@@ -79,7 +79,7 @@ class PleaseUseTox(Command):
         sys.exit(1)
 
 setup(name="magic_folder",
-      version="0.1.0",
+      version="22.1.0",
       description='Tahoe-LAFS-based file synchronization',
       long_description=open('README.rst', 'rU').read(),
       author='the Tahoe-LAFS developers, the Magic-Folder developers',
