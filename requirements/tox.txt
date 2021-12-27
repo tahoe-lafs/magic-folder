@@ -11,6 +11,7 @@ configparser==4.0.2 ; python_version < "3.0" --hash=sha256:254c1d9c79f60c45dfde8
 #   -r base.in
 #   flake8
 #   importlib-metadata
+#   tahoe-lafs
 # via twisted
 # via
 #   importlib-metadata
@@ -91,7 +92,9 @@ configparser==4.0.2 ; python_version < "3.0" --hash=sha256:254c1d9c79f60c45dfde8
 #   service-identity
 #   txtorcon
 # via towncrier
-# via -r base.in
+# via
+#   -r base.in
+#   tahoe-lafs
 # via traceback2
 # via tahoe-lafs
 # via jinja2
@@ -205,14 +208,15 @@ subunitreporter==19.3.2 \
 # via
 #   testtools
 #   unittest2
-# via -r base.in
+# via
+#   -r base.in
+#   tahoe-lafs
 # via klein
 # via
 #   autobahn
 #   foolscap
 #   klein
 #   magic-wormhole
-#   nevow
 #   subunitreporter
 #   tahoe-lafs
 #   treq
@@ -230,9 +234,9 @@ subunitreporter==19.3.2 \
 # via tox
 # via pytest
 # via klein
-wheel==0.36.2 \
-    --hash=sha256:78b5b185f0e5763c26ca1e324373aadd49182ca90e825f7853f4b2509215dc0e \
-    --hash=sha256:e11eefd162658ea59a60a0f6c7d493a7190ea4b9a85e335b33489d9f17e0245e
+wheel==0.37.1 \
+    --hash=sha256:4bdcd7d840138086126cd09254dc6195fb4fc6f01c050a1d7236f2630db1d22a \
+    --hash=sha256:e9a504e793efbca1b8e0e9cb979a249cf4a0a7b5b8c9e8b65a5e39d49529c1c4
 # via -r tox.in
 # via tahoe-lafs
 # via
@@ -255,5 +259,6 @@ pip==20.3.4 \
 # via -r tox.in
 # via
 #   -r tox.in
+#   collections-extended
 #   tahoe-lafs
 #   zope.interface
