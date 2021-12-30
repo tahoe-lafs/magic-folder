@@ -119,10 +119,10 @@ jobs:
       - store_test_results:
           path: "junit/"
 
-  debian-10: &DEBIAN
+  debian-11: &DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:10"
+        image: "magicfolderci/debian:11"
         user: "nobody"
 
     environment: &UTF_8_ENVIRONMENT
@@ -136,7 +136,7 @@ jobs:
       # filenames and argv).
       LANG: "en_US.UTF-8"
       # Select a tox environment to run for this job.
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "py38-coverage"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "py3-coverage"
       # Additional arguments to pass to tox.
       MAGIC_FOLDER_TOX_ARGS: ""
       # The path in which test artifacts will be placed.
@@ -198,25 +198,16 @@ jobs:
           command: |
             /tmp/venv/bin/codecov --flags unit-test
 
-
-  debian-9:
+  pypy3.8-7.3.7:
     <<: *DEBIAN
     docker:
       - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/debian:9"
-        user: "nobody"
-
-
-  pypy2.7-7.3:
-    <<: *DEBIAN
-    docker:
-      - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/pypy:2.7-7.3.4-buster"
+        image: "magicfolderci/pypy:3.8-7.3.7-buster"
         user: "nobody"
 
     environment:
       <<: *UTF_8_ENVIRONMENT
-      MAGIC_FOLDER_TOX_ENVIRONMENT: "pypy27-coverage"
+      MAGIC_FOLDER_TOX_ENVIRONMENT: "pypy3-coverage"
       ALLOWED_FAILURE: "yes"
 
 
@@ -292,14 +283,6 @@ jobs:
       MAGIC_FOLDER_TOX_ENVIRONMENT: "integration-master-junit"
 
 
-  ubuntu-18.04:
-    <<: *DEBIAN
-    docker:
-      - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/ubuntu:18.04"
-        user: "nobody"
-
-
   ubuntu-20.04:
     <<: *DEBIAN
     docker:
@@ -307,44 +290,6 @@ jobs:
         image: "magicfolderci/ubuntu:20.04"
         user: "nobody"
 
-
-  centos-8: &RHEL_DERIV
-    docker:
-      - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/centos:8"
-        user: "nobody"
-
-    environment: *UTF_8_ENVIRONMENT
-
-    # pip cannot install packages if the working directory is not readable.
-    # We want to run a lot of steps as nobody instead of as root.
-    working_directory: "/tmp/project"
-
-    steps:
-      - "checkout"
-      - run: *SETUP_VIRTUALENV
-      - run: *RUN_TESTS
-      - store_test_results: *STORE_TEST_RESULTS
-      - store_artifacts: *STORE_TEST_LOG
-      - store_artifacts: *STORE_ELIOT_LOG
-      - store_artifacts: *STORE_OTHER_ARTIFACTS
-      - run: *SUBMIT_COVERAGE
-
-
-  fedora-33:
-    <<: *RHEL_DERIV
-    docker:
-      - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:33"
-        user: "nobody"
-
-
-  fedora-34:
-    <<: *RHEL_DERIV
-    docker:
-      - auth: *DOCKERHUB_AUTH
-        image: "magicfolderci/fedora:34"
-        user: "nobody"
 
   build-image: &BUILD_IMAGE
     # This is a template for a job to build a Docker image that has as much of
@@ -383,14 +328,6 @@ jobs:
             docker push magicfolderci/${DISTRO}:${TAG}
 
 
-  build-image-debian-10:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "debian"
-      TAG: "10"
-
-
   build-image-debian-11:
     <<: *BUILD_IMAGE
 
@@ -399,44 +336,12 @@ jobs:
       TAG: "11"
 
 
-  build-image-ubuntu-18.04:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "ubuntu"
-      TAG: "18.04"
-
-
   build-image-ubuntu-20.04:
     <<: *BUILD_IMAGE
 
     environment:
       DISTRO: "ubuntu"
       TAG: "20.04"
-
-
-  build-image-centos-8:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "centos"
-      TAG: "8"
-
-
-  build-image-fedora-33:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "fedora"
-      TAG: "33"
-
-
-  build-image-fedora-34:
-    <<: *BUILD_IMAGE
-
-    environment:
-      DISTRO: "fedora"
-      TAG: "34"
 
 
   build-image-pypy-3.8-7.3.7-buster:
