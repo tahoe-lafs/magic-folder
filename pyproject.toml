@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools<45", "wheel"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+
+[tool.setuptools_scm]
+write_to = "src/magic_folder/_version.py"
 
 [tool.towncrier]
     package_dir = "src"
