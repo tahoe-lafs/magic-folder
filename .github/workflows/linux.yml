@@ -11,11 +11,11 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
-          - ubuntu-18.04
+          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-18.04
         python-version:
           - "3.8"
-
+    runs-on: ${{ matrix.os.runs-on }}
     steps:
     - name: Check out source code
       uses: actions/checkout@v2
@@ -76,13 +76,14 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
-          - ubuntu-18.04
+          - runs-on: ubuntu-20.04
+          - runs-on: ubuntu-18.04
         python-version:
           - "3.8"
         tahoe-version:
           - "1_17"
           - "master"
+    runs-on: ${{ matrix.os.runs-on }}
 
     steps:
     - name: Check out source code
