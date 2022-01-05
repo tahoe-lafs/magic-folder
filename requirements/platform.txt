@@ -16,6 +16,7 @@
 #   hashin -r requirements/platform.txt 'pywin32 ; sys_platform == "win32"'
 #   hashin -r requirements/platform.txt 'colorama ; sys_platform == "win32"'
 #   hashin -r requirements/platform.txt 'twisted-iocpsupport ; sys_platform == "win32"'
+#   hashin -r requirements/platform.txt 'atomicwrites ; sys_platform == "win32"'
 #
 # ...will put the stuff you need in _this_ file
 
