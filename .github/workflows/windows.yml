@@ -78,8 +78,6 @@ jobs:
           - "3.8"
 
         tahoe-version:
-          - "1_15"
-          - "1_16"
           - "1_17"
           - "master"
 
@@ -94,7 +92,7 @@ jobs:
     - run: "git fetch origin +refs/tags/*:refs/tags/*"
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -130,7 +128,7 @@ jobs:
         name: "integration"
         path: "eliot*"
 
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@v2
       with:
         token: "322d708d-8283-4827-b605-ccf02bfecf70"
         file: "./coverage.xml"
