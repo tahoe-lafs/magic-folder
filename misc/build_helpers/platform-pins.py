@@ -5,9 +5,10 @@ pip-compile (and thus pip-compile-multi) don't support generating lock files
 for platforms other than the current one. They suggest[1] generating a lock
 file for each environment seperately.
 
-However, the only platform-specific (transitive) dependencies are colorama and
-pywin32. To avoid having to maintain separate sets of lock files per-platform,
-we modify the generated lock files to the platform specific dependencies (using
+However, the only platform-specific (transitive) dependencies are
+colorama and pywin32 -- and now several others :(. To avoid having to
+maintain separate sets of lock files per-platform, we modify the
+generated lock files to the platform specific dependencies (using
 environment markers). This is based loosely on an idea from [2].
 
 We have a hand-generated platform-specific requirements lockfile with appropriate
