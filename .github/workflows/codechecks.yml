@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  unit-tests:
+  codechecks:
     strategy:
       matrix:
         python-version:
@@ -32,4 +32,4 @@ jobs:
         pip install tox
 
     - name: codechecks
-      run: tox -e codechecks-junit
+      run: tox -e codechecks
