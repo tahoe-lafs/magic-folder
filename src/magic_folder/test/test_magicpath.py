@@ -11,23 +11,12 @@ from __future__ import (
     print_function,
 )
 
-from os.path import (
-    join,
-)
-
 from hypothesis import (
     given,
-    assume,
-)
-from hypothesis.strategies import (
-    sampled_from,
-    lists,
-    randoms,
 )
 
 from testtools import ExpectedException
 from testtools.matchers import (
-    AfterPreprocessing,
     Equals,
     StartsWith,
 )
@@ -37,10 +26,7 @@ from .common import (
 )
 
 from .strategies import (
-    path_segments,
-    path_segments_without_dotfiles,
     relative_paths,
-    absolute_paths,
 )
 
 from ..magicpath import (

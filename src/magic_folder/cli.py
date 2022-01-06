@@ -9,7 +9,6 @@ import sys
 import getpass
 
 
-import six
 from six.moves import (
     StringIO as MixedIO,
 )
@@ -92,19 +91,6 @@ from .util.eliotutil import (
     with_eliot_options,
 )
 
-
-if six.PY2:
-    def to_unicode(s):
-        """
-        Convert an argument to unicode.
-        """
-        try:
-            return unicode(s, "utf-8")
-        except UnicodeDecodeError:
-            raise usage.UsageError("Argument {!r} cannot be decoded as UTF-8.", s)
-else:
-    def to_unicode(s):
-        return s
 
 _default_config_path = user_config_dir("magic-folder")
 
@@ -246,8 +232,8 @@ class AddOptions(usage.Options):
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
         ("scan-interval", "s", "60", "Seconds between scans of local changes"),
-        ("name", "n", None, "The name of this magic-folder", to_unicode),
-        ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
+        ("name", "n", None, "The name of this magic-folder", str),
+        ("author", "A", None, "Our name for Snapshots authored here", str),
     ]
     optFlags = [
         ["disable-scanning", None, "Disable scanning for local changes."],
@@ -431,7 +417,7 @@ class InviteOptions(usage.Options):
 
     def parseArgs(self, nickname):
         super(InviteOptions, self).parseArgs()
-        self.nickname = to_unicode(nickname)
+        self.nickname = nickname
 
     def postOptions(self):
         if self["name"] is None:
@@ -483,7 +469,7 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-        self.invite_code = to_unicode(invite_code)
+        self.invite_code = invite_code
 
     def postOptions(self):
         super(JoinOptions, self).postOptions()
@@ -527,7 +513,7 @@ class LeaveOptions(usage.Options):
         ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
     ]
     optParameters = [
-        ("name", "n", None, "Name of magic-folder to leave", to_unicode),
+        ("name", "n", None, "Name of magic-folder to leave", str),
     ]
 
     def postOptions(self):

@@ -7,21 +7,12 @@ from __future__ import (
     print_function,
 )
 
-import sys
-
-# Tahoe-LAFS -- secure, distributed storage grid
-#
-# Copyright © 2006-2012 The Tahoe-LAFS Software Foundation
-#
-# This file is part of Tahoe-LAFS.
-#
-# See the docs/about.rst file for licensing information.
-
 import os
+from setuptools import find_packages, setup
 
-basedir = os.path.dirname(os.path.abspath(__file__))
 
 def load_requirements(filename):
+    basedir = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(basedir, "requirements", filename), "r") as f:
         return [
             line.rstrip("\n")
@@ -29,11 +20,9 @@ def load_requirements(filename):
             if not line.startswith(("#", "-r")) and line.rstrip("\n")
         ]
 
+
 install_requires = load_requirements("base.in")
 test_requires = load_requirements("test.in")
-
-from setuptools import find_packages, setup
-from setuptools import Command
 
 
 trove_classifiers = [

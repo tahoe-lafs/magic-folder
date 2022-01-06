@@ -25,7 +25,6 @@ from autobahn.twisted.resource import (
 
 from eliot import (
     write_failure,
-    start_action,
 )
 from eliot.twisted import inline_callbacks
 
@@ -49,9 +48,7 @@ from twisted.web.resource import (
     Resource,
 )
 
-from hyperlink import DecodedURL
 from werkzeug.exceptions import HTTPException
-from werkzeug.routing import RequestRedirect
 
 from klein import Klein
 

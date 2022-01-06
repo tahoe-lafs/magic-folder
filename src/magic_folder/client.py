@@ -162,7 +162,7 @@ class MagicFolderClient(object):
         return self._authorized_request("GET", api_url)
 
     def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
-        # type: (unicode, unicode, FilePath, int, int) -> dict
+        # type: (str, str, FilePath, int, int) -> dict
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
         return self._authorized_request("POST", api_url, body=json.dumps({
             'name': magic_folder,
@@ -181,7 +181,7 @@ class MagicFolderClient(object):
         return self._authorized_request("PUT", api_url, body=b"")
 
     def leave_folder(self, magic_folder, really_delete_write_capability):
-        # type: (unicode, bool) -> dict
+        # type: (str, bool) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder)
         return self._authorized_request(
             "DELETE",
@@ -239,7 +239,7 @@ def create_http_client(reactor, api_client_endpoint_str):
     """
     :param reactor: Twisted reactor
 
-    :param unicode api_client_endpoint_str: a Twisted client endpoint-string
+    :param str api_client_endpoint_str: a Twisted client endpoint-string
 
     :returns: a Treq HTTPClient which will do all requests to the
         indicated endpoint

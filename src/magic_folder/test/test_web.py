@@ -13,7 +13,6 @@ from __future__ import (
 )
 
 import six
-from distutils.version import StrictVersion
 from json import (
     loads,
     dumps,
@@ -88,8 +87,6 @@ from nacl.encoding import (
 from treq.testing import (
     StubTreq,
 )
-
-import werkzeug
 
 from .common import (
     skipIf,
@@ -863,16 +860,11 @@ class RedirectTests(SyncTestCase):
             start_folder_services=False,
         )
 
-        dest_url = self.url.child(folder_name, "snapshot")
-
         # We apply .to_uri() here since hyperlink and werkzeug disagree
         # on which characters to encocde.
         # Seee https://github.com/python-hyper/hyperlink/issues/168
         def to_iri(url_bytes):
             return DecodedURL.from_text(url_bytes.decode("utf8")).to_iri()
-        match_url = AfterPreprocessing(
-            to_iri, Equals(dest_url.to_iri()),
-        )
         self.assertThat(
             authorized_request(
                 treq,

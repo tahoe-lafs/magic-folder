@@ -219,7 +219,7 @@ class MagicFolder(service.MultiService):
         return self._participants.add(author, participant_directory)
 
     def add_snapshot(self, relative_path):
-        # type: (unicode) -> Deferred[None]
+        # type: (str) -> Deferred[None]
         """
         Create a new snapshot of the given file.
 

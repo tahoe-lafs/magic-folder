@@ -4,11 +4,9 @@ from __future__ import (
     print_function,
 )
 
-import os.path
 import re
 
 import attr
-from pyutil.assertutil import _assert, precondition
 
 
 @attr.s(auto_exc=True)
