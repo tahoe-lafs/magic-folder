@@ -38,13 +38,17 @@ from hypothesis.strategies import (
     binary,
     lists,
 )
+
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
-    inlineCallbacks,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -328,7 +332,7 @@ class AsyncMagicFileTests(AsyncTestCase):
     MagicFile tests requiring the reactor
     """
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_local_queue(self):
         """
         Queuing up two updates 'at once' causes two versions to be
@@ -442,7 +446,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(snap1.parents_local, Equals([]))
         self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_fail_upload_dmd_update(self):
         """
         While uploading a local snapshot we fail to update our Personal
@@ -560,7 +564,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             ]),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_upload(self):
         """
         While an upload is ongoing it is cancelled
@@ -623,7 +627,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             })
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_dmd(self):
         """
         An attempt to update the Personal DMD after an upload is

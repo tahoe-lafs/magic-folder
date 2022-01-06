@@ -9,6 +9,10 @@ import json
 from six.moves import (
     StringIO,
 )
+
+from eliot.twisted import (
+    inline_callbacks,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -17,9 +21,6 @@ from twisted.python.usage import (
 )
 from twisted.internet.task import (
     Clock,
-)
-from twisted.internet.defer import (
-    inlineCallbacks,
 )
 from hyperlink import (
     DecodedURL,
@@ -97,7 +98,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             FilePath(u"/no/tahoe/node-directory"),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_happy(self):
         """
         A file is successfully added.
@@ -151,7 +152,7 @@ class TestApiAddSnapshot(AsyncTestCase):
             Equals("")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_bad_file(self):
         """
         Adding a file outside the magic-folder fails
@@ -264,7 +265,7 @@ class TestMagicApi(AsyncTestCase):
                 "--config", self.mktemp(),
             ])
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_empty_command_prints_help(self):
         """
         User doesn't have to do --help
@@ -361,7 +362,7 @@ class TestMagicApi(AsyncTestCase):
             Equals("Error: --folder / -n is required")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_no_access(self):
         """
         An error is reported if we can't access the API at all
@@ -413,7 +414,7 @@ class TestMagicApi(AsyncTestCase):
             Contains("tcp:127.0.0.1:-1")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_api_error(self):
         """
         An error is reported if the API reports an error
@@ -477,7 +478,7 @@ class TestMagicApi(AsyncTestCase):
             Equals({"reason": "an explanation"})
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_unknown_error(self):
         """
         'Unexpected' exceptions cause an error to be printed
@@ -538,7 +539,7 @@ class TestDumpState(AsyncTestCase):
             FilePath(u"/no/tahoe/node-directory"),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_happy(self):
         """
         Test printing of some well-known state
@@ -643,7 +644,7 @@ class TestApiParticipants(AsyncTestCase):
             FilePath(u"/no/tahoe/node-directory"),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_add_participant_missing_arg(self):
         """
         If arguments are missing, an error is reported
@@ -671,7 +672,7 @@ class TestApiParticipants(AsyncTestCase):
             Equals("")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def XXXtest_add_participant(self):
         """
         A new participant is added to a magic-folder
@@ -736,7 +737,7 @@ class TestApiParticipants(AsyncTestCase):
             Equals("")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_list_participants_missing_arg(self):
         """
         An error is reported if argument missing
@@ -762,7 +763,7 @@ class TestApiParticipants(AsyncTestCase):
             Equals("")
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_list_participants(self):
         """
         List all participants in a magic-folder
@@ -850,7 +851,7 @@ class TestApiMonitor(AsyncTestCase):
         super(TestApiMonitor, self).tearDown()
         return self.pumper.stop()
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_once(self):
         """
         Output a single status message with --once option

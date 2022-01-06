@@ -55,7 +55,6 @@ from twisted.internet.task import (
 )
 from twisted.internet.defer import (
     Deferred,
-    inlineCallbacks,
     returnValue,
     succeed,
 )
@@ -459,13 +458,13 @@ class UpdateTests(AsyncTestCase):
         )
         self.service.startService()
 
-    @inlineCallbacks
+    @inline_callbacks
     def tearDown(self):
         yield super(UpdateTests, self).tearDown()
         yield self.service.file_factory.finish()
         yield self.service.stopService()
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_create(self):
         """
         Create a RemoteSnapshot and add it to zara's Personal DMD. The
@@ -501,7 +500,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflict(self):
         """
         Create a RemoteSnapshot and add it to zara's Personal DMD. The
@@ -552,7 +551,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_update(self):
         """
         Create a snapshot in zara's Personal DMD, then update it.
@@ -622,7 +621,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_multi_update(self):
         """
         Create a snapshot in zara's Personal DMD, then update it 2x
@@ -707,7 +706,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflicting_update(self):
         """
         Create an update that conflicts with a local file
@@ -799,7 +798,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflict_at_last_second(self):
         """
         If an update to a file happens while we're downloading a file that
@@ -866,7 +865,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_state_mismatch(self):
         """
         If the database-stored pathstate doesn't match what's on disk when
