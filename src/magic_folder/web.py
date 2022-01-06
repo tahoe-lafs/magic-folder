@@ -32,7 +32,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.application.internet import (
@@ -213,7 +212,7 @@ class APIv1(object):
         return WebSocketResource(StatusFactory(self._status_service))
 
     @app.route("/magic-folder", methods=["POST"])
-    @inlineCallbacks
+    @inline_callbacks
     def add_magic_folder(self, request):
         """
         Add a new magic folder.
@@ -252,7 +251,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
-    @inlineCallbacks
+    @inline_callbacks
     def list_participants(self, request, folder_name):
         """
         List all participants of this folder
@@ -274,7 +273,7 @@ class APIv1(object):
         returnValue(json.dumps(reply).encode("utf8"))
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def add_participant(self, request, folder_name):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
@@ -355,7 +354,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def add_snapshot(self, request, folder_name):
         """
         Create a new Snapshot
