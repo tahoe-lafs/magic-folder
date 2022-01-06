@@ -9,8 +9,11 @@ from __future__ import (
 
 import json
 
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.internet.endpoints import (
@@ -19,7 +22,6 @@ from twisted.internet.endpoints import (
 from twisted.internet.error import (
     ConnectError,
 )
-
 from twisted.python.filepath import FilePath
 from twisted.web import (
     http,
@@ -98,7 +100,7 @@ class MagicFolderApiError(ClientError):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def _get_json_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
@@ -194,7 +196,7 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def _authorized_request(self, method, url, body=b""):
         """
         :param str method: GET, POST etc http verb

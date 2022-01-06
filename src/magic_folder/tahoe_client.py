@@ -11,7 +11,6 @@ from __future__ import (
 import json
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
     DeferredLock,
 )
@@ -116,7 +115,7 @@ class CannotAddDirectoryEntryError(Exception):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def _get_content_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
@@ -155,7 +154,7 @@ class TahoeClient(object):
         validator=attr.validators.instance_of((HTTPClient, StubTreq)),
     )
 
-    @inlineCallbacks
+    @inline_callbacks
     def get_welcome(self):
         """
         Fetch the JSON 'welcome page' from Tahoe
@@ -168,7 +167,7 @@ class TahoeClient(object):
         returnValue((yield resp.json()))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_immutable_directory(self, directory_data):
         """
         Creates a new immutable directory in Tahoe.
@@ -193,7 +192,7 @@ class TahoeClient(object):
         returnValue(capability_string.decode("utf8"))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_immutable(self, producer):
         """
         Creates a new immutable in Tahoe.
@@ -217,7 +216,7 @@ class TahoeClient(object):
         returnValue(capability_string.decode("utf8"))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_mutable_directory(self):
         """
         Create a new mutable directory in Tahoe.
@@ -287,7 +286,7 @@ class TahoeClient(object):
             in dirinfo[u"children"].items()
         })
 
-    @inlineCallbacks
+    @inline_callbacks
     def directory_data(self, dir_cap):
         """
         Get the 'raw' directory data for a directory-capability. If you
@@ -320,7 +319,7 @@ class TahoeClient(object):
         returnValue(dirinfo)
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
         """
         Adds an entry to a mutable directory
@@ -372,7 +371,7 @@ class TahoeClient(object):
             )
         returnValue(capability_string.decode("utf8"))
 
-    @inlineCallbacks
+    @inline_callbacks
     def download_file(self, cap):
         """
         Retrieve the raw data for a capability from Tahoe. It is an error
@@ -409,7 +408,7 @@ class TahoeClient(object):
         data = yield _get_content_check_code({OK}, res)
         returnValue(data)
 
-    @inlineCallbacks
+    @inline_callbacks
     def stream_capability(self, cap, filelike):
         """
         Retrieve the raw data for a capability from Tahoe

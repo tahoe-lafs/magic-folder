@@ -20,7 +20,6 @@ from zope.interface import (
 import attr
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 
@@ -74,7 +73,7 @@ class IParticipants(Interface):
             associated with..
         """
 
-    @inlineCallbacks
+    @inline_callbacks
     def add(author, personal_dmd_cap):
         """
         Add a new participant to this collective.
@@ -95,7 +94,7 @@ class IWriteableParticipant(Interface):
     in a particular magic-folder that we have write-access to.
     """
 
-    @inlineCallbacks
+    @inline_callbacks
     def update_snapshot(relpath, capability):
         """
         Update the snapshot with the given relpath.
@@ -191,7 +190,7 @@ class _CollectiveDirnodeParticipants(object):
             ),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def add(self, author, personal_dmd_cap):
         """
         IParticipants API
@@ -233,7 +232,7 @@ class _CollectiveDirnodeParticipants(object):
                 u"Already have a participant called '{}'".format(author.name)
             )
 
-    @inlineCallbacks
+    @inline_callbacks
     def list(self):
         """
         IParticipants API

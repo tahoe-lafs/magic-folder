@@ -13,11 +13,11 @@ from __future__ import (
 
 import json
 
-from twisted.internet.defer import (
-    inlineCallbacks,
+from eliot.twisted import (
+    inline_callbacks,
 )
 
-@inlineCallbacks
+@inline_callbacks
 def magic_folder_list(reactor, config, client, output, as_json=False, include_secret_information=False):
     """
     List folders associated with a node.
