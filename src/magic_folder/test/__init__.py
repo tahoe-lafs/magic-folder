@@ -69,7 +69,7 @@ def _configure_hypothesis():
         suppress_health_check=[
             HealthCheck.too_slow,
         ],
-        deadline=60*10,  # _some_ number that's not "forever"
+        deadline=60*10*1000,  # _some_ number that's not "forever" (milliseconds)
     )
 
     settings.register_profile(
@@ -83,7 +83,7 @@ def _configure_hypothesis():
             HealthCheck.too_slow,
         ],
         # With the same reasoning, disable the test deadline.
-        deadline=60*10,  # _some_ number that's not "forever"
+        deadline=60*10*1000,  # _some_ number that's not "forever" (milliseconds)
     )
 
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
