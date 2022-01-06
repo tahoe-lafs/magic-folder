@@ -28,7 +28,6 @@ from twisted.internet.defer import (
 
 from .cli import (
     BaseOptions,
-    to_unicode,
 )
 from .client import (
     CannotAccessAPIError,
@@ -69,7 +68,7 @@ def add_snapshot(options):
 
 class DumpStateOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder whose state to dump", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder whose state to dump", str),
     ]
 
     def postOptions(self):
@@ -190,7 +189,7 @@ def list_participants(options):
 
 class ScanOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder to scan", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder to scan", str),
     ]
 
     def postOptions(self):
@@ -209,7 +208,7 @@ def scan(options):
 
 class PollOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder to poll", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder to poll", str),
     ]
 
     def postOptions(self):
