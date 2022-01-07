@@ -455,19 +455,22 @@ class RemoteScannerService(service.MultiService):
         )
         self._poller.setServiceParent(self)
 
+    @inline_callbacks
     def _loop(self):
-        d = self._poll_collective()
-        # in some cases, might want to surface elsewhere
-        d.addErrback(write_failure)
-        return d
+        try:
+            yield self._poll_collective()
+        except Exception:
+            # in some cases, might want to surface elsewhere
+            write_failure()
 
+    @inline_callbacks
     def poll_once(self):
         """
         Perform a remote poll.
 
         :returns Deferred[None]: fires when the poll is completed
         """
-        return self._poller.call_soon()
+        yield self._poller.call_soon()
 
     def _is_remote_update(self, relpath, snapshot_cap):
         """
