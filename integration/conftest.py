@@ -38,7 +38,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--tahoe-tox-env", dest="tahoe_tox_env",
         help="A tox env to run tahoe from.",
-        default="tahoe1_16",
+        default="tahoe1_17",
     )
     parser.addoption(
         "--gather-foolscap-logs", action="store_true", dest="gather_foolscap_logs",

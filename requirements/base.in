@@ -28,7 +28,8 @@ hyperlink
 # good reason to expect things to break from release to release.  Pin a
 # specific version so we can upgrade intentionally when we know it will
 # work.
-tahoe-lafs == 1.17.0
+tahoe-lafs
+ ##== 1.17.0
 
 # twisted-based HTTP client
 treq

@@ -1,1 +1,1 @@
-tahoe-lafs==1.17.0
+git+https://github.com/meejah/tahoe-lafs.git@3852.json-welcome-page#egg=tahoe-lafs
