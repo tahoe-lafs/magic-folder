@@ -826,10 +826,18 @@ class TahoeProcess(object):
     def suspend(self):
         if self.transport.pid is not None:
             Process(self.transport.pid).suspend()
+        else:
+            raise RuntimeError(
+                "Cannot suspend Tahoe: no PID available"
+            )
 
     def resume(self):
         if self.transport.pid is not None:
             Process(self.transport.pid).resume()
+        else:
+            raise RuntimeError(
+                "Cannot resume Tahoe: no PID available"
+            )
 
     @property
     def node_dir(self):
