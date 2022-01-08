@@ -9,6 +9,7 @@ from __future__ import (
 Testing synchronizing files between participants
 """
 
+import sys
 import time
 from functools import partial
 
@@ -115,6 +116,7 @@ def take_snapshot(request, magic_folder_nodes):
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
+@pytest.mark.skipif(sys.platform.startswith("win"), "suspend doesn't work on windows")
 async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
