@@ -176,8 +176,12 @@ class SyncTestCase(_TestCaseMixin, TestCase):
     run_tests_with = EliotLoggedRunTest.make_factory(
         SynchronousDeferredRunTest,
     )
+
+    # without this method, instantiating a SyncTestCase (or
+    # e.g. testtools.TestCase) results in a traceback (see
+    # also test_common.py)
     def runTest(self, *a, **kw):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class AsyncTestCase(_TestCaseMixin, TestCase):
