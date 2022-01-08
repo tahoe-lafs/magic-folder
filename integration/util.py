@@ -10,7 +10,6 @@ import sys
 import time
 import json
 import sqlite3
-import signal
 import os
 from os import mkdir
 from io import BytesIO
@@ -280,14 +279,12 @@ class MagicFolderEnabledNode(object):
     def pause_tahoe(self):
         log_message(message_type=u"integation:tahoe-node:pause", node=self.name)
         print("suspend tahoe: {}".format(self.name))
-        self.tahoe.transport.signalProcess(signal.SIGSTOP)
-        ##self.tahoe.suspend()
+        self.tahoe.suspend()
 
     def resume_tahoe(self):
         log_message(message_type=u"integation:tahoe-node:resume", node=self.name)
         print("resume tahoe: {}".format(self.name))
-        self.tahoe.transport.signalProcess(signal.SIGCONT)
-        ##self.tahoe.resume()
+        self.tahoe.resume()
 
     # magic-folder CLI API helpers
 
