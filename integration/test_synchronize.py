@@ -125,6 +125,7 @@ async def test_windows_suspend(request, reactor, alice):
         d = ensureDeferred(alice.tahoe_client().get_welcome())
         for _ in range(10):
             print("called: {}".format(d.called))
+            assert not d.called, "should not have a result"
             await twisted_sleep(reactor, 1.0)
     finally:
         alice.resume_tahoe()
