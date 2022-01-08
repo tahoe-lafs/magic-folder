@@ -115,6 +115,23 @@ def take_snapshot(request, magic_folder_nodes):
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
+async def test_windows_suspend(request, reactor, alice):
+    """
+    Does windows actually suspend the process?
+    """
+    alice.pause_tahoe()
+    try:
+        from twisted.internet.defer import ensureDeferred
+        d = ensureDeferred(alice.tahoe_client().get_welcome())
+        for _ in range(10):
+            print("called: {}".format(d.called))
+            await twisted_sleep(reactor, 1.0)
+    finally:
+        alice.resume_tahoe()
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
 async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take_snapshot):
     """
     Create several snapshots while our Tahoe client is offline.
@@ -144,11 +161,6 @@ async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take
 
     # turn off Tahoe
     alice.pause_tahoe()
-
-    # on windows it seems the above doesn't actually stop Tahoe from
-    # responding to HTTP requests .. trying to just wait a few seconds
-    # to see if that helps?
-    await twisted_sleep(reactor, 3.0)
 
     try:
         # add several snapshots
