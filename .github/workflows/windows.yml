@@ -40,14 +40,6 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
-    - name: Generate eliot-tree.
-      if: ${{ always() }}
-      shell: bash
-      run: |
-        if [[ -f eliot.log ]]; then
-            eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
-        fi
-
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v2"
       with:
