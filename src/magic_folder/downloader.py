@@ -492,19 +492,21 @@ class RemoteScannerService(service.MultiService):
         Download the collective dircap.
         For every participant that's not us, download any updated entries.
         """
-        with start_action(
-            action_type="downloader:poll-collective", folder=self._config.name
-        ):
+        if True:
+        # with start_action(
+        #     action_type="downloader:poll-collective", folder=self._config.name
+        # ):
             # XXX any errors here should (probably) be reported to the
             # status service ..
             participants = yield self._participants.list()
             updates = []  # 2-tuples (relpath, snapshot-cap)
             for participant in participants:
-                with start_action(
-                    action_type="downloader:poll-participant",
-                    participant=participant.name,
-                    is_self=participant.is_self,
-                ):
+                if True:
+                # with start_action(
+                #     action_type="downloader:poll-participant",
+                #     participant=participant.name,
+                #     is_self=participant.is_self,
+                # ):
                     if participant.is_self:
                         # we don't download from ourselves
                         continue
