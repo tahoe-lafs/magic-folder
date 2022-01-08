@@ -18,7 +18,10 @@ from six.moves import StringIO
 from functools import partial
 
 import attr
-from psutil import Process
+from psutil import (
+    Process,
+    STATUS_RUNNING,
+)
 
 from treq.client import HTTPClient
 from twisted.internet.defer import (
@@ -275,10 +278,12 @@ class MagicFolderEnabledNode(object):
 
     def pause_tahoe(self):
         log_message(message_type=u"integation:tahoe-node:pause", node=self.name)
+        print("suspend tahoe: {}".format(self.name))
         self.tahoe.suspend()
 
     def resume_tahoe(self):
         log_message(message_type=u"integation:tahoe-node:resume", node=self.name)
+        print("resume tahoe: {}".format(self.name))
         self.tahoe.resume()
 
     # magic-folder CLI API helpers
@@ -825,7 +830,11 @@ class TahoeProcess(object):
 
     def suspend(self):
         if self.transport.pid is not None:
-            Process(self.transport.pid).suspend()
+            p = Process(self.transport.pid)
+            p.suspend()
+            while p.status() == STATUS_RUNNING:
+                print("suspend {}: still running".format(self._node_dir))
+                continue
         else:
             raise RuntimeError(
                 "Cannot suspend Tahoe: no PID available"
@@ -833,7 +842,10 @@ class TahoeProcess(object):
 
     def resume(self):
         if self.transport.pid is not None:
-            Process(self.transport.pid).resume()
+            p = Process(self.transport.pid)
+            p.resume()
+            while p.status() != STATUS_RUNNING:
+                print("resume {}: not running".format(self._node_dir))
         else:
             raise RuntimeError(
                 "Cannot resume Tahoe: no PID available"
@@ -1332,11 +1344,12 @@ def database_retry(reactor, seconds, f, *args, **kwargs):
         try:
             value = yield maybeDeferred(f, *args, **kwargs)
             break
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as e:
             # since we're messing with the database while production
             # code is running, it's possible this will fail if we
             # access the database while the "real" code is also doing
             # that.
+            print("sqlite3.OperationalError while running {}: {}".format(f, e))
             pass
         except KeyError:
             pass
