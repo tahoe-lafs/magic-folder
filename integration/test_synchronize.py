@@ -145,6 +145,11 @@ async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take
     # turn off Tahoe
     alice.pause_tahoe()
 
+    # on windows it seems the above doesn't actually stop Tahoe from
+    # responding to HTTP requests .. trying to just wait a few seconds
+    # to see if that helps?
+    await twisted_sleep(reactor, 3.0)
+
     try:
         # add several snapshots
         content1 = non_lit_content("one")
