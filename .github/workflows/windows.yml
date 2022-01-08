@@ -83,10 +83,19 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install wheel tox
+        pip install wheel tox eliot-tree
 
     - name: Test with tox
       run: tox -e integration-${{ matrix.tahoe-version }}
+
+    - name: Generate eliot-tree.
+      if: ${{ always() }}
+      shell: bash
+      continue-on-error: true
+      run: |
+        if [[ -f eliot.log ]]; then
+            eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
+        fi
 
     - name: Upload eliot.log in case of failure
       uses: "actions/upload-artifact@v2"
