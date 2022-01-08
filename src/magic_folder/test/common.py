@@ -176,6 +176,8 @@ class SyncTestCase(_TestCaseMixin, TestCase):
     run_tests_with = EliotLoggedRunTest.make_factory(
         SynchronousDeferredRunTest,
     )
+    def runTest(self, *a, **kw):
+        raise NotImplemented
 
 
 class AsyncTestCase(_TestCaseMixin, TestCase):
