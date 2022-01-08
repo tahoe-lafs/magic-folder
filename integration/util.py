@@ -835,6 +835,7 @@ class TahoeProcess(object):
             while p.status() == STATUS_RUNNING:
                 print("suspend {}: still running".format(self._node_dir))
                 continue
+            print("  status: {}".format(p.status()))
         else:
             raise RuntimeError(
                 "Cannot suspend Tahoe: no PID available"
