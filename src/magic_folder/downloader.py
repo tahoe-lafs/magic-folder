@@ -30,7 +30,7 @@ from eliot import (
     log_call,
     Message,
     start_action,
-    write_failure,
+    write_traceback,
 )
 
 from twisted.application import (
@@ -461,7 +461,7 @@ class RemoteScannerService(service.MultiService):
             yield self._poll_collective()
         except Exception:
             # in some cases, might want to surface elsewhere
-            write_failure()
+            write_traceback()
 
     @inline_callbacks
     def poll_once(self):
