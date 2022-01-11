@@ -1139,6 +1139,7 @@ class CreateSnapshotTests(SyncTestCase):
             # the service to be running.
             start_folder_services=False,
         )
+        self.addCleanup(node.cleanup)
 
         self.assertThat(
             authorized_request(
