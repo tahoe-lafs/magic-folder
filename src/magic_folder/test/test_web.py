@@ -1259,6 +1259,7 @@ class CreateSnapshotTests(SyncTestCase):
                 ),
             ),
         )
+        import gc; gc.collect()
 
     @given(
         author_names(),
