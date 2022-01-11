@@ -2145,3 +2145,68 @@ class TahoeObjectsTests(SyncTestCase):
                 ),
             )
         )
+
+    @given(
+        remote_snapshots(),
+    )
+    def test_deleted_item(self, remote_snap):
+        """
+        object-size information is returned for deleted items
+        """
+        # make it a delete .. it's a little weird to have a delete
+        # with no "content" parent (semantically) but for the purposes
+        # of this test that is sufficient.
+        remote_snap.content_cap = None
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "kai",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        node.global_service.get_folder_service("default").file_factory._synchronous = True
+
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_downloaded_snapshot(
+            "foo",
+            remote_snap,
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        expected_sizes = [
+            capability_size(cap)
+            for cap in [
+                    remote_snap.capability,
+                    remote_snap.content_cap,
+                    remote_snap.metadata_cap,
+            ]
+        ]
+
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                u"GET",
+                self.url.child("default", "tahoe-objects"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals(expected_sizes),
+                    )
+                ),
+            )
+        )
