@@ -11,6 +11,9 @@ from functools import wraps
 
 import attr
 from eliot import write_failure
+from eliot.twisted import (
+    inline_callbacks,
+)
 from twisted.application.service import Service
 from twisted.internet.defer import Deferred, maybeDeferred, succeed, CancelledError
 from twisted.internet.interfaces import IDelayedCall, IReactorTime
@@ -106,15 +109,12 @@ class PeriodicService(Service):
         if self._interval is not None:
             self.call_soon()
 
+    @inline_callbacks
     def stopService(self):
-        super(PeriodicService, self).stopService()
+        yield super(PeriodicService, self).stopService()
         self._cancel_delayed_call()
         if self._deferred is not None:
-            d = Deferred()
-            self._deferred.chainDeferred(d)
-            return d
-        else:
-            return succeed(None)
+            yield self._deferred
 
     def call_soon(self):
         """

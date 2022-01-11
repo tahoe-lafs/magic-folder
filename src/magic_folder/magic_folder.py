@@ -9,7 +9,9 @@ import six
 
 from twisted.python.filepath import FilePath, InsecurePath
 from twisted.internet import defer
-from twisted.internet.defer import Deferred
+from twisted.internet.defer import (
+    Deferred,
+)
 from twisted.application import service
 from twisted.web import http
 
@@ -186,9 +188,13 @@ class MagicFolder(service.MultiService):
         # hung up on e.g. a never-answering Web request, which
         # stopService will ultimately cancel (e.g. Downloader might be
         # asking for participant-list)
-        d = super(MagicFolder, self).stopService()
-        yield self.file_factory.cancel()
-        yield d
+        d0 = super(MagicFolder, self).stopService()
+        d1 = self.file_factory.cancel()
+        # XXX it seems that if some service doesn't shut down
+        # .. i.e. there's an error in the d0 DeferredList somewhere
+        # .. it isn't getting raise on the yield, for some reason
+        yield d0
+        yield d1
 
     def ready(self):
         """

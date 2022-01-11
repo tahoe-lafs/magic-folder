@@ -10,6 +10,7 @@ import attr
 from eliot import (
     current_action,
     start_action,
+    write_traceback,
     write_failure,
 )
 from eliot.twisted import inline_callbacks
@@ -85,12 +86,10 @@ class ScannerService(MultiService):
         self._deserialize_local_snapshots()
         return super(ScannerService, self).startService()
 
+    @inline_callbacks
     def stopService(self):
-        return (
-            super(ScannerService, self)
-            .stopService()
-            .addCallback(lambda _: self._cooperator.stop())
-        )
+        yield super(ScannerService, self).stopService()
+        yield self._cooperator.stop()
 
     def scan_once(self):
         """
@@ -111,18 +110,23 @@ class ScannerService(MultiService):
             snap = self._config.get_local_snapshot(relpath)
             return mf.local_snapshot_exists(snap)
 
-        self._cooperator.coiterate(
+        d = self._cooperator.coiterate(
             existing_snapshot(relpath)
             for relpath in localsnapshot_paths
         )
+        d.addErrback(write_failure)
 
+    @inline_callbacks
     def _loop(self):
         """
         Called periodically to scan for new files.
 
         Performs a scan for files, and logs and consumes all errors.
         """
-        return self._scan().addErrback(write_failure)
+        try:
+            yield self._scan()
+        except Exception:
+            write_traceback()
 
     @exclusively
     @inline_callbacks

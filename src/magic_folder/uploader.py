@@ -214,15 +214,18 @@ class LocalSnapshotService(service.Service):
                 d.errback()
                 write_traceback()
 
+    @inline_callbacks
     def stopService(self):
         """
         Don't process queued items anymore.
         """
-        super(LocalSnapshotService, self).stopService()
-        d = self._service_d
-        self._service_d = None
-        d.cancel()
-        return d
+        yield super(LocalSnapshotService, self).stopService()
+        for d in self._queue.waiting:
+            d.cancel()  # nobody is getting an answer now
+        if self._service_d is not None:
+            self._service_d.cancel()
+            yield self._service_d
+            self._service_d = None
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
@@ -320,8 +323,9 @@ class UploaderService(service.Service):
         super(UploaderService, self).stopService()
         d = self._service_d
         self._service_d = None
-        d.cancel()
-        return d
+        if d is not None:
+            d.cancel()
+            return d
 
     @inline_callbacks
     def _perform_upload(self, snapshot):

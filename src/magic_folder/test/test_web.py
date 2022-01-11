@@ -1139,7 +1139,7 @@ class CreateSnapshotTests(SyncTestCase):
             # the service to be running.
             start_folder_services=False,
         )
-        self.addCleanup(node.cleanup)
+        # note: no .addCleanup needed because we're not starting the services
 
         self.assertThat(
             authorized_request(
@@ -1186,11 +1186,16 @@ class CreateSnapshotTests(SyncTestCase):
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
+        # collect our "never" Deferreds so we can cancel them"
+        never_d = []
+
         # Pass a tahoe client that never responds, so the created
         # snapshot is not uploaded.
         class NeverClient(object):
             def __call__(self, *args, **kw):
-                return Deferred()
+                d = Deferred()
+                never_d.append(d)
+                return d
             def __getattr__(self, *args):
                 return self
         node = MagicFolderNode.create(
@@ -1205,6 +1210,7 @@ class CreateSnapshotTests(SyncTestCase):
             start_folder_services=True,
         )
         node.global_service.get_folder_service(folder_name).file_factory._synchronous = True
+        self.addCleanup(node.cleanup)
 
         folder_config = node.global_config.get_magic_folder(folder_name)
 
@@ -1259,7 +1265,9 @@ class CreateSnapshotTests(SyncTestCase):
                 ),
             ),
         )
-        import gc; gc.collect()
+        # we're done, cancel everything that's never going to have an answer
+        for d in never_d:
+            d.cancel()
 
     @given(
         author_names(),

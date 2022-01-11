@@ -155,10 +155,11 @@ class MagicFileFactory(object):
         Mostly for testing, this will yield on .when_idle() for every
         MagicFile we know about
         """
-        return DeferredList([
+        idles = [
             mf.when_idle()
             for mf in self._magic_files.values()
-        ])
+        ]
+        return DeferredList(idles)
 
 
 @attr.s
