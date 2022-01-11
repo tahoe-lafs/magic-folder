@@ -15,8 +15,15 @@ from eliot.twisted import (
     inline_callbacks,
 )
 from twisted.application.service import Service
-from twisted.internet.defer import Deferred, maybeDeferred, succeed, CancelledError
-from twisted.internet.interfaces import IDelayedCall, IReactorTime
+from twisted.internet.defer import (
+    Deferred,
+    maybeDeferred,
+    CancelledError,
+)
+from twisted.internet.interfaces import (
+    IDelayedCall,
+    IReactorTime,
+)
 from twisted.python.failure import Failure
 
 
