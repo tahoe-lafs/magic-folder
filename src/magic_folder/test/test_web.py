@@ -2188,7 +2188,6 @@ class TahoeObjectsTests(SyncTestCase):
             capability_size(cap)
             for cap in [
                     remote_snap.capability,
-                    remote_snap.content_cap,
                     remote_snap.metadata_cap,
             ]
         ]
