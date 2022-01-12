@@ -296,6 +296,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         for filename in filenames:
             file = self.magic.child(filename)
             content = data_strategy.draw(binary())
+            print("set {} to {} bytes: {}".format(file.asTextMode().path, len(content), repr(content)))
             file.asBytesMode("utf-8").setContent(content)
 
             files.append((file, filename, content))
