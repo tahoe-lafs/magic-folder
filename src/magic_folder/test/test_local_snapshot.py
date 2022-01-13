@@ -287,7 +287,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             tahoe_client=None,
         )
 
-    @given(lists(path_segments(), unique=True, unique_by=lambda p: p.lower()),
+    @given(lists(path_segments(), unique_by=lambda p: p.lower()),
            data())
     def test_create_snapshots(self, filenames, data_strategy):
         """
