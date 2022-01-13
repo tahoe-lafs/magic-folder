@@ -20,6 +20,9 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.runtime import (
+    platformType,
+)
 
 from twisted.internet import (
     defer,
@@ -292,6 +295,11 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         of the (filename, content) mapping, create and store the snapshot in
         the database.
         """
+        if platformType == "win32":
+            # on windows, a file "A" is the same as a file "a"
+            assume(set(filenames) == set(fn.lower() for fn in filenames))
+            # (maybe there is a more-hypothesis way to express this in
+            # the actual strategy..)
         files = []
         for filename in filenames:
             file = self.magic.child(filename)
