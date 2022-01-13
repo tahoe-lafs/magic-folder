@@ -71,7 +71,7 @@ class CannotAccessAPIError(ClientError):
     """
 
 
-@attr.s()
+@attr.s(auto_exc=True)
 class MagicFolderApiError(ClientError):
     """
     A Magic Folder HTTP API returned a failure code.

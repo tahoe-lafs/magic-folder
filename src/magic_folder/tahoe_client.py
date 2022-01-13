@@ -66,7 +66,7 @@ def _request(http_client, method, url, **kwargs):
     )
 
 
-@attr.s
+@attr.s(auto_exc=True)
 class TahoeAPIError(Exception):
     """
     A Tahoe-LAFS HTTP API returned a failure code.
@@ -84,7 +84,7 @@ class TahoeAPIError(Exception):
         return "Tahoe API error {}".format(self.code)
 
 
-@attr.s()
+@attr.s(auto_exc=True)
 class CannotCreateDirectoryError(Exception):
     """
     Failed to create a (mutable) directory.
@@ -100,7 +100,7 @@ class CannotCreateDirectoryError(Exception):
         return repr(self)
 
 
-@attr.s(str=False)
+@attr.s(auto_exc=True, str=False)
 class CannotAddDirectoryEntryError(Exception):
     """
     Failed to add a sub-directory or file to a mutable directory.
