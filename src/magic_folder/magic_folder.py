@@ -5,8 +5,6 @@ from __future__ import (
     unicode_literals,
 )
 
-import six
-
 from twisted.python.filepath import FilePath, InsecurePath
 from twisted.internet import defer
 from twisted.internet.defer import (
@@ -53,14 +51,11 @@ from .scanner import (
 )
 from .status import FolderStatus
 
-if six.PY3:
-    long = int
-
 
 # Mask off all non-owner permissions for magic-folders files by default.
 _DEFAULT_DOWNLOAD_UMASK = 0o077
 
-IN_EXCL_UNLINK = long(0x04000000)
+IN_EXCL_UNLINK = int(0x04000000)
 
 
 class MagicFolder(service.MultiService):
@@ -253,13 +248,13 @@ class MagicFolder(service.MultiService):
 
 _NICKNAME = Field.for_types(
     u"nickname",
-    [six.text_type, bytes],
+    [str, bytes],
     u"A Magic-Folder participant nickname.",
 )
 
 _DIRECTION = Field.for_types(
     u"direction",
-    [six.text_type],
+    [str],
     u"A synchronization direction: uploader or downloader.",
     validateSetMembership({u"uploader", u"downloader"}),
 )
@@ -280,7 +275,7 @@ ITERATION = ActionType(
 
 _COUNT = Field.for_types(
     u"count",
-    [int, long],
+    [int],
     u"The number of items in the processing queue.",
 )
 
@@ -320,7 +315,7 @@ SCAN_REMOTE_DMD = ActionType(
 
 REMOTE_VERSION = Field.for_types(
     u"remote_version",
-    [int, long],
+    [int],
     u"The version of a path found in a peer DMD.",
 )
 
@@ -403,7 +398,7 @@ SYMLINK = MessageType(
 
 CREATED_DIRECTORY = Field.for_types(
     u"created_directory",
-    [six.text_type],
+    [str],
     u"The relative path of a newly created directory in a magic-folder.",
 )
 
@@ -435,19 +430,19 @@ SPECIAL_FILE = MessageType(
 _COUNTER_NAME = Field.for_types(
     u"counter_name",
     # Should really only be unicode
-    [six.text_type, bytes],
+    [str, bytes],
     u"The name of a counter.",
 )
 
 _DELTA = Field.for_types(
     u"delta",
-    [int, long],
+    [int],
     u"An amount of a specific change in a counter.",
 )
 
 _VALUE = Field.for_types(
     u"value",
-    [int, long],
+    [int],
     u"The new value of a counter after a change.",
 )
 
@@ -471,13 +466,13 @@ _ALREADY_PENDING = Field.for_types(
 
 _SIZE = Field.for_types(
     u"size",
-    [int, long, type(None)],
+    [int, type(None)],
     u"The size of a file accepted into the processing queue.",
 )
 
 _ABSPATH = Field.for_types(
     u"abspath",
-    [six.text_type],
+    [str],
     u"The absolute path of a file being written in a local directory.",
 )
 
@@ -489,13 +484,13 @@ _IS_CONFLICT = Field.for_types(
 
 _NOW = Field.for_types(
     u"now",
-    [int, long, float],
+    [int, float],
     u"The time at which a file is being written in a local directory.",
 )
 
 _MTIME = Field.for_types(
     u"mtime",
-    [int, long, float, type(None)],
+    [int, float, type(None)],
     u"A modification time to put into the metadata of a file being written in a local directory.",
 )
 
@@ -580,7 +575,7 @@ PERFORM_SCAN = ActionType(
 
 _CONFLICT_REASON = Field.for_types(
     u"conflict_reason",
-    [six.text_type, type(None)],
+    [str, type(None)],
     u"A human-readable explanation of why a file was in conflict.",
     validateSetMembership({
         u"dbentry mismatch metadata",
