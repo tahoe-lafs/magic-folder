@@ -18,11 +18,15 @@ hyperlink
 # which extras to pull in.
 #
 # Additionally, pin Tahoe-LAFS to a specific version we know works.
-# Magic-Folder still uses a couple private Tahoe-LAFS Python APIs so
-# there's good reason to expect things to break from release to
-# release.  Pin a specific version so we can upgrade intentionally
-# when we know it will work.
-tahoe-lafs == 1.17.1
+# Magic-Folder still uses a couple private Tahoe-LAFS Python APIs so there's
+# good reason to expect things to break from release to release.  Pin it here
+# so we can upgrade intentionally when we know it will work.
+#
+# We could pin a single specific version but this sometimes causes packaging
+# problems (where a packaged version might be something like X.Y.Z.post1).
+# Instead, pin a very narrow range that should only include a single upstream
+# release but allows for these kind of packager versions.
+tahoe-lafs>=1.17.1,<1.17.2
 
 # twisted-based HTTP client
 treq
