@@ -54,30 +54,42 @@ trove_classifiers = [
     ]
 
 
-setup(
-    name="magic_folder",
-    # no version= because setuptools_scm
-    description="Tahoe-LAFS-based file synchronization",
-    long_description=open("README.rst", "r").read(),
-    author="the Tahoe-LAFS developers, the Magic-Folder developers",
-    author_email="tahoe-dev@tahoe-lafs.org",
-    url="https://github.com/LeastAuthority/magic_folder/",
-    license="GNU GPL", # see README.rst -- there is an alternative licence
-    package_dir={"": "src"},
-    packages=find_packages("src") + ["twisted.plugins", "magic_folder.test.plugins"],
-    classifiers=trove_classifiers,
-    install_requires=install_requires,
-    extras_require={
-        "test": test_requires,
-    },
-    package_data={
-        "magic_folder": ["ported-modules.txt"],
-    },
-    include_package_data=True,
-    entry_points={
-        "console_scripts": [
-            "magic-folder = magic_folder.cli:_entry",
-            "magic-folder-api = magic_folder.api_cli:_entry",
-        ],
-    },
+class PleaseUseTox(Command):
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        print("ERROR: Please use 'tox' to run the test suite.")
+        sys.exit(1)
+
+setup(name="magic_folder",
+      version="0.1.0",
+      description='Tahoe-LAFS-based file synchronization',
+      long_description=open('README.rst', 'rU').read(),
+      author='the Tahoe-LAFS developers, the Magic-Folder developers',
+      author_email='tahoe-dev@tahoe-lafs.org',
+      url='https://github.com/LeastAuthority/magic_folder/',
+      license='GNU GPL', # see README.rst -- there is an alternative licence
+      cmdclass={"test": PleaseUseTox,
+                },
+      package_dir={'': 'src'},
+      packages=find_packages('src') + ["twisted.plugins", "magic_folder.test.plugins"],
+      classifiers=trove_classifiers,
+##      python_requires="~=2.7",
+      install_requires=install_requires,
+      extras_require={
+          "test": test_requires,
+      },
+      package_data={"magic_folder": ["ported-modules.txt"],
+                    },
+      include_package_data=True,
+      entry_points={
+          "console_scripts": [
+              "magic-folder = magic_folder.cli:_entry",
+              "magic-folder-api = magic_folder.api_cli:_entry",
+          ],
+      },
 )
