@@ -171,11 +171,6 @@ class MagicFolder(service.MultiService):
 
     @inline_callbacks
     def stopService(self):
-        # we have to _start_ the stopping process before awaiting the
-        # factory cancel -- some of those tasks may be running, but
-        # hung up on e.g. a never-answering Web request, which
-        # stopService will ultimately cancel (e.g. Downloader might be
-        # asking for participant-list)
         yield self.file_factory.cancel()
         yield super(MagicFolder, self).stopService()
 

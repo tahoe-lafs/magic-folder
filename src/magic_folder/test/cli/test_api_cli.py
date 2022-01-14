@@ -68,7 +68,7 @@ class ScanMagicFolder(AsyncTestCase):
         self.addCleanup(clean)
 
     @inline_callbacks
-    def _test_scan_magic_folder(self):
+    def test_scan_magic_folder(self):
         """
         Scanning a magic folder creates a snapshot of new files.
         """
@@ -119,7 +119,7 @@ class ScanMagicFolder(AsyncTestCase):
         )
 
     @inline_callbacks
-    def _test_poll_magic_folder(self):
+    def test_poll_magic_folder(self):
         """
         Polling a magic folder causes the remote to be downloaded
         """

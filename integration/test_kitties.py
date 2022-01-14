@@ -73,9 +73,7 @@ async def test_kittens(request, reactor, temp_filepath, alice):
 
     # wait for a limited time to be complete
     for _ in range(10):
-        print("get status")
         st = await alice.status()
-        print("status: {}".format(st))
         data = json.loads(st.strip())
         if data["state"]["synchronizing"] is False:
             break
