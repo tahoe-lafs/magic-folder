@@ -20,9 +20,6 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.runtime import (
-    platformType,
-)
 
 from twisted.internet import (
     defer,
