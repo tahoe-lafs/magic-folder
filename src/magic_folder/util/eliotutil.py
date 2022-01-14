@@ -74,16 +74,7 @@ from attr.validators import (
 )
 
 from json import loads
-
-try:
-    # unwrap was introduced in python 3.4
-    from inspect import unwrap
-except ImportError:
-
-    def unwrap(f):
-        while hasattr(f, "__wrapped__"):
-            f = f.__wrapped__
-        return f
+from inspect import unwrap
 
 
 def validateInstanceOf(t):
