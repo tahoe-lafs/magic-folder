@@ -2,13 +2,6 @@
 Utilities related to Twisted endpoint (and endpoint-strings)
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import re
 from typing import Optional
 
@@ -27,7 +20,7 @@ class CannotConvertEndpointError(Exception):
     """
 
 def _quote_endpoint_argument(s):
-    # type: (unicode) -> unicode
+    # type: (str) -> str
     """
     Twisted endpoint strings cannot contain colon characters inside
     individual pieces of the endpoint string (because they're
@@ -42,17 +35,17 @@ def _quote_endpoint_argument(s):
     )
 
 def client_endpoint_from_address(address):
-    # type: (IAddress) -> Optional[unicode]
+    # type: (IAddress) -> Optional[str]
     """
     Turn certain kinds of IAddress into a Twisted client-style
     endpoint string. Supports only TCP on IPv4 or IPv6.
 
-    :returns: unicode like "tcp:<host>:<port>" for and `address` of
+    :returns: str like "tcp:<host>:<port>" for and `address` of
         type IPV4Address or IPv6Address. None otherwise.
     """
     if isinstance(address, (IPv4Address, IPv6Address)) and address.type == "TCP":
         return "tcp:{host}:{port}".format(
-            host=_quote_endpoint_argument(address.host.encode("utf-8")),
+            host=_quote_endpoint_argument(address.host),
             port=address.port,
         )
     return None

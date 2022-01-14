@@ -5,12 +5,6 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import inspect
 import json
 import os
@@ -73,16 +67,7 @@ from attr.validators import (
 )
 
 from json import loads
-
-try:
-    # unwrap was introduced in python 3.4
-    from inspect import unwrap
-except ImportError:
-
-    def unwrap(f):
-        while hasattr(f, "__wrapped__"):
-            f = f.__wrapped__
-        return f
+from inspect import unwrap
 
 
 def validateInstanceOf(t):
@@ -97,7 +82,7 @@ def validateInstanceOf(t):
 
 RELPATH = Field.for_types(
     u"relpath",
-    [unicode],
+    [str],
     u"The relative path of a file in a magic-folder.",
 )
 
@@ -110,25 +95,25 @@ ABSPATH = Field(
 
 VERSION = Field.for_types(
     u"version",
-    [int, long],
+    [int],
     u"The version of the file.",
 )
 
 LAST_UPLOADED_URI = Field.for_types(
     u"last_uploaded_uri",
-    [unicode, bytes, None],
+    [str, bytes, None],
     u"The filecap to which this version of this file was uploaded.",
 )
 
 LAST_DOWNLOADED_URI = Field.for_types(
     u"last_downloaded_uri",
-    [unicode, bytes, None],
+    [str, bytes, None],
     u"The filecap from which the previous version of this file was downloaded.",
 )
 
 LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
-    [float, int, long],
+    (float, int),
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
 )
 
@@ -311,8 +296,6 @@ def _stdlib_logging_to_eliot_configuration(stdlib_logger, eliot_logger=None):
 
 class _DestinationParser(object):
     def parse(self, description):
-        description = description.decode(u"ascii")
-
         try:
             kind, args = description.split(u":", 1)
         except ValueError:

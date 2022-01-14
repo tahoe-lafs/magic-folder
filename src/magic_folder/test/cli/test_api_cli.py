@@ -5,8 +5,6 @@
 Tests for `magic-folder-api`.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 from eliot.twisted import inline_callbacks
 from testtools.matchers import Equals
 from twisted.internet import reactor
@@ -32,7 +30,7 @@ class ScanMagicFolder(AsyncTestCase):
         """
         yield super(ScanMagicFolder, self).setUp()
 
-        self.magic_path = FilePath(self.mktemp())
+        self.magic_path = FilePath(self.mktemp()).asTextMode()
         self.magic_path.makedirs()
         self.folder_name = "default"
         folders = {
@@ -80,9 +78,9 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan",
-                b"--folder",
-                self.folder_name.encode("utf-8"),
+                u"scan",
+                u"--folder",
+                self.folder_name,
             ],
         )
         self.assertThat(
@@ -108,7 +106,7 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"scan",
+                u"scan",
             ],
         )
         self.assertThat(
@@ -128,9 +126,9 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"poll",
-                b"--folder",
-                self.folder_name.encode("utf-8"),
+                u"poll",
+                u"--folder",
+                self.folder_name,
             ],
         )
         self.assertThat(
@@ -150,7 +148,7 @@ class ScanMagicFolder(AsyncTestCase):
 
         outcome = yield self.api_cli(
             [
-                b"poll",
+                u"poll",
             ],
         )
         self.assertThat(

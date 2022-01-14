@@ -1,9 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 from io import (
     StringIO,
@@ -14,7 +8,9 @@ from twisted.internet.interfaces import (
 )
 from twisted.internet.defer import (
     succeed,
-    failure,
+)
+from twisted.python.failure import (
+    Failure,
 )
 from twisted.python.filepath import (
     FilePath,
@@ -69,7 +65,7 @@ class EndpointForTesting(object):
 
     def listen(self, factory):
         if not self._responses:
-            return failure(Exception("no more responses"))
+            return Failure(Exception("no more responses"))
         r = self._responses[0]
         self._responses = self._responses[1:]
         return succeed(r)
@@ -115,7 +111,7 @@ class TestBaseOptions(SyncTestCase):
 
     def test_client_endpoint(self):
         with self.base.child("api_client_endpoint").open("w") as f:
-            f.write("not running\n")
+            f.write(b"not running\n")
         with self.assertRaises(Exception):
             self.options.api_client_endpoint
 

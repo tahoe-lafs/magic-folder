@@ -2,13 +2,6 @@
 Tests for ``magic_folder.test.eliotutil``.
 """
 
-from __future__ import (
-    unicode_literals,
-    print_function,
-    absolute_import,
-    division,
-)
-
 from sys import stdout
 import logging
 

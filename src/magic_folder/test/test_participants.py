@@ -5,12 +5,6 @@
 Tests for ``magic_folder.participants``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import os
 from json import (
     dumps,
@@ -113,8 +107,9 @@ class CollectiveParticipantsTests(SyncTestCase):
     """
     @given(
         sampled_from([
-            b"",
-            b"URI:CHK:::0:0:0",
+            "",
+            "URI:CHK:::0:0:0",
+            b"not text",
         ]),
     )
     def test_invalid_upload_dirnode(self, upload_dircap):
@@ -126,7 +121,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-write
         """
         tahoe_client = None
-        collective_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        collective_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(
                 collective_dircap,
@@ -136,8 +131,9 @@ class CollectiveParticipantsTests(SyncTestCase):
 
     @given(
         sampled_from([
-            b"",
-            b"URI:SSK::",
+            "",
+            "URI:SSK::",
+            b"not text",
         ]),
     )
     def test_invalid_collective_dirnode(self, collective_dirnode):
@@ -149,7 +145,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-only
         """
         tahoe_client = None
-        upload_dircap = b"URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        upload_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
         with ExpectedException(TypeError, "Collective dirnode was.*"):
             participants_from_collective(
                 collective_dirnode,
@@ -178,8 +174,8 @@ class CollectiveParticipantsTests(SyncTestCase):
         author = sorted(collective_contents)[0]
         upload_dircap = collective_contents[author]
 
-        rw_collective_dircap = rw_collective_dircap.encode("ascii")
-        upload_dircap = upload_dircap.encode("ascii")
+        rw_collective_dircap = rw_collective_dircap
+        upload_dircap = upload_dircap
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -195,12 +191,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                 for (name, cap)
                 in collective_contents.items()
             }},
-        ])
+        ]).encode("utf8")
 
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {}},
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -247,11 +243,11 @@ class CollectiveParticipantsTests(SyncTestCase):
         """
         # The collective can't be anyone's DMD.
         assume(rw_collective_dircap not in collective_contents.values())
-        rw_collective_dircap = rw_collective_dircap.encode("ascii")
+        rw_collective_dircap = rw_collective_dircap
 
         # Pick someone in the collective to be us.
         author = sorted(collective_contents)[0]
-        upload_dircap = collective_contents[author].encode("ascii")
+        upload_dircap = collective_contents[author]
         upload_dircap_ro = to_readonly_capability(upload_dircap)
 
         root = create_fake_tahoe_root()
@@ -268,12 +264,12 @@ class CollectiveParticipantsTests(SyncTestCase):
                     normalize(author): format_filenode(upload_dircap_ro, {}),
                 },
             },
-        ])
+        ]).encode("utf8")
 
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {}},
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -384,7 +380,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: str(f.value),
                     Equals(
                         "Author must be a RemoteAuthor instance"
                     )
@@ -427,7 +423,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             {
                 u"children": {},
             }
-        ])
+        ]).encode("utf8")
 
         participants = participants_from_collective(
             rw_collective_dircap,
@@ -453,7 +449,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: str(f.value),
                     StartsWith(
                         "Already have a participant with Personal DMD"
                     )
@@ -470,7 +466,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: unicode(f.value),
+                    lambda f: str(f.value),
                     StartsWith(
                         "Already have a participant called"
                     )
@@ -513,7 +509,7 @@ class CollectiveParticipantTests(SyncTestCase):
             http_client,
         )
 
-        upload_dircap = upload_dircap.encode("ascii")
+        upload_dircap = upload_dircap
         root._uri.data[upload_dircap] = dumps([
             u"dirnode",
             {u"children": {
@@ -521,7 +517,7 @@ class CollectiveParticipantTests(SyncTestCase):
                 for (relpath, (cap, version))
                 in children.items()
             }},
-        ])
+        ]).encode("utf8")
 
         participant = participant_from_dmd(
             author_name,

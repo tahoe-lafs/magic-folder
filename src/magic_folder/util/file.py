@@ -5,14 +5,11 @@
 Utilties for dealing with on disk files.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import os
 import stat
 from errno import ENOENT
 
 import attr
-from six import integer_types
 from twisted.python.filepath import FilePath
 
 
@@ -22,9 +19,9 @@ class PathState(object):
     The filesystem information we use to check if a file has changed.
     """
 
-    size = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
-    mtime_ns = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
-    ctime_ns = attr.ib(validator=attr.validators.instance_of(integer_types + (type(None),)))
+    size = attr.ib(validator=attr.validators.instance_of((int, type(None))))
+    mtime_ns = attr.ib(validator=attr.validators.instance_of((int, type(None))))
+    ctime_ns = attr.ib(validator=attr.validators.instance_of((int, type(None))))
 
 
 @attr.s(frozen=True, order=False)

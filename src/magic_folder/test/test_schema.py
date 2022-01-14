@@ -5,13 +5,6 @@
 Tests for ``_zkapauthorizer.schema``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from testtools import (
     TestCase,
     ExpectedException,

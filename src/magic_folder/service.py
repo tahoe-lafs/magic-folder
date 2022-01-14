@@ -1,8 +1,6 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import json
 from configparser import (
     ConfigParser,
@@ -18,6 +16,9 @@ from twisted.internet.endpoints import serverFromString
 from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
+from twisted.python.compat import (
+    nativeString,
+)
 
 from .common import APIError, NoSuchMagicFolder
 from .endpoints import client_endpoint_from_address
@@ -79,7 +80,7 @@ class MagicFolderService(MultiService):
         self._listen_endpoint = ListenObserver(
             serverFromString(
                 self.reactor,
-                self.config.api_endpoint,
+                nativeString(self.config.api_endpoint),
             )
         )
         web_service = magic_folder_web_service(

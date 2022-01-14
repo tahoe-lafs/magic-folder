@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 """
 Tests relating generally to magic_folder.downloader
 """
@@ -55,7 +48,6 @@ from twisted.internet.task import (
 )
 from twisted.internet.defer import (
     Deferred,
-    inlineCallbacks,
     returnValue,
     succeed,
 )
@@ -138,8 +130,8 @@ class CacheTests(SyncTestCase):
             FilePath(self.mktemp()),
             FilePath("dummy"),
         )
-        self.collective_cap = "URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq"
-        self.personal_cap = "URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        self.collective_cap = b"URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq"
+        self.personal_cap = b"URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
 
         self.config = self._global_config.create_magic_folder(
             "default",
@@ -187,7 +179,7 @@ class CacheTests(SyncTestCase):
             "parents": [],
         }
         _, content_cap = self.root.add_data("URI:CHK:", b"content\n" * 1000)
-        _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))
+        _, metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata).encode("utf8"))
 
         data = dumps([
             "dirnode",
@@ -219,7 +211,7 @@ class CacheTests(SyncTestCase):
                                             content_cap,
                                             metadata_cap
                                         ).signature
-                                    ),
+                                    ).decode("utf8"),
                                 }
                             },
                             "size": 246
@@ -227,7 +219,7 @@ class CacheTests(SyncTestCase):
                     ]
                 }
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:DIR2-CHK:", data)
 
         # we've set up some fake data; lets see if the cache service
@@ -263,7 +255,7 @@ class CacheTests(SyncTestCase):
             }
             content_data = u"content {}\n".format(who).encode("utf8") * 1000
             content_cap = self.root.add_data("URI:CHK:", content_data)[1]
-            metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata))[1]
+            metadata_cap = self.root.add_data("URI:CHK:", dumps(metadata).encode("utf8"))[1]
 
             _, cap = self.root.add_data(
                 "URI:DIR2-CHK:",
@@ -297,7 +289,7 @@ class CacheTests(SyncTestCase):
                                                     content_cap,
                                                     metadata_cap
                                                 ).signature
-                                            ),
+                                            ).decode("ascii"),
                                         }
                                     },
                                     "size": 246
@@ -305,7 +297,7 @@ class CacheTests(SyncTestCase):
                             ]
                         }
                     }
-                ])
+                ]).encode("utf8")
             )
             parents = [cap]
             if genesis is None:
@@ -459,13 +451,13 @@ class UpdateTests(AsyncTestCase):
         )
         self.service.startService()
 
-    @inlineCallbacks
+    @inline_callbacks
     def tearDown(self):
         yield super(UpdateTests, self).tearDown()
         yield self.service.file_factory.finish()
         yield self.service.stopService()
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_create(self):
         """
         Create a RemoteSnapshot and add it to zara's Personal DMD. The
@@ -484,7 +476,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap.capability.encode("utf8"),
+            remote_snap.capability,
         )
 
         # wait for the downloader to put this into Alice's magic-folder
@@ -501,7 +493,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflict(self):
         """
         Create a RemoteSnapshot and add it to zara's Personal DMD. The
@@ -527,7 +519,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap.capability.encode("utf8"),
+            remote_snap.capability,
         )
 
         # wait for the downloader to put this into Alice's magic-folder
@@ -552,7 +544,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_update(self):
         """
         Create a snapshot in zara's Personal DMD, then update it.
@@ -574,7 +566,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -590,7 +582,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -622,7 +614,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_multi_update(self):
         """
         Create a snapshot in zara's Personal DMD, then update it 2x
@@ -642,7 +634,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -657,7 +649,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -688,7 +680,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap2.capability.encode("utf8"),
+            remote_snap2.capability,
             replace=True,
         )
 
@@ -707,7 +699,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflicting_update(self):
         """
         Create an update that conflicts with a local file
@@ -728,7 +720,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # create an update
@@ -748,7 +740,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap1.capability.encode("utf8"),
+            remote_snap1.capability,
             replace=True,
         )
 
@@ -782,7 +774,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             u"foo",
-            remote_snap2.capability.encode("utf8"),
+            remote_snap2.capability,
             replace=True,
         )
 
@@ -799,7 +791,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_conflict_at_last_second(self):
         """
         If an update to a file happens while we're downloading a file that
@@ -830,7 +822,7 @@ class UpdateTests(AsyncTestCase):
             """
             x = yield orig_method(relpath, cap, tahoe_client)
             # put in the last-second conflict
-            self.magic_path.preauthChild(relpath).setContent("So conflicted")
+            self.magic_path.preauthChild(relpath).setContent(b"So conflicted")
             returnValue(x)
 
         with patch.object(file_factory._magic_fs, "download_content_to_staging", do_download):
@@ -839,7 +831,7 @@ class UpdateTests(AsyncTestCase):
             yield self.tahoe_client.add_entry_to_mutable_directory(
                 self.other_personal_cap,
                 u"foo",
-                remote_snap0.capability.encode("utf8"),
+                remote_snap0.capability,
             )
 
             # wait for the downloader to detect zara's change
@@ -855,7 +847,7 @@ class UpdateTests(AsyncTestCase):
             self.magic_path.child("foo"),
             MatchesAll(
                 AfterPreprocessing(lambda x: x.exists(), Equals(True)),
-                AfterPreprocessing(lambda x: x.getContent(), Equals("So conflicted")),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(b"So conflicted")),
             )
         )
         self.assertThat(
@@ -866,7 +858,7 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_state_mismatch(self):
         """
         If the database-stored pathstate doesn't match what's on disk when
@@ -876,7 +868,7 @@ class UpdateTests(AsyncTestCase):
         relpath = "a"
 
         # give alice current knowledge of this file
-        local_path = self.magic_path.child(relpath)
+        local_path = self.magic_path.child(relpath).asTextMode()
         local_path.setContent(b"dummy contents")
 
         alice_snap = yield create_snapshot(
@@ -912,7 +904,7 @@ class UpdateTests(AsyncTestCase):
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
             relpath,
-            remote_snap0.capability.encode("utf8"),
+            remote_snap0.capability,
         )
 
         # wait for the downloader to detect zara's change
@@ -926,9 +918,15 @@ class UpdateTests(AsyncTestCase):
                 break
 
         self.assertThat(
-            set(self.magic_path.listdir()),
+            set(self.magic_path.asTextMode().listdir()),
             Equals(expected_files),
         )
+
+
+def _plausible_dir2_chk_cap(a, b):
+    """
+    """
+    return u"URI:DIR2-CHK:{}:{}:1:5:376".format(a, b)
 
 
 class ConflictTests(AsyncTestCase):
@@ -1028,15 +1026,15 @@ class ConflictTests(AsyncTestCase):
         snapshot
         """
 
-        parent_cap = b"URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
+        parent_cap = "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:1:5:376"
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
-            content_cap=b"URI:CHK:",
-            metadata_cap=b"URI:CHK:",
+            content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
         )
         parent_content = b"parent" * 1000
         self.remote_cache._cached_snapshots[parent_cap] = parent
@@ -1045,15 +1043,15 @@ class ConflictTests(AsyncTestCase):
         local_path.setContent(parent_content)
         self.alice_config.store_downloaded_snapshot("foo", parent, get_pathinfo(local_path).state)
 
-        cap0 = b"URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
+        cap0 = "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:5:376"
         remote0 = RemoteSnapshot(
             relpath="foo",
             author=self.carol_author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[parent_cap],
-            content_cap=b"URI:CHK:",
-            metadata_cap=b"URI:CHK:",
+            content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
         )
         self.remote_cache._cached_snapshots[cap0] = remote0
 
@@ -1082,10 +1080,13 @@ class ConflictTests(AsyncTestCase):
 
         remotes = []
 
-        for letter in b'abcd':
-            parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format(
-                base64.b32encode(letter * 16).rstrip('=').lower(),
-                base64.b32encode(letter * 32).rstrip('=').lower(),
+        def b32(x):
+            return base64.b32encode(x).rstrip(b"=").lower()
+
+        for letter in u'abcd':
+            parent_cap = _plausible_dir2_chk_cap(
+                b32(letter.encode("ascii") * 16).decode("utf8"),
+                b32(letter.encode("ascii") * 32).decode("utf8"),
             )
             parent = RemoteSnapshot(
                 relpath="foo",
@@ -1126,7 +1127,7 @@ class ConflictTests(AsyncTestCase):
         Give the updater a remote update with no ancestors
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1138,7 +1139,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap('b' * 26, 'c' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1150,7 +1151,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[child_cap] = child
 
-        other_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('z' * 26, 'z' * 52)
+        other_cap = _plausible_dir2_chk_cap('z' * 26, 'z' * 52)
         other = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1163,7 +1164,7 @@ class ConflictTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[other_cap] = other
 
         # so "alice" has "other" already
-        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_magic_path.child("foo").setContent(b"whatever")
         self.alice_config.store_downloaded_snapshot("foo", other, PathState(
             mtime_ns=0, ctime_ns=0, size=len("whatever"),
         ))
@@ -1188,7 +1189,7 @@ class ConflictTests(AsyncTestCase):
         Give the updater a remote update which is a delete
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice,
@@ -1200,7 +1201,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice,
@@ -1218,7 +1219,7 @@ class ConflictTests(AsyncTestCase):
         self.file_factory._write_participant = FakeWriteParticipant()
 
         # so "alice" has "parent" already
-        self.alice_magic_path.child("foo").setContent("whatever")
+        self.alice_magic_path.child("foo").setContent(b"whatever")
         self.alice_config.store_downloaded_snapshot(
             "foo",
             parent,
@@ -1243,7 +1244,7 @@ class ConflictTests(AsyncTestCase):
         An update that's older than our local one
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1255,7 +1256,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
-        child_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('b' * 26, 'b' * 52)
+        child_cap = _plausible_dir2_chk_cap('b' * 26, 'b' * 52)
         child = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1269,7 +1270,7 @@ class ConflictTests(AsyncTestCase):
 
         # so "alice" has "child" already
         local_path = self.alice_magic_path.child("foo")
-        local_path.setContent("whatever")
+        local_path.setContent(b"whatever")
         self.alice_config.store_downloaded_snapshot("foo", child, get_pathinfo(local_path).state)
 
         # we update with the parent (so, it's old)
@@ -1285,7 +1286,7 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             self.filesystem.actions,
             Equals([
-                (u'download', u'foo', 'URI:CHK:'),
+                (u'download', u'foo', b'URI:CHK:'),
             ])
         )
 
@@ -1295,7 +1296,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to write to the filesystem
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1380,7 +1381,7 @@ class ConflictTests(AsyncTestCase):
         An update that fails to download some content
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
@@ -1475,15 +1476,15 @@ class ConflictTests(AsyncTestCase):
         An update arrives but we fail to update our Personal DMD
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=self.alice_author,
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
-            content_cap=b"URI:CHK:",
-            metadata_cap=b"URI:CHK:",
+            content_cap="URI:CHK:",
+            metadata_cap="URI:CHK:",
         )
         self.remote_cache._cached_snapshots[parent_cap] = parent
 
@@ -1500,6 +1501,8 @@ class ConflictTests(AsyncTestCase):
             tahoe_client,
         )
 
+        # now that we're set up, arrange to fail the next "add a thing
+        # to a dir" call
         self.alice.tahoe_root.fail_next_directory_update()
 
         # hook in the top-level service .. we don't "start" it and
@@ -1557,7 +1560,7 @@ class CancelTests(AsyncTestCase):
         An update arrives but one of the tahoe requests is cancelled
         """
 
-        magic_path = FilePath(self.mktemp())
+        magic_path = FilePath(self.mktemp()).asTextMode()
         magic_path.makedirs()
         relpath = "some_file"
 
@@ -1587,7 +1590,7 @@ class CancelTests(AsyncTestCase):
             local_f.write(b"dummy\n" * 50)
 
         class FakeRemoteSnapshot(object):
-            content_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('x' * 26, 'y' * 52)
+            content_cap = _plausible_dir2_chk_cap('x' * 26, 'y' * 52)
             relpath = "some_file"  # match earlier relpath
         remote_snapshot = FakeRemoteSnapshot()
 
@@ -1627,15 +1630,15 @@ class CancelTests(AsyncTestCase):
         cancelled
         """
 
-        parent_cap = b"URI:DIR2-CHK:{}:{}:1:5:376".format('a' * 26, 'a' * 52)
+        parent_cap = _plausible_dir2_chk_cap('a' * 26, 'a' * 52)
         parent = RemoteSnapshot(
             relpath="foo",
             author=create_local_author("carol"),
             metadata={"modification_time": 0},
             capability=parent_cap,
             parents_raw=[],
-            content_cap=b"URI:CHK:",
-            metadata_cap=b"URI:CHK:",
+            content_cap=u"URI:CHK:",
+            metadata_cap=u"URI:CHK:",
         )
 
         magic_path = FilePath(self.mktemp())
@@ -1723,7 +1726,7 @@ class FilesystemModificationTests(SyncTestCase):
         """
         Marking a file as deleted removes it
         """
-        self.magic.child("foo").setContent("dummy")
+        self.magic.child("foo").setContent(b"dummy")
 
         self.filesystem.mark_delete("foo")
 
@@ -1750,7 +1753,7 @@ class FilesystemModificationTests(SyncTestCase):
         """
         Overwriting a non-existent directory creates the directory
         """
-        dummy_content = "dummy\n"
+        dummy_content = b"dummy\n"
         staged = self.staging.child("new_content")
         staged.setContent(dummy_content)
 
@@ -1773,7 +1776,7 @@ class FilesystemModificationTests(SyncTestCase):
         """
         An incoming overwrite where a local file exists is an error
         """
-        dummy_content = "dummy\n"
+        dummy_content = b"dummy\n"
         staged = self.staging.child("new_content")
         staged.setContent(dummy_content)
         # we put a _file_ in the way of the incoming directory

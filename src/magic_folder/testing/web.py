@@ -17,12 +17,6 @@ be pushed upstream eventually but not so quickly that we have to submit a PR
 to Tahoe-LAFS every few days.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 import time
 
@@ -113,8 +107,8 @@ class _FakeTahoeWelcome(Resource, object):
         Normally the "welcome" / front page. We only need to support the
         ?t=json for tests.
         """
-        assert "t" in request.args, "must pass ?t= query argument"
-        assert request.args["t"][0] == "json", "must pass ?t=json query argument"
+        assert b"t" in request.args, "must pass ?t= query argument"
+        assert request.args[b"t"][0] == b"json", "must pass ?t=json query argument"
         return json.dumps({
             "introducers": {
                 "statuses": ["Fake test status"]
@@ -133,17 +127,17 @@ class _FakeTahoeWelcome(Resource, object):
 
 
 KNOWN_CAPABILITIES = [
-    getattr(allmydata.uri, t).BASE_STRING
+    getattr(allmydata.uri, t).BASE_STRING.decode("ascii")
     for t in dir(allmydata.uri)
     if hasattr(getattr(allmydata.uri, t), 'BASE_STRING')
 ]
 MUTABLE_CAPABILITIES = [
-    b'URI:DIR2:',
-    b'URI:DIR2-RO:',
-    b'URI:SSK:',
-    b'URI:SSK-RO:',
-    b'URI:MDMF:',
-    b'URI:MDMF-RO:',
+    u'URI:DIR2:',
+    u'URI:DIR2-RO:',
+    u'URI:SSK:',
+    u'URI:SSK-RO:',
+    u'URI:MDMF:',
+    u'URI:MDMF-RO:',
 ]
 
 def capability_generator(kind):
@@ -176,11 +170,11 @@ def capability_generator(kind):
     # capabilities are "prefix:<128-bits-base32>:<256-bits-base32>:N:K:size"
     while True:
         number += 1
-        key_hasher.update("\x00")
-        ueb_hasher.update("\x00")
+        key_hasher.update("\x00".encode("utf8"))
+        ueb_hasher.update("\x00".encode("utf8"))
 
-        key = base32.b2a(key_hasher.digest()[:16])  # key is 16 bytes
-        ueb_hash = base32.b2a(ueb_hasher.digest())  # ueb hash is 32 bytes
+        key = base32.b2a(key_hasher.digest()[:16]).decode("ascii")  # key is 16 bytes
+        ueb_hash = base32.b2a(ueb_hasher.digest()).decode("ascii")  # ueb hash is 32 bytes
 
         cap = u"{kind}{key}:{ueb_hash}:{n}:{k}:{size}".format(
             kind=kind,
@@ -190,7 +184,7 @@ def capability_generator(kind):
             k=1,
             size=number * 1000,
         )
-        yield cap.encode("ascii")
+        yield cap
 
 
 def _get_node_format(cap):
@@ -317,7 +311,7 @@ class _FakeTahoeUriHandler(Resource, object):
             request.setResponseCode(http.CREATED)  # real code does this for brand-new files
         else:
             request.setResponseCode(http.OK)  # replaced/modified files
-        return cap
+        return cap.encode("utf8")
 
     def _add_entry_to_dir(self, request, dircap, segments):
         """
@@ -332,8 +326,8 @@ class _FakeTahoeUriHandler(Resource, object):
             raise Exception(
                 "Need exactly one path segment (got {})".format(len(segments))
             )
-        path = normalize(segments[0].decode("utf-8"))
-        dircap = request.postpath[0].decode("ascii")
+        path = normalize(segments[0].decode("utf8"))
+        dircap = request.postpath[0].decode("utf8")
         if not dircap.startswith("URI:DIR2"):
             raise Exception(
                 "Can't add entry to non-mutable directory '{}'".format(dircap)
@@ -346,7 +340,7 @@ class _FakeTahoeUriHandler(Resource, object):
             )
 
         content_cap = request.content.read().decode("utf8")
-        content = allmydata.uri.from_string(content_cap.encode("ascii"))
+        content = allmydata.uri.from_string(content_cap)
 
         kind = "dirnode" if IDirnodeURI.providedBy(content) else "filenode"
 
@@ -358,10 +352,10 @@ class _FakeTahoeUriHandler(Resource, object):
         metadata = {
             "mutable": content.is_mutable(),
             "ro_uri": content_cap,
-            "verify_uri": content.get_verify_cap().to_string(),
+            "verify_uri": content.get_verify_cap().to_string().decode("ascii"),
             "format": _get_node_format(content),
         }
-        if content_cap != content.get_readonly().to_string():
+        if content_cap != content.get_readonly().to_string().decode("utf8"):
             metadata["rw_uri"] = content_cap
 
         if kind == "filenode" and content.get_size() is not None:
@@ -374,7 +368,7 @@ class _FakeTahoeUriHandler(Resource, object):
                 request.setResponseCode(http.BAD_REQUEST)
                 return b""
 
-        dir_data[1]["children"][segments[0]] = [kind, metadata]
+        dir_data[1]["children"][segments[0].decode("utf8")] = [kind, metadata]
         self.data[dircap] = json.dumps(dir_data).encode("utf8")
         return b""
 
@@ -395,7 +389,7 @@ class _FakeTahoeUriHandler(Resource, object):
             {
                 "children": data,
             }
-        ])
+        ]).encode("utf8")
 
     def _add_immutable_directory(self, raw_data):
         return self.add_data(
@@ -410,16 +404,16 @@ class _FakeTahoeUriHandler(Resource, object):
         )
 
     def render_POST(self, request):
-        t = request.args[u"t"][0]
+        t = request.args[b"t"][0]
         data = request.content.read()
 
         type_to_handler = {
-            "mkdir-immutable": self._add_immutable_directory,
-            "mkdir": self._add_mutable_directory,
+            b"mkdir-immutable": self._add_immutable_directory,
+            b"mkdir": self._add_mutable_directory,
         }
         handler = type_to_handler[t]
         fresh, cap = handler(data)
-        return cap
+        return cap.encode("utf8")
 
     def render_GET(self, request):
         uri = DecodedURL.from_text(request.uri.decode('utf8'))
@@ -429,7 +423,7 @@ class _FakeTahoeUriHandler(Resource, object):
                 capability = value
         # it's legal to use the form "/uri/<capability>"
         if capability is None and request.postpath and request.postpath[0]:
-            capability = request.postpath[0]
+            capability = request.postpath[0].decode("utf8")
 
         # Tahoe lets you get the children of directory-nodes by
         # appending names after the capability; we support up to 1
@@ -437,7 +431,7 @@ class _FakeTahoeUriHandler(Resource, object):
         if len(request.postpath) > 1:
             if len(request.postpath) > 2:
                 raise NotImplementedError
-            child_name = request.postpath[1]
+            child_name = request.postpath[1].decode("utf8")
             return self._get_child_of_directory(request, capability, child_name)
 
         # if we don't yet have a capability, that's an error
