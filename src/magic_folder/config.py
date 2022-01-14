@@ -1287,6 +1287,7 @@ class MagicFolderConfig(object):
             sizes.extend([
                 capability_size(c)
                 for c in caps
+                if c is not None
             ])
         return sizes
 
