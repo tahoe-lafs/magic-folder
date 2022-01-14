@@ -69,12 +69,6 @@ from .util.file import (
 )
 
 
-def _ensure_utf8_bytes(value):
-    if isinstance(value, bytes):
-        return value
-    return value.encode("utf8")
-
-
 def magic_folder_resource(get_auth_token, v1_resource):
     """
     Create the root resource for the Magic Folder HTTP API.
@@ -191,9 +185,7 @@ class APIv1(object):
             # We skip these, since we have our own content.
             if header in (b"content-length", b"content-type"):
                 continue
-            request.setHeader(
-                _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
-            )
+            request.setHeader(header, value)
         _application_json(request)
         return json.dumps({"reason": exc.description}).encode("utf8")
 
