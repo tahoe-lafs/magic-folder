@@ -5,12 +5,6 @@
 Implements ```magic-folder list``` command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 
 from eliot.twisted import (

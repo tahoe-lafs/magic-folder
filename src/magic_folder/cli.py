@@ -1,17 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import sys
 import getpass
-
-
-from six.moves import (
-    StringIO as MixedIO,
-)
+from io import StringIO
 
 from appdirs import (
     user_config_dir,
@@ -405,7 +394,7 @@ def list_(options):
 class InviteOptions(usage.Options):
     nickname = None
     synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
-    stdin = MixedIO(u"")
+    stdin = StringIO(u"")
     optParameters = [
         ("name", "n", None, "Name of an existing magic-folder"),
     ]

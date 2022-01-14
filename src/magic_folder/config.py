@@ -4,13 +4,6 @@ Configuration and state database interaction.
 See also docs/config.rst
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 __all__ = [
     "MagicFolderConfig",
     "GlobalConfigDatabase",

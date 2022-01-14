@@ -1,14 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import json
 from functools import partial
 
-import six
 import attr
 from collections import (
     defaultdict,
@@ -192,8 +184,8 @@ class PublicError(object):
     avoiding jargon and technical details (except where immediately
     relevant). This is used by the IStatus API.
     """
-    timestamp = attr.ib(validator=attr.validators.instance_of((float, ) + six.integer_types))
-    summary = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    timestamp = attr.ib(validator=attr.validators.instance_of((float, int)))
+    summary = attr.ib(validator=attr.validators.instance_of(str))
 
     def to_json(self):
         """
@@ -441,9 +433,9 @@ class _ProxyDescriptor(object):
     """
     Descriptor that returns ``partial(self.<original>.<method>, self.<relative>)``.
     """
-    original = attr.ib(validator=attr.validators.instance_of(six.text_type))
-    relative = attr.ib(validator=attr.validators.instance_of(six.text_type))
-    method = attr.ib(validator=attr.validators.instance_of(six.string_types))
+    original = attr.ib(validator=attr.validators.instance_of(str))
+    relative = attr.ib(validator=attr.validators.instance_of(str))
+    method = attr.ib(validator=attr.validators.instance_of(str))
 
     def __get__(self, oself, type=None):
         if oself is None:
@@ -486,5 +478,5 @@ class FolderStatus(object):
     Wrapper around an :py:`IStatus` implementation that automatically passes
     the ``folder`` argument.
     """
-    folder = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    folder = attr.ib(validator=attr.validators.instance_of(str))
     _status = attr.ib(validator=attr.validators.provides(IStatus))

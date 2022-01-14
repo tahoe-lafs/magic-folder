@@ -2,13 +2,6 @@
 Classes and services relating to the operation of the Downloader
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import os
 import hashlib
 from collections import deque

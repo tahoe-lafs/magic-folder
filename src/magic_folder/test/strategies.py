@@ -5,13 +5,6 @@
 Hypothesis strategies useful for testing Magic Folder.
 """
 
-from __future__ import (
-    unicode_literals,
-    absolute_import,
-    division,
-    print_function,
-)
-
 from uuid import (
     UUID,
 )

@@ -14,7 +14,7 @@ eliot has a special "inline_callbacks" decorator.
 In older versions, it was possible to decorate a test with both because the pytest version just "marked" the test.
 In newer versions of pytest / pytest_twisted, the above is not possible.
 
-Luckily, it _is_ possible to use `@pytest_twisted.ensureDeferred~ alongside the Eliot decorator.
+Luckily, it _is_ possible to use `@pytest_twisted.ensureDeferred` alongside the Eliot decorator.
 
 So, this means **all tests must be coroutines specified with async-def**.
 That is::

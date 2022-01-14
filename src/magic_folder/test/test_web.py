@@ -5,14 +5,6 @@
 Tests for ``magic_folder.web``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
-import six
 from json import (
     loads,
     dumps,
@@ -1160,7 +1152,7 @@ class CreateSnapshotTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         ContainsDict({
-                            u"reason": IsInstance(six.text_type),
+                            u"reason": IsInstance(str),
                         }),
                     ),
                 ),

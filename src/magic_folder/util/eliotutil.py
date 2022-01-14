@@ -5,13 +5,6 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-import six
 import inspect
 import json
 import os
@@ -89,7 +82,7 @@ def validateInstanceOf(t):
 
 RELPATH = Field.for_types(
     u"relpath",
-    [six.text_type],
+    [str],
     u"The relative path of a file in a magic-folder.",
 )
 
@@ -102,25 +95,25 @@ ABSPATH = Field(
 
 VERSION = Field.for_types(
     u"version",
-    six.integer_types,
+    [int],
     u"The version of the file.",
 )
 
 LAST_UPLOADED_URI = Field.for_types(
     u"last_uploaded_uri",
-    [six.text_type, bytes, None],
+    [str, bytes, None],
     u"The filecap to which this version of this file was uploaded.",
 )
 
 LAST_DOWNLOADED_URI = Field.for_types(
     u"last_downloaded_uri",
-    [six.text_type, bytes, None],
+    [str, bytes, None],
     u"The filecap from which the previous version of this file was downloaded.",
 )
 
 LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
-    (float, ) + six.integer_types,
+    (float, int),
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
 )
 

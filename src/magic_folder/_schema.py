@@ -9,13 +9,6 @@ This module defines the database schema used by the model interface.
     quite a lot of schema changes but which still offers us a finite bound.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import attr
 
 MAXIMUM_UPGRADES = 1000

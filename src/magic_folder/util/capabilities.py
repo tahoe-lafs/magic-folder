@@ -7,8 +7,6 @@ Magic Folders uses text ("str" on Python3) to store Tahoe URIs.
 These APIs convert for use with the imported Tahoe-LAFS URI interaction code so always use the Magic Folders format when calling the APIs and expect the same to be returned.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 from allmydata.uri import (
     IDirectoryURI,
     IDirnodeURI,

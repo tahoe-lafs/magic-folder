@@ -5,12 +5,6 @@
 Implements the magic-folder join command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 
 def magic_folder_join(config, invite_code, local_dir, name, poll_interval, author_name):
     """

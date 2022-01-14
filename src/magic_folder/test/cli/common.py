@@ -1,14 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from contextlib import contextmanager
+from io import StringIO
 
-from six.moves import (
-    StringIO as MixedIO,
-)
 from twisted.python import usage
 from twisted.python.usage import (
     UsageError,
@@ -130,8 +122,8 @@ def _run_cli(command, argv, global_config=None, http_client=None):
     """
     with start_action(action_type="run-cli", argv=argv) as action:
         options = command.options()
-        options.stdout = MixedIO()
-        options.stderr = MixedIO()
+        options.stdout = StringIO()
+        options.stderr = StringIO()
         if global_config is not None:
             options._config = global_config
         if http_client is not None:

@@ -2,19 +2,12 @@
 Tools aimed at the interaction between tests and Eliot.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 __all__ = [
     "RUN_TEST",
     "EliotLoggedRunTest",
     "eliot_logged_test",
 ]
 
-import six
 from functools import (
     wraps,
     partial,
@@ -35,7 +28,7 @@ from twisted.internet.defer import (
 
 _NAME = Field.for_types(
     u"name",
-    [six.text_type],
+    [str],
     u"The name of the test.",
 )
 

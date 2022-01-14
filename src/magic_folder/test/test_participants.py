@@ -5,14 +5,7 @@
 Tests for ``magic_folder.participants``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import os
-import six
 from json import (
     dumps,
 )
@@ -387,7 +380,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: six.text_type(f.value),
+                    lambda f: str(f.value),
                     Equals(
                         "Author must be a RemoteAuthor instance"
                     )
@@ -456,7 +449,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: six.text_type(f.value),
+                    lambda f: str(f.value),
                     StartsWith(
                         "Already have a participant with Personal DMD"
                     )
@@ -473,7 +466,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             ),
             failed(
                 AfterPreprocessing(
-                    lambda f: six.text_type(f.value),
+                    lambda f: str(f.value),
                     StartsWith(
                         "Already have a participant called"
                     )

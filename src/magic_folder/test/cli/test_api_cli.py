@@ -5,8 +5,6 @@
 Tests for `magic-folder-api`.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 from eliot.twisted import inline_callbacks
 from testtools.matchers import Equals
 from twisted.internet import reactor

@@ -1,14 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 
 import os
 import json
-import six
 
 import attr
 
@@ -543,7 +535,7 @@ def _snapshot_to_json(snapshot):
         # XXX Probably want to populate parents with something ...
         u"parents": [],
         u"content-path": snapshot.content_path.path,
-        u"identifier": six.text_type(snapshot.identifier),
+        u"identifier": str(snapshot.identifier),
         u"author": snapshot.author.to_remote_author().to_json(),
     }
     return result

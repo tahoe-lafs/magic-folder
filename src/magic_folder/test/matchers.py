@@ -2,13 +2,6 @@
 Testtools-style matchers useful to the Tahoe-LAFS test suite.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-import six
 import base64
 from uuid import (
     UUID,
@@ -162,7 +155,7 @@ def is_hex_uuid():
     :return: A matcher.
     """
     def _is_hex_uuid(value):
-        if not isinstance(value, six.text_type):
+        if not isinstance(value, str):
             return False
         try:
             UUID(hex=value)

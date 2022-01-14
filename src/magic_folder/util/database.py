@@ -5,15 +5,12 @@
 Utilties for dealing with sqlite.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
-import six
 import contextlib
 import inspect
 import sqlite3
 
 import attr
-from six import wraps
+from functools import wraps
 from twisted.python.compat import currentframe
 
 __all__ = [
@@ -50,7 +47,7 @@ class _LockableDatabaseTransactionError(Exception):
     An error from calling :py:`LockableDatabase.transaction`.
     """
 
-    message = attr.ib(validator=attr.validators.instance_of(six.text_type))
+    message = attr.ib(validator=attr.validators.instance_of(str))
     function = attr.ib(default=None)
     caller = attr.ib(default=None)
 

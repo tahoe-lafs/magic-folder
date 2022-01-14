@@ -2,13 +2,6 @@
 Utilities related to Twisted endpoint (and endpoint-strings)
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import re
 from typing import Optional
 

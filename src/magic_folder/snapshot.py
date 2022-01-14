@@ -4,14 +4,7 @@
 """
 Functions and types that implement snapshots
 """
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import os
-import six
 import time
 import json
 import base64
@@ -87,7 +80,7 @@ class LocalAuthor(object):
 
     :ivar nacl.signing.SigningKey signing_key: author's private key
     """
-    name = attr.ib(validator=[attr.validators.instance_of(six.text_type)])
+    name = attr.ib(validator=[attr.validators.instance_of(str)])
     signing_key = attr.ib(validator=[attr.validators.instance_of(SigningKey)])
 
     # NOTE: this should not be converted to JSON or serialized
@@ -303,7 +296,7 @@ class LocalSnapshot(object):
             serialized = {
                 'relpath': local_snapshot.relpath,
                 'metadata': local_snapshot.metadata,
-                'identifier': six.text_type(local_snapshot.identifier),
+                'identifier': str(local_snapshot.identifier),
                 'content_path': local_snapshot.content_path.path if local_snapshot.content_path is not None else None,
                 'parents_local': [
                     _serialized_dict(parent)

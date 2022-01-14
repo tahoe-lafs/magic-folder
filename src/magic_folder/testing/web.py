@@ -17,12 +17,6 @@ be pushed upstream eventually but not so quickly that we have to submit a PR
 to Tahoe-LAFS every few days.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 import time
 

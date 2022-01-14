@@ -4,8 +4,6 @@ zope.interface >= 3.6.0, != 3.6.3, != 3.6.4
 
 humanize >= 1.0.0
 
-six >= 1.10.0
-
 eliot
 
 attrs

@@ -5,13 +5,6 @@
 Tests for ``magic_folder.tahoe_client``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from functools import (
     partial,
 )

@@ -5,16 +5,17 @@ from __future__ import (
     unicode_literals,
 )
 
-import six
 import sys
 import time
 import json
 import sqlite3
 import os
 from os import mkdir
-from io import BytesIO
+from io import (
+    BytesIO,
+    StringIO,
+)
 from os.path import exists, join
-from six.moves import StringIO
 from functools import partial
 
 import attr
@@ -516,10 +517,10 @@ class _DumpOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self._out.write(six.text_type(data, "utf8"))
+        self._out.write(str(data, "utf8"))
 
     def errReceived(self, data):
-        self._out.write(six.text_type(data, "utf8"))
+        self._out.write(str(data, "utf8"))
 
 
 @attr.s
