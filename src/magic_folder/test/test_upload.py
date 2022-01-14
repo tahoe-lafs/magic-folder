@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from json import (
     dumps,
     loads,
@@ -38,13 +31,17 @@ from hypothesis.strategies import (
     binary,
     lists,
 )
+
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
-    inlineCallbacks,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -140,7 +137,7 @@ class UploadTests(SyncTestCase):
         if not local_path_bytes.parent().exists():
             local_path_bytes.parent().makedirs()
         with local_path_bytes.open("w") as local_file:
-            local_file.write("foo\n" * 20)
+            local_file.write(b"foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
         self.assertThat(
             mf.create_update(),
@@ -159,7 +156,7 @@ class UploadTests(SyncTestCase):
             Equals({
                 path2magic(relpath): [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
+                        u"ro_uri": remote_snapshot_cap,
                         u"verify_uri": to_verify_capability(remote_snapshot_cap),
                         u"mutable": False,
                         u"format": u"CHK",
@@ -328,7 +325,7 @@ class AsyncMagicFileTests(AsyncTestCase):
     MagicFile tests requiring the reactor
     """
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_local_queue(self):
         """
         Queuing up two updates 'at once' causes two versions to be
@@ -442,13 +439,12 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(snap1.parents_local, Equals([]))
         self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_fail_upload_dmd_update(self):
         """
         While uploading a local snapshot we fail to update our Personal
         DMD. A retry is attempted.
         """
-
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "random_local_file"
@@ -508,7 +504,7 @@ class AsyncMagicFileTests(AsyncTestCase):
                     ],
                 }
             }
-        ])
+        ]).encode("utf8")
 
         # Personal DMD
         tahoe_root._uri.data[config.upload_dircap] = dumps([
@@ -516,7 +512,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             {
                 "children": {},
             }
-        ])
+        ]).encode("utf8")
 
         # all data available, we can start services
         service.startService()
@@ -561,7 +557,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             ]),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_upload(self):
         """
         While an upload is ongoing it is cancelled
@@ -624,7 +620,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             })
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_dmd(self):
         """
         An attempt to update the Personal DMD after an upload is

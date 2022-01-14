@@ -4,12 +4,6 @@
 """
 Functions and types that implement snapshots
 """
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import os
 import time
 import json
@@ -73,7 +67,7 @@ class RemoteAuthor(object):
         """
         return {
             "name": self.name,
-            "verify_key": self.verify_key.encode(encoder=Base64Encoder),
+            "verify_key": self.verify_key.encode(encoder=Base64Encoder).decode("utf8"),
         }
 
 
@@ -86,7 +80,7 @@ class LocalAuthor(object):
 
     :ivar nacl.signing.SigningKey signing_key: author's private key
     """
-    name = attr.ib(validator=[attr.validators.instance_of(unicode)])
+    name = attr.ib(validator=[attr.validators.instance_of(str)])
     signing_key = attr.ib(validator=[attr.validators.instance_of(SigningKey)])
 
     # NOTE: this should not be converted to JSON or serialized
@@ -182,11 +176,11 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
 
     :param unicode relpath: arbitrary snapshot name
 
-    :param bytes content_capability: Tahoe immutable capability-string
+    :param str content_capability: Tahoe immutable capability-string
 
-    :param bytes metadata_capability: Tahoe immutable capability-string
+    :param str metadata_capability: Tahoe immutable capability-string
 
-    :returns: bytes
+    :returns bytes: the snapshop signature string encoded to utf8
     """
     snapshot_string = (
         u"magic-folder-snapshot-v1\n"
@@ -194,8 +188,8 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
         u"{metadata_capability}\n"
         u"{relpath}\n"
     ).format(
-        content_capability=content_capability.decode("ascii"),
-        metadata_capability=metadata_capability.decode("ascii"),
+        content_capability=content_capability,
+        metadata_capability=metadata_capability,
         relpath=relpath,
     )
     return snapshot_string.encode("utf8")
@@ -209,15 +203,18 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
 
     :param unicode snapshot_name: snapshot name to sign
 
-    :param bytes content_capability: the Tahoe immutable
+    :param str content_capability: the Tahoe immutable
         capability-string of the actual snapshot data.
 
-    :param bytes metadata capability: the Tahoe immutable
+    :param str metadata_capability: the Tahoe immutable
         capability-string of the metadata (which is serialized JSON)
 
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
+    # deletes have no content
+    assert content_capability is None or isinstance(content_capability, str), "capabilities are strings"
+    assert isinstance(metadata_capability, str), "capabilities are strings"
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
@@ -254,7 +251,7 @@ class LocalSnapshot(object):
     :ivar [LocalSnapshot] parents_local: The parents of this snapshot that are
         only known to exist locally.
 
-    :ivar [bytes] parents_remote: The capability strings of snapshots that are
+    :ivar [str] parents_remote: The capability strings of snapshots that are
         known to exist remotely.
     """
     relpath = attr.ib()
@@ -299,7 +296,7 @@ class LocalSnapshot(object):
             serialized = {
                 'relpath': local_snapshot.relpath,
                 'metadata': local_snapshot.metadata,
-                'identifier': unicode(local_snapshot.identifier),
+                'identifier': str(local_snapshot.identifier),
                 'content_path': local_snapshot.content_path.path if local_snapshot.content_path is not None else None,
                 'parents_local': [
                     _serialized_dict(parent)
@@ -358,14 +355,13 @@ class RemoteSnapshot(object):
         can be anything JSON can serialize (so text, numbers, booleans
         or lists and dicts of the same).
 
-    :ivar parents_raw: list of capability-strings of our
-        parents. Capability-strings are bytes.
+    :ivar parents_raw: list of capability-strings of our parents.
 
     :ivar RemoteAuthor author: The author of this snapshot.
 
-    :ivar bytes capability: an immutable CHK:DIR2 capability-string.
+    :ivar str capability: an immutable CHK:DIR2 capability-string.
 
-    :ivar bytes content_cap: a capability-string for the actual
+    :ivar str content_cap: a capability-string for the actual
         content of this RemoteSnapshot. Use `fetch_content()` to
         retrieve the contents.
     """
@@ -405,7 +401,6 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
     :return Deferred[Snapshot]: RemoteSnapshot instance on success.
         Otherwise an appropriate exception is raised.
     """
-
     action = start_action(
         action_type=u"magic_folder:tahoe_snapshot:create_snapshot_from_capability",
     )
@@ -459,7 +454,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
             content_cap=content_cap,
             metadata_cap=metadata_cap,
             parents_raw=parent_caps,
-            capability=snapshot_cap.decode("ascii"),
+            capability=snapshot_cap,
         )
     )
 
@@ -489,6 +484,8 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
 
     :param int modified_time: timestamp to use as last-modified time
         (or None for "now")
+
+    :returns LocalSnapshot: the new snapshot instance
     """
     if parents is None:
         parents = []
@@ -525,7 +522,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
         # 1. create a temp-file in our stash area
         temp_file_fd, temp_file_name = mkstemp(
             prefix="snap",
-            dir=snapshot_stash_dir.asBytesMode("utf-8").path,
+            dir=snapshot_stash_dir.asTextMode().path,
         )
         try:
             # 2. stream data_producer into our temp-file
@@ -569,7 +566,7 @@ def format_filenode(cap, metadata=None):
     """
     Create the data structure Tahoe-LAFS uses to represent a filenode.
 
-    :param bytes cap: The read-only capability string for the content of the
+    :param str cap: The read-only capability string for the content of the
         filenode.
 
     :param dict: Any metadata to associate with the filenode (or None
@@ -646,19 +643,16 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         "relpath": snapshot.relpath,
         "author": snapshot.author.to_remote_author().to_json(),
         "modification_time": snapshot.metadata["mtime"],
-        "parents": [
-            parent_cap.encode("utf8")
-            for parent_cap in parents_raw
-        ]
+        "parents": parents_raw,
     }
     metadata_cap = yield tahoe_client.create_immutable(
-        json.dumps(snapshot_metadata)
+        json.dumps(snapshot_metadata).encode("utf8")
     )
 
     # sign the snapshot (which can only happen after we have the
     # content-capability and metadata-capability)
     author_signature = sign_snapshot(author_key, snapshot.relpath, content_cap, metadata_cap)
-    author_signature_base64 = base64.b64encode(author_signature.signature)
+    author_signature_base64 = base64.b64encode(author_signature.signature).decode("utf8")
 
     # create the actual snapshot: an immutable directory with
     # some children:
@@ -686,7 +680,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
             author=snapshot.author.to_remote_author(),
             metadata=snapshot_metadata,
             parents_raw=parents_raw,
-            capability=snapshot_cap.decode("ascii"),
+            capability=snapshot_cap,
             content_cap=content_cap,
             metadata_cap=metadata_cap,
         )

@@ -1,5 +1,3 @@
-from __future__ import absolute_import, division, print_function
-
 import subprocess
 import sys
 from configparser import ConfigParser
@@ -12,7 +10,6 @@ import pytest
 import pytest_twisted
 from eliot import log_call, start_task, to_file
 from foolscap.furl import decode_furl
-from pathlib2 import Path
 from twisted.internet.error import ProcessTerminated
 
 from .util import (
@@ -39,7 +36,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--tahoe-tox-env", dest="tahoe_tox_env",
         help="A tox env to run tahoe from.",
-        default="tahoe1_15",
+        default="tahoe1_17",
     )
     parser.addoption(
         "--gather-foolscap-logs", action="store_true", dest="gather_foolscap_logs",
@@ -110,7 +107,7 @@ class VirtualEnv(object):
     :ivar Path base_dir: The base directory of the virtualenv.
     """
 
-    base_dir = attr.ib(validator=attr.validators.instance_of(Path))
+    base_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
 
     @property
     def bin_dir(self):
@@ -118,15 +115,15 @@ class VirtualEnv(object):
         The directory containing executables of the virtual environment.
         """
         if sys.platform == 'win32':
-            return self.base_dir.joinpath("Scripts")
+            return self.base_dir.child("Scripts")
         else:
-            return self.base_dir.joinpath("bin")
+            return self.base_dir.child("bin")
 
     def bin(self, executable):
         """
         Returns the path to the named executable from the virtual environment.
         """
-        return self.bin_dir.joinpath(executable)
+        return self.bin_dir.child(executable)
 
     @property
     def python(self):
@@ -134,9 +131,9 @@ class VirtualEnv(object):
         The python executable of the virtualenv.
         """
         if sys.platform == 'win32':
-            return self.bin("python.exe")
+            return self.bin("python.exe").path
         else:
-            return self.bin("python")
+            return self.bin("python").path
 
 
 # NB: conceptually, it kind of makes sense to parametrize this fixture
@@ -174,7 +171,7 @@ def tahoe_venv(request, reactor):
 
     venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
 
-    return VirtualEnv(Path(venv_dir))
+    return VirtualEnv(FilePath(venv_dir))
 
 
 @pytest.fixture(scope='session')

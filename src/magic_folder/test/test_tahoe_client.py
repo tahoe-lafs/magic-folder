@@ -5,13 +5,6 @@
 Tests for ``magic_folder.tahoe_client``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from functools import (
     partial,
 )
@@ -236,7 +229,7 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.list_directory(cap),
@@ -263,7 +256,7 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.list_directory(cap),
@@ -290,7 +283,7 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
             self.tahoe_client.directory_data(cap),
@@ -386,7 +379,7 @@ class TahoeClientTests(SyncTestCase):
         """
         mutable_d = self.tahoe_client.create_mutable_directory()
         child_d = self.tahoe_client.create_immutable(content)
-        self.assertThat(gatherResults([mutable_d, child_d]), Always())
+        self.assertThat(gatherResults([mutable_d, child_d]), succeeded(Always()))
 
         mutable_cap = mutable_d.result
         child_cap = child_d.result
@@ -397,7 +390,7 @@ class TahoeClientTests(SyncTestCase):
             child_cap,
         )
 
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap, child_name)
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,
@@ -411,7 +404,7 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(child_content_d.result, Equals(content))
 
         # getting a different child fails
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap, u"not-the-child-name")
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,

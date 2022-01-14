@@ -5,9 +5,10 @@ pip-compile (and thus pip-compile-multi) don't support generating lock files
 for platforms other than the current one. They suggest[1] generating a lock
 file for each environment seperately.
 
-However, the only platform-specific (transitive) dependencies are colorama and
-pywin32. To avoid having to maintain separate sets of lock files per-platform,
-we modify the generated lock files to the platform specific dependencies (using
+However, the only platform-specific (transitive) dependencies are
+colorama and pywin32 -- and now several others :(. To avoid having to
+maintain separate sets of lock files per-platform, we modify the
+generated lock files to the platform specific dependencies (using
 environment markers). This is based loosely on an idea from [2].
 
 We have a hand-generated platform-specific requirements lockfile with appropriate
@@ -48,8 +49,7 @@ def main(base_requirements, platform_requirements, remove):
         print("ERROR: Requirement files must be in the same directory.")
         raise SystemExit(1)
 
-    original_reqs = base_requirements.getContent()
-
+    original_reqs = base_requirements.getContent().decode("utf8")
     if remove:
         lines = original_reqs.splitlines()
         # pip-compile-multi generates files with this header
@@ -61,7 +61,7 @@ def main(base_requirements, platform_requirements, remove):
         new_reqs = "\n".join([HEADER, "-r {}".format(platform_requirements.basename()), original_reqs])
 
     with base_requirements.open("w") as f:
-        f.write(new_reqs)
+        f.write(new_reqs.encode("utf8"))
 
 
 if __name__ == "__main__":

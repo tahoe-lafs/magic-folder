@@ -100,6 +100,12 @@ No tests shall use the `mock.Mock` or `mock.MagicMock` classes. For more informa
 * https://martinfowler.com/articles/mocksArentStubs.html
 
 
+Exceptions and @attr.s
+----------------------
+
+In Python3, Twisted removes the __traceback__ attribute from exceptions in some cases.
+Thus, no `Exception`-derived, `@attr.s()`-using class may use `frozen=True`.
+
 
 Submitting a Pull Request
 =========================

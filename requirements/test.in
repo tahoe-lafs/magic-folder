@@ -8,7 +8,7 @@ flake8-future-import
 # coverage 5.0 breaks the integration tests in some opaque way.
 # This probably needs to be addressed in a more permanent way
 # eventually...
-coverage ~= 4.5
+coverage
 tox
 mock
 pytest

@@ -15,17 +15,12 @@ after 1.14.0 that we can depend on. Once 1.15.0 or later is release,
 this code can be deleted.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-from twisted.internet.defer import (
-    inlineCallbacks,
-)
 from twisted.web.http import (
     GONE,
+)
+
+from eliot.twisted import (
+    inline_callbacks,
 )
 
 from allmydata.uri import (
@@ -85,7 +80,7 @@ class FakeWebTest(TestCase):
         """
         http_client = create_tahoe_treq_client()
 
-        @inlineCallbacks
+        @inline_callbacks
         def do_test():
             resp = yield http_client.put("http://example.com/uri", content)
             self.assertThat(resp.code, Equals(201))
@@ -95,7 +90,7 @@ class FakeWebTest(TestCase):
             self.assertThat(cap, IsInstance(CHKFileURI))
 
             resp = yield http_client.get(
-                "http://example.com/uri?uri={}".format(cap.to_string())
+                "http://example.com/uri?uri={}".format(cap.to_string().decode("ascii"))
             )
             self.assertThat(resp.code, Equals(200))
 
@@ -104,7 +99,7 @@ class FakeWebTest(TestCase):
             # using the form "/uri/<cap>" is also valid
 
             resp = yield http_client.get(
-                "http://example.com/uri/{}".format(cap.to_string())
+                "http://example.com/uri/{}".format(cap.to_string().decode("ascii"))
             )
             self.assertEqual(resp.code, 200)
 
@@ -125,7 +120,7 @@ class FakeWebTest(TestCase):
 
         http_client = create_tahoe_treq_client()
 
-        @inlineCallbacks
+        @inline_callbacks
         def do_test():
             resp = yield http_client.put("http://example.com/uri", content)
             self.assertEqual(resp.code, 201)
@@ -186,7 +181,7 @@ class FakeWebTest(TestCase):
             )
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_add_directory_entry(self):
         """
         Adding a capability to a mutable directory
@@ -207,7 +202,7 @@ class FakeWebTest(TestCase):
 
         # prove we can access the expected file via a GET
         uri = DecodedURL.from_text(u"http://example.com/uri/")
-        uri = uri.child(mut_cap.decode("ascii"), u"foo")
+        uri = uri.child(mut_cap, u"foo")
         resp = http_client.get(uri.to_uri().to_text())
 
         self.assertThat(

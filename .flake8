@@ -2,12 +2,12 @@
 extend-ignore =
     # existing errors
     E30,E501,
-    E124,E26,E401,E402,E731
+    E124,E26,E401,E402,E731,
     # flake8-future-import '__future__ import "..." present'
-    FI5
-    # flake8-future-import '__future__ import "unicode_literals" missing'
-    FI14
+    FI5,
+    # __future__ "annotations" missing
+    FI18,
 extend-exclude = src/magic_folder/_version.py
 # flake8-future-import options
-min-version = 2.7
+min-version = 3.8
 require-code = true

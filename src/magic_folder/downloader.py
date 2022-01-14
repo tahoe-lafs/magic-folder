@@ -2,13 +2,6 @@
 Classes and services relating to the operation of the Downloader
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import os
 import hashlib
 from collections import deque
@@ -30,7 +23,7 @@ from eliot import (
     log_call,
     Message,
     start_action,
-    write_failure,
+    write_traceback,
 )
 
 from twisted.application import (
@@ -112,14 +105,13 @@ class RemoteSnapshotCacheService(service.Service):
         (When we have signatures this should verify the signature
         before downloading anything else)
 
-        :param bytes snapshot_cap: an immutable directory capability-string
+        :param str snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
         """
-        with start_action(action_type="cache-service:locate_snapshot",
-                          capability=snapshot_cap) as t:
+        with start_action(action_type="cache-service:locate_snapshot") as t:
             try:
                 snapshot = self._cached_snapshots[snapshot_cap]
                 t.add_success_fields(cached=True)
@@ -133,7 +125,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         Internal helper.
 
-        :param bytes snapshot_cap: capability-string of a Snapshot
+        :param str snapshot_cap: capability-string of a Snapshot
 
         Cache a single snapshot, which we shall return. We also cache
         all parent snapshots.
@@ -143,9 +135,10 @@ class RemoteSnapshotCacheService(service.Service):
             self.tahoe_client,
         )
         self._cached_snapshots[snapshot_cap] = snapshot
-        Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata["relpath"],
-                    capability=snapshot.capability)
+        Message.log(
+            message_type="remote-cache:cached",
+            relpath=snapshot.metadata["relpath"],
+        )
 
         # breadth-first traversal of the parents
         q = deque([snapshot])
@@ -262,7 +255,7 @@ class LocalMagicFolderFilesystem(object):
         """
         assert file_cap is not None, "must supply a file-cap"
         h = hashlib.sha256()
-        h.update(file_cap)
+        h.update(file_cap.encode("ascii"))
         staged_path = self.staging_path.child(h.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
@@ -299,7 +292,7 @@ class LocalMagicFolderFilesystem(object):
             Message.log(
                 message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
                 source_path=local_path.path,
-                target_path=tmp.path,
+                target_path=tmp.asTextMode().path,
             )
         os.utime(staged_content.path, (mtime, mtime))
 
@@ -455,19 +448,22 @@ class RemoteScannerService(service.MultiService):
         )
         self._poller.setServiceParent(self)
 
+    @inline_callbacks
     def _loop(self):
-        d = self._poll_collective()
-        # in some cases, might want to surface elsewhere
-        d.addErrback(write_failure)
-        return d
+        try:
+            yield self._poll_collective()
+        except Exception:
+            # in some cases, might want to surface elsewhere
+            write_traceback()
 
+    @inline_callbacks
     def poll_once(self):
         """
         Perform a remote poll.
 
         :returns Deferred[None]: fires when the poll is completed
         """
-        return self._poller.call_soon()
+        yield self._poller.call_soon()
 
     def _is_remote_update(self, relpath, snapshot_cap):
         """
@@ -530,7 +526,6 @@ class RemoteScannerService(service.MultiService):
         with start_action(
             action_type="downloader:poll-file",
             relpath=relpath,
-            remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
             try:

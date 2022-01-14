@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 
 import os
 import json
@@ -22,14 +15,15 @@ from autobahn.twisted.resource import (
     WebSocketResource,
 )
 
-from eliot import write_failure
+from eliot import (
+    write_failure,
+)
 from eliot.twisted import inline_callbacks
 
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.application.internet import (
@@ -45,9 +39,7 @@ from twisted.web.resource import (
     Resource,
 )
 
-from hyperlink import DecodedURL
 from werkzeug.exceptions import HTTPException
-from werkzeug.routing import RequestRedirect
 
 from klein import Klein
 
@@ -67,12 +59,6 @@ from .util.capabilities import (
 from .util.file import (
     ns_to_seconds,
 )
-
-
-def _ensure_utf8_bytes(value):
-    if isinstance(value, unicode):
-        return value.encode('utf-8')
-    return value
 
 
 def magic_folder_resource(get_auth_token, v1_resource):
@@ -174,26 +160,7 @@ class APIv1(object):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
-        return json.dumps(exc.to_json())
-
-    @app.handle_errors(RequestRedirect)
-    def handle_redirect(self, request, failure):
-        exc = failure.value
-        request.setResponseCode(exc.code, exc.name)
-        # Werkzeug double encodes the path of the redirect URL, when merging
-        # slashes[1]. It does not double encode the path when:
-        # - collapsing trailing slashes
-        # - redirecting aliases to the cannonical URL
-        # - an explicit redirect_to on a URL
-        # Since we don't have rules that trigger the second cases[2],
-        # we can work around this be decoding the path here.
-        # [1] https://github.com/pallets/werkzeug/issues/2157
-        # [2] checked in magic_folder.test.test_web.RedirectTests.test_werkzeug_issue_2157_fix
-        location = DecodedURL.from_text(exc.new_url.decode('utf-8'))
-        location = location.encoded_url.replace(path=location.path).to_text()
-        request.setHeader("location", location)
-        _application_json(request)
-        return json.dumps({"location": location})
+        return json.dumps(exc.to_json()).encode("utf8")
 
     @app.handle_errors(HTTPException)
     def handle_http_error(self, request, failure):
@@ -204,17 +171,15 @@ class APIv1(object):
         exceptions, but generates a json body.
         """
         exc = failure.value
-        request.setResponseCode(exc.code, exc.name)
+        request.setResponseCode(exc.code, exc.name.encode("utf8"))
         resp = exc.get_response({})
         for header, value in resp.headers.items(lower=True):
             # We skip these, since we have our own content.
-            if header in ("content-length", "content-type"):
+            if header in (b"content-length", b"content-type"):
                 continue
-            request.setHeader(
-                _ensure_utf8_bytes(header), _ensure_utf8_bytes(value)
-            )
+            request.setHeader(header, value)
         _application_json(request)
-        return json.dumps({"reason": exc.description})
+        return json.dumps({"reason": exc.description}).encode("utf8")
 
     @app.handle_errors(Exception)
     def fallback_error(self, request, failure):
@@ -224,14 +189,14 @@ class APIv1(object):
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
-        return json.dumps({"reason": "unexpected error processing request"})
+        return json.dumps({"reason": "unexpected error processing request"}).encode("utf8")
 
     @app.route("/status")
     def status(self, request):
         return WebSocketResource(StatusFactory(self._status_service))
 
     @app.route("/magic-folder", methods=["POST"])
-    @inlineCallbacks
+    @inline_callbacks
     def add_magic_folder(self, request):
         """
         Add a new magic folder.
@@ -270,7 +235,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
-    @inlineCallbacks
+    @inline_callbacks
     def list_participants(self, request, folder_name):
         """
         List all participants of this folder
@@ -281,7 +246,7 @@ class APIv1(object):
 
         reply = {
             part.name: {
-                "personal_dmd": part.dircap.decode("ascii"),
+                "personal_dmd": part.dircap,
                 # not tracked properly yet
                 # "public_key": part.verify_key.encode(Base32Encoder),
             }
@@ -292,7 +257,7 @@ class APIv1(object):
         returnValue(json.dumps(reply).encode("utf8"))
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def add_participant(self, request, folder_name):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
@@ -327,9 +292,9 @@ class APIv1(object):
         )
 
         personal_dmd_cap = participant["personal_dmd"]
+
         if not is_readonly_directory_cap(personal_dmd_cap):
             raise _InputError("personal_dmd must be a read-only directory capability.")
-
 
         yield folder_service.add_participant(author, personal_dmd_cap)
 
@@ -344,7 +309,7 @@ class APIv1(object):
         folders.
         """
         _application_json(request)
-        return json.dumps(dict(_list_all_snapshots(self._global_config)))
+        return json.dumps(dict(_list_all_snapshots(self._global_config))).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/scan-local", methods=['PUT'])
     @inline_callbacks
@@ -373,7 +338,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
-    @inlineCallbacks
+    @inline_callbacks
     def add_snapshot(self, request, folder_name):
         """
         Create a new Snapshot
@@ -393,7 +358,7 @@ class APIv1(object):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
-        include_secret_information = int(request.args.get("include_secret_information", [0])[0])
+        include_secret_information = int(request.args.get(b"include_secret_information", [0])[0])
         _application_json(request)  # set reply headers
 
         def get_folder_info(name, mf):
@@ -401,7 +366,7 @@ class APIv1(object):
                 u"name": name,
                 u"author": {
                     u"name": mf.author.name,
-                    u"verify_key": mf.author.verify_key.encode(Base32Encoder),
+                    u"verify_key": mf.author.verify_key.encode(Base32Encoder).decode("ascii"),
                 },
                 u"stash_path": mf.stash_path.path,
                 u"magic_path": mf.magic_path.path,
@@ -410,7 +375,7 @@ class APIv1(object):
                 u"is_admin": mf.is_admin(),
             }
             if include_secret_information:
-                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder)
+                info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder).decode("ascii")
                 info[u"collective_dircap"] = mf.collective_dircap
                 info[u"upload_dircap"] = mf.upload_dircap
             return info
@@ -423,7 +388,7 @@ class APIv1(object):
             name: get_folder_info(name, config)
             for name, config
             in all_folder_configs()
-        })
+        }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/file-status", methods=['GET'])
     def folder_file_status(self, request, folder_name):
@@ -443,7 +408,7 @@ class APIv1(object):
             }
             for relpath, ps, last_updated_ns, upload_duration_ns
             in folder_config.get_all_current_snapshot_pathstates()
-        ])
+        ]).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
     def list_conflicts(self, request, folder_name):
@@ -452,14 +417,13 @@ class APIv1(object):
         """
         _application_json(request)  # set reply headers
         folder_config = self._global_config.get_magic_folder(folder_name)
-
         return json.dumps({
             relpath: [
                 conflict.author_name
                 for conflict in conflicts
             ]
             for relpath, conflicts in folder_config.list_conflicts().items()
-        })
+        }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
     def folder_tahoe_objects(self, request, folder_name):
@@ -472,7 +436,7 @@ class APIv1(object):
         _application_json(request)  # set reply headers
         folder_config = self._global_config.get_magic_folder(folder_name)
         sizes = folder_config.get_tahoe_object_sizes()
-        return json.dumps(sizes)
+        return json.dumps(sizes).encode("utf8")
 
 
 class _InputError(APIError):
@@ -571,7 +535,7 @@ def _snapshot_to_json(snapshot):
         # XXX Probably want to populate parents with something ...
         u"parents": [],
         u"content-path": snapshot.content_path.path,
-        u"identifier": unicode(snapshot.identifier),
+        u"identifier": str(snapshot.identifier),
         u"author": snapshot.author.to_remote_author().to_json(),
     }
     return result
@@ -639,7 +603,7 @@ def _is_authorized(request, get_auth_token):
     if len(authorization) > 1:
         return False
     auth_token = get_auth_token()
-    expected = b"Bearer %s" % (auth_token,)
+    expected = b"Bearer " + auth_token
     # This ends up calling `hmac.compare_digest`. Looking at the source for
     # that method suggests that it tries to make timing dependence for unequal
     # length strings be on the second argument.

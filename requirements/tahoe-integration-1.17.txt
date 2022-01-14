@@ -1,1 +1,1 @@
-tahoe-lafs==1.17.0
+tahoe-lafs==1.17.1
