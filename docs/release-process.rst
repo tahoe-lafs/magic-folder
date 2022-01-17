@@ -19,44 +19,12 @@ We use a kind of Calendar Versioning (`https://calver.org/`_):
 Updating the Version
 --------------------
 
-The version is stored (and therefore must be updated) in these places:
-
-* src/magic_folder/__init__.py
-* ...
+The version is stored as signed Git tags.
+`setuptools_scm` handles turning the Git tag into a Python version.
 
 
-Release Checklist
------------------
+Making a Release
+================
 
-FIXME TODO: flesh out these steps (this is currently an outline)
-
-* Ensure we're locally up-to-date and on the `main` branch:
-  - git checkout main
-  - git pull
-
-* Update the version
-
-* Update the NEWS file:
-  - run `towncrier`
-  - ..
-
-* Update the `releases.rst` file with the new release information
-
-* Commit the above changes
-
-* Sign a Git tag for the release:
-  - git tag -s -u meejah@meejah.ca -m "release Magic Folders 22.1.0" v22.1.0
-
-* Produce the "wheel" file (ends up in dist/)
-
-* Test that the release works:
-  - install the wheel in a fresh venv
-  - run `magic-folder`
-  - run `magic-folder-api`
-
-* Sign the "wheel" file, producing a `.asc` file
-
-* Use `twine` to upload both the wheel and signature file to PyPI
-
-* Upload the wheel and signature file to GitHub
-
+The exact process for creating a release is in the `DEVELOPERS` file.
+There are also explicit low-level steps in the top-level `Makefile`.
