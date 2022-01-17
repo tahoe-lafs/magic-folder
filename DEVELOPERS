@@ -224,11 +224,14 @@ Creating a Release
    - pip install --editable .[build]
 - Update the version:
    - python misc/build_helpers/update-version.py
+- Update NEWS:
+   - tox -e news
 - Build the release:
    - python setup.py bdist_wheel
 - Double-check the artifact in dist/
 - Sign the wheel if you're happy:
-   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-*-py3-none-any.whl
+   - export VERSION=21.1.0
+   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-$(VERSION)-py3-none-any.whl
 
 - OR: do all the above steps with "make release"
 
