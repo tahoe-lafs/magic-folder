@@ -56,7 +56,7 @@ trove_classifiers = [
 
 setup(
     name="magic_folder",
-    # no version= because setuptools_scm
+    version="0.1.0",
     description="Tahoe-LAFS-based file synchronization",
     long_description=open("README.rst", "r").read(),
     author="the Tahoe-LAFS developers, the Magic-Folder developers",
