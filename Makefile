@@ -16,6 +16,9 @@ release:
 	@echo "Install required build software"
 	pip install --editable .[build]
 
+	@echo "Test README"
+	python setup.py check -r -s
+
 	@echo "Update NEWS"
 	python -m towncrier --yes --version `python misc/build_helpers/update-version.py --no-tag`
 	git add -u
