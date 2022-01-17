@@ -23,6 +23,7 @@ def load_requirements(filename):
 
 install_requires = load_requirements("base.in")
 test_requires = load_requirements("test.in")
+build_requires = load_requirements("build.in")
 
 
 trove_classifiers = [
@@ -69,6 +70,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         "test": test_requires,
+        "build": build_requires,
     },
     package_data={
         "magic_folder": ["ported-modules.txt"],
