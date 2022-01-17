@@ -215,3 +215,23 @@ If in doubt, reach out on IRC or via a "question" Issue on GitHub.
   - no scraping HTML!
 - New code should be covered by unit-tests
 
+
+Creating a Release
+==================
+
+- Install the tools required:
+   - pip install --editable .[build]
+- Update the version:
+   - python misc/build_helpers/update-version.py
+- Build the release:
+   - python setup.py bdist_wheel
+- Double-check the artifact in dist/
+- Sign the wheel if you're happy:
+   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-*-py3-none-any.whl
+
+- OR: do all the above steps with "make release"
+
+
+- Publish the release:
+   - twine upload -r testpypi dist/magic_folder-*-py3-none-any.whl dist/magic_folder-*-py3-none-any.whl.asc
+- OR: do all the publish steps with "make release-publish"
