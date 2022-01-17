@@ -1,5 +1,12 @@
-.PHONY: release
+.PHONY: default release release-test release-upload
 
+default:
+	@echo "This is only for building releases thus far"
+	@echo "Select:"
+	@echo "   make release"
+	@echo "   make release-test"
+	@echo "   make release-upload"
+	@echo "It will run 'pip install' in your current venv"
 
 release:
 	@echo "Is checkout clean?"
@@ -22,7 +29,7 @@ release:
 	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	ls dist/*`git describe --abbrev=0`*
 
-test-release:
+release-test:
 	virtualenv testmf_venv
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/magic-folder --version
