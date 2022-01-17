@@ -18,8 +18,6 @@ write_to = "src/magic_folder/_version.py"
         "~",
     ]
 
-    # These are documented in development.rst.  Please update the docs if you
-    # update this configuration.
     [[tool.towncrier.type]]
         directory = "incompat"
         name = "Backwards Incompatible Changes"

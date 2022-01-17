@@ -25,7 +25,8 @@ General Development Process
 Development is co-ordinated on GitHub via Issues and Pull Requests.
 
 Generally any change requires a new Issue describing the feature, bug or enhancement.
-This Issue number will be used for a "news" item in ``./newsfragments.<number>.<kind>``, referenced by the eventual Pull Request(s) and are normally used in the branch name (such as ``<number>.descriptive-words``).
+This Issue number will be used for a "news" item in ``./newsfragments/<number>.<kind>``, referenced by the eventual Pull Request(s) and are normally used in the branch name (such as ``<number>.descriptive-words``).
+The different values for ``<kind>`` can be found in ``pyproject.toml``.
 
 Magic Folder is on-topic for the ``#tahoe-lafs`` channel on the Freenode IRC network.
 Feel free to discuss things there but be prepared to wait hours or more for replies; there aren't many people working on Magic Folder and we are in many time-zones.
