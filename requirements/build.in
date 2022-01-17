@@ -2,3 +2,4 @@
 setuptools_scm>=6.4.0
 dulwich>=0.20.30
 twine>=3.7.1
+towncrier>=21.3.0
