@@ -222,10 +222,12 @@ Creating a Release
 
 - Install the tools required:
    - pip install --editable .[build]
+- Update the NEWS:
+   - python -m towncrier --yes --version `python misc/build_helpers/update-version.py --no-tag`
+   - git add -u
+   - git commit -m "update NEWS"
 - Update the version:
    - python misc/build_helpers/update-version.py
-- Update NEWS:
-   - tox -e news
 - Build the release:
    - python setup.py bdist_wheel
 - Double-check the artifact in dist/

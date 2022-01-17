@@ -10,7 +10,6 @@ write_to = "src/magic_folder/_version.py"
     filename = "NEWS.rst"
     directory = "newsfragments"
     start_string = ".. towncrier start line"
-    title_format = "Release {version} ({project_date})"
     issue_format = "`#{issue} <https://github.com/LeastAuthority/magic-folder/issues/{issue}>`_"
     underlines = [
         "'",
