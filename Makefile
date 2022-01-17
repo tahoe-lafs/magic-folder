@@ -9,8 +9,11 @@ release:
 	@echo "Install required build software"
 	pip install --editable .[build]
 
-	@echo "Bump version"
+	@echo "Bump version and create tag"
 	python misc/build_helpers/update-version.py
+
+	@echo "Update NEWS"
+	tox -e news
 
 	@echo "Build and sign wheel"
 	python setup.py bdist_wheel
