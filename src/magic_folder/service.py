@@ -29,6 +29,9 @@ from .tahoe_client import create_tahoe_client
 from .util.capabilities import to_readonly_capability
 from .util.observer import ListenObserver
 from .web import magic_folder_web_service
+from .invite import (
+    accept_invite,
+)
 
 
 @inline_callbacks
@@ -317,6 +320,42 @@ class MagicFolderService(MultiService):
 
         mf = self._add_service_for_folder(name)
         yield mf.ready()
+
+    @inline_callbacks
+    def join_folder(self, wormhole_code, folder_name, author_name,
+                    local_dir, poll_interval, scan_interval):
+        """
+        Join a folder via invite code
+
+        :param str wormhole_code: An invite code (like 6-sociable-reindeer)
+
+        :param str folder_name: The name of the magic-folder.
+
+        :param str author_name: The name for our author
+
+        :param FilePath local_dir: The directory on the filesystem that the user wants
+            to sync between different computers.
+
+        :param integer poll_interval: Periodic time interval after which the
+            client polls for updates.
+
+        :param integer scan_interval: Every 'scan_interval' seconds the
+            local directory will be scanned for changes.
+
+        :return Deferred: ``None`` or an appropriate exception is raised.
+        """
+        yield accept_invite(
+            self.reactor,
+            self.config,
+            wormhole_code,
+            folder_name,
+            author_name,
+            local_dir,
+            poll_interval,
+            scan_interval,
+            self.tahoe_client,
+        )
+
 
     @inline_callbacks
     def leave_folder(self, name, really_delete_write_capability):

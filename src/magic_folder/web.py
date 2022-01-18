@@ -47,7 +47,6 @@ from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe
 
 from .common import APIError
 from .invite import (
-    accept_invite,
     InviteError,
 )
 from .status import (
@@ -430,20 +429,23 @@ class APIv1(object):
         The body of the request must be a JSON dict that has the
         following keys:
 
-        - "suggested-petname": arbitrary, valid author name
+        - "petname": arbitrary, valid author name
         """
         body = _load_json(request.content.read())
-        if set(body.keys()) != {u"suggested-petname"}:
+        if set(body.keys()) != {u"petname"}:
             raise _InputError(
-                u'Body must be {"suggested-petname": "..."}'
+                u'Body must be {"petname": "..."}'
             )
-        author_name = body[u"suggested-petname"]
+        author_name = body[u"petname"]
         folder_service = self._global_service.get_folder_service(folder_name)
         folder_config = folder_service.config
 
         from twisted.internet import reactor
         invite = yield folder_service.invite_manager.create_invite(reactor, author_name, folder_config)
-        yield invite.await_code()
+        try:
+            yield invite.await_code()
+        except ValueError as e:
+            raise _InputError(str(e))
         returnValue(json.dumps(invite.marshal()))
 
     @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
@@ -509,24 +511,27 @@ class APIv1(object):
             raise _InputError(
                 "Extra keys: {}".format(" ".join(missing))
             )
-        folder_name = body["name"].decode("utf8")
-        wormhole_code = body["invite-code"].decode("utf-8")
-        author_name = body["author"].decode("utf-8")
-        local_dir = FilePath(body["local-directory"].decode("utf-8"))
-        poll_interval = int(body["poll-interval"])
-        scan_interval = int(body["scan-interval"])
+
+        local_dir = FilePath(body["local-directory"])
+        if not local_dir.exists():
+            raise _InputError(
+                "No directory '{}'".format(local_dir.toTextMode().path)
+            )
 
         _application_json(request)
 
         # create a folder via wormhole
-        from twisted.internet import reactor
         try:
-            yield accept_invite(
-                reactor, self._global_config, wormhole_code, folder_name,
-                author_name, local_dir, poll_interval, scan_interval,
-                self._tahoe_client,
+            yield self._global_service.join_folder(
+                wormhole_code=body["invite-code"],
+                folder_name=body["name"],
+                author_name=body["author"],
+                local_dir=local_dir,
+                poll_interval=int(body["poll-interval"]),
+                scan_interval=int(body["scan-interval"]),
             )
         except ValueError as e:
+            # e.g. from int() calls above
             raise _InputError(str(e))
 
         # start the services for this folder

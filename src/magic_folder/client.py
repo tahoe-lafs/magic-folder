@@ -190,7 +190,7 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
-    def invite(self, magic_folder, suggested_petname):
+    def invite(self, magic_folder, petname):
         # type: (unicode, unicode) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite")
         return self._authorized_request(
@@ -198,7 +198,7 @@ class MagicFolderClient(object):
             api_url,
             body=json.dumps(
                 {
-                    "suggested-petname": suggested_petname,
+                    "petname": petname,
                 },
                 ensure_ascii=False,
             ).encode("utf-8"),

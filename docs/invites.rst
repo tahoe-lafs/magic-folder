@@ -7,7 +7,7 @@ How invites work
 
 Audience: fellow developers of Magic-Folder
 
-The begin we outline some definitions and assumptions:
+To begin we outline some definitions and assumptions:
 
 * **DMD**, abbrevition for Distributed Mutable Directory, is an actual Tahoe-LAFS mutable directory.
   Tahoe demands that we co-ordinate multiple writes, effectively meaning that only a single device may hold the write-capability for any given DMD.
@@ -94,10 +94,9 @@ Alice's magic-folder client sends a message via the wormhole server as JSON::
     {
         "magic-folder-invite-version": 1,
         "collective-dmd": "<read-capability of the Collective DMD>",
-        "suggested-petname": "bob"
+        "petname": "bob"
     }
 
-The "``suggested-petname``" is optional (and may be ignored by Bob).
 Alice may start this process with the command-line::
 
     % magic-folder --config ~/.magic-folder invite --name funny-photos bob
@@ -123,7 +122,6 @@ Bob creates a message to send back to Alice encrypted using the shared secret (a
     {
         "magic-folder-invite-version": 1,
         "personal-dmd": "<read-capability of Bob's Personal DMD>",
-        "preferred-petname": "bobby"
     }
 
 This concludes the invitation process.
@@ -147,14 +145,14 @@ Finalizing the Invite
 
 Once Alice receives Bob's reply message the wormhole is closed (by Alice, not Bob).
 Alice adds Bob to the Collective DMD.
-Bob MUST send a "``preferred-petname``" and Alice MUST use this name (provided it is unique).
 
 Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability.
-In this case, ``bobby -> <Bob's Personal DMD>``.
+In this case, ``bob -> <Bob's Personal DMD>``.
+
+Alice sends a final message to Bob, either ``{"success": true}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
 
 This concludes the invitation process.
 All other participants will discover Bob when they next poll the Collective DMD via the read-capabilitiy they were given.
-Bob can learn that his invite is officially concluded in the same way.
 
 
 Exchanged Messages
