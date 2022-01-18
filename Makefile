@@ -14,7 +14,7 @@ release:
 	git diff-index --quiet --cached HEAD --
 
 	@echo "Install required build software"
-	pip install --editable .[build]
+	python -m pip install --editable .[build]
 
 	@echo "Test README"
 	python setup.py check -r -s
