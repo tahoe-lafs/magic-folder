@@ -14,21 +14,21 @@ release:
 	git diff-index --quiet --cached HEAD --
 
 	@echo "Install required build software"
-	python -m pip install --editable .[build]
+	python3 -m pip install --editable .[build]
 
 	@echo "Test README"
-	python setup.py check -r -s
+	python3 setup.py check -r -s
 
 	@echo "Update NEWS"
-	python -m towncrier --yes --version `python misc/build_helpers/update-version.py --no-tag`
+	python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
 	git add -u
 	git commit -m "update NEWS for release"
 
 	@echo "Bump version and create tag"
-	python misc/build_helpers/update-version.py
+	python3 misc/build_helpers/update-version.py
 
 	@echo "Build and sign wheel"
-	python setup.py bdist_wheel
+	python3 setup.py bdist_wheel
 	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	ls dist/*`git describe --abbrev=0`*
 

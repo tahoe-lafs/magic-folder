@@ -43,10 +43,10 @@ If you believe a different setup could serve other developers add those instruct
 Creating a virtualenv
 ---------------------
 
-If you like to work using a virtualenv you will need a Python 2 one for magic-folder.
+If you like to work using a virtualenv you will need a Python one for magic-folder.
 One way to create it is::
 
-    % python -m virtualenv venv
+    % python3 -m virtualenv venv
     % ./venv/bin/pip install --editable .[test]
 
 Note the ``[test]`` "extra" after the "." (single dot).
@@ -221,15 +221,15 @@ Creating a Release
 ==================
 
 - Install the tools required:
-   - python -m pip install --editable .[build]
+   - python3 -m pip install --editable .[build]
 - Update the NEWS:
-   - python -m towncrier --yes --version `python misc/build_helpers/update-version.py --no-tag`
+   - python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
    - git add -u
    - git commit -m "update NEWS"
 - Update the version:
-   - python misc/build_helpers/update-version.py
+   - python3 misc/build_helpers/update-version.py
 - Build the release:
-   - python setup.py bdist_wheel
+   - python3 setup.py bdist_wheel
 - Double-check the artifact in dist/
 - Sign the wheel if you're happy:
    - export VERSION=21.1.0
