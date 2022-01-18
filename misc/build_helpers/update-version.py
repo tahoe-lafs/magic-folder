@@ -32,9 +32,6 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     ensureDeferred,
 )
-from twisted.internet.utils import (
-    getProcessOutput,
-)
 
 
 def existing_tags(git):
