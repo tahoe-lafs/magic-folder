@@ -23,6 +23,7 @@ def load_requirements(filename):
 
 install_requires = load_requirements("base.in")
 test_requires = load_requirements("test.in")
+build_requires = load_requirements("build.in")
 
 
 trove_classifiers = [
@@ -56,7 +57,7 @@ trove_classifiers = [
 
 setup(
     name="magic_folder",
-    version="0.1.0",
+    # no version= because setuptools_scm
     description="Tahoe-LAFS-based file synchronization",
     long_description=open("README.rst", "r").read(),
     author="the Tahoe-LAFS developers, the Magic-Folder developers",
@@ -69,6 +70,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         "test": test_requires,
+        "build": build_requires,
     },
     package_data={
         "magic_folder": ["ported-modules.txt"],

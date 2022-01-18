@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+
+[tool.setuptools_scm]
+write_to = "src/magic_folder/_version.py"
 
 [tool.towncrier]
     package_dir = "src"
@@ -7,7 +10,6 @@ requires = ["setuptools>=45", "wheel"]
     filename = "NEWS.rst"
     directory = "newsfragments"
     start_string = ".. towncrier start line"
-    title_format = "Release {version} ({project_date})"
     issue_format = "`#{issue} <https://github.com/LeastAuthority/magic-folder/issues/{issue}>`_"
     underlines = [
         "'",
@@ -15,8 +17,6 @@ requires = ["setuptools>=45", "wheel"]
         "~",
     ]
 
-    # These are documented in development.rst.  Please update the docs if you
-    # update this configuration.
     [[tool.towncrier.type]]
         directory = "incompat"
         name = "Backwards Incompatible Changes"
