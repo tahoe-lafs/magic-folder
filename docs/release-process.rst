@@ -2,7 +2,7 @@ Magic-Folder Release Process
 ============================
 
 There is no schedule for magic-folders releases.
-We endeavour to keep ``main`` as always releasable.
+We endeavor to keep ``main`` as always releasable.
 
 
 Versioning Scheme
@@ -33,7 +33,7 @@ Integrations should:
 * use the HTTP API to communicate
 
 The `magic-folder-api` command is intended as a convenience around the HTTP API and _should_ be in sync with that API (if it is not, that is a bug).
-Generally, this endeavours to return the same information in the same way as the HTTP API itself (usually JSON).
+Generally, this endeavors to return the same information in the same way as the HTTP API itself (usually JSON).
 
 The `magic-folder` command and sub-commands are mostly intended for "human" use so parsing their output should not be considered stable.
 For automated use it is preferable to use the "low-level" `magic-folder-api` or the HTTP API instead.

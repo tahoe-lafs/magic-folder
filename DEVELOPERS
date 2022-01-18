@@ -12,7 +12,7 @@ We are working to get rid of this so that all we need is a Tahoe-LAFS WebUI endp
 
 Where possible, new code should not use `allmydata.*` namespaces.
 This is not always possible.
-One place it's okay is for handling of Capability Strings directly (roughtly, parts of `allmydata.uri.*`)
+One place it's okay is for handling of Capability Strings directly (roughly, parts of `allmydata.uri.*`)
 
 Magic Folder is currently Python2 only.
 A port of Tahoe-LAFS to Python3 is under way currently.
@@ -36,7 +36,7 @@ Setting up a Development Environment
 ====================================
 
 There are many ways to set up development environments for Python programs.
-While we describe particular ways below you may wish to try differeent methods.
+While we describe particular ways below you may wish to try different methods.
 If you believe a different setup could serve other developers add those instructions here too (via a Pull Request).
 
 
@@ -58,7 +58,7 @@ Hypothesis
 
 Many of the tests use Hypothesis (see https://hypothesis.readthedocs.io/).
 
-You can select profiles with an evnironment variable:
+You can select profiles with an environment variable:
 
    export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-fast
    export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-ci
