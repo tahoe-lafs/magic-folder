@@ -189,6 +189,7 @@ class APIv1(object):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
+        print(failure)
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
@@ -472,10 +473,10 @@ class APIv1(object):
             request.write(json.dumps(invite.marshal()).encode("utf8"))
             return
         else:
-            raise APIError(
-                code=400,
-                reason="Wormhole failed or other side declined",
-            )
+            reject_msg = "Wormhole failed or other side declined"
+            if invite._reject_reason is not None:
+                reject_msg = "{}: {}".format(reject_msg, invite._reject_reason)
+            raise APIError(code=400, reason=reject_msg)
 
     @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
     @inline_callbacks
@@ -522,7 +523,7 @@ class APIv1(object):
 
         # create a folder via wormhole
         try:
-            yield self._global_service.join_folder(
+            reply = yield self._global_service.join_folder(
                 wormhole_code=body["invite-code"],
                 folder_name=body["name"],
                 author_name=body["author"],
@@ -539,7 +540,7 @@ class APIv1(object):
         yield mf.ready()
 
         request.setResponseCode(http.CREATED)
-        request.write(b"{}")
+        request.write(json.dumps(reply).encode("utf8"))
         request.finish()
 
     @app.route("/magic-folder/<string:folder_name>/invites", methods=['GET'])

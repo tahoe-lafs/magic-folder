@@ -344,7 +344,7 @@ class MagicFolderService(MultiService):
 
         :return Deferred: ``None`` or an appropriate exception is raised.
         """
-        yield accept_invite(
+        inv = yield accept_invite(
             self.reactor,
             self.config,
             wormhole_code,
@@ -355,6 +355,7 @@ class MagicFolderService(MultiService):
             scan_interval,
             self.tahoe_client,
         )
+        returnValue(inv)
 
 
     @inline_callbacks

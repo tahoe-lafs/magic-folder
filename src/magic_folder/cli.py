@@ -466,11 +466,12 @@ class JoinOptions(usage.Options):
             )
 
 
+@inline_callbacks
 def join(options):
     """
     ``magic-folder join`` entrypoint.
     """
-    return options.parent.client.join(
+    ans = yield options.parent.client.join(
         options["name"],
         options.invite_code,
         options.local_dir,
@@ -478,6 +479,10 @@ def join(options):
         int(options["poll-interval"]),
         int(options["scan-interval"]),
     )
+    if ans["success"]:
+        print("Successfully joined as '{}'".format(ans["petname"]))
+    else:
+        print("Error joining: {}".format(ans["error"]))
 
 
 def _fill_author_from_environment(options):

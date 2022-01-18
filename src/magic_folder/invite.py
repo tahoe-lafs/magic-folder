@@ -19,6 +19,7 @@ from twisted.application import (
 )
 from twisted.internet.defer import (
     Deferred,
+    returnValue,
     succeed,
 )
 from .util.capabilities import (
@@ -281,6 +282,7 @@ class Invite(object):
                 else:
                     final_message = {
                         "success": True,
+                        "petname": self.petname,
                     }
                     self._success = True
 
@@ -428,7 +430,12 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
         # final ack
         final = yield wh.get_message()
-        print("final message: {}".format(final))
+        final_msg = json.loads(final.decode("utf8"))
+        if not final_msg["success"]:
+            raise RuntimeError(
+                "Accepting invite failed: {}".format(final_msg["error"])
+            )
+        returnValue(final_msg)
 
     finally:
         # whether due to errors above or happy-path, we are done
@@ -501,14 +508,15 @@ class InMemoryInviteManager(service.Service):
         for d in self._in_progress:
             d.cancel()
 
-    def _invite_succeeded(self, d, invite, value):
+    def _invite_succeeded(self, invite, d, value):
         try:
             self._in_progress.remove(d)
         except ValueError:
             pass
         # XXX log this, somehow. Probably want to "emit an event" too
         # (e.g. for GridSync)
-        print("Invite succeeded: {}".format(invite))
+        print("Invite succeeded: {}".format(value))
+        return value
 
     def _invite_failed(self, fail, d, invite):
         try:
@@ -521,3 +529,8 @@ class InMemoryInviteManager(service.Service):
                 invite._reject_reason,
             )
         )
+        for x in invite._awaiting_code:
+            x.errback(fail)
+        for x in invite._awaiting_done:
+            x.errback(fail)
+        return

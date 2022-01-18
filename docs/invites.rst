@@ -149,7 +149,7 @@ Alice adds Bob to the Collective DMD.
 Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability.
 In this case, ``bob -> <Bob's Personal DMD>``.
 
-Alice sends a final message to Bob, either ``{"success": true}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
+Alice sends a final message to Bob, either ``{"success": true, "petname": "bob"}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
 
 This concludes the invitation process.
 All other participants will discover Bob when they next poll the Collective DMD via the read-capabilitiy they were given.
