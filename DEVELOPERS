@@ -220,6 +220,10 @@ If in doubt, reach out on IRC or via a "question" Issue on GitHub.
 Creating a Release
 ==================
 
+- Use a fresh virtualenv with the version of Python you want. For example:
+   - pyenv shell 3.9.2
+   - pyenv virtualenv buildvenv
+   - source ./buildvenv/bin/activate
 - Install the tools required:
    - python3 -m pip install --editable .[build]
 - Update the NEWS:
