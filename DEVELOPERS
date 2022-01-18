@@ -239,5 +239,5 @@ Creating a Release
 
 
 - Publish the release:
-   - twine upload -r testpypi dist/magic_folder-*-py3-none-any.whl dist/magic_folder-*-py3-none-any.whl.asc
+   - twine upload dist/magic_folder-*-py3-none-any.whl dist/magic_folder-*-py3-none-any.whl.asc
 - OR: do all the publish steps with "make release-publish"

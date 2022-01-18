@@ -40,4 +40,4 @@ release-test:
 	rm -rf testmf_venv
 
 release-upload:
-	twine upload -r testpypi dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
+	twine upload dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
