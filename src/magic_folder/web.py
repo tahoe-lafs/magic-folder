@@ -467,7 +467,7 @@ class APIv1(object):
         yield invite.await_done()
         if invite.is_accepted():
             request.setResponseCode(http.OK)
-            request.write(json.dumps(invite.marshal()))
+            request.write(json.dumps(invite.marshal()).encode("utf8"))
             return
         else:
             raise APIError(

@@ -22,12 +22,8 @@ from twisted.internet.defer import (
     succeed,
 )
 from .util.capabilities import (
-    tahoe_uri_from_string,
+    to_readonly_capability,
 )
-## circular import
-#from .web import (
-#    _InputError,
-#)
 
 import attr
 import wormhole
@@ -56,8 +52,8 @@ def magic_folder_invite(options):
     """
     client = options.parent.client
     return client.invite(
-        options["folder"].decode("utf8"),
-        options.petname.decode("utf8"),
+        options["folder"],
+        options.petname,
     )
 
 
@@ -67,7 +63,7 @@ def magic_folder_invite_wait(options, invite_id):
     """
     client = options.parent.client
     return client.invite_wait(
-        options["folder"].decode("utf8"),
+        options["folder"],
         invite_id,
     )
 
@@ -219,13 +215,11 @@ class Invite(object):
                     "collective-dmd": collective_readcap.to_string(),
                     "suggested-petname": self.suggested_petname,
                 }).encode("utf8")
-                action_msg.add_success_fields(msg=invite_message)
                 self._wormhole.send_message(invite_message)
 
             with start_action(action_type="invite:get_reply") as action_reply:
                 reply_data = yield self._wormhole.get_message()
                 reply_msg = json.loads(reply_data.decode("utf8"))
-                action_reply.add_success_fields(msg=reply_msg)
 
             version = reply_msg.get("magic-folder-invite-version", None)
             self._code = None  # done with code, it's consumed
@@ -376,7 +370,6 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         with start_action(action_type="join:create_personal_dmd") as action_dmd:
             personal_dmd = yield tahoe_client.create_mutable_directory()
             personal_readonly_cap = to_readonly_capability(personal_dmd)
-            action_dmd.add_success_fields(personal_dmd=personal_readonly_cap)
 
         # create our author
         author = create_local_author(author_name)

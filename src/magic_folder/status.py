@@ -38,8 +38,9 @@ class IStatus(Interface):
         """
         Some error happened that should be reported to the user.
 
-        :param PublicError public_error: a plain-language description
-            of the error.
+        :param unicode message: a message suitable for an end-user to
+            read that describes the error. Such a message MUST NOT
+            include any secrects such as Tahoe capabilities.
         """
 
     def upload_queued(folder, relpath):

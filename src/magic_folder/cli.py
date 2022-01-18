@@ -471,10 +471,10 @@ def join(options):
     ``magic-folder join`` entrypoint.
     """
     return options.parent.client.join(
-        options["name"].decode("utf8"),
+        options["name"],
         options.invite_code,
         options.local_dir,
-        options["author"].decode("utf8"),
+        options["author"],
         int(options["poll-interval"]),
         int(options["scan-interval"]),
     )
