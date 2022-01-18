@@ -1,9 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
 
 import sys
 import json
@@ -28,7 +22,6 @@ from twisted.internet.defer import (
 
 from .cli import (
     BaseOptions,
-    to_unicode,
 )
 from .client import (
     CannotAccessAPIError,
@@ -83,15 +76,15 @@ def add_snapshot(options):
     magic-folder.
     """
     res = yield options.parent.client.add_snapshot(
-        options['folder'].decode("utf8"),
-        options['file'].decode("utf8"),
+        options['folder'],
+        options['file'],
     )
     print("{}".format(res), file=options.stdout)
 
 
 class DumpStateOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder whose state to dump", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder whose state to dump", str),
     ]
 
     def postOptions(self):
@@ -178,9 +171,9 @@ def add_participant(options):
     Add one new participant to an existing magic-folder
     """
     res = yield options.parent.client.add_participant(
-        options['folder'].decode("utf8"),
-        options['author-name'].decode("utf8"),
-        options['personal-dmd'].decode("utf8"),
+        options['folder'],
+        options['author-name'],
+        options['personal-dmd'],
     )
     print("{}".format(res), file=options.stdout)
 
@@ -205,14 +198,14 @@ def list_participants(options):
     List all participants in a magic-folder
     """
     res = yield options.parent.client.list_participants(
-        options['folder'].decode("utf8"),
+        options['folder'],
     )
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
 class ScanOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder to scan", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder to scan", str),
     ]
 
     def postOptions(self):
@@ -231,7 +224,7 @@ def scan(options):
 
 class PollOptions(usage.Options):
     optParameters = [
-        ("folder", "n", None, "Name of the magic-folder to poll", to_unicode),
+        ("folder", "n", None, "Name of the magic-folder to poll", str),
     ]
 
     def postOptions(self):
@@ -264,10 +257,13 @@ class StatusProtocol(WebSocketClientProtocol):
         super(StatusProtocol, self).__init__()
         self._output = output
         self._single_message = single_message
+        self._done = False
 
     def onMessage(self, payload, is_binary):
-        print(payload, file=self._output)
+        if not self._done:
+            print(payload.decode("utf8"), file=self._output)
         if self._single_message:
+            self._done = True
             self.sendClose()
 
 
@@ -277,7 +273,7 @@ def monitor(options):
     Print out updates from the WebSocket status API
     """
 
-    endpoint_str = options.parent.config.api_client_endpoint
+    endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
     agent = options.parent.get_websocket_agent()
@@ -285,7 +281,7 @@ def monitor(options):
         websocket_uri,
         {
             "headers": {
-                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+                "Authorization": "Bearer {}".format(options.parent.api_token.decode("utf8")),
             }
         },
         lambda: StatusProtocol(
@@ -449,7 +445,7 @@ def run_magic_folder_api_options(options):
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
             print(u"Error: {}".format(e), file=options.stderr)
-            print(u"   Attempted access via {}".format(options.config.api_client_endpoint), file=options.stderr)
+            print(u"   Attempted access via {}".format(options.api_client_endpoint), file=options.stderr)
             raise SystemExit(1)
 
         except MagicFolderApiError as e:

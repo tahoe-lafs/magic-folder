@@ -1,18 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import sys
 import getpass
-
-
-import six
-from six.moves import (
-    StringIO as MixedIO,
-)
+from io import StringIO
 
 from appdirs import (
     user_config_dir,
@@ -84,19 +72,6 @@ from .util.eliotutil import (
 )
 
 
-if six.PY2:
-    def to_unicode(s):
-        """
-        Convert an argument to unicode.
-        """
-        try:
-            return unicode(s, "utf-8")
-        except UnicodeDecodeError:
-            raise usage.UsageError("Argument {!r} cannot be decoded as UTF-8.", s)
-else:
-    def to_unicode(s):
-        return s
-
 _default_config_path = user_config_dir("magic-folder")
 
 
@@ -158,7 +133,7 @@ def initialize(options):
 
     yield magic_folder_initialize(
         options.parent._config_path,
-        options['listen-endpoint'].decode("utf8"),
+        options['listen-endpoint'],
         FilePath(options['node-directory']),
         options['client-endpoint'],
     )
@@ -216,7 +191,7 @@ def migrate(options):
 
     config = yield magic_folder_migrate(
         options.parent._config_path,
-        options['listen-endpoint'].decode("utf8"),
+        options['listen-endpoint'],
         FilePath(options['node-directory']),
         options['author'],
         options['client-endpoint'],
@@ -237,8 +212,8 @@ class AddOptions(usage.Options):
     optParameters = [
         ("poll-interval", "p", "60", "How often to ask for updates"),
         ("scan-interval", "s", "60", "Seconds between scans of local changes"),
-        ("name", "n", None, "The name of this magic-folder", to_unicode),
-        ("author", "A", None, "Our name for Snapshots authored here", to_unicode),
+        ("name", "n", None, "The name of this magic-folder", str),
+        ("author", "A", None, "Our name for Snapshots authored here", str),
     ]
     optFlags = [
         ["disable-scanning", None, "Disable scanning for local changes."],
@@ -334,7 +309,7 @@ def status(options):
         websocket_uri,
         {
             "headers": {
-                "Authorization": "Bearer {}".format(options.parent.config.api_token),
+                "Authorization": "Bearer {}".format(options.parent.config.api_token.decode("utf8")),
             }
         },
     )
@@ -408,9 +383,9 @@ def list_(options):
 
 
 class InviteOptions(usage.Options):
-    nickname = None
-    synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
-    stdin = MixedIO(u"")
+    petname = None
+    synopsis = "PETNAME\n\nProduce an invite code for a new device called PETNAME"
+    stdin = StringIO(u"")
     optParameters = [
         ("folder", "n", None, "Name of an existing magic-folder"),
     ]
@@ -422,7 +397,7 @@ class InviteOptions(usage.Options):
 
     def parseArgs(self, petname):
         super(InviteOptions, self).parseArgs()
-        self.petname = to_unicode(petname)
+        self.petname = petname
 
     def postOptions(self):
         if self["folder"] is None:
@@ -480,7 +455,7 @@ class JoinOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-        self.invite_code = to_unicode(invite_code)
+        self.invite_code = invite_code
 
     def postOptions(self):
         super(JoinOptions, self).postOptions()
@@ -524,7 +499,7 @@ class LeaveOptions(usage.Options):
         ("really-delete-write-capability", "", "Allow leaving a folder created on this device"),
     ]
     optParameters = [
-        ("name", "n", None, "Name of magic-folder to leave", to_unicode),
+        ("name", "n", None, "Name of magic-folder to leave", str),
     ]
 
     def postOptions(self):
@@ -631,14 +606,42 @@ class BaseOptions(usage.Options):
         return self._config
 
     @property
+    def api_client_endpoint(self):
+        """
+        retrieve the client API endpoint (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_client_endpoint").open("rb") as f:
+                endpoint_str = f.read().decode("utf8").strip()
+                if endpoint_str == "not running":
+                    raise Exception("Service not running.")
+                return endpoint_str
+        except Exception:
+            if self.config.api_client_endpoint is None:
+                raise Exception("Service not running.")
+            return self.config.api_client_endpoint
+
+    @property
+    def api_token(self):
+        """
+        retrieve the client API token (from the filesystem, not config
+        database) falling back to the database
+        """
+        try:
+            with self._config_path.child("api_token").open("rb") as f:
+                return f.read()
+        except Exception:
+            return self.config.api_token
+
+    @property
     def client(self):
         if self._client is None:
             from twisted.internet import reactor
+            endpoint_str = self.api_client_endpoint
 
             if self._http_client is None:
-                self._http_client = create_http_client(
-                    reactor, self.config.api_client_endpoint
-                )
+                self._http_client = create_http_client(reactor, endpoint_str)
             self._client = create_magic_folder_client(
                 reactor,
                 self.config,

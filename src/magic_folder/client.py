@@ -1,16 +1,13 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 from twisted.internet.endpoints import (
@@ -19,7 +16,6 @@ from twisted.internet.endpoints import (
 from twisted.internet.error import (
     ConnectError,
 )
-
 from twisted.python.filepath import FilePath
 from twisted.web import (
     http,
@@ -69,7 +65,7 @@ class CannotAccessAPIError(ClientError):
     """
 
 
-@attr.s(frozen=True)
+@attr.s(auto_exc=True)
 class MagicFolderApiError(ClientError):
     """
     A Magic Folder HTTP API returned a failure code.
@@ -98,7 +94,7 @@ class MagicFolderApiError(ClientError):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def _get_json_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
@@ -162,7 +158,7 @@ class MagicFolderClient(object):
         return self._authorized_request("GET", api_url)
 
     def add_folder(self, magic_folder, author_name, local_path, poll_interval, scan_interval):
-        # type: (unicode, unicode, FilePath, int, int) -> dict
+        # type: (str, str, FilePath, int, int) -> dict
         api_url = self.base_url.child(u'v1').child(u'magic-folder')
         return self._authorized_request("POST", api_url, body=json.dumps({
             'name': magic_folder,
@@ -181,7 +177,7 @@ class MagicFolderClient(object):
         return self._authorized_request("PUT", api_url, body=b"")
 
     def leave_folder(self, magic_folder, really_delete_write_capability):
-        # type: (unicode, bool) -> dict
+        # type: (str, bool) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder)
         return self._authorized_request(
             "DELETE",
@@ -248,7 +244,7 @@ class MagicFolderClient(object):
             api_url,
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def _authorized_request(self, method, url, body=b""):
         """
         :param str method: GET, POST etc http verb
@@ -293,7 +289,7 @@ def create_http_client(reactor, api_client_endpoint_str):
     """
     :param reactor: Twisted reactor
 
-    :param unicode api_client_endpoint_str: a Twisted client endpoint-string
+    :param str api_client_endpoint_str: a Twisted client endpoint-string
 
     :returns: a Treq HTTPClient which will do all requests to the
         indicated endpoint
@@ -374,7 +370,7 @@ def authorized_request(http_client, auth_token, method, url, body=b""):
 
     :param http_client: A treq.HTTPClient instance
 
-    :param unicode auth_token: The Magic Folder authorization token to
+    :param bytes auth_token: The Magic Folder authorization token to
         present.
 
     :param bytes method: The HTTP request method to use.
@@ -386,11 +382,11 @@ def authorized_request(http_client, auth_token, method, url, body=b""):
     :return: Whatever ``treq.request`` returns.
     """
     headers = {
-        b"Authorization": u"Bearer {}".format(auth_token).encode("ascii"),
+        b"Authorization": b"Bearer " + auth_token,
     }
     return http_client.request(
         method,
-        url_to_bytes(url),
+        url,
         headers=headers,
         data=body,
     )

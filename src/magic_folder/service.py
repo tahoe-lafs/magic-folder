@@ -1,14 +1,12 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import json
-import attr
 from configparser import (
     ConfigParser,
 )
 
+import attr
 from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
@@ -18,13 +16,18 @@ from twisted.internet.endpoints import serverFromString
 from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
+from twisted.python.compat import (
+    nativeString,
+)
 
 from .common import APIError, NoSuchMagicFolder
+from .endpoints import client_endpoint_from_address
 from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
 from .util.capabilities import to_readonly_capability
+from .util.observer import ListenObserver
 from .web import magic_folder_web_service
 
 
@@ -65,6 +68,7 @@ class MagicFolderService(MultiService):
     config = attr.ib()
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
+    _run_deferred = attr.ib(init=False, factory=Deferred)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -73,9 +77,11 @@ class MagicFolderService(MultiService):
                 self.config.tahoe_client_url,
                 HTTPClient(Agent(self.reactor)),
             )
-        self._listen_endpoint = serverFromString(
-            self.reactor,
-            self.config.api_endpoint,
+        self._listen_endpoint = ListenObserver(
+            serverFromString(
+                self.reactor,
+                nativeString(self.config.api_endpoint),
+            )
         )
         web_service = magic_folder_web_service(
             self._listen_endpoint,
@@ -178,27 +184,55 @@ class MagicFolderService(MultiService):
 
         return poll("connected enough", enough, self.reactor)
 
+    @inline_callbacks
     def run(self):
-        d = self._when_connected_enough()
-        d.addCallback(lambda ignored: self.startService())
-        d.addCallback(lambda ignored: Deferred())
-        return d
+        yield self._when_connected_enough()
+        yield self.startService()
+
+        def do_shutdown():
+            self._run_deferred.callback(None)
+            return self.stopService()
+        self.reactor.addSystemEventTrigger("before", "shutdown", do_shutdown)
+
+        yield self._run_deferred
 
     def startService(self):
         MultiService.startService(self)
 
-        ds = []
+        def _set_api_endpoint(port):
+            endpoint = client_endpoint_from_address(port.getHost())
+            if endpoint is not None:
+                self.config.api_client_endpoint = endpoint
+            return None
+
+        def _stop_reactor(failure):
+            self.config.api_client_endpoint = None
+            self._run_deferred.errback(failure)
+            return None
+
+        observe = self._listen_endpoint.observe()
+        observe.addCallback(_set_api_endpoint)
+        observe.addErrback(_stop_reactor)
+        ds = [observe]
         for magic_folder in self._iter_magic_folder_services():
             ds.append(magic_folder.ready())
+
+        # double-check that our api-endpoint exists properly in the "output" file
+        self.config._write_api_client_endpoint()
+
         # The integration tests look for this message.  You cannot get rid of
         # it (without also changing the tests).
         print("Completed initial Magic Folder setup")
         self._starting = gatherResults(ds)
 
+    @inline_callbacks
     def stopService(self):
-        self._starting.cancel()
-        MultiService.stopService(self)
-        return self._starting
+        try:
+            self._starting.cancel()
+            yield MultiService.stopService(self)
+            yield self._starting
+        finally:
+            self.config.api_client_endpoint = None
 
     @inline_callbacks
     def create_folder(self, name, author_name, local_dir, poll_interval, scan_interval):

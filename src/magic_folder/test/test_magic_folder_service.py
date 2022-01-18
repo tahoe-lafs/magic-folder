@@ -6,11 +6,6 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
-from __future__ import (
-    absolute_import,
-    print_function,
-    division,
-)
 from twisted.python.filepath import (
     FilePath,
 )

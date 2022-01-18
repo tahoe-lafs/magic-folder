@@ -4,13 +4,6 @@ Configuration and state database interaction.
 See also docs/config.rst
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 __all__ = [
     "MagicFolderConfig",
     "GlobalConfigDatabase",
@@ -288,7 +281,7 @@ FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
 )
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
-    [unicode],
+    [str],
     u"An indication of whether the record for this upload was new or an update to a previous entry.",
     validateSetMembership({u"insert", u"update"}),
 )
@@ -308,7 +301,7 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class LocalSnapshotMissingParent(Exception):
     """
     An attempt was made to store a local snapshot whose parents aren't in
@@ -317,15 +310,15 @@ class LocalSnapshotMissingParent(Exception):
     parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class RemoteSnapshotWithoutPathState(Exception):
     """
     An attempt was made to insert a remote snapshot into the database without
     corresponding path state (either provided, or already in the database).
     """
 
-    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
-    relpath = attr.ib(validator=attr.validators.instance_of(unicode))
+    folder_name = attr.ib(validator=attr.validators.instance_of(str))
+    relpath = attr.ib(validator=attr.validators.instance_of(str))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -350,19 +343,20 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # our APIs insist on endpoint-strings being unicode, but Twisted
     # only accepts "str" .. so we have to convert on py2. When we
     # support python3 this check only needs to happen on py2
-    if not isinstance(api_endpoint_str, unicode):
+    if not isinstance(api_endpoint_str, str):
         raise ValueError(
             "'api_endpoint_str' must be unicode"
         )
-    if not isinstance(api_client_endpoint_str, unicode):
+    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, str):
         raise ValueError(
             "'api_client_endpoint_str' must be unicode"
         )
-    api_endpoint_str = nativeString(api_endpoint_str)
-    api_client_endpoint_str = nativeString(api_client_endpoint_str)
     # check that the endpoints are valid (will raise exception if not)
+    api_endpoint_str = nativeString(api_endpoint_str)
     _validate_listen_endpoint_str(api_endpoint_str)
-    _validate_connect_endpoint_str(api_client_endpoint_str)
+    if api_client_endpoint_str is not None:
+        api_client_endpoint_str = nativeString(api_client_endpoint_str)
+        _validate_connect_endpoint_str(api_client_endpoint_str)
 
     # note that we put *bytes* in .child() calls after this so we
     # don't convert again..
@@ -372,7 +366,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         basedir.makedirs()
     except OSError as e:
         raise ValueError(
-            "'{}' already exists: {}".format(basedir.path, e)
+            "'{}' already exists: {}".format(basedir.asTextMode().path, e)
         )
 
     # explain what is in this directory
@@ -430,7 +424,7 @@ def create_testing_configuration(basedir, tahoe_node_directory):
         sqlite3.connect(":memory:"),
     )
     api_endpoint_str = "tcp:-1"
-    api_client_endpoint_str = "tcp:127.0.0.1:-1"
+    api_client_endpoint_str = "tcp:127.0.0.1:1"
     with connection:
         cursor = connection.cursor()
         cursor.execute(
@@ -773,7 +767,7 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_name = attr.ib(validator=instance_of(unicode))
+    author_name = attr.ib(validator=instance_of(str))
 
 
 @attr.s
@@ -934,7 +928,7 @@ class MagicFolderConfig(object):
                 WHERE
                     identifier= ?
                 """,
-                (unicode(parent.identifier),),
+                (str(parent.identifier),),
             )
             count = cursor.fetchone()
             if count[0] != 1:
@@ -950,7 +944,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, content_path),
+                (str(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -966,7 +960,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?)
             """,
             list(
-                (unicode(snapshot.identifier), k, v)
+                (str(snapshot.identifier), k, v)
                 for (k, v)
                 in snapshot.metadata.items()
             ),
@@ -992,7 +986,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?, ?)
             """,
             [
-                (unicode(snapshot.identifier), index, local_only, parent_identifier)
+                (str(snapshot.identifier), index, local_only, parent_identifier)
                 for (index, (local_only, parent_identifier)) in enumerate(
                     chain(
                         (
@@ -1000,7 +994,7 @@ class MagicFolderConfig(object):
                             for parent_identifier in snapshot.parents_remote
                         ),
                         (
-                            (True, unicode(parent.identifier))
+                            (True, str(parent.identifier))
                             for parent in snapshot.parents_local
                         ),
                     )
@@ -1074,7 +1068,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+                (False, str(remote_snapshot.capability), str(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1090,7 +1084,7 @@ class MagicFolderConfig(object):
             WHERE
                 [snapshot_identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
         cursor.execute(
             """
@@ -1099,7 +1093,7 @@ class MagicFolderConfig(object):
             WHERE
                 [identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
 
     @with_cursor
@@ -1107,7 +1101,7 @@ class MagicFolderConfig(object):
         """
         remove all rows corresponding to the given relpath from the local_snapshots table
 
-        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
+        :param str relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
         action = DELETE_SNAPSHOTS(
             relpath=relpath,
@@ -1293,6 +1287,7 @@ class MagicFolderConfig(object):
             sizes.extend([
                 capability_size(c)
                 for c in caps
+                if c is not None
             ])
         return sizes
 
@@ -1340,7 +1335,7 @@ class MagicFolderConfig(object):
                            (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
-                return row[0].encode("utf-8")
+                return row[0]
             # XXX weird to have "KeyError" if snapshot_cap is there,
             # but null _as well_ as when the row is simply missing.
             raise KeyError(relpath)
@@ -1375,9 +1370,9 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return (
-                    row[0].encode("utf-8"),  # snapshot-cap
-                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
-                    row[2].encode("utf-8"),  # metadata-cap
+                    row[0],  # snapshot-cap
+                    None if row[1] is None else row[1],  # content-cap
+                    row[2],  # metadata-cap
                 )
             # XXX kind of weird to throw KeyError for things we know
             # abou, but the snapshot_cap is still null...
@@ -1534,7 +1529,7 @@ class MagicFolderConfig(object):
             conflict (like "foo.conflict-laptop" for a file "foo"
             conflicting with device "laptop")
         """
-        relpath = u"/".join(path.segmentsFrom(self.magic_path))
+        relpath = u"/".join(path.asTextMode().segmentsFrom(self.magic_path.asTextMode()))
         m = _conflict_file_re.match(relpath)
         if m:
             # the plain relpath is .group(1)
@@ -1553,13 +1548,13 @@ class MagicFolderConfig(object):
     def magic_path(self, cursor):
         cursor.execute("SELECT magic_directory FROM config")
         path_raw = cursor.fetchone()[0]
-        return FilePath(path_raw)
+        return FilePath(path_raw).asTextMode()
 
     @property
     @with_cursor
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return cursor.fetchone()[0]
 
     @collective_dircap.setter
     @with_cursor
@@ -1579,7 +1574,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return cursor.fetchone()[0]
 
     @property
     @with_cursor
@@ -1649,7 +1644,7 @@ class FilesystemTokenProvider(object):
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
         self._api_token = urlsafe_b64encode(urandom(32))
-        with self.api_token_path.open('wb') as f:
+        with self.api_token_path.open("wb") as f:
             f.write(self._api_token)
         return self._api_token
 
@@ -1658,7 +1653,8 @@ class FilesystemTokenProvider(object):
         Internal helper. Reads the token file into _api_token
         """
         with self.api_token_path.open('rb') as f:
-            self._api_token = f.read()
+            data = f.read()
+            self._api_token = data
 
 
 @attr.s
@@ -1724,7 +1720,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0].encode("utf8")
+            return cursor.fetchone()[0]
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -1741,14 +1737,27 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_client_endpoint FROM config")
-            return cursor.fetchone()[0].encode("utf8")
+            # can be None
+            return cursor.fetchone()[0]
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
-        _validate_connect_endpoint_str(ep_string)
+        if ep_string is not None:
+            _validate_connect_endpoint_str(ep_string)
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET api_client_endpoint=?", (ep_string, ))
+        self._write_api_client_endpoint()
+
+    def _write_api_client_endpoint(self):
+        """
+        Write the current API client-endpoint to a file in our state directory
+        """
+        with self.basedir.child("api_client_endpoint").open("wb") as f:
+            if self.api_client_endpoint is None:
+                f.write("not running\n".encode("utf8"))
+            else:
+                f.write("{}\n".format(self.api_client_endpoint).encode("utf8"))
 
     @property
     def tahoe_client_url(self):

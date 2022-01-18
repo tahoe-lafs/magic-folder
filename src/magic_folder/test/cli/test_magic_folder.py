@@ -1,9 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import json
 import os.path
 
@@ -134,7 +128,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this.
         """
         outcome = yield self.cli(
-            [b"list"],
+            [u"list"],
         )
         self.assertThat(outcome.stdout, Contains(u"No magic-folders"))
 
@@ -145,7 +139,7 @@ class ListMagicFolder(AsyncTestCase):
         reports this in JSON format if given ``--json``.
         """
         outcome = yield self.cli(
-            [b"list", b"--json"],
+            [u"list", u"--json"],
         )
         self.assertThat(outcome.stdout, AfterPreprocessing(json.loads, Equals({})))
 
@@ -155,7 +149,7 @@ class ListMagicFolder(AsyncTestCase):
         When there are Magic Folders, the output of the list command describes
         them.
         """
-        folder_path = FilePath(self.mktemp())
+        folder_path = FilePath(self.mktemp()).asTextMode()
         folder_path.makedirs()
 
         self.config.create_magic_folder(
@@ -168,8 +162,8 @@ class ListMagicFolder(AsyncTestCase):
             None,
         )
 
-        outcome = yield self.cli([b"list"])
-        self.expectThat(outcome.stdout, Contains(b"list-some-folder"))
+        outcome = yield self.cli([u"list"])
+        self.expectThat(outcome.stdout, Contains(u"list-some-folder"))
         self.expectThat(outcome.stdout, Contains(folder_path.path))
 
     @inline_callbacks
@@ -178,7 +172,7 @@ class ListMagicFolder(AsyncTestCase):
         When there are Magic Folders, the output of the list command describes
         them in JSON format if given ``--json``.
         """
-        folder_path = FilePath(self.mktemp())
+        folder_path = FilePath(self.mktemp()).asTextMode()
         folder_path.makedirs()
 
         self.config.create_magic_folder(
@@ -192,7 +186,7 @@ class ListMagicFolder(AsyncTestCase):
         )
 
         outcome = yield self.cli(
-            [b"list", b"--json", b"--include-secret-information"],
+            [u"list", u"--json", u"--include-secret-information"],
         )
         self.assertThat(
             outcome.stdout,
@@ -259,10 +253,10 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"test",
-                b"--author", b"test",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"test",
+                u"--author", u"test",
+                magic_folder.asTextMode().path,
             ],
         )
         self.assertThat(
@@ -282,12 +276,12 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"test",
-                b"--author", b"test",
-                b"--poll-interval", b"30",
-                b"--scan-interval", b"30",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"test",
+                u"--author", u"test",
+                u"--poll-interval", u"30",
+                u"--scan-interval", u"30",
+                magic_folder.asTextMode().path,
             ],
         )
         self.assertThat(
@@ -312,11 +306,11 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"test",
-                b"--author", b"test",
-                b"--disable-scanning",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"test",
+                u"--author", u"test",
+                u"--disable-scanning",
+                magic_folder.asTextMode().path,
             ],
         )
         self.assertThat(
@@ -337,15 +331,15 @@ class CreateMagicFolder(AsyncTestCase):
         error.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"foo",
+                u"--author", u"test",
+                magic_folder.path,
             ],
         )
 
@@ -356,10 +350,10 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"foo",
+                u"--author", u"test",
+                magic_folder.path,
             ],
         )
 
@@ -383,10 +377,10 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"/",
-                b"--author", b"test",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"/",
+                u"--author", u"test",
+                magic_folder.asTextMode().path,
             ],
         )
 
@@ -406,15 +400,15 @@ class CreateMagicFolder(AsyncTestCase):
         whether it was successful.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"foo",
-                b"--author", b"test",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"foo",
+                u"--author", u"test",
+                magic_folder.path,
             ],
         )
         self.assertThat(
@@ -425,9 +419,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"leave",
-                b"--name", b"foo",
-                b"--really-delete-write-capability",
+                u"leave",
+                u"--name", u"foo",
+                u"--really-delete-write-capability",
             ],
         )
 
@@ -449,10 +443,10 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--author", b"test",
-                b"--name", b"foo",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--author", u"test",
+                u"--name", u"foo",
+                magic_folder.asTextMode().path,
             ],
         )
 
@@ -463,8 +457,8 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"leave",
-                b"--name", b"bar",
+                u"leave",
+                u"--name", u"bar",
             ],
         )
 
@@ -489,10 +483,10 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"add",
-                b"--name", b"foo",
-                b"--author", b"alice",
-                magic_folder.asBytesMode().path,
+                u"add",
+                u"--name", u"foo",
+                u"--author", u"alice",
+                magic_folder.asTextMode().path,
             ],
         )
 
@@ -503,9 +497,9 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"leave",
-                b"--name", b"foo",
-                b"--really-delete-write-capability",
+                u"leave",
+                u"--name", u"foo",
+                u"--really-delete-write-capability",
             ],
         )
 
@@ -516,8 +510,8 @@ class CreateMagicFolder(AsyncTestCase):
 
         outcome = yield self.cli(
             [
-                b"leave",
-                b"--name", b"foo",
+                u"leave",
+                u"--name", u"foo",
             ],
         )
 
@@ -538,8 +532,8 @@ class CreateMagicFolder(AsyncTestCase):
         """
         outcome = yield self.cli(
             [
-                b"leave",
-                b"--name", b"foo",
+                u"leave",
+                u"--name", u"foo",
             ],
         )
 
@@ -570,9 +564,9 @@ class ConfigOptionTests(SyncTestCase):
         """
         Using --config with a file is an error
         """
-        confdir = FilePath(self.mktemp())
-        with confdir.open("w") as f:
-            f.write("dummy\n")
+        confdir = FilePath(self.mktemp()).asTextMode()
+        with confdir.open("wb") as f:
+            f.write(b"dummy\n")
 
         outcome = yield cli(["--config", confdir.path, "list"])
         self.assertThat(outcome.code, Equals(1))
@@ -583,7 +577,7 @@ class ConfigOptionTests(SyncTestCase):
         """
         A directory that is empty isn't valid for --config
         """
-        confdir = FilePath(self.mktemp())
+        confdir = FilePath(self.mktemp()).asTextMode()
         confdir.makedirs()
 
         outcome = yield cli(["--config", confdir.path, "list"])
@@ -595,7 +589,7 @@ class ConfigOptionTests(SyncTestCase):
         """
         Passing --config option loads the configuration from the provided directory.
         """
-        confdir = FilePath(self.mktemp())
+        confdir = FilePath(self.mktemp()).asTextMode()
         nodedir = self.useFixture(
             NodeDirectory(FilePath(self.mktemp()))
         )
@@ -642,7 +636,7 @@ class CreateErrors(SyncTestCase):
 
     def setUp(self):
         super(CreateErrors, self).setUp()
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.temp.makedirs()
 
     def test_poll_interval(self):

@@ -1,23 +1,21 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import sys
 import time
 import json
 import sqlite3
 import os
 from os import mkdir
-from io import BytesIO
+from io import (
+    BytesIO,
+    StringIO,
+)
 from os.path import exists, join
-from six.moves import StringIO
 from functools import partial
 
 import attr
-from psutil import Process
+from psutil import (
+    Process,
+    STATUS_RUNNING,
+)
 
 from treq.client import HTTPClient
 from twisted.internet.defer import (
@@ -43,7 +41,7 @@ from twisted.web.client import Agent
 import treq
 
 from eliot import (
-    Message,
+    log_message,
     current_action,
     start_action,
     start_task,
@@ -139,7 +137,7 @@ class MagicFolderEnabledNode(object):
                 self.global_config(),
                 create_http_client(
                     self.reactor,
-                    unicode(self.global_config().api_client_endpoint),
+                    self.global_config().api_client_endpoint,
                 ),
             )
         return self._client
@@ -226,6 +224,7 @@ class MagicFolderEnabledNode(object):
                 base_dir,
                 name,
             )
+
         returnValue(
             cls(
                 reactor,
@@ -241,7 +240,7 @@ class MagicFolderEnabledNode(object):
 
     @inline_callbacks
     def stop_magic_folder(self):
-        Message.log(message_type=u"integation:magic-folder:stop", node=self.name)
+        log_message(message_type=u"integation:magic-folder:stop", node=self.name)
         if self.magic_folder is None:
             return
         try:
@@ -262,7 +261,7 @@ class MagicFolderEnabledNode(object):
             return
         # We log a notice that we are starting the service in the context of the test
         # but the logs of the service are in the context of the fixture.
-        Message.log(message_type=u"integation:magic-folder:start", node=self.name)
+        log_message(message_type=u"integation:magic-folder:start", node=self.name)
         with self.action.context():
             self.magic_folder = yield _run_magic_folder(
                 self.reactor,
@@ -272,11 +271,13 @@ class MagicFolderEnabledNode(object):
             )
 
     def pause_tahoe(self):
-        Message.log(message_type=u"integation:tahoe-node:pause", node=self.name)
+        log_message(message_type=u"integation:tahoe-node:pause", node=self.name)
+        print("suspend tahoe: {}".format(self.name))
         self.tahoe.suspend()
 
     def resume_tahoe(self):
-        Message.log(message_type=u"integation:tahoe-node:resume", node=self.name)
+        log_message(message_type=u"integation:tahoe-node:resume", node=self.name)
+        print("resume tahoe: {}".format(self.name))
         self.tahoe.resume()
 
     # magic-folder CLI API helpers
@@ -483,13 +484,13 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self.output.write(data)
+        self.output.write(data.decode("utf8"))
 
     def errReceived(self, data):
-        print("ERR: {}".format(data))
+        print("ERR: {}".format(data.decode("utf8")))
         with self._action.context():
-            Message.log(message_type=u"err-received", data=data)
-        self.output.write(data)
+            log_message(message_type=u"err-received", data=data.decode("utf8"))
+        self.output.write(data.decode("utf8"))
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -509,10 +510,10 @@ class _DumpOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self._out.write(data)
+        self._out.write(str(data, "utf8"))
 
     def errReceived(self, data):
-        self._out.write(data)
+        self._out.write(str(data, "utf8"))
 
 
 @attr.s
@@ -575,7 +576,6 @@ def run_service(
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
         protocol = _MagicTextProtocol(magic_text)
-        magic_seen = protocol.magic_seen
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -590,7 +590,7 @@ def run_service(
             env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
-        return magic_seen.addCallback(lambda ignored: process)
+        return protocol.magic_seen.addCallback(lambda ignored: process)
 
 def run_tahoe_service(
     reactor,
@@ -651,7 +651,7 @@ class _MagicTextProtocol(ProcessProtocol):
 
     def processEnded(self, reason):
         with self._action:
-            Message.log(message_type=u"process-ended")
+            log_message(message_type=u"process-ended")
         if self.magic_seen is not None:
             d, self.magic_seen = self.magic_seen, None
             d.errback(Exception("Service failed."))
@@ -672,9 +672,9 @@ class _MagicTextProtocol(ProcessProtocol):
         Called with output from stdout.
         """
         with self._action.context():
-            Message.log(message_type=u"out-received", data=data)
-            sys.stdout.write(data)
-            self._output.write(data)
+            log_message(message_type=u"out-received", data=data.decode("utf8"))
+            sys.stdout.write(data.decode("utf8"))
+            self._output.write(data.decode("utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
             d, self.magic_seen = self.magic_seen, None
@@ -689,8 +689,8 @@ class _MagicTextProtocol(ProcessProtocol):
         no other output there, so we treat it as expected.
         """
         with self._action.context():
-            Message.log(message_type=u"err-received", data=data)
-            sys.stdout.write(data)
+            log_message(message_type=u"err-received", data=data.decode("utf8"))
+            sys.stdout.write(data.decode("utf8"))
 
     def eliot_garbage_received(self, data):
         """
@@ -699,7 +699,7 @@ class _MagicTextProtocol(ProcessProtocol):
         Since FD 3 is suppposed to only have eliot-logs, log them as malformed.
         """
         with self._action.context():
-            Message.log(message_type=u"malformed-eliot-log", data=data)
+            log_message(message_type=u"malformed-eliot-log", data=data.decode("utf8"))
 
 
 def _cleanup_service_process(process, exited, action):
@@ -715,7 +715,7 @@ def _cleanup_service_process(process, exited, action):
     try:
         with action.context():
             def report(m):
-                Message.log(message_type="integration:cleanup", message=m)
+                log_message(message_type="integration:cleanup", message=m)
                 print(m)
             if process.pid is not None:
                 report("signaling {} with TERM".format(process.pid))
@@ -824,11 +824,27 @@ class TahoeProcess(object):
 
     def suspend(self):
         if self.transport.pid is not None:
-            Process(self.transport.pid).suspend()
+            p = Process(self.transport.pid)
+            p.suspend()
+            while p.status() == STATUS_RUNNING:
+                print("suspend {}: still running".format(self._node_dir))
+                continue
+            print("  status: {}".format(p.status()))
+        else:
+            raise RuntimeError(
+                "Cannot suspend Tahoe: no PID available"
+            )
 
     def resume(self):
         if self.transport.pid is not None:
-            Process(self.transport.pid).resume()
+            p = Process(self.transport.pid)
+            p.resume()
+            while p.status() != STATUS_RUNNING:
+                print("resume {}: not running".format(self._node_dir))
+        else:
+            raise RuntimeError(
+                "Cannot resume Tahoe: no PID available"
+            )
 
     @property
     def node_dir(self):
@@ -869,9 +885,9 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
             '--hostname', 'localhost',
             '--listen', 'tcp',
             '--webport', web_port,
-            '--shares-needed', unicode(needed),
-            '--shares-happy', unicode(happy),
-            '--shares-total', unicode(total),
+            '--shares-needed', "{}".format(needed),
+            '--shares-happy', "{}".format(happy),
+            '--shares-total', "{}".format(total),
             '--helper',
         ]
         if not storage:
@@ -954,13 +970,14 @@ def await_file_contents(path, contents, timeout=15):
     :raises ExpectedFileUnfoundException: if the path doesn't exist after the
         the timeout.
     """
+    assert isinstance(contents, bytes), "file-contents must be bytes"
     from twisted.internet import reactor
     start_time = reactor.seconds()
     while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
         if exists(path):
             try:
-                with open(path, 'r') as f:
+                with open(path, 'rb') as f:
                     current = f.read()
             except IOError:
                 print("IOError; trying again")
@@ -970,14 +987,14 @@ def await_file_contents(path, contents, timeout=15):
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
                 if len(contents) < 80:
-                    print("  wanted: {}".format(contents.replace('\n', ' ')))
-                    print("     got: {}".format(current.replace('\n', ' ')))
-                Message.log(
+                    print("  wanted: {}".format(contents.decode("utf8").replace('\n', ' ')))
+                    print("     got: {}".format(current.decode("utf8").replace('\n', ' ')))
+                log_message(
                     message_type=u"integration:await-file-contents:mismatched",
                     got=current,
                 )
         else:
-            Message.log(
+            log_message(
                 message_type=u"integration:await-file-contents:missing",
             )
         yield twisted_sleep(reactor, 1)
@@ -1137,6 +1154,7 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
         print("finished waiting for client")
         # we have a status with at least one recently-contacted server
         returnValue(True)
+
     # we only fall out of the loop when we've timed out
     raise RuntimeError(
         "Waited {} seconds for {} to be 'ready' but it never was".format(
@@ -1316,11 +1334,12 @@ def database_retry(reactor, seconds, f, *args, **kwargs):
         try:
             value = yield maybeDeferred(f, *args, **kwargs)
             break
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError as e:
             # since we're messing with the database while production
             # code is running, it's possible this will fail if we
             # access the database while the "real" code is also doing
             # that.
+            print("sqlite3.OperationalError while running {}: {}".format(f, e))
             pass
         except KeyError:
             pass

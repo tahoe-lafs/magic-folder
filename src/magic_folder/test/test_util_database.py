@@ -5,8 +5,6 @@
 Utilties for dealing with sqlite.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import sqlite3
 
 import attr

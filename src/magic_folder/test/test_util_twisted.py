@@ -1,6 +1,3 @@
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
-
 import attr
 from eliot import log_call, start_action
 from eliot.testing import UnflushedTracebacks

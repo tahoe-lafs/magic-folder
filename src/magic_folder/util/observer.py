@@ -1,15 +1,12 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from twisted.internet.interfaces import (
     IStreamServerEndpoint,
 )
 from twisted.internet.defer import (
     succeed,
     Deferred,
+)
+from twisted.python.failure import (
+    Failure,
 )
 
 import attr
@@ -24,7 +21,7 @@ class ListenObserver(object):
     Calls .listen on the given endpoint and allows observers to be
     notified when that listen succeeds (or fails).
     """
-    _endpoint = attr.ib()
+    _endpoint = attr.ib(validator=[attr.validators.provides(IStreamServerEndpoint)])
     _observers = attr.ib(default=attr.Factory(list))
     _listened_result = attr.ib(default=None)
 
@@ -45,4 +42,8 @@ class ListenObserver(object):
         self._observers = []
         for o in observers:
             o.callback(result)
+        if isinstance(result, Failure):
+            # we've handled the error -- by passing it off to our
+            # observer(s) -- so this chain doesn't need to anymore
+            return None
         return result

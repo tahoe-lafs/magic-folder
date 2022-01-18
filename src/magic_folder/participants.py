@@ -5,12 +5,6 @@
 Functionality to interact with the participants in a magic folder.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from zope.interface import (
     Attribute,
     Interface,
@@ -20,7 +14,6 @@ from zope.interface import (
 import attr
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
 )
 
@@ -74,7 +67,7 @@ class IParticipants(Interface):
             associated with..
         """
 
-    @inlineCallbacks
+    @inline_callbacks
     def add(author, personal_dmd_cap):
         """
         Add a new participant to this collective.
@@ -95,7 +88,7 @@ class IWriteableParticipant(Interface):
     in a particular magic-folder that we have write-access to.
     """
 
-    @inlineCallbacks
+    @inline_callbacks
     def update_snapshot(relpath, capability):
         """
         Update the snapshot with the given relpath.
@@ -162,6 +155,10 @@ class _CollectiveDirnodeParticipants(object):
         The Collective DMD must be a directory capability (but could be a
         read-only one or a read-write one).
         """
+        if not isinstance(value, str):
+            raise TypeError(
+                "Collective dirnode was {} not text".format(type(value))
+            )
         if is_directory_cap(value):
             return
         raise TypeError(
@@ -175,6 +172,10 @@ class _CollectiveDirnodeParticipants(object):
         """
         The Upload DMD must be a writable directory capability
         """
+        if not isinstance(value, str):
+            raise TypeError(
+                "Upload dirnode was {} not text".format(type(value))
+            )
         if is_mutable_directory_cap(value):
             return
         raise TypeError(
@@ -183,7 +184,7 @@ class _CollectiveDirnodeParticipants(object):
             ),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def add(self, author, personal_dmd_cap):
         """
         IParticipants API
@@ -217,7 +218,7 @@ class _CollectiveDirnodeParticipants(object):
             yield self._tahoe_client.add_entry_to_mutable_directory(
                 self._collective_cap,
                 author.name,
-                personal_dmd_cap.encode("ascii"),
+                personal_dmd_cap,
                 replace=False,
             )
         except CannotAddDirectoryEntryError:
@@ -225,7 +226,7 @@ class _CollectiveDirnodeParticipants(object):
                 u"Already have a participant called '{}'".format(author.name)
             )
 
-    @inlineCallbacks
+    @inline_callbacks
     def list(self):
         """
         IParticipants API
@@ -264,8 +265,8 @@ class _CollectiveDirnodeParticipant(object):
         ourself, False otherwise.  Concretely, "ourself" is whoever can write
         to the directory node.
     """
-    name = attr.ib(validator=attr.validators.instance_of(unicode))
-    dircap = attr.ib(validator=attr.validators.instance_of(bytes))
+    name = attr.ib(validator=attr.validators.instance_of(str))
+    dircap = attr.ib(validator=attr.validators.instance_of(str))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
     _tahoe_client = attr.ib()
 
@@ -295,7 +296,7 @@ class _WriteableParticipant(object):
     :ivar bytes upload_cap: Read-write directory-capability containing this
         participant's files.
     """
-    upload_cap = attr.ib(validator=attr.validators.instance_of(bytes))
+    upload_cap = attr.ib()
     _tahoe_client = attr.ib(eq=False)
 
     @upload_cap.validator
@@ -303,6 +304,10 @@ class _WriteableParticipant(object):
         """
         The Upload DMD must be a writable directory capability
         """
+        if not isinstance(value, str):
+            raise TypeError(
+                "Upload dirnode was {} not text".format(type(value))
+            )
         if is_mutable_directory_cap(value):
             return
         raise TypeError(
@@ -316,9 +321,9 @@ class _WriteableParticipant(object):
         Update the snapshot with the given relpath.
         """
         return self._tahoe_client.add_entry_to_mutable_directory(
-            self.upload_cap.encode("ascii"),
+            self.upload_cap,
             path2magic(relpath),
-            capability.encode("ascii"),
+            capability,
             replace=True,
         )
 

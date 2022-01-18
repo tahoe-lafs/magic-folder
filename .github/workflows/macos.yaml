@@ -8,11 +8,11 @@ on:
 
 jobs:
   unit-tests:
-    runs-on: "macos-latest"
+    runs-on: "macos-11.0"
     strategy:
       matrix:
         python-version:
-          - "2.7"
+          - "3.8"
 
     steps:
     - uses: actions/checkout@v2
@@ -23,7 +23,7 @@ jobs:
     # Get tags not fetched by the checkout action, needed for auto-versioning.
     - run: "git fetch origin +refs/tags/*:refs/tags/*"
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -34,7 +34,7 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
-        tox -e py27-coverage
+        tox -e py38-coverage
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
@@ -57,11 +57,14 @@ jobs:
         file: "./coverage.xml"
 
   integration-tests:
-    runs-on: "macos-latest"
+    runs-on: "macos-11.0"
     strategy:
       matrix:
         python-version:
-          - "2.7"
+          - "3.8"
+        tahoe-version:
+          - "1_17"
+          - "master"
 
     steps:
     - uses: actions/checkout@v2
@@ -70,7 +73,7 @@ jobs:
     # Get tags not fetched by the checkout action, needed for auto-versioning.
     - run: "git fetch origin +refs/tags/*:refs/tags/*"
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -79,7 +82,7 @@ jobs:
         pip install wheel tox eliot-tree
     - name: Test with tox
       run: |
-        tox -e integration
+        tox -e integration-${{ matrix.tahoe-version }}
 
     - name: Generate eliot-tree.
       if: ${{ always() }}
@@ -96,7 +99,7 @@ jobs:
         name: "integration"
         path: "eliot*"
 
-    - uses: codecov/codecov-action@v1
+    - uses: codecov/codecov-action@v2
       with:
         token: "322d708d-8283-4827-b605-ccf02bfecf70"
         file: "./coverage.xml"
