@@ -15,7 +15,6 @@ from eliot.twisted import inline_callbacks
 from twisted.application.service import MultiService
 from twisted.internet.defer import (
     DeferredLock,
-    gatherResults,
 )
 from twisted.internet.task import Cooperator
 
