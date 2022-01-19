@@ -158,7 +158,6 @@ class ScannerService(MultiService):
             )
 
         results = []
-        snapshots = []
 
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
@@ -171,9 +170,6 @@ class ScannerService(MultiService):
             create_update(path)
             for path in updates
         )
-
-        yield gatherResults(snapshots)
-        # XXX update/use IStatus to report scan start/end
 
 
 def find_updated_files(cooperator, folder_config, on_new_file, status):
