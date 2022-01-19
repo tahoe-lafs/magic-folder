@@ -726,6 +726,13 @@ class MagicFile(object):
         self._factory._folder_status.download_finished(self._relpath)
 
     @_machine.output()
+    def _cancel_queued_work(self):
+        for d in self._queue_local:
+            d.cancel()
+        for d in self._queue_remote:
+            d.cancel()
+
+    @_machine.output()
     def _create_local_snapshot(self):
         """
         Create a LocalSnapshot for this update
@@ -896,14 +903,16 @@ class MagicFile(object):
         # not to mess with our return-value
         ret_d = Deferred()
 
+        def failed(f):
+            if f.check(CancelledError):
+                ret_d.cancel()
+            else:
+                ret_d.errback(f)
+
         def got_snap(snap):
             ret_d.callback(snap)
             return snap
-
-        def err(f):
-            # check for cancel separately, or this enough?
-            ret_d.errback(f)
-        d.addCallbacks(got_snap, err)
+        d.addCallbacks(got_snap, failed)
         return ret_d
 
     @_machine.output()
@@ -1012,7 +1021,7 @@ class MagicFile(object):
     _downloading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1079,7 +1088,7 @@ class MagicFile(object):
     _uploading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1094,7 +1103,7 @@ class MagicFile(object):
     _updating_personal_dmd_upload.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1106,7 +1115,7 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
