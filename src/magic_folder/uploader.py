@@ -88,6 +88,7 @@ class LocalSnapshotCreator(object):
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _tahoe_client = attr.ib()
+    _cooperator = attr.ib(default=None)
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -155,6 +156,7 @@ class LocalSnapshotCreator(object):
                     raw_remote_parents=raw_remote,
                     #FIXME from path_info
                     modified_time=mtime,
+                    cooperator=self._cooperator,
                 )
             finally:
                 if input_stream:

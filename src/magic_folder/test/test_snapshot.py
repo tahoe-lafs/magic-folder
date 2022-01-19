@@ -39,6 +39,9 @@ from hyperlink import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.task import (
+    Cooperator,
+)
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
@@ -130,6 +133,11 @@ class TestLocalSnapshot(SyncTestCase):
     def setUp(self):
         super(TestLocalSnapshot, self).setUp()
         self.alice = create_local_author(u"alice")
+        self.uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(self.uncooperator.stop)
 
     def setup_example(self):
         """
@@ -154,6 +162,7 @@ class TestLocalSnapshot(SyncTestCase):
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
             parents=[],
+            cooperator=self.uncooperator,
         )
 
         self.assertThat(
@@ -182,6 +191,7 @@ class TestLocalSnapshot(SyncTestCase):
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
             parents=["not a LocalSnapshot instance"],
+            cooperator=self.uncooperator,
         )
 
         self.assertThat(
@@ -212,6 +222,7 @@ class TestLocalSnapshot(SyncTestCase):
             author=self.alice,
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
+            cooperator=self.uncooperator,
         )
         d.addCallback(parents.append)
         self.assertThat(
@@ -226,6 +237,7 @@ class TestLocalSnapshot(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
             parents=parents,
+            cooperator=self.uncooperator,
         )
         d.addCallback(parents.append)
         self.assertThat(
@@ -255,6 +267,7 @@ class TestLocalSnapshot(SyncTestCase):
             data_producer=data1,
             snapshot_stash_dir=self.stash_dir,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(local_snapshots.append)
         self.assertThat(
@@ -270,6 +283,7 @@ class TestLocalSnapshot(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash_dir,
             parents=local_snapshots,
+            cooperator=self.uncooperator,
         )
 
         d.addCallback(local_snapshots.append)
@@ -283,6 +297,15 @@ class TestRemoteSnapshot(SyncTestCase):
     """
     Test upload and download of LocalSnapshot (creating RemoteSnapshot)
     """
+
+    def setUp(self):
+        self.uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(self.uncooperator.stop)
+        return super(TestRemoteSnapshot, self).setUp()
+
     def setup_example(self):
         self.root = create_fake_tahoe_root()
         self.http_client = create_tahoe_treq_client(self.root)
@@ -316,6 +339,7 @@ class TestRemoteSnapshot(SyncTestCase):
                 snapshot_stash_dir=self.stash_dir,
                 parents=[],
                 modified_time=modified_time,
+                cooperator=self.uncooperator,
             )
         )
 
@@ -367,6 +391,7 @@ class TestRemoteSnapshot(SyncTestCase):
                 data_producer=data1,
                 snapshot_stash_dir=self.stash_dir,
                 parents=[],
+                cooperator=self.uncooperator,
             )
         )
 
@@ -379,6 +404,7 @@ class TestRemoteSnapshot(SyncTestCase):
                 data_producer=data2,
                 snapshot_stash_dir=self.stash_dir,
                 parents=[local_snapshot],
+                cooperator=self.uncooperator,
             )
         )
 
@@ -415,6 +441,7 @@ class TestRemoteSnapshot(SyncTestCase):
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
         self.assertThat(
@@ -442,6 +469,7 @@ class TestRemoteSnapshot(SyncTestCase):
             data_producer=data,
             snapshot_stash_dir=self.stash_dir,
             parents=[snapshots[1]],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
         self.assertThat(
@@ -495,6 +523,7 @@ class TestRemoteSnapshot(SyncTestCase):
                 data_producer=data,
                 snapshot_stash_dir=self.stash_dir,
                 parents=[],
+                cooperator=self.uncooperator,
             )
         )
 
@@ -506,6 +535,7 @@ class TestRemoteSnapshot(SyncTestCase):
                 data_producer=data,
                 snapshot_stash_dir=self.stash_dir,
                 parents=[local_snapshot],
+                cooperator=self.uncooperator,
             )
         )
 

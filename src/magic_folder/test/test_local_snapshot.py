@@ -13,6 +13,9 @@ from hypothesis.strategies import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.task import (
+    Cooperator,
+)
 
 from twisted.internet import (
     defer,
@@ -245,6 +248,11 @@ class LocalSnapshotCreatorTests(SyncTestCase):
     def setUp(self):
         super(LocalSnapshotCreatorTests, self).setUp()
         self.author = create_local_author(u"alice")
+        self.uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(self.uncooperator.stop)
 
     def setup_example(self):
         """
@@ -275,6 +283,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             stash_dir=self.db.stash_path,
             magic_dir=self.db.magic_path,
             tahoe_client=None,
+            cooperator=self.uncooperator,
         )
 
     @given(lists(path_segments(), unique_by=lambda p: p.lower()),
