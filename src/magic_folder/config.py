@@ -105,9 +105,7 @@ from eliot import (
 )
 
 from .util.capabilities import (
-    is_readonly_directory_cap,
-    is_directory_cap,
-    capability_size,
+    Capability,
 )
 from .util.database import (
     with_cursor,
@@ -677,7 +675,7 @@ def _get_remote_parents(identifier, parents):
         snapshot.
     """
     return list(
-        parent_identifier
+        Capability.from_string(parent_identifier)
         for (ignored, only_local, parent_identifier)
         in parents.get(identifier, [])
         if not only_local
@@ -807,12 +805,13 @@ class MagicFolderConfig(object):
         :param FilePath stash_path: The filesystem location to which to write
             snapshot content before uploading it.
 
-        :param unicode collective_dircap: A Tahoe-LAFS directory capability
-            representing the Magic-Folder "collective" directory (where
-            participant DMDs can be found).
+        :param Capability collective_dircap: A Tahoe-LAFS directory
+            capability representing the Magic-Folder "collective"
+            directory (where participant DMDs can be found).
 
-        :param unicode upload_dircap: A Tahoe-LAFS read-write directory
-            capability representing the DMD belonging to ``author``.
+        :param Capability upload_dircap: A Tahoe-LAFS read-write
+            directory capability representing the DMD belonging to
+            ``author``.
 
         :param FilePath magic_path: The local filesystem path where magic
             folder will read and write files belonging to this folder.
@@ -853,8 +852,8 @@ class MagicFolderConfig(object):
                     author.name,
                     author.signing_key.encode(Base32Encoder),
                     stash_path.path,
-                    collective_dircap,
-                    upload_dircap,
+                    collective_dircap.danger_real_capability_string(),
+                    upload_dircap.danger_real_capability_string(),
                     magic_path.path,
                     poll_interval,
                     scan_interval,
@@ -990,7 +989,7 @@ class MagicFolderConfig(object):
                 for (index, (local_only, parent_identifier)) in enumerate(
                     chain(
                         (
-                            (False, parent_identifier)
+                            (False, parent_identifier.danger_real_capability_string())
                             for parent_identifier in snapshot.parents_remote
                         ),
                         (
@@ -1068,7 +1067,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, str(remote_snapshot.capability), str(child.identifier))
+                (False, remote_snapshot.capability.danger_real_capability_string(), str(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1127,7 +1126,6 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with local_snapshot_become_remote
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,
@@ -1144,8 +1142,14 @@ class MagicFolderConfig(object):
                 WHERE
                     [relpath]=?
                 """,
-                (snapshot_cap, remote_snapshot.content_cap, remote_snapshot.metadata_cap,
-                 now_ns, duration_ns, relpath),
+                (
+                    snapshot_cap.danger_real_capability_string(),
+                    None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
+                    remote_snapshot.metadata_cap.danger_real_capability_string(),
+                    now_ns,
+                    duration_ns,
+                    relpath,
+                ),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1175,9 +1179,9 @@ class MagicFolderConfig(object):
                     " VALUES (?,?,?,?,?,?,?,?,?)",
                     (
                         relpath,
-                        snapshot_cap,
-                        remote_snapshot.metadata_cap,
-                        remote_snapshot.content_cap,
+                        snapshot_cap.danger_real_capability_string(),
+                        remote_snapshot.metadata_cap.danger_real_capability_string(),
+                        None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
                         None if path_state is None else path_state.mtime_ns,
                         None if path_state is None else path_state.ctime_ns,
                         None if path_state is None else path_state.size,
@@ -1197,9 +1201,9 @@ class MagicFolderConfig(object):
                         [relpath]=?
                     """,
                     (
-                        snapshot_cap,
-                        remote_snapshot.metadata_cap,
-                        remote_snapshot.content_cap,
+                        snapshot_cap.danger_real_capability_string(),
+                        remote_snapshot.metadata_cap.danger_real_capability_string(),
+                        None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
                         None if path_state is None else path_state.mtime_ns,
                         None if path_state is None else path_state.ctime_ns,
                         None if path_state is None else path_state.size,
@@ -1285,7 +1289,7 @@ class MagicFolderConfig(object):
                 # whenever we do finally upload.
                 continue
             sizes.extend([
-                capability_size(c)
+                c.size
                 for c in caps
                 if c is not None
             ])
@@ -1335,7 +1339,7 @@ class MagicFolderConfig(object):
                            (relpath,))
             row = cursor.fetchone()
             if row and row[0] is not None:
-                return row[0]
+                return Capability.from_string(row[0])
             # XXX weird to have "KeyError" if snapshot_cap is there,
             # but null _as well_ as when the row is simply missing.
             raise KeyError(relpath)
@@ -1370,9 +1374,9 @@ class MagicFolderConfig(object):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 return (
-                    row[0],  # snapshot-cap
-                    None if row[1] is None else row[1],  # content-cap
-                    row[2],  # metadata-cap
+                    Capability.from_string(row[0]),  # snapshot-cap
+                    None if row[1] is None else Capability.from_string(row[1]),  # content-cap
+                    Capability.from_string(row[2]),  # metadata-cap
                 )
             # XXX kind of weird to throw KeyError for things we know
             # abou, but the snapshot_cap is still null...
@@ -1452,9 +1456,19 @@ class MagicFolderConfig(object):
             conflicts = dict()
             for relpath, author_name, snap_cap in cursor.fetchall():
                 try:
-                    conflicts[relpath].append(Conflict(snap_cap, author_name))
+                    conflicts[relpath].append(
+                        Conflict(
+                            Capability.from_string(snap_cap),
+                            author_name,
+                        )
+                    )
                 except KeyError:
-                    conflicts[relpath] = [Conflict(snap_cap, author_name)]
+                    conflicts[relpath] = [
+                        Conflict(
+                            Capability.from_string(snap_cap),
+                            author_name,
+                        )
+                    ]
             return conflicts
 
     @with_cursor
@@ -1479,7 +1493,7 @@ class MagicFolderConfig(object):
             )
             rows = cursor.fetchall()
             return [
-                Conflict(snap_cap, author_name)
+                Conflict(Capability.from_string(snap_cap), author_name)
                 for author_name, snap_cap in rows
             ]
 
@@ -1498,7 +1512,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?,?,?)
                 """,
-                (snapshot.relpath, snapshot.author.name, snapshot.capability),
+                (snapshot.relpath, snapshot.author.name, snapshot.capability.danger_real_capability_string()),
             )
 
     @with_cursor
@@ -1554,7 +1568,7 @@ class MagicFolderConfig(object):
     @with_cursor
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
-        return cursor.fetchone()[0]
+        return Capability.from_string(cursor.fetchone()[0])
 
     @collective_dircap.setter
     @with_cursor
@@ -1562,19 +1576,24 @@ class MagicFolderConfig(object):
         """
         This is for use by tests that need a non-admin collective.
         """
-        if not is_directory_cap(dircap):
+        if not dircap.is_directory():
             raise AssertionError(
                 "Collective dirnode was {!r}, must be a directory node.".format(
                     dircap,
                 )
             )
-        cursor.execute("UPDATE [config] SET collective_dircap=?", (dircap,))
+        cursor.execute(
+            "UPDATE [config] SET collective_dircap=?",
+            (
+                dircap.danger_real_capability_string(),
+            )
+        )
 
     @property
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return cursor.fetchone()[0]
+        return Capability.from_string(cursor.fetchone()[0])
 
     @property
     @with_cursor
@@ -1594,7 +1613,7 @@ class MagicFolderConfig(object):
             if the collective capability we have is mutable.
         """
         # check if this folder has a writable collective dircap
-        return not is_readonly_directory_cap(self.collective_dircap)
+        return not self.collective_dircap.is_readonly_directory()
 
 
 class ITokenProvider(Interface):
@@ -1923,10 +1942,10 @@ class GlobalConfigDatabase(object):
         :param LocalAuthor author: the signer of snapshots created in
             this folder
 
-        :param unicode collective_dircap: the read-capability of the
+        :param Capability collective_dircap: the read-capability of the
             directory defining the magic-folder.
 
-        :param unicode upload_dircap: the write-capability of the
+        :param Capability upload_dircap: the write-capability of the
             directory we upload data into.
 
         :param int poll_interval: how often to scan for remote changes

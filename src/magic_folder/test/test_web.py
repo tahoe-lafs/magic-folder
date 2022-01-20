@@ -111,6 +111,9 @@ from ..util.file import (
     PathState,
     seconds_to_ns,
 )
+from ..util.capabilities import (
+    random_immutable,
+)
 from ..client import (
     authorized_request,
     url_to_bytes,
@@ -124,10 +127,6 @@ from .strategies import (
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
     remote_snapshots,
-)
-from ..util.capabilities import (
-    to_readonly_capability,
-    capability_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -1420,9 +1419,9 @@ class ParticipantsTests(SyncTestCase):
         # one we already have .. and because Hypothesis is 'sneaky' we
         # have to make sure it's not our collective, either
         assume(personal_dmd != folder_config.upload_dircap)
-        assume(personal_dmd != to_readonly_capability(folder_config.upload_dircap))
+        assume(personal_dmd != folder_config.upload_dircap.to_readonly())
         assume(personal_dmd != folder_config.collective_dircap)
-        assume(personal_dmd != to_readonly_capability(folder_config.collective_dircap))
+        assume(personal_dmd != folder_config.collective_dircap.to_readonly())
 
         # add a participant using the API
         self.assertThat(
@@ -1433,7 +1432,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1462,10 +1461,10 @@ class ParticipantsTests(SyncTestCase):
                         loads,
                         Equals({
                             u"iris": {
-                                u"personal_dmd": to_readonly_capability(folder_config.upload_dircap),
+                                u"personal_dmd": folder_config.upload_dircap.to_readonly().danger_real_capability_string(),
                             },
                             u'kelly': {
-                                u'personal_dmd': personal_dmd,
+                                u'personal_dmd': personal_dmd.danger_real_capability_string(),
                             }
                         })
                     )
@@ -1653,7 +1652,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1703,7 +1702,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1824,7 +1823,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -2042,10 +2041,10 @@ class ConflictStatusTests(SyncTestCase):
             "foo",
             create_local_author("nelli"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            random_immutable(directory=True),
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            random_immutable(),
+            random_immutable(),
         )
 
         mf_config.add_conflict(snap)
@@ -2053,7 +2052,7 @@ class ConflictStatusTests(SyncTestCase):
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
+            Equals([Conflict(snap.capability, "nelli")])
         )
 
         # external API
@@ -2120,7 +2119,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            capability_size(cap)
+            cap.size
             for cap in [
                     remote_snap.capability,
                     remote_snap.content_cap,
@@ -2185,7 +2184,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            capability_size(cap)
+            cap.size
             for cap in [
                     remote_snap.capability,
                     remote_snap.metadata_cap,

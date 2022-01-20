@@ -5,7 +5,7 @@ from eliot.twisted import (
 )
 
 from magic_folder.util.capabilities import (
-    to_readonly_capability,
+    Capability,
 )
 
 from .util import (
@@ -34,7 +34,7 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
             await alice.add_snapshot("outstanding0", p.path)
 
     alice_folders = await alice.list_(True)
-    zero_cap = to_readonly_capability(alice_folders["outstanding0"]["upload_dircap"])
+    zero_cap = Capability.from_string(alice_folders["outstanding0"]["upload_dircap"]).to_readonly().danger_real_capability_string()
 
     # create a folder with no files in it
     magic1 = temp_filepath.child("outstanding1")

@@ -42,6 +42,7 @@ from twisted.python.filepath import (
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
+    CancelledError,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -64,11 +65,6 @@ from ..tahoe_client import (
 from ..magicpath import (
     path2magic,
 )
-from ..util.capabilities import (
-    is_immutable_directory_cap,
-    to_verify_capability,
-    to_readonly_capability,
-)
 from ..util.file import (
     get_pathinfo,
 )
@@ -77,6 +73,9 @@ from ..util.wrap import (
 )
 from ..util.twisted import (
     cancelled,
+)
+from ..util.capabilities import (
+    random_immutable,
 )
 
 from .common import (
@@ -126,7 +125,7 @@ class UploadTests(SyncTestCase):
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
         # can link files into it.
-        f.root._uri.data[upload_dircap] = dumps([
+        f.root._uri.data[upload_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {}},
         ])
@@ -152,12 +151,12 @@ class UploadTests(SyncTestCase):
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
-            loads(f.root._uri.data[upload_dircap])[1][u"children"],
+            loads(f.root._uri.data[upload_dircap.danger_real_capability_string()])[1][u"children"],
             Equals({
                 path2magic(relpath): [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap,
-                        u"verify_uri": to_verify_capability(remote_snapshot_cap),
+                        u"ro_uri": remote_snapshot_cap.danger_real_capability_string(),
+                        u"verify_uri": remote_snapshot_cap.to_verifier().danger_real_capability_string(),
                         u"mutable": False,
                         u"format": u"CHK",
                     },
@@ -167,11 +166,8 @@ class UploadTests(SyncTestCase):
 
         # test whether we got a capability
         self.assertThat(
-            remote_snapshot_cap,
-            MatchesPredicate(
-                is_immutable_directory_cap,
-                "%r is not a immuutable directory Tahoe-LAFS URI",
-            ),
+            remote_snapshot_cap.is_immutable_directory(),
+            Equals(True)
         )
 
         with ExpectedException(KeyError, escape(repr(relpath))):
@@ -274,10 +270,10 @@ class MagicFileFactoryTests(SyncTestCase):
                     local.asBytesMode("utf-8").getModificationTime()
                 ),
             },
-            capability="URI:DIR2-CHK:",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         config.store_downloaded_snapshot(
             relpath, snap, get_pathinfo(local).state
@@ -305,10 +301,10 @@ class MagicFileFactoryTests(SyncTestCase):
             metadata={
                 "modification_time": int(1234),
             },
-            capability="URI:DIR2-CHK:",
-            parents_raw=[snap.capability],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            capability=random_immutable(directory=True),
+            parents_raw=[snap.capability.danger_real_capability_string()],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         mf.found_new_remote(child)
 
@@ -375,7 +371,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         # things.
 
         # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
+        tahoe_root._uri.data[config.collective_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {
@@ -383,8 +379,8 @@ class AsyncMagicFileTests(AsyncTestCase):
                         "dirnode",
                         {
                             "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "ro_uri": config.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "verify_uri": config.upload_dircap.to_verifier().danger_real_capability_string(),
                             "format": "SDMF",
                         },
                     ],
@@ -393,7 +389,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         ])
 
         # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
+        tahoe_root._uri.data[config.upload_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {},
@@ -435,7 +431,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(snap0.parents_local, Equals([]))
         self.assertThat(snap0.parents_remote, Equals([]))
 
-        self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability]))
+        self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability.danger_real_capability_string()]))
         self.assertThat(snap1.parents_local, Equals([]))
         self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
 
@@ -489,7 +485,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         # things.
 
         # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
+        tahoe_root._uri.data[config.collective_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {
@@ -497,8 +493,8 @@ class AsyncMagicFileTests(AsyncTestCase):
                         "dirnode",
                         {
                             "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "ro_uri": config.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "verify_uri": config.upload_dircap.to_verifier().danger_real_capability_string(),
                             "format": "SDMF",
                         },
                     ],
@@ -507,7 +503,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         ]).encode("utf8")
 
         # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
+        tahoe_root._uri.data[config.upload_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {},
@@ -618,6 +614,12 @@ class AsyncMagicFileTests(AsyncTestCase):
                     }),
                 }),
             })
+        )
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(CancelledError),
+            MatchesListwise([
+                matches_flushed_traceback(CancelledError),
+            ]),
         )
 
     @inline_callbacks

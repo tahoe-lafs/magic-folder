@@ -18,7 +18,9 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from ..util.capabilities import tahoe_uri_from_string
+from ..util.capabilities import (
+    Capability,
+)
 from .common import (
     SyncTestCase,
 )
@@ -34,28 +36,26 @@ class StrategyTests(SyncTestCase):
     Tests for various strategies.
     """
     @given(tahoe_lafs_chk_capabilities())
-    def test_chk_roundtrips(self, cap_text):
+    def test_chk_roundtrips(self, cap):
         """
         Values built by ``tahoe_lafs_chk_capabilities`` round-trip through ASCII
         and ``allmydata.uri.from_string`` and their ``to_string`` method.
         """
-        cap = tahoe_uri_from_string(cap_text.encode("ascii"))
-        serialized = cap.to_string().decode("ascii")
+        serialized = cap._tahoe_cap.to_string().decode("ascii")
         self.assertThat(
-            cap_text,
+            cap.danger_real_capability_string(),
             Equals(serialized),
         )
 
     @given(tahoe_lafs_dir_capabilities())
-    def test_dir_roundtrips(self, cap_text):
+    def test_dir_roundtrips(self, cap):
         """
         Values built by ``tahoe_lafs_dir_capabilities`` round-trip through ASCII
         and ``allmydata.uri.from_string`` and their ``to_string`` method.
         """
-        cap = tahoe_uri_from_string(cap_text.encode("ascii"))
-        serialized = cap.to_string().decode("ascii")
+        serialized = cap._tahoe_cap.to_string().decode("ascii")
         self.assertThat(
-            cap_text,
+            cap.danger_real_capability_string(),
             Equals(serialized),
         )
 

@@ -123,7 +123,7 @@ class LocalSnapshotCreator(object):
         if parent_remote:
             # XXX should double-check parent relationship if we have any..
             if not parents:
-                raw_remote = [parent_remote]
+                raw_remote = [parent_remote.danger_real_capability_string()]
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
@@ -337,7 +337,7 @@ class UploaderService(service.Service):
             self._config.author,
             self._tahoe_client,
         )
-        Message.log(remote_snapshot=remote_snapshot.capability)
+        Message.log(remote_snapshot=remote_snapshot.relpath)
         snapshot.remote_snapshot = remote_snapshot
         yield self._config.store_uploaded_snapshot(
             remote_snapshot.relpath,

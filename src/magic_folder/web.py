@@ -54,7 +54,7 @@ from .snapshot import (
     create_author,
 )
 from .util.capabilities import (
-    is_readonly_directory_cap,
+    Capability,
 )
 from .util.file import (
     ns_to_seconds,
@@ -246,7 +246,7 @@ class APIv1(object):
 
         reply = {
             part.name: {
-                "personal_dmd": part.dircap,
+                "personal_dmd": part.dircap.danger_real_capability_string(),
                 # not tracked properly yet
                 # "public_key": part.verify_key.encode(Base32Encoder),
             }
@@ -291,9 +291,9 @@ class APIv1(object):
             VerifyKey(os.urandom(32)),
         )
 
-        personal_dmd_cap = participant["personal_dmd"]
+        personal_dmd_cap = Capability.from_string(participant["personal_dmd"])
 
-        if not is_readonly_directory_cap(personal_dmd_cap):
+        if not personal_dmd_cap.is_readonly_directory():
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
         yield folder_service.add_participant(author, personal_dmd_cap)
@@ -376,8 +376,8 @@ class APIv1(object):
             }
             if include_secret_information:
                 info[u"author"][u"signing_key"] = mf.author.signing_key.encode(Base32Encoder).decode("ascii")
-                info[u"collective_dircap"] = mf.collective_dircap
-                info[u"upload_dircap"] = mf.upload_dircap
+                info[u"collective_dircap"] = mf.collective_dircap.danger_real_capability_string()
+                info[u"upload_dircap"] = mf.upload_dircap.danger_real_capability_string()
             return info
 
         def all_folder_configs():

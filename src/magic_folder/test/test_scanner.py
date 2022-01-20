@@ -38,6 +38,10 @@ from ..snapshot import (
 )
 from ..status import FolderStatus, WebSocketStatusService
 from ..util.file import PathState, get_pathinfo
+from ..util.capabilities import (
+    random_dircap,
+    random_immutable,
+)
 from ..tahoe_client import (
     create_tahoe_client,
 )
@@ -68,8 +72,8 @@ class FindUpdatesTests(SyncTestCase):
             FilePath(self.mktemp()),
             FilePath("dummy"),
         )
-        self.collective_cap = "URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq"
-        self.personal_cap = "URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        self.collective_cap = random_dircap()
+        self.personal_cap = random_dircap()
 
         self.clock = Clock()
         self.status_service = WebSocketStatusService(self.clock, self._global_config)
@@ -162,10 +166,10 @@ class FindUpdatesTests(SyncTestCase):
                     local.asBytesMode("utf-8").getModificationTime()
                 ),
             },
-            capability="URI:DIR2-CHK:",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         self.config.store_downloaded_snapshot(
             relpath, snap, get_pathinfo(local).state
@@ -200,10 +204,10 @@ class FindUpdatesTests(SyncTestCase):
                 )
                 - 120,
             },
-            capability="URI:DIR2-CHK:",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         self.config.store_downloaded_snapshot(
             relpath,

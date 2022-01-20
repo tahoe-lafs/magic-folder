@@ -490,7 +490,7 @@ class MagicFile(object):
 
         retry_delay_sequence = _delay_sequence()
 
-        def failed(f):
+        def error(f):
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -507,7 +507,7 @@ class MagicFile(object):
                 write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_download)
-            delay.addErrback(failed)
+            delay.addErrback(error)
             return None
 
         @inline_callbacks
@@ -533,7 +533,7 @@ class MagicFile(object):
                 d.addBoth(clean)
 
             d.addCallback(downloaded)
-            d.addErrback(failed)
+            d.addErrback(error)
             return d
 
         return perform_download()
@@ -620,7 +620,6 @@ class MagicFile(object):
         # which may do even better at reducing the window for local
         # changes to get overwritten. Currently, that window is the 3
         # python statements between here and ".mark_overwrite()"
-
         if snapshot.content_cap is None:
             self._factory._magic_fs.mark_delete(snapshot.relpath)
             path_state = None
@@ -673,6 +672,7 @@ class MagicFile(object):
         def error(f):
             # XXX really need to "more visibly" log things like syntax
             # errors etc...
+            write_failure(f)
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -763,6 +763,7 @@ class MagicFile(object):
             retry_delay_sequence = _delay_sequence()
 
             def upload_error(f, snap):
+                write_failure(f)
                 if f.check(CancelledError):
                     self._factory._folder_status.error_occurred(
                         "Cancelled: {}".format(self._relpath)
@@ -791,7 +792,7 @@ class MagicFile(object):
             def got_remote(remote):
                 # successfully uploaded
                 snapshot.remote_snapshot = remote
-                self._factory._remote_cache._cached_snapshots[remote.capability] = remote
+                self._factory._remote_cache._cached_snapshots[remote.capability.danger_real_capability_string()] = remote
                 self._call_later(self._upload_completed, snapshot)
 
             d.addCallback(got_remote)
@@ -819,6 +820,7 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def error(f):
+            write_failure(f)
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -897,7 +899,11 @@ class MagicFile(object):
         def got_snap(snap):
             ret_d.callback(snap)
             return snap
-        d.addCallback(got_snap)
+
+        def err(f):
+            # check for cancel separately, or this enough?
+            ret_d.errback(f)
+        d.addCallbacks(got_snap, err)
         return ret_d
 
     @_machine.output()
