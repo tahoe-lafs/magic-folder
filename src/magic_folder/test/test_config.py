@@ -1215,6 +1215,7 @@ class ConflictTests(SyncTestCase):
                 "foo": [Conflict(remote_cap, self.author.name)],
             }),
         )
+        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
@@ -1282,6 +1283,7 @@ class ConflictTests(SyncTestCase):
                 ],
             })
         )
+        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
