@@ -1238,6 +1238,7 @@ class ConflictTests(SyncTestCase):
         self.db.add_conflict(snap)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.add_conflict(snap)
+        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
