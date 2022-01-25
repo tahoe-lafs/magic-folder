@@ -13,6 +13,9 @@ from eliot.twisted import (
 from magic_folder.magicpath import (
     magic2path,
 )
+from magic_folder.util.capabilities import (
+    Capability,
+)
 from .util import (
     twisted_sleep,
 )
@@ -90,7 +93,9 @@ async def test_kittens(request, reactor, temp_filepath, alice):
     # correct Snapshots (i.e. one for every cat-pic)
     folders = await alice.list_(True)
 
-    files = await alice.tahoe_client().list_directory(folders["kitties"]["upload_dircap"])
+    files = await alice.tahoe_client().list_directory(
+        Capability.from_string(folders["kitties"]["upload_dircap"])
+    )
     names = {
         magic2path(k)
         for k in files.keys()
