@@ -29,10 +29,7 @@ from os import (
 import attr
 
 
-# we set hash=False to guard against errors putting this into dicts
-# where currently they should use the uri itself (e.g. remote snapshot
-# cache)
-@attr.s(frozen=True)#, hash=False)
+@attr.s(frozen=True)
 class Capability:
     """
     Represents a Tahoe-LAFS capability (Tahoe-LAFS calls these "URIs").
@@ -162,11 +159,26 @@ class Capability:
         Return the real capability string.
 
         This is original str of the capability and usually contains
-        secret or sensitive data.
+        secret or sensitive data. We name this method to encourage
+        programmers to think about whether the actual
+        capability-string is required in such a case or not.
+
+        :returns str: a Tahoe-LAFS URI string
+        """
+        return self._uri
+
+    def __hash__(self):
+        """
+        Logically, two capabilities are 'the same' if their actual
+        underlying Tahoe-LAFS URI is identical
         """
         return self._uri
 
     def __eq__(self, other):
+        """
+        Logically, two capabilities are 'the same' if their actual
+        underlying Tahoe-LAFS URI is identical
+        """
         return self.__uri__ == other._uri
 
 
