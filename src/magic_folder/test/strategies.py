@@ -292,7 +292,9 @@ def filenodes():
     """
     return fixed_dictionaries({
         # CHK capabilities are only read-only.
-        "ro_uri": tahoe_lafs_chk_capabilities(),
+        "ro_uri": tahoe_lafs_chk_capabilities().map(
+            lambda cap: cap.danger_real_capability_string()
+        ),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({
