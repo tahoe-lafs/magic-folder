@@ -18,7 +18,6 @@ from ..util.encoding import (
 )
 from ..util.capabilities import (
     Capability,
-    random_immutable,
     random_dircap,
 )
 from ..util.wrap import (

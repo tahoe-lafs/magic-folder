@@ -26,9 +26,6 @@ from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
-from .util.capabilities import (
-    Capability,
-)
 from .util.observer import ListenObserver
 from .web import magic_folder_web_service
 

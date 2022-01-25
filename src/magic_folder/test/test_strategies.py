@@ -18,9 +18,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 
-from ..util.capabilities import (
-    Capability,
-)
 from .common import (
     SyncTestCase,
 )

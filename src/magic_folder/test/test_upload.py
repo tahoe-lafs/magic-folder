@@ -12,7 +12,6 @@ from .matchers import (
 )
 from testtools.matchers import (
     AfterPreprocessing,
-    MatchesPredicate,
     MatchesListwise,
     ContainsDict,
     Always,

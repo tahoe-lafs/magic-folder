@@ -259,7 +259,6 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         assert file_cap is not None, "must supply a file-cap"
-        h = file_cap.hex_digest()
         staged_path = self.staging_path.child(file_cap.hex_digest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)

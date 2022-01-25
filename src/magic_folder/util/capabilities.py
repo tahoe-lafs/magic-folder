@@ -15,7 +15,6 @@ from allmydata.uri import (
     IFileURI,
     IImmutableFileURI,
     IReadonlyDirectoryURI,
-    IVerifierURI,
     ImmutableDirectoryURI,
 )
 from allmydata.uri import from_string as _tahoe_uri_from_string

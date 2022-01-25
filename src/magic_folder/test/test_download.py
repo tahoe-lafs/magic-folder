@@ -1471,7 +1471,6 @@ class ConflictTests(AsyncTestCase):
         An update arrives but we fail to update our Personal DMD
         """
 
-        some_data_cap = random_immutable()
         parent_cap = random_immutable(directory=True)
         parent = RemoteSnapshot(
             relpath="foo",
