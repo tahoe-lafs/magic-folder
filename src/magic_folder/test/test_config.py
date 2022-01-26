@@ -125,7 +125,7 @@ class TestGlobalConfig(SyncTestCase):
         ``create_global_configuration`` accepts a path that doesn't exist to which
         to write the configuration.
         """
-        confdir = self.temp.child(b"base")
+        confdir = self.temp.child("base")
         config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
@@ -253,8 +253,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
         self.setup_tempdir()
 
     def setup_tempdir(self):
-        self.temp = FilePath(self.mktemp())
-        self.node_dir = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
+        self.node_dir = FilePath(self.mktemp()).asTextMode()
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
 
@@ -488,10 +488,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     def setup_example(self):
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -638,10 +638,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         super(DeleteLocalSnapshotTests, self).setUp()
         self.author = create_local_author(u"alice")
 
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -853,10 +853,10 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.author = create_local_author(u"alice")
 
     def setup_example(self):
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -1107,10 +1107,10 @@ class RemoteSnapshotTimeTests(SyncTestCase):
     def setUp(self):
         super(RemoteSnapshotTimeTests, self).setUp()
         self.author = create_local_author(u"alice")
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -1171,10 +1171,10 @@ class ConflictTests(SyncTestCase):
     def setUp(self):
         super(ConflictTests, self).setUp()
         self.author = create_local_author(u"desktop")
-        self.temp = FilePath(self.mktemp())
+        self.temp = FilePath(self.mktemp()).asTextMode()
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(

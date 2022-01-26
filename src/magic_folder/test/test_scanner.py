@@ -107,8 +107,8 @@ class FindUpdatesTests(SyncTestCase):
         A completely new file is scanned
         """
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
 
         files = []
         self.assertThat(
@@ -133,8 +133,8 @@ class FindUpdatesTests(SyncTestCase):
         A completely new symlink is ignored
         """
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").linkTo(local.asBytesMode("utf-8"))
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.linkTo(local)
 
         files = []
         self.assertThat(
@@ -156,14 +156,14 @@ class FindUpdatesTests(SyncTestCase):
         An existing, non-updated file is not scanned
         """
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
         snap = RemoteSnapshot(
             relpath,
             self.author,
             metadata={
                 "modification_time": int(
-                    local.asBytesMode("utf-8").getModificationTime()
+                    local.getModificationTime()
                 ),
             },
             capability=random_immutable(directory=True),
@@ -192,15 +192,15 @@ class FindUpdatesTests(SyncTestCase):
         We scan an update to a file we already know about.
         """
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
         snap = RemoteSnapshot(
             relpath,
             self.author,
             metadata={
                 # this remote is 2min older than our local file
                 "modification_time": int(
-                    local.asBytesMode("utf-8").getModificationTime()
+                    local.getModificationTime()
                 )
                 - 120,
             },
@@ -232,7 +232,7 @@ class FindUpdatesTests(SyncTestCase):
         We scan an update to a file we already know about (but only locally).
         """
         local = self.magic_path.preauthChild("existing-file")
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.setContent(b"dummy\n")
         stash_dir = FilePath(self.mktemp())
         stash_dir.makedirs()
 
@@ -256,7 +256,7 @@ class FindUpdatesTests(SyncTestCase):
         we ignore it, and report an error.
         """
         local = self.magic_path.preauthChild("existing-file")
-        local.asBytesMode("utf-8").makedirs()
+        local.makedirs()
         stash_dir = FilePath(self.mktemp())
         stash_dir.makedirs()
 
@@ -311,8 +311,8 @@ class FindUpdatesTests(SyncTestCase):
         """
         relpath = "a_file0"
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
 
         files = []
 
@@ -368,8 +368,8 @@ class FindUpdatesTests(SyncTestCase):
         """
         relpath = "a_file1"
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
 
         files = []
 
@@ -427,8 +427,8 @@ class FindUpdatesTests(SyncTestCase):
         and shouldn't be uploaded
         """
         local = self.magic_path.preauthChild(relpath + u".conflict-author")
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
 
         files = []
 
@@ -480,12 +480,12 @@ class FindUpdatesTests(SyncTestCase):
         # make a pre-existing local snapshot
         self.setup_example()
         local = self.magic_path.preauthChild(relpath)
-        local.parent().asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
-        local.asBytesMode("utf-8").setContent(b"dummy\n")
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"dummy\n")
         # pretend we stashed it, too
         stash = FilePath(self.mktemp())
         stash.makedirs()
-        stash.child(relpath).asBytesMode("utf8").setContent(b"dummy\n")
+        stash.child(relpath).setContent(b"dummy\n")
 
         local_snap = LocalSnapshot(
             relpath,

@@ -128,10 +128,10 @@ class CacheTests(SyncTestCase):
     """
     def setup_example(self):
         self.author = create_local_author("alice")
-        self.magic_path = FilePath(self.mktemp())
+        self.magic_path = FilePath(self.mktemp()).asTextMode()
         self.magic_path.makedirs()
         self._global_config = create_testing_configuration(
-            FilePath(self.mktemp()),
+            FilePath(self.mktemp()).asTextMode(),
             FilePath("dummy"),
         )
         self.collective_cap = Capability.from_string("URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq")
@@ -383,9 +383,9 @@ class UpdateTests(AsyncTestCase):
         super(UpdateTests, self).setUp()
         self.author = create_local_author("alice")
         self.other = create_local_author("zara")
-        self.magic_path = FilePath(self.mktemp())
+        self.magic_path = FilePath(self.mktemp()).asTextMode()
         self.magic_path.makedirs()
-        self.state_path = FilePath(self.mktemp())
+        self.state_path = FilePath(self.mktemp()).asTextMode()
         self.state_path.makedirs()
 
         self._global_config = create_testing_configuration(
@@ -874,7 +874,7 @@ class UpdateTests(AsyncTestCase):
         relpath = "a"
 
         # give alice current knowledge of this file
-        local_path = self.magic_path.child(relpath).asTextMode()
+        local_path = self.magic_path.child(relpath)
         local_path.setContent(b"dummy contents")
 
         alice_snap = yield create_snapshot(
@@ -924,7 +924,7 @@ class UpdateTests(AsyncTestCase):
                 break
 
         self.assertThat(
-            set(self.magic_path.asTextMode().listdir()),
+            set(self.magic_path.listdir()),
             Equals(expected_files),
         )
 
@@ -937,11 +937,11 @@ class ConflictTests(AsyncTestCase):
     def setUp(self):
         super(ConflictTests, self).setUp()
 
-        self.alice_magic_path = FilePath(self.mktemp())
+        self.alice_magic_path = FilePath(self.mktemp()).asTextMode()
         self.alice_magic_path.makedirs()
         self.alice = MagicFolderNode.create(
             reactor,
-            FilePath(self.mktemp()),
+            FilePath(self.mktemp()).asTextMode(),
             folders={
                 "default": {
                     "magic-path": self.alice_magic_path,
@@ -1564,7 +1564,7 @@ class CancelTests(AsyncTestCase):
 
         carol = MagicFolderNode.create(
             reactor=reactor,
-            basedir=FilePath(self.mktemp()),
+            basedir=FilePath(self.mktemp()).asTextMode(),
             folders={
                 "default": {
                     "magic-path": magic_path,
@@ -1584,7 +1584,7 @@ class CancelTests(AsyncTestCase):
         service = carol.global_service.get_folder_service("default")
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         class FakeRemoteSnapshot(object):
@@ -1639,7 +1639,7 @@ class CancelTests(AsyncTestCase):
             metadata_cap=random_immutable(),
         )
 
-        magic_path = FilePath(self.mktemp())
+        magic_path = FilePath(self.mktemp()).asTextMode()
         magic_path.makedirs()
         relpath = "a_file"
 
@@ -1653,7 +1653,7 @@ class CancelTests(AsyncTestCase):
 
         carol = MagicFolderNode.create(
             reactor=reactor,
-            basedir=FilePath(self.mktemp()),
+            basedir=FilePath(self.mktemp()).asTextMode(),
             folders={
                 "default": {
                     "magic-path": magic_path,
@@ -1711,9 +1711,9 @@ class FilesystemModificationTests(SyncTestCase):
 
     def setUp(self):
         super(FilesystemModificationTests, self).setUp()
-        self.magic = FilePath(self.mktemp())
+        self.magic = FilePath(self.mktemp()).asTextMode()
         self.magic.makedirs()
-        self.staging = FilePath(self.mktemp())
+        self.staging = FilePath(self.mktemp()).asTextMode()
         self.staging.makedirs()
         self.filesystem = LocalMagicFolderFilesystem(
             self.magic,

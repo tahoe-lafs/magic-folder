@@ -131,10 +131,9 @@ class UploadTests(SyncTestCase):
 
         # create a local snapshot
         local_path = f.config.magic_path.preauthChild(relpath)
-        local_path_bytes = local_path.asBytesMode("utf8")
-        if not local_path_bytes.parent().exists():
-            local_path_bytes.parent().makedirs()
-        with local_path_bytes.open("w") as local_file:
+        if not local_path.parent().exists():
+            local_path.parent().makedirs()
+        with local_path.open("w") as local_file:
             local_file.write(b"foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
         self.assertThat(
@@ -209,7 +208,7 @@ class UploadTests(SyncTestCase):
         mf._delay_later = retry
 
         for content in contents:
-            with local_path.asBytesMode("utf8").open("w") as local_file:
+            with local_path.open("w") as local_file:
                 local_file.write(content)
             d = mf.create_update()
             d.addCallback(snapshots.append)
@@ -258,7 +257,7 @@ class MagicFileFactoryTests(SyncTestCase):
         config = f.config
 
         local = f.magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         snap = RemoteSnapshot(
@@ -266,7 +265,7 @@ class MagicFileFactoryTests(SyncTestCase):
             author,
             metadata={
                 "modification_time": int(
-                    local.asBytesMode("utf-8").getModificationTime()
+                    local.getModificationTime()
                 ),
             },
             capability=random_immutable(directory=True),
@@ -399,7 +398,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         service.startService()
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -513,7 +512,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         service.startService()
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -587,7 +586,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         service = alice.global_service.get_folder_service("default")
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -652,7 +651,7 @@ class AsyncMagicFileTests(AsyncTestCase):
 
         service = alice.global_service.get_folder_service("default")
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         # arrange to fail the personal-dmd update

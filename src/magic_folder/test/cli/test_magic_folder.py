@@ -109,7 +109,7 @@ class ListMagicFolder(AsyncTestCase):
         # away with an "empty" Tahoe WebUI
         tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         self.config = create_testing_configuration(
-            FilePath(self.mktemp()),
+            FilePath(self.mktemp()).asTextMode(),
             FilePath(u"/no/tahoe/node-directory"),
         )
         status_service = WebSocketStatusService(reactor, self.config)
@@ -227,7 +227,7 @@ class CreateMagicFolder(AsyncTestCase):
             create_tahoe_treq_client(self.root),
         )
 
-        self.config_dir = FilePath(self.mktemp())
+        self.config_dir = FilePath(self.mktemp()).asTextMode()
         self.config = create_testing_configuration(
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
@@ -251,7 +251,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -259,7 +259,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"add",
                 u"--name", u"test",
                 u"--author", u"test",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
         self.assertThat(
@@ -274,7 +274,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -284,7 +284,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"--author", u"test",
                 u"--poll-interval", u"30",
                 u"--scan-interval", u"30",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
         self.assertThat(
@@ -304,7 +304,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -313,7 +313,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"--name", u"test",
                 u"--author", u"test",
                 u"--disable-scanning",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
         self.assertThat(
@@ -375,7 +375,7 @@ class CreateMagicFolder(AsyncTestCase):
         `magic-folder add` reports invalid folder names.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -383,7 +383,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"add",
                 u"--name", u"/",
                 u"--author", u"test",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
 
@@ -441,7 +441,7 @@ class CreateMagicFolder(AsyncTestCase):
         result in a failure.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -449,7 +449,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"add",
                 u"--author", u"test",
                 u"--name", u"foo",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
 
@@ -481,7 +481,7 @@ class CreateMagicFolder(AsyncTestCase):
         should result in an error.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -489,7 +489,7 @@ class CreateMagicFolder(AsyncTestCase):
                 u"add",
                 u"--name", u"foo",
                 u"--author", u"alice",
-                magic_folder.asTextMode().path,
+                magic_folder.path,
             ],
         )
 
@@ -594,7 +594,7 @@ class ConfigOptionTests(SyncTestCase):
         """
         confdir = FilePath(self.mktemp()).asTextMode()
         nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
@@ -614,9 +614,9 @@ class ConfigOptionTests(SyncTestCase):
         """
         Not passing a --config loads the configuration from the default directory.
         """
-        confdir = FilePath(self.mktemp())
+        confdir = FilePath(self.mktemp()).asTextMode()
         nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
@@ -716,9 +716,9 @@ class ClientEndpoint(SyncTestCase):
 
     def setUp(self):
         super(ClientEndpoint, self).setUp()
-        self.basedir = FilePath(self.mktemp())
+        self.basedir = FilePath(self.mktemp()).asTextMode()
         self.nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
 
     def test_convert_tcp(self):

@@ -102,8 +102,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
             FilePath(self.mktemp()),
             self._node_dir,
         )
-        self.magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
-        self.magic_path.asBytesMode("utf-8").makedirs()
+        self.magic_path = FilePath(self.mktemp()).asTextMode()
+        self.magic_path.makedirs()
         self.magic_config = self._global_config.create_magic_folder(
             "name",
             self.magic_path,
@@ -129,8 +129,8 @@ class LocalSnapshotServiceTests(SyncTestCase):
         Start the service, add a file and check if the operation succeeded.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
-        to_add.asBytesMode("utf-8").setContent(content)
+        to_add.parent().makedirs(ignoreExistingDirectory=True)
+        to_add.setContent(content)
 
         self.snapshot_service.startService()
 
@@ -160,7 +160,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         for filename in filenames:
             to_add = self.magic_path.child(filename)
             content = data.draw(binary())
-            to_add.asBytesMode("utf-8").setContent(content)
+            to_add.setContent(content)
             files.append(to_add)
 
         self.snapshot_service.startService()
@@ -210,7 +210,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
         to a directory.
         """
         to_add = self.magic_path.preauthChild(relative_path)
-        to_add.asBytesMode("utf-8").makedirs()
+        to_add.makedirs()
 
         self.assertThat(
             self.snapshot_service.add_file(to_add),
@@ -255,11 +255,11 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         Hypothesis-invoked hook to create per-example state.
         Reset the database before running each test.
         """
-        self.temp = FilePath(self.mktemp()).asTextMode("utf-8")
+        self.temp = FilePath(self.mktemp())
         self.global_db = create_global_configuration(
-            self.temp.child(b"global-db"),
+            self.temp.child("global-db"),
             u"tcp:12345",
-            self.temp.child(b"tahoe-node"),
+            self.temp.child("tahoe-node"),
             u"tcp:localhost:1234",
         )
         self.magic = self.temp.child(u"magic")
@@ -293,7 +293,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         for filename in filenames:
             file = self.magic.child(filename)
             content = data_strategy.draw(binary())
-            file.asBytesMode("utf-8").setContent(content)
+            file.setContent(content)
 
             files.append((file, filename, content))
 
@@ -314,7 +314,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
                 path_state,
                 MatchesStructure(
                     size=Equals(len(content)),
-                    mtime_ns=Equals(seconds_to_ns(file.asBytesMode("utf-8").getModificationTime())),
+                    mtime_ns=Equals(seconds_to_ns(file.getModificationTime())),
                 )
             )
 
@@ -328,7 +328,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         should refer to the existing snapshot as a parent.
         """
         foo = self.magic.child(filename)
-        foo.asBytesMode("utf-8").setContent(content1)
+        foo.setContent(content1)
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
@@ -339,7 +339,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         stored_snapshot1 = self.db.get_local_snapshot(filename)
 
         # now modify the file with some new content.
-        foo.asBytesMode("utf-8").setContent(content2)
+        foo.setContent(content2)
 
         # make sure the second call succeeds as well
         self.assertThat(
@@ -363,7 +363,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         Create a snapshot and then a deletion snapshot of it.
         """
         foo = self.magic.child(filename)
-        foo.asBytesMode("utf-8").setContent(content)
+        foo.setContent(content)
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
@@ -372,7 +372,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
         )
 
         # delete the file
-        foo.asBytesMode("utf-8").remove()
+        foo.remove()
 
         # store a new snapshot
         self.assertThat(
