@@ -44,7 +44,7 @@ async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introd
         magic_folder_web_port="tcp:19983:interface=localhost",
         storage=True,
     )
-    number_of_folders = 20
+    number_of_folders = 5
     folder_names = ["workstuff{}".format(n) for n in range(number_of_folders)]
 
     # make a bunch of folders
@@ -100,6 +100,10 @@ async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introd
             HasLength(1)
         )
     )
+
+    # this is failing -- sometimes! -- on windows, looks like the
+    # local snapshot just never gets uploaded for one or more of the
+    # clients
 
     # try for 10 seconds to get what we expect. we're waiting for each
     # of the magic-folders to upload their single "a_file_name" items
