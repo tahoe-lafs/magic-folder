@@ -194,7 +194,9 @@ class _CollectiveDirnodeParticipants(object):
         """
         if not isinstance(personal_dmd_cap, Capability):
             raise TypeError(
-                "Personal DMD was {} not Capability".format(type(personal_dmd_cap))
+                "New participant Personal DMD was {} not Capability".format(
+                    type(personal_dmd_cap).__name__,
+                )
             )
         if not personal_dmd_cap.is_readonly_directory():
             raise ValueError(

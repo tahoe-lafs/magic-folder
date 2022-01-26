@@ -357,6 +357,37 @@ class CollectiveParticipantsTests(SyncTestCase):
         )
 
     @given(
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add_wrong_dmd_type(self, rw_collective_dircap, rw_upload_dircap):
+        """
+        Calling ``IParticipants.add`` with an invalid object is an error
+        """
+        assume(rw_collective_dircap != rw_upload_dircap)
+        # we are testing error-cases, so don't need a real client
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            rw_upload_dircap,
+            tahoe_client=None,
+        )
+
+        self.assertThat(
+            participants.add(
+                create_local_author("alice").to_remote_author(),
+                "personal dmd str not Capability"
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    Equals(
+                        "New participant Personal DMD was str not Capability"
+                    )
+                )
+            )
+        )
+
+    @given(
         author_names(),
         tahoe_lafs_dir_capabilities(),
         tahoe_lafs_dir_capabilities(),
