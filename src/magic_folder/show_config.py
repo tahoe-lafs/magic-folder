@@ -39,7 +39,7 @@ def magic_folder_show_config(config, stdout=None):
         for name in config.list_magic_folders()
     }
     json = {
-        "tahoe_node_directory": config.tahoe_node_directory.asTextMode().path,
+        "tahoe_node_directory": config.tahoe_node_directory.path,
         "api_endpoint": config.api_endpoint,
         "api_client_endpoint": config.api_client_endpoint,
         "api_token": config.api_token.decode("utf8"),

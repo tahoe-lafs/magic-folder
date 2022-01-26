@@ -135,7 +135,7 @@ class TestLocalSnapshot(SyncTestCase):
         """
         Hypothesis-invoked hook to create per-example state.
         """
-        self.stash_dir = FilePath(self.mktemp())
+        self.stash_dir = FilePath(self.mktemp()).asTextMode()
         self.stash_dir.makedirs()
 
     @given(
@@ -291,7 +291,7 @@ class TestRemoteSnapshot(SyncTestCase):
             self.http_client,
         )
         self.alice = create_local_author(u"alice")
-        self.stash_dir = FilePath(mktemp())
+        self.stash_dir = FilePath(mktemp()).asTextMode()
         self.stash_dir.makedirs()  # 'trial' will delete this when done
 
     @given(

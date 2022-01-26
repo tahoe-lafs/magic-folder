@@ -276,7 +276,7 @@ class LocalSnapshot(object):
             on-disc content. Raises an error if we already have a
             capability. Note that this data will have been stashed previously.
         """
-        return FileBodyProducer(self.content_path.asBytesMode("utf-8").open("rb"))
+        return FileBodyProducer(self.content_path.open("rb"))
 
     def is_delete(self):
         """
@@ -522,7 +522,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
         # 1. create a temp-file in our stash area
         temp_file_fd, temp_file_name = mkstemp(
             prefix="snap",
-            dir=snapshot_stash_dir.asTextMode().path,
+            dir=snapshot_stash_dir.path,
         )
         try:
             # 2. stream data_producer into our temp-file
@@ -553,7 +553,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
             "mtime": modified_time,
             "ctime": now,
         },
-        content_path=None if data_producer is None else FilePath(temp_file_name),
+        content_path=None if data_producer is None else FilePath(temp_file_name).asTextMode(),
         parents_local=parents_local,
         parents_remote=parents_remote,
     )

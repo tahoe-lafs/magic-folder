@@ -358,30 +358,26 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         api_client_endpoint_str = nativeString(api_client_endpoint_str)
         _validate_connect_endpoint_str(api_client_endpoint_str)
 
-    # note that we put *bytes* in .child() calls after this so we
-    # don't convert again..
-    basedir = basedir.asBytesMode("utf8")
-
     try:
         basedir.makedirs()
     except OSError as e:
         raise ValueError(
-            "'{}' already exists: {}".format(basedir.asTextMode().path, e)
+            "'{}' already exists: {}".format(basedir.path, e)
         )
 
     # explain what is in this directory
-    with basedir.child(b"README").open("wb") as f:
+    with basedir.child("README").open("wb") as f:
         f.write(
             u"This is a Magic Folder daemon configuration\n"
             u"\n"
             u"To find out more you can run a command like:\n"
             u"\n"
             u"    magic-folder --config {} --help\n"
-            u"\n".format(basedir.asTextMode("utf8").path).encode("utf8")
+            u"\n".format(basedir.path).encode("utf8")
         )
 
     # set up the configuration database
-    db_fname = basedir.child(b"global.sqlite")
+    db_fname = basedir.child("global.sqlite")
     connection = _upgraded(
         _global_config_schema,
         sqlite3.connect(db_fname.path),
@@ -397,7 +393,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         basedir=basedir,
         database=connection,
         token_provider=FilesystemTokenProvider(
-            basedir.child(b"api_token"),
+            basedir.child("api_token"),
         )
     )
     # make sure we have an API token
@@ -936,7 +932,7 @@ class MagicFolderConfig(object):
 
         try:
             # Create the primary row.
-            content_path = None if snapshot.content_path is None else snapshot.content_path.asTextMode("utf-8").path
+            content_path = None if snapshot.content_path is None else snapshot.content_path.path
             cursor.execute(
                 """
                 INSERT INTO
@@ -1529,7 +1525,7 @@ class MagicFolderConfig(object):
             conflict (like "foo.conflict-laptop" for a file "foo"
             conflicting with device "laptop")
         """
-        relpath = u"/".join(path.asTextMode().segmentsFrom(self.magic_path.asTextMode()))
+        relpath = u"/".join(path.segmentsFrom(self.magic_path))
         m = _conflict_file_re.match(relpath)
         if m:
             # the plain relpath is .group(1)
@@ -1768,7 +1764,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT tahoe_node_directory FROM config")
-            node_dir = FilePath(cursor.fetchone()[0])
+            node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         with node_dir.child("node.url").open("r") as f:
             return DecodedURL.from_text(f.read().strip().decode("utf8"))
 
@@ -1781,7 +1777,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT tahoe_node_directory FROM config")
-            node_dir = FilePath(cursor.fetchone()[0])
+            node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
 
     def list_magic_folders(self):
@@ -1963,29 +1959,29 @@ class GlobalConfigDatabase(object):
                     code=http.CONFLICT,
                     reason="Already have a magic-folder named '{}'".format(name)
                 )
-        if not magic_path.asBytesMode("utf-8").exists():
+        if not magic_path.exists():
             raise APIError(
                 code=http.BAD_REQUEST,
                 reason="'{}' does not exist".format(magic_path.path)
             )
-        state_path = self._get_state_path(name).asTextMode("utf-8")
-        if state_path.asBytesMode("utf-8").exists():
+        state_path = self._get_state_path(name)
+        if state_path.exists():
             raise APIError(
                 code=http.INTERNAL_SERVER_ERROR,
                 reason="magic-folder state directory '{}' already exists".format(state_path.path)
             )
 
-        stash_path = state_path.child(u"stash").asTextMode("utf-8")
+        stash_path = state_path.child(u"stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
             mfc = MagicFolderConfig.initialize(
                 name,
                 SQLite3DatabaseLocation(db_path.path),
                 author,
-                stash_path.asTextMode("utf-8"),
+                stash_path,
                 collective_dircap,
                 upload_dircap,
-                magic_path.asTextMode("utf-8"),
+                magic_path,
                 poll_interval,
                 scan_interval,
             )
@@ -1995,7 +1991,7 @@ class GlobalConfigDatabase(object):
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
-                    (name, state_path.asTextMode("utf-8").path)
+                    (name, state_path.path)
                 )
 
         return mfc

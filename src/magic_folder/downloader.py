@@ -287,12 +287,12 @@ class LocalMagicFolderFilesystem(object):
             # As long as the poller is running in-process, in the reactor,
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
-            tmp = local_path.temporarySibling(b".snaptmp")
+            tmp = local_path.temporarySibling(".snaptmp")
             local_path.moveTo(tmp)
             Message.log(
                 message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
                 source_path=local_path.path,
-                target_path=tmp.asTextMode().path,
+                target_path=tmp.path,
             )
         os.utime(staged_content.path, (mtime, mtime))
 

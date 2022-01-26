@@ -155,7 +155,7 @@ class _TestCaseMixin(object):
         # granted, so that when we invent a temporary filename beneath this
         # directory we're not subject to a collision attack.
         tmp.chmod(0o755)
-        return tmp.child(u"tmp").temporarySibling().asBytesMode().path
+        return tmp.child(u"tmp").temporarySibling().path
 
     def assertRaises(self, *a, **kw):
         return self._dummyCase.assertRaises(*a, **kw)

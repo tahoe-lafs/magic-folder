@@ -85,7 +85,7 @@ class MagicFileFactory(object):
         """
         # this segmentsFrom call also ensures this relpath doesn't
         # 'escape' our magic-path
-        relpath = u"/".join(path.segmentsFrom(self._config.magic_path.asTextMode()))
+        relpath = u"/".join(path.segmentsFrom(self._config.magic_path))
         try:
             return self._magic_files[relpath]
         except KeyError:
@@ -855,11 +855,11 @@ class MagicFile(object):
             if snapshot.content_path is not None:
                 try:
                     # Remove the local snapshot content from the stash area.
-                    snapshot.content_path.asBytesMode("utf-8").remove()
+                    snapshot.content_path.remove()
                 except Exception as e:
                     self._factory._folder_status.error_occurred(
                         "Failed to remove cache file '{}': {}".format(
-                            snapshot.content_path.asTextMode("utf-8").path,
+                            snapshot.content_path.path,
                             str(e),
                         )
                     )

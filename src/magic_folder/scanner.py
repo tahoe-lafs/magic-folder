@@ -193,7 +193,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     """
     action = current_action()
     magic_path = folder_config.magic_path
-    bytes_path = magic_path.asBytesMode("utf-8")
 
     def process_file(path):
         with action.context():
@@ -231,9 +230,9 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
 
     return cooperator.coiterate(
         (
-            process_file(path.asTextMode("utf-8"))
-            for path in bytes_path.walk()
-            if path != bytes_path
+            process_file(path)
+            for path in magic_path.walk()
+            if path != magic_path
         )
     )
 
@@ -259,7 +258,7 @@ def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
         Check if this file still exists locally; if not, it's a delete
         """
         path = folder_config.magic_path.preauthChild(relpath)
-        if not path.asBytesMode("utf8").exists():
+        if not path.exists():
             try:
                 local = folder_config.get_local_snapshot(relpath)
             except KeyError:

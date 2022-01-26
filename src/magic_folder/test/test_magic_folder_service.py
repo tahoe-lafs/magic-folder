@@ -120,8 +120,8 @@ class MagicFolderServiceTests(SyncTestCase):
             FilePath(self.mktemp()),
             FilePath(self.mktemp()),
         )
-        magic_path = FilePath(self.mktemp()).asTextMode("utf-8")
-        magic_path.asBytesMode("utf-8").makedirs()
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
         mf_config = global_config.create_magic_folder(
             u"foldername",
             magic_path,
@@ -133,8 +133,8 @@ class MagicFolderServiceTests(SyncTestCase):
         )
 
         target_path = magic_path.preauthChild(relative_target_path)
-        target_path.asBytesMode("utf-8").parent().makedirs(ignoreExistingDirectory=True)
-        target_path.asBytesMode("utf-8").setContent(content)
+        target_path.parent().makedirs(ignoreExistingDirectory=True)
+        target_path.setContent(content)
 
         clock = task.Clock()
         status_service = WebSocketStatusService(clock, global_config)

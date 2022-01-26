@@ -178,10 +178,10 @@ class MagicFileFactoryFixture(Fixture):
         )
 
     def _setUp(self):
-        self.magic_path = self.temp.child(b"magic")
+        self.magic_path = self.temp.child("magic")
         self.magic_path.makedirs()
 
-        self.stash_path = self.temp.child(b"stash")
+        self.stash_path = self.temp.child("stash")
         self.stash_path.makedirs()
 
         self.poll_interval = 1
@@ -207,8 +207,8 @@ class MagicFileFactoryFixture(Fixture):
         self.filesystem = InMemoryMagicFolderFilesystem()
 
         self._global_config = create_testing_configuration(
-            self.temp.child(b"config"),
-            self.temp.child(b"tahoe-node"),
+            self.temp.child("config"),
+            self.temp.child("tahoe-node"),
         )
         self.status = WebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
