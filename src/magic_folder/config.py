@@ -431,7 +431,7 @@ def create_testing_configuration(basedir, tahoe_node_directory):
     # ensure the paths are in text mode
     config = GlobalConfigDatabase(
         basedir=basedir.asTextMode(),
-        database=connection.asTextMode(),
+        database=connection,
         token_provider=tokens,
     )
 
