@@ -436,6 +436,7 @@ class APIv1(object):
         _application_json(request)  # set reply headers
         folder_config = self._global_config.get_magic_folder(folder_name)
         sizes = folder_config.get_tahoe_object_sizes()
+        print("{}: {}".format(folder_name, sizes))
         return json.dumps(sizes).encode("utf8")
 
 
