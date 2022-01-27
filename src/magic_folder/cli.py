@@ -636,13 +636,14 @@ class BaseOptions(usage.Options):
         try:
             with self._config_path.child("api_token").open("rb") as f:
                 data = f.read()
-            # confirm the data is syntactially correct: it is 32 bytes
-            # of url-safe base64-encoded random data
-            if len(urlsafe_b64decode(data)) != 32:
-                raise Exception("Incorrect token data")
-            return data
         except Exception:
-            return self.config.api_token
+            data = self.config.api_token
+        # confirm the data is syntactially correct: it is 32 bytes
+        # of url-safe base64-encoded random data
+        if len(urlsafe_b64decode(data)) != 32:
+            raise Exception("Incorrect token data")
+        return data
+
 
     @property
     def client(self):
