@@ -83,7 +83,7 @@ class TestApiAddSnapshot(AsyncTestCase):
 
     def setUp(self):
         super(TestApiAddSnapshot, self).setUp()
-        self.magic_config = FilePath(self.mktemp()).asTextMode()
+        self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -210,7 +210,7 @@ class TestMagicApi(AsyncTestCase):
         """
         Correctly loads existing configuration
         """
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         create_global_configuration(basedir, "tcp:-1", FilePath("/dev/null"), "tcp:127.0.0.1:-1")
         options = MagicFolderApiCommand()
         options.parseOptions([
@@ -361,7 +361,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -413,7 +413,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -477,7 +477,7 @@ class TestMagicApi(AsyncTestCase):
         stdout = StringIO()
         stderr = StringIO()
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         global_config = create_global_configuration(
             basedir,
             "tcp:-1",
@@ -524,7 +524,7 @@ class TestDumpState(AsyncTestCase):
 
     def setUp(self):
         super(TestDumpState, self).setUp()
-        self.magic_config = FilePath(self.mktemp()).asTextMode()
+        self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -537,7 +537,7 @@ class TestDumpState(AsyncTestCase):
         """
 
         author = create_local_author("zara")
-        magic_path = FilePath(self.mktemp()).asTextMode()
+        magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         config = self.global_config.create_magic_folder(
             name="test",
@@ -629,7 +629,7 @@ class TestApiParticipants(AsyncTestCase):
 
     def setUp(self):
         super(TestApiParticipants, self).setUp()
-        self.magic_config = FilePath(self.mktemp()).asTextMode()
+        self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),
@@ -819,7 +819,7 @@ class TestApiMonitor(AsyncTestCase):
 
     def setUp(self):
         super(TestApiMonitor, self).setUp()
-        self.magic_config = FilePath(self.mktemp()).asTextMode()
+        self.magic_config = FilePath(self.mktemp())
         self.global_config = create_testing_configuration(
             self.magic_config,
             FilePath(u"/no/tahoe/node-directory"),

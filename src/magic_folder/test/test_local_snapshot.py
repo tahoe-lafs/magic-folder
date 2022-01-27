@@ -98,7 +98,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
             FilePath(self.mktemp()),
             self._node_dir,
         )
-        self.magic_path = FilePath(self.mktemp()).asTextMode()
+        self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
         self.magic_config = self._global_config.create_magic_folder(
             "name",
