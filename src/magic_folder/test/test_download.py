@@ -128,10 +128,10 @@ class CacheTests(SyncTestCase):
     """
     def setup_example(self):
         self.author = create_local_author("alice")
-        self.magic_path = FilePath(self.mktemp()).asTextMode()
+        self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
         self._global_config = create_testing_configuration(
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             FilePath("dummy"),
         )
         self.collective_cap = Capability.from_string("URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq")
@@ -383,9 +383,9 @@ class UpdateTests(AsyncTestCase):
         super(UpdateTests, self).setUp()
         self.author = create_local_author("alice")
         self.other = create_local_author("zara")
-        self.magic_path = FilePath(self.mktemp()).asTextMode()
+        self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
-        self.state_path = FilePath(self.mktemp()).asTextMode()
+        self.state_path = FilePath(self.mktemp())
         self.state_path.makedirs()
 
         self._global_config = create_testing_configuration(
@@ -937,11 +937,11 @@ class ConflictTests(AsyncTestCase):
     def setUp(self):
         super(ConflictTests, self).setUp()
 
-        self.alice_magic_path = FilePath(self.mktemp()).asTextMode()
+        self.alice_magic_path = FilePath(self.mktemp())
         self.alice_magic_path.makedirs()
         self.alice = MagicFolderNode.create(
             reactor,
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             folders={
                 "default": {
                     "magic-path": self.alice_magic_path,
@@ -1558,13 +1558,13 @@ class CancelTests(AsyncTestCase):
         """
         An update arrives but one of the tahoe requests is cancelled
         """
-        magic_path = FilePath(self.mktemp()).asTextMode()
+        magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "some_file"
 
         carol = MagicFolderNode.create(
             reactor=reactor,
-            basedir=FilePath(self.mktemp()).asTextMode(),
+            basedir=FilePath(self.mktemp()),
             folders={
                 "default": {
                     "magic-path": magic_path,
@@ -1639,7 +1639,7 @@ class CancelTests(AsyncTestCase):
             metadata_cap=random_immutable(),
         )
 
-        magic_path = FilePath(self.mktemp()).asTextMode()
+        magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "a_file"
 
@@ -1653,7 +1653,7 @@ class CancelTests(AsyncTestCase):
 
         carol = MagicFolderNode.create(
             reactor=reactor,
-            basedir=FilePath(self.mktemp()).asTextMode(),
+            basedir=FilePath(self.mktemp()),
             folders={
                 "default": {
                     "magic-path": magic_path,
@@ -1711,9 +1711,9 @@ class FilesystemModificationTests(SyncTestCase):
 
     def setUp(self):
         super(FilesystemModificationTests, self).setUp()
-        self.magic = FilePath(self.mktemp()).asTextMode()
+        self.magic = FilePath(self.mktemp())
         self.magic.makedirs()
-        self.staging = FilePath(self.mktemp()).asTextMode()
+        self.staging = FilePath(self.mktemp())
         self.staging.makedirs()
         self.filesystem = LocalMagicFolderFilesystem(
             self.magic,

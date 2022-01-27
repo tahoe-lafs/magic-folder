@@ -43,7 +43,7 @@ class ScanMagicFolder(AsyncTestCase):
             }
         }
 
-        self.config_dir = FilePath(self.mktemp()).asTextMode()
+        self.config_dir = FilePath(self.mktemp())
         self.node = MagicFolderNode.create(
             reactor,
             self.config_dir,
