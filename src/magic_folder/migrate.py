@@ -13,6 +13,9 @@ from twisted.internet.defer import (
 )
 
 from .util.encoding import load_yaml
+from .util.capabilities import (
+    Capability,
+)
 
 from .config import (
     create_global_configuration,
@@ -73,8 +76,8 @@ def magic_folder_migrate(config_dir, listen_endpoint_str, tahoe_node_directory, 
             mf_name,
             FilePath(mf_config[u'directory']),
             author,
-            mf_config[u'collective_dircap'],
-            mf_config[u'upload_dircap'],
+            Capability.from_string(mf_config[u'collective_dircap']),
+            Capability.from_string(mf_config[u'upload_dircap']),
             int(mf_config[u'poll_interval']),  # is this always available?
             # tahoe-lafs's magic-folder implementation didn't have scan-interval
             # so use poll-interval for it as well.

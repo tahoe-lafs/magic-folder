@@ -202,7 +202,7 @@ class FakeWebTest(TestCase):
 
         # prove we can access the expected file via a GET
         uri = DecodedURL.from_text(u"http://example.com/uri/")
-        uri = uri.child(mut_cap, u"foo")
+        uri = uri.child(mut_cap.danger_real_capability_string(), u"foo")
         resp = http_client.get(uri.to_uri().to_text())
 
         self.assertThat(

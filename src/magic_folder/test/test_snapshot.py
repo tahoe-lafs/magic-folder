@@ -56,6 +56,9 @@ from .strategies import (
     remote_authors,
     author_names,
 )
+from ..util.capabilities import (
+    Capability,
+)
 from magic_folder.snapshot import (
     create_local_author,
     create_author_from_json,
@@ -135,7 +138,7 @@ class TestLocalSnapshot(SyncTestCase):
         """
         Hypothesis-invoked hook to create per-example state.
         """
-        self.stash_dir = FilePath(self.mktemp())
+        self.stash_dir = FilePath(self.mktemp()).asTextMode()
         self.stash_dir.makedirs()
 
     @given(
@@ -291,7 +294,7 @@ class TestRemoteSnapshot(SyncTestCase):
             self.http_client,
         )
         self.alice = create_local_author(u"alice")
-        self.stash_dir = FilePath(mktemp())
+        self.stash_dir = FilePath(mktemp()).asTextMode()
         self.stash_dir.makedirs()  # 'trial' will delete this when done
 
     @given(
@@ -472,7 +475,7 @@ class TestRemoteSnapshot(SyncTestCase):
             snapshots[3],
             MatchesStructure(
                 metadata=ContainsDict({"relpath": Equals(filename)}),
-                parents_raw=Equals([snapshots[1].capability]),
+                parents_raw=Equals([snapshots[1].capability.danger_real_capability_string()]),
             )
         )
 
@@ -526,7 +529,10 @@ class TestRemoteSnapshot(SyncTestCase):
 
         # turn the parent into a RemoteSnapshot
         parent_snapshot = success_result_of(
-            create_snapshot_from_capability(remote_snapshot.parents_raw[0], self.tahoe_client)
+            create_snapshot_from_capability(
+                Capability.from_string(remote_snapshot.parents_raw[0]),
+                self.tahoe_client,
+            )
         )
         self.assertThat(
             parent_snapshot,
