@@ -3,7 +3,6 @@ Testing synchronizing files between participants
 """
 
 import sys
-import time
 from functools import partial
 
 from eliot import (
@@ -318,7 +317,7 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
     original_folder.child("fluffy").setContent(content1)
     await take_snapshot(alice, "internal", "fluffy")
 
-    time.sleep(2)
+    await twisted_sleep(reactor, 2)
 
     await bob.start_magic_folder()
 
