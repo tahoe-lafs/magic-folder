@@ -65,6 +65,9 @@ from ...cli import MagicFolderCommand
 from ...common import (
     InvalidMagicFolderName,
 )
+from ...util.capabilities import (
+    Capability,
+)
 from ..common import (
     AsyncTestCase,
     SyncTestCase,
@@ -106,7 +109,7 @@ class ListMagicFolder(AsyncTestCase):
         # away with an "empty" Tahoe WebUI
         tahoe_client = create_tahoe_client(DecodedURL.from_text(u""), StubTreq(Resource())),
         self.config = create_testing_configuration(
-            FilePath(self.mktemp()),
+            FilePath(self.mktemp()).asTextMode(),
             FilePath(u"/no/tahoe/node-directory"),
         )
         status_service = WebSocketStatusService(reactor, self.config)
@@ -156,8 +159,8 @@ class ListMagicFolder(AsyncTestCase):
             u"list-some-folder",
             folder_path,
             create_local_author(u"alice"),
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             1,
             None,
         )
@@ -179,8 +182,8 @@ class ListMagicFolder(AsyncTestCase):
             u"list-some-json-folder",
             folder_path,
             create_local_author(u"alice"),
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             1,
             60,
         )
@@ -224,7 +227,7 @@ class CreateMagicFolder(AsyncTestCase):
             create_tahoe_treq_client(self.root),
         )
 
-        self.config_dir = FilePath(self.mktemp())
+        self.config_dir = FilePath(self.mktemp()).asTextMode()
         self.config = create_testing_configuration(
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
@@ -248,7 +251,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -271,7 +274,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -301,7 +304,7 @@ class CreateMagicFolder(AsyncTestCase):
         that this folder is also invited and joined with the given nickname.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -372,7 +375,7 @@ class CreateMagicFolder(AsyncTestCase):
         `magic-folder add` reports invalid folder names.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -438,7 +441,7 @@ class CreateMagicFolder(AsyncTestCase):
         result in a failure.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -478,7 +481,7 @@ class CreateMagicFolder(AsyncTestCase):
         should result in an error.
         """
         # Get a magic folder.
-        magic_folder = FilePath(self.mktemp())
+        magic_folder = FilePath(self.mktemp()).asTextMode()
         magic_folder.makedirs()
 
         outcome = yield self.cli(
@@ -591,7 +594,7 @@ class ConfigOptionTests(SyncTestCase):
         """
         confdir = FilePath(self.mktemp())
         nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
@@ -611,9 +614,9 @@ class ConfigOptionTests(SyncTestCase):
         """
         Not passing a --config loads the configuration from the default directory.
         """
-        confdir = FilePath(self.mktemp())
+        confdir = FilePath(self.mktemp()).asTextMode()
         nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
         yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
 
@@ -713,9 +716,9 @@ class ClientEndpoint(SyncTestCase):
 
     def setUp(self):
         super(ClientEndpoint, self).setUp()
-        self.basedir = FilePath(self.mktemp())
+        self.basedir = FilePath(self.mktemp()).asTextMode()
         self.nodedir = self.useFixture(
-            NodeDirectory(FilePath(self.mktemp()))
+            NodeDirectory(FilePath(self.mktemp()).asTextMode())
         )
 
     def test_convert_tcp(self):

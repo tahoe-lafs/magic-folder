@@ -54,6 +54,10 @@ from ..status import (
 from ..util.file import (
     seconds_to_ns,
 )
+from ..util.capabilities import (
+    random_immutable,
+    random_dircap,
+)
 from .common import (
     SyncTestCase,
 )
@@ -98,14 +102,14 @@ class LocalSnapshotServiceTests(SyncTestCase):
             FilePath(self.mktemp()),
             self._node_dir,
         )
-        self.magic_path = FilePath(self.mktemp())
+        self.magic_path = FilePath(self.mktemp()).asTextMode()
         self.magic_path.makedirs()
         self.magic_config = self._global_config.create_magic_folder(
             "name",
             self.magic_path,
             create_local_author("author"),
-            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
-            "URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
+            random_immutable(directory=True),
+            random_dircap(),
             60,
             None,
         )
@@ -264,8 +268,8 @@ class LocalSnapshotCreatorTests(SyncTestCase):
             u"some-folder",
             self.magic,
             self.author,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            random_immutable(directory=True),
+            random_dircap(),
             60,
             None,
         )

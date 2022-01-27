@@ -31,7 +31,10 @@ from .snapshot import (
 from .tahoe_client import (
     CannotAddDirectoryEntryError,
 )
-from .util.capabilities import is_directory_cap, is_readonly_directory_cap, is_mutable_directory_cap, to_readonly_capability
+from .util.capabilities import (
+    Capability,
+)
+
 
 
 class IParticipant(Interface):
@@ -155,14 +158,14 @@ class _CollectiveDirnodeParticipants(object):
         The Collective DMD must be a directory capability (but could be a
         read-only one or a read-write one).
         """
-        if not isinstance(value, str):
+        if not isinstance(value, Capability):
             raise TypeError(
-                "Collective dirnode was {} not text".format(type(value))
+                "Collective dirnode was {} not Capability".format(type(value))
             )
-        if is_directory_cap(value):
+        if value.is_directory():
             return
         raise TypeError(
-            "Collective dirnode was {!r}, must be a directory node.".format(
+            "Collective dirnode was {!r}, must be a directory Capability.".format(
                 value,
             ),
         )
@@ -172,14 +175,14 @@ class _CollectiveDirnodeParticipants(object):
         """
         The Upload DMD must be a writable directory capability
         """
-        if not isinstance(value, str):
+        if not isinstance(value, Capability):
             raise TypeError(
-                "Upload dirnode was {} not text".format(type(value))
+                "Upload dirnode was {} not Capability".format(type(value))
             )
-        if is_mutable_directory_cap(value):
+        if value.is_mutable_directory():
             return
         raise TypeError(
-            "Upload dirnode was {!r}, must be a read-write directory node.".format(
+            "Upload dirnode was {!r}, must be a read-write directory Capability.".format(
                 value,
             ),
         )
@@ -189,7 +192,13 @@ class _CollectiveDirnodeParticipants(object):
         """
         IParticipants API
         """
-        if not is_readonly_directory_cap(personal_dmd_cap):
+        if not isinstance(personal_dmd_cap, Capability):
+            raise TypeError(
+                "New participant Personal DMD was {} not Capability".format(
+                    type(personal_dmd_cap).__name__,
+                )
+            )
+        if not personal_dmd_cap.is_readonly_directory():
             raise ValueError(
                 "New participant Personal DMD must be read-only dircap"
             )
@@ -245,7 +254,7 @@ class _CollectiveDirnodeParticipants(object):
         ))
 
     def _is_self(self, dirobj):
-        return to_readonly_capability(dirobj) == to_readonly_capability(self._upload_cap)
+        return dirobj.to_readonly() == self._upload_cap.to_readonly()
 
 
 @implementer(IParticipant)
@@ -258,7 +267,7 @@ class _CollectiveDirnodeParticipant(object):
     :ivar unicode name: A human-readable identifier for this participant.  It
         will be the name of the DMD directory in the collective.
 
-    :ivar bytes dircap: Directory-capability (read or read-write)
+    :ivar Capability dircap: Directory-capability (read or read-write)
         containing this participant's files.
 
     :ivar bool is_self: True if this participant is known to represent the
@@ -266,7 +275,7 @@ class _CollectiveDirnodeParticipant(object):
         to the directory node.
     """
     name = attr.ib(validator=attr.validators.instance_of(str))
-    dircap = attr.ib(validator=attr.validators.instance_of(str))
+    dircap = attr.ib(validator=attr.validators.instance_of(Capability))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
     _tahoe_client = attr.ib()
 
@@ -293,7 +302,7 @@ class _WriteableParticipant(object):
     An ``IWriteableParticipant`` implementation backed by a Tahoe-LAFS directory node
     (a DMD).
 
-    :ivar bytes upload_cap: Read-write directory-capability containing this
+    :ivar Capability upload_cap: Read-write directory-capability containing this
         participant's files.
     """
     upload_cap = attr.ib()
@@ -304,14 +313,14 @@ class _WriteableParticipant(object):
         """
         The Upload DMD must be a writable directory capability
         """
-        if not isinstance(value, str):
+        if not isinstance(value, Capability):
             raise TypeError(
-                "Upload dirnode was {} not text".format(type(value))
+                "Upload dirnode was {} not Capability".format(type(value))
             )
-        if is_mutable_directory_cap(value):
+        if value.is_mutable_directory():
             return
         raise TypeError(
-            "Upload dirnode was {!r}, must be a read-write directory node.".format(
+            "Upload dirnode was {!r}, must be a read-write directory Capability.".format(
                 value,
             ),
         )
@@ -335,12 +344,12 @@ class SnapshotEntry(object):
     A file associated with some metadata in a particular container (such as a
     Tahoe-LAFS directory node).
 
-    :ivar unicode snapshot_cap: The capability for the underlying snapshot
+    :ivar Capability snapshot_cap: The capability for the underlying snapshot
 
     :ivar dict metadata: Metadata associated with the file content in the
         containing directory.
     """
-    snapshot_cap = attr.ib()
+    snapshot_cap = attr.ib(validator=attr.validators.instance_of(Capability))
     metadata = attr.ib()
 
     @property

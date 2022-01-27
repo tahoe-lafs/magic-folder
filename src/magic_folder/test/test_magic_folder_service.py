@@ -48,7 +48,10 @@ from ..snapshot import (
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
-
+from ..util.capabilities import (
+    random_immutable,
+    random_dircap,
+)
 
 from .common import (
     SyncTestCase,
@@ -126,8 +129,8 @@ class MagicFolderServiceTests(SyncTestCase):
             u"foldername",
             magic_path,
             create_local_author(u"zara"),
-            b"URI:DIR2:",
-            b"URI:DIR2:",
+            random_immutable(directory=True),
+            random_dircap(),
             60,
             None,
         )

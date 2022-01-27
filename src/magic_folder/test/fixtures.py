@@ -17,7 +17,8 @@ from ..util.encoding import (
     dump_yaml,
 )
 from ..util.capabilities import (
-    to_readonly_capability,
+    Capability,
+    random_dircap,
 )
 from ..util.wrap import (
     delayed_wrap_frozen,
@@ -187,7 +188,7 @@ class MagicFileFactoryFixture(Fixture):
         self.poll_interval = 1
         self.scan_interval = None
 
-        collective_dircap = u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        collective_dircap = random_dircap(readonly=True)
         participants = participants_from_collective(
             collective_dircap, self.upload_dircap, self.tahoe_client
         )
@@ -197,7 +198,7 @@ class MagicFileFactoryFixture(Fixture):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash_path,
-            u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra",
+            random_dircap(readonly=True),
             self.upload_dircap,
             self.magic_path,
             self.poll_interval,
@@ -354,14 +355,14 @@ class MagicFolderNode(object):
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
                         # collective DMD
-                        u"URI:DIR2{}:{}:{}".format(
+                        Capability.from_string(u"URI:DIR2{}:{}:{}".format(
                             "" if config["admin"] else "-RO",
                             b2a(("\0" * 16).encode("ascii")).decode("ascii"),
                             b2a(("\1" * 32).encode("ascii")).decode("ascii"),
-                        ),
+                        )),
 
                         # personal DMD
-                        u"URI:DIR2:{}:{}".format(b2a(("\2" * 16).encode("ascii")).decode("ascii"), b2a(("\3" * 32).encode("ascii")).decode("ascii")),
+                        Capability.from_string(u"URI:DIR2:{}:{}".format(b2a(("\2" * 16).encode("ascii")).decode("ascii"), b2a(("\3" * 32).encode("ascii")).decode("ascii"))),
                         config[u"poll-interval"],
                         config[u"scan-interval"],
                     )
@@ -396,7 +397,7 @@ class MagicFolderNode(object):
                 )
                 if not config[u"admin"]:
                     folder_config = global_config.get_magic_folder(name)
-                    folder_config.collective_dircap = to_readonly_capability(folder_config.collective_dircap)
+                    folder_config.collective_dircap = folder_config.collective_dircap.to_readonly()
 
         # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
         # See https://github.com/LeastAuthority/magic-folder/issues/334

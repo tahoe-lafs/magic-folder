@@ -64,7 +64,13 @@ from ..snapshot import (
     LocalSnapshot,
     RemoteSnapshot,
 )
-from ..util.file import PathState
+from ..util.file import (
+    PathState,
+)
+from ..util.capabilities import (
+    Capability,
+    random_immutable,
+)
 from .common import (
     AsyncTestCase,
 )
@@ -543,8 +549,8 @@ class TestDumpState(AsyncTestCase):
             name="test",
             magic_path=magic_path,
             author=author,
-            collective_dircap="URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",
-            upload_dircap="URI:DIR2:hnua3xva2meb46dqm3ndmiqxhe:h7l2qnydoztv7gruwd65xtdhsvd3cm2kk2544knp5fhmzxoyckba",
+            collective_dircap=Capability.from_string("URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq"),
+            upload_dircap=Capability.from_string("URI:DIR2:hnua3xva2meb46dqm3ndmiqxhe:h7l2qnydoztv7gruwd65xtdhsvd3cm2kk2544knp5fhmzxoyckba"),
             poll_interval=1,
             scan_interval=1,
         )
@@ -564,10 +570,10 @@ class TestDumpState(AsyncTestCase):
                 "bar",
                 author,
                 {"modification_time": 0},
-                capability="URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329",
+                capability=Capability.from_string("URI:DIR2-CHK:l7b3rn6pha6c2ipbbo4yxvunvy:c6ppejrkip4cdfo3kmyju36qbb6bbptzhh3pno7jb5b5myzoxkja:1:5:329"),
                 parents_raw=[],
-                content_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
-                metadata_cap="URI:CHK2:yyyyyyyyyyyyyyyy:zzzzzzzzzzzzzzzz:1:1:256",
+                content_cap=random_immutable(),
+                metadata_cap=random_immutable(),
             ),
             PathState(
                 0,
@@ -605,7 +611,7 @@ class TestDumpState(AsyncTestCase):
             stdout_lines_no_whitespace,
             Equals([
                 config.name,
-                "author: zara {}".format(author.signing_key.verify_key.encode(encoder=HexEncoder)),
+                "author: zara {}".format(author.signing_key.verify_key.encode(encoder=HexEncoder).decode("utf8")),
                 "stash_path: {}".format(config.stash_path.path),
                 "magic_path: {}".format(config.magic_path.path),
                 "collective: URI:DIR2:hz46fi2e7gy6i3h4zveznrdr5q:i7yc4dp33y4jzvpe5jlaqyjxq7ee7qj2scouolumrfa6c7prgkvq",

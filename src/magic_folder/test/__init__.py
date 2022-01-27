@@ -86,4 +86,4 @@ def _configure_hypothesis():
 _configure_hypothesis()
 
 from eliot import to_file
-to_file(open("eliot.log", "w"))
+to_file(open("eliot.log", "w", encoding="utf8"))

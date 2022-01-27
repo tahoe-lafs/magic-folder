@@ -5,7 +5,9 @@ from io import StringIO
 from appdirs import (
     user_config_dir,
 )
-
+from base64 import (
+    urlsafe_b64decode,
+)
 
 from twisted.internet import defer
 from twisted.internet.task import (
@@ -633,9 +635,15 @@ class BaseOptions(usage.Options):
         """
         try:
             with self._config_path.child("api_token").open("rb") as f:
-                return f.read()
+                data = f.read()
         except Exception:
-            return self.config.api_token
+            data = self.config.api_token
+        # confirm the data is syntactially correct: it is 32 bytes
+        # of url-safe base64-encoded random data
+        if len(urlsafe_b64decode(data)) != 32:
+            raise Exception("Incorrect token data")
+        return data
+
 
     @property
     def client(self):
