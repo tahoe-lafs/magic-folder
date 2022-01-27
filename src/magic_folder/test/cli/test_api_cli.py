@@ -30,7 +30,7 @@ class ScanMagicFolder(AsyncTestCase):
         """
         yield super(ScanMagicFolder, self).setUp()
 
-        self.magic_path = FilePath(self.mktemp()).asTextMode()
+        self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
         self.folder_name = "default"
         folders = {
@@ -43,7 +43,7 @@ class ScanMagicFolder(AsyncTestCase):
             }
         }
 
-        self.config_dir = FilePath(self.mktemp()).asTextMode()
+        self.config_dir = FilePath(self.mktemp())
         self.node = MagicFolderNode.create(
             reactor,
             self.config_dir,

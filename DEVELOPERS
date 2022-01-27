@@ -108,6 +108,14 @@ In Python3, Twisted removes the __traceback__ attribute from exceptions in some 
 Thus, no `Exception`-derived, `@attr.s()`-using class may use `frozen=True`.
 
 
+FilePath and text versus binary mode
+------------------------------------
+
+`twisted.python.filepath.FilePath` operates in "bytes" mode or "text" mode with conversion functions `.asTextMode()` and `.asBytesMode()`.
+Internally, all `FilePath`s shall be text mode.
+Outside users might need to call `.asTextMode()` on a FilePath to ensure this.
+
+
 Submitting a Pull Request
 =========================
 

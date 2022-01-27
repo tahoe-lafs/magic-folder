@@ -303,7 +303,7 @@ class MagicFolderTests(SyncTestCase):
         A request to **/v1/magic-folder** with a method other than **GET** or **POST**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        treq = treq_for_folders(Clock(), FilePath(self.mktemp()).asTextMode(), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(treq, AUTH_TOKEN, method, self.url),
             succeeded(
@@ -335,7 +335,7 @@ class MagicFolderTests(SyncTestCase):
         """
         folder_path.makedirs(ignoreExistingDirectory=True)
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
             Clock(),
             basedir,
@@ -374,9 +374,9 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** with a path that does not exist
         fails with BAD REQUEST.
         """
-        folder_path = FilePath(self.mktemp()).asTextMode()
+        folder_path = FilePath(self.mktemp())
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
             Clock(),
             basedir,
@@ -413,7 +413,7 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** that does not have a JSON body
         fails with BAD REQUEST.
         """
-        treq = treq_for_folders(Clock(), FilePath(self.mktemp()).asTextMode(), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(Clock(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(
                 treq, AUTH_TOKEN, "POST", self.url, "not-json".encode("utf-8")
@@ -438,7 +438,7 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** that has a negative
         scan_interval fails with NOT ACCEPTABLE.
         """
-        treq = treq_for_folders(object(), FilePath(self.mktemp()).asTextMode(), AUTH_TOKEN, {}, False)
+        treq = treq_for_folders(object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False)
         self.assertThat(
             authorized_request(
                 treq, AUTH_TOKEN, "POST", self.url, dumps({
@@ -487,7 +487,7 @@ class MagicFolderTests(SyncTestCase):
             # the config/database APIs.
             path.makedirs(ignoreExistingDirectory=True)
 
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         node = MagicFolderNode.create(
             Clock(),
             basedir,
@@ -557,11 +557,11 @@ class MagicFolderInstanceTests(SyncTestCase):
         A request to **/v1/magic-folder/<folder-name>** with a method other than **DELETE**
         receives a NOT ALLOWED or NOT IMPLEMENTED response.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: magic_folder_config(self.author_name, local_path),
@@ -594,11 +594,11 @@ class MagicFolderInstanceTests(SyncTestCase):
         """
         A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: magic_folder_config(self.author_name, local_path, admin=False),
@@ -637,9 +637,9 @@ class MagicFolderInstanceTests(SyncTestCase):
         A request for **DELETE /v1/magic-folder/<folder-name>** fails, if
         we can't delete the state or stash directories.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         node = MagicFolderNode.create(
             Clock(),
             basedir,
@@ -700,11 +700,11 @@ class MagicFolderInstanceTests(SyncTestCase):
         """
         A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: magic_folder_config(self.author_name, local_path),
@@ -741,11 +741,11 @@ class MagicFolderInstanceTests(SyncTestCase):
         """
         A request for **DELETE /v1/magic-folder/<folder-name>** succeeds.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: magic_folder_config(self.author_name, local_path),
@@ -787,7 +787,7 @@ class MagicFolderInstanceTests(SyncTestCase):
         A request for **DELETE /v1/magic-folder/<folder-name>** with a non-existant
         magic-folder fails with NOT FOUND.
         """
-        basedir = FilePath(self.mktemp()).asTextMode()
+        basedir = FilePath(self.mktemp())
         node = MagicFolderNode.create(
             Clock(),
             basedir,
@@ -839,12 +839,12 @@ class RedirectTests(SyncTestCase):
         We test this by using a `//` in the URL path, which werkzeug
         redirects to not have the `/`.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config("alice", local_path)},
             start_folder_services=False,
@@ -928,7 +928,7 @@ class ScanFolderTests(SyncTestCase):
         A **PUT** request to **/v1/magic-folder/:folder-name/scan-local** does not receive a
         response before the snapshot has been created in the local database.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
@@ -937,7 +937,7 @@ class ScanFolderTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             self.clock,
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author_name, local_path)},
             # The interesting behavior of this test hinges on this flag.  We
@@ -972,7 +972,7 @@ class ScanFolderTests(SyncTestCase):
         A **PUT** to **/v1/magic-folder/:folder-name/scan-local** creates a new local
         snapshot for a file in the named folder.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
@@ -981,7 +981,7 @@ class ScanFolderTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             self.clock,
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author_name, local_path)},
             # Unlike test_wait_for_completion above we start the folder
@@ -1021,11 +1021,11 @@ class ScanFolderTests(SyncTestCase):
         An error results from using /v1/magic-folder/<folder-name>/scan-local API on
         non-existent folder.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
@@ -1070,7 +1070,7 @@ class CreateSnapshotTests(SyncTestCase):
         A **POST** request to **/v1/magic-folder/:folder-name/snapshot** does not receive a
         response before the snapshot has been created in the local database.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
@@ -1079,7 +1079,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
             # The interesting behavior of this test hinges on this flag.  We
@@ -1113,7 +1113,7 @@ class CreateSnapshotTests(SyncTestCase):
         **/v1/magic-folder/<folder-name>/snapshot** receives a response with an HTTP error
         code.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         # You may not create a snapshot of a directory.
@@ -1122,7 +1122,7 @@ class CreateSnapshotTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
             # This test carefully targets a failure mode that doesn't require
@@ -1169,7 +1169,7 @@ class CreateSnapshotTests(SyncTestCase):
         creates a new local snapshot for the file at the given path in the
         named folder.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         some_file = local_path.preauthChild(path_in_folder)
@@ -1190,7 +1190,7 @@ class CreateSnapshotTests(SyncTestCase):
                 return self
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
             tahoe_client=NeverClient(),
@@ -1270,12 +1270,12 @@ class CreateSnapshotTests(SyncTestCase):
         A **POST** to **/v1/magic-folder/:folder-name/snapshot** with a **path** query argument
         fails if the **path** is outside the magic-folder
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config(author, local_path)},
             # Unlike test_wait_for_completion above we start the folder
@@ -1302,11 +1302,11 @@ class CreateSnapshotTests(SyncTestCase):
         An error results using /v1/snapshot API on non-existent
         folder.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
@@ -1344,11 +1344,11 @@ class ParticipantsTests(SyncTestCase):
         An error results using /v1/magic-folder/:folder-name/participants API on non-existent
         folder.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {},
             start_folder_services=False,
@@ -1396,12 +1396,12 @@ class ParticipantsTests(SyncTestCase):
         """
         Adding a new participant works.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: magic_folder_config(
@@ -1479,7 +1479,7 @@ class ParticipantsTests(SyncTestCase):
         """
         Missing keys in 'participant' JSON produces error
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1488,7 +1488,7 @@ class ParticipantsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1525,7 +1525,7 @@ class ParticipantsTests(SyncTestCase):
         """
         Missing keys in 'participant' JSON produces error
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1534,7 +1534,7 @@ class ParticipantsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1573,7 +1573,7 @@ class ParticipantsTests(SyncTestCase):
         """
         Missing keys in 'participant' JSON for 'author' produces error
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1582,7 +1582,7 @@ class ParticipantsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1624,7 +1624,7 @@ class ParticipantsTests(SyncTestCase):
         When a new Personal DMD is passed that is not a directory
         capability an error is produced.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1633,7 +1633,7 @@ class ParticipantsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1674,7 +1674,7 @@ class ParticipantsTests(SyncTestCase):
         """
         If the added Personal DMD is read-write an error is signaled
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1683,7 +1683,7 @@ class ParticipantsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1724,7 +1724,7 @@ class ParticipantsTests(SyncTestCase):
         Listing participants reports a failure if there is an unexpected
         internal error.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1740,7 +1740,7 @@ class ParticipantsTests(SyncTestCase):
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1787,7 +1787,7 @@ class ParticipantsTests(SyncTestCase):
         An internal error on participant adding is returned when something
         truly unexpected happens.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
         folder_config = magic_folder_config(
             author,
@@ -1804,7 +1804,7 @@ class ParticipantsTests(SyncTestCase):
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 folder_name: folder_config,
@@ -1857,7 +1857,7 @@ class FileStatusTests(SyncTestCase):
         """
         We return empty information for an empty magic-folder
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -1867,7 +1867,7 @@ class FileStatusTests(SyncTestCase):
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,
@@ -1899,7 +1899,7 @@ class FileStatusTests(SyncTestCase):
         Appropriate information is returned when we have a file-status for
         one file in our config/db
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -1909,7 +1909,7 @@ class FileStatusTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,
@@ -1962,7 +1962,7 @@ class ConflictStatusTests(SyncTestCase):
         """
         A folder with no conflicts reflects that in the status
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -1972,7 +1972,7 @@ class ConflictStatusTests(SyncTestCase):
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,
@@ -2004,7 +2004,7 @@ class ConflictStatusTests(SyncTestCase):
         Appropriate information is returned when we have a conflict with
         one author
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -2014,7 +2014,7 @@ class ConflictStatusTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,
@@ -2090,7 +2090,7 @@ class TahoeObjectsTests(SyncTestCase):
         Appropriate information is returned when we have one file in our
         config/db
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -2100,7 +2100,7 @@ class TahoeObjectsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,
@@ -2155,7 +2155,7 @@ class TahoeObjectsTests(SyncTestCase):
         # with no "content" parent (semantically) but for the purposes
         # of this test that is sufficient.
         remote_snap.content_cap = None
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         folder_config = magic_folder_config(
@@ -2165,7 +2165,7 @@ class TahoeObjectsTests(SyncTestCase):
 
         node = MagicFolderNode.create(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
                 "default": folder_config,

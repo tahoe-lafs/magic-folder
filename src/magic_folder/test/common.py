@@ -145,7 +145,7 @@ class _TestCaseMixin(object):
         current working directory.  The parent of the path will exist, but the
         path will not.
 
-        :return bytes: The newly created path
+        :return str: The newly created path
         """
         cwd = FilePath(u".")
         # self.id returns a native string so split it on a native "."
@@ -155,7 +155,7 @@ class _TestCaseMixin(object):
         # granted, so that when we invent a temporary filename beneath this
         # directory we're not subject to a collision attack.
         tmp.chmod(0o755)
-        return tmp.child(u"tmp").temporarySibling().path
+        return tmp.child(u"tmp").temporarySibling().asTextMode().path
 
     def assertRaises(self, *a, **kw):
         return self._dummyCase.assertRaises(*a, **kw)
