@@ -27,6 +27,7 @@ from testtools import (
 from testtools.matchers import (
     Equals,
     ContainsDict,
+    Contains,
 )
 from .common import (
     AsyncTestCase,
@@ -114,6 +115,32 @@ class TestBaseOptions(SyncTestCase):
             f.write(b"not running\n")
         with self.assertRaises(Exception):
             self.options.api_client_endpoint
+
+    def test_invalid_api_token(self):
+        """
+        if the api_token file somehow becomes invalid and error is raised
+        """
+        with self.base.child("api_token").open("w") as f:
+            f.write(b"not base64")
+        with self.assertRaises(Exception) as ctx:
+            self.options.api_token
+        self.assertThat(
+            str(ctx.exception),
+            Contains("Invalid base64")
+        )
+
+    def test_short_api_token(self):
+        """
+        if the api_token file somehow becomes invalid and error is raised
+        """
+        with self.base.child("api_token").open("w") as f:
+            f.write(b'Zm9v')  # valid base64, but too short
+        with self.assertRaises(Exception) as ctx:
+            self.options.api_token
+        self.assertThat(
+            str(ctx.exception),
+            Contains("Incorrect token data")
+        )
 
 
 class TestInitialize(SyncTestCase):
