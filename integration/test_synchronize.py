@@ -70,6 +70,7 @@ def periodic_scan(node, folder_name, path):
     # XXX need a better way than "wait 3 seconds" to know if the scan is completed...
     return twisted_sleep(reactor, 3.0)
 
+
 @pytest.fixture(name='periodic_scan')
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):
     """

@@ -484,13 +484,13 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self.output.write(data.decode("utf8"))
+        self.output.write(data.decode(sys.getfilesystemencoding()))
 
     def errReceived(self, data):
-        print("ERR: {}".format(data.decode("utf8")))
+        print("ERR: {}".format(data.decode(sys.getfilesystemencoding())))
         with self._action.context():
-            log_message(message_type=u"err-received", data=data.decode("utf8"))
-        self.output.write(data.decode("utf8"))
+            log_message(message_type=u"err-received", data=data.decode(sys.getfilesystemencoding()))
+        self.output.write(data.decode(sys.getfilesystemencoding()))
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -788,6 +788,7 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
         "magic_folder.api_cli",
         other_args,
     )
+
 
 def _tahoe_runner_args(tahoe_venv, other_args):
     tahoe_python = str(tahoe_venv.python)
