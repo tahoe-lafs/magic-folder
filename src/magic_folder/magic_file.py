@@ -743,11 +743,10 @@ class MagicFile(object):
         # next thing in our queue (if any) as its parent (see assert below)
 
         def completed(snap):
-            if self._queue_local:
-                assert snap == self._queue_local[0], "Invalid queue; expected {} not {}".format(
-                    snap.identifier,
-                    self._queue_local[0].identifier,
-                )
+            # _queue_local contains Deferreds .. but ideally we'd
+            # check if "the thing those deferreds resolves to" is the
+            # right one .. namely, the _next_ thing in the queue
+            # should be (one of) "snap"'s parents
             self._call_later(self._snapshot_completed, snap)
             return snap
 
