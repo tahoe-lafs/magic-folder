@@ -86,6 +86,10 @@ jobs:
     - name: Test with tox
       run: tox -e integration-${{ matrix.tahoe-version }}
 
+    - name: Coverage report
+      shell: bash
+      run: git diff origin/main.. | cuv report -
+
     - name: Generate eliot-tree.
       if: ${{ always() }}
       shell: bash

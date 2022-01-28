@@ -48,6 +48,7 @@ jobs:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
     - name: Coverage report
+      shell: bash
       run: git diff origin/main.. | cuv report -
 
     - name: Generate eliot-tree.

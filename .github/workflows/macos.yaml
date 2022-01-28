@@ -37,6 +37,10 @@ jobs:
       run: |
         tox -e py38-coverage
 
+    - name: Coverage report
+      shell: bash
+      run: git diff origin/main.. | cuv report -
+
     - name: Generate eliot-tree.
       if: ${{ always() }}
       run: |
