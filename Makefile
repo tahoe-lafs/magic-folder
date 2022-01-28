@@ -42,6 +42,10 @@ release-test:
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/magic-folder --version
 	testmf_venv/bin/magic-folder-api --version
+	testmf_venv/bin/pip uninstall -y magic_folder
+	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`.tar.gz
+	testmf_venv/bin/magic-folder --version
+	testmf_venv/bin/magic-folder-api --version
 	rm -rf testmf_venv
 
 release-upload:
