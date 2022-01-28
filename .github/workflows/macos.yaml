@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install wheel tox eliot-tree
+        pip install wheel tox eliot-tree cuvner
 
     - name: Test with tox
       env:
