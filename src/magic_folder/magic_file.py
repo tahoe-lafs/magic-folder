@@ -903,10 +903,8 @@ class MagicFile(object):
         ret_d = Deferred()
 
         def failed(f):
-            if f.check(CancelledError):
-                ret_d.cancel()
-            else:
-                ret_d.errback(f)
+            # this still works for CancelledError right?
+            ret_d.errback(f)
 
         def got_snap(snap):
             ret_d.callback(snap)
