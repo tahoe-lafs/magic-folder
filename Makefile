@@ -38,6 +38,8 @@ release:
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
+	gpg --verify dist/magic_folder-`git describe --abbrev=0`.tar.gz.asc
+	gpg --verify dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
 	virtualenv testmf_venv
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/magic-folder --version
