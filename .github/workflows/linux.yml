@@ -47,6 +47,9 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
+    - name: Coverage report
+      run: git diff origin/main.. | cuv report -
+
     - name: Generate eliot-tree.
       if: ${{ always() }}
       shell: bash
