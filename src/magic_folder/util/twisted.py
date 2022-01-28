@@ -138,9 +138,12 @@ class PeriodicService(Service):
             d.callback(None)
             return arg
 
-        # XXX what happens on errors?
+        def error(f):
+            d.errback(f)
+            return None
+
         if self._deferred:
-            self._deferred.addCallback(completed)
+            self._deferred.addCallbacks(completed, error)
         else:
             d.callback(None)
         return d
