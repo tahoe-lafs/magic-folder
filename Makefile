@@ -32,6 +32,11 @@ release:
 	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	ls dist/*`git describe --abbrev=0`*
 
+	@echo "Build and sign source-dist"
+	python3 setup.py sdist
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`.tar.gz
+	ls dist/*`git describe --abbrev=0`*
+
 release-test:
 	virtualenv testmf_venv
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
