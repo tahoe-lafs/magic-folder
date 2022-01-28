@@ -1,1 +1,0 @@
-Improve handling of serialized eliot messages in tests, and upload eliot logs to circleci.
