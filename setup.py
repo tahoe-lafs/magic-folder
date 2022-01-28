@@ -56,13 +56,13 @@ trove_classifiers = [
 
 
 setup(
-    name="magic_folder",
+    name="magic-folder",
     # no version= because setuptools_scm
     description="Tahoe-LAFS-based file synchronization",
     long_description=open("README.rst", "r").read(),
     author="the Tahoe-LAFS developers, the Magic-Folder developers",
     author_email="tahoe-dev@tahoe-lafs.org",
-    url="https://github.com/LeastAuthority/magic_folder/",
+    url="https://github.com/LeastAuthority/magic-folder/",
     license="GNU GPL", # see README.rst -- there is an alternative licence
     package_dir={"": "src"},
     packages=find_packages("src") + ["twisted.plugins", "magic_folder.test.plugins"],
