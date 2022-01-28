@@ -72,9 +72,6 @@ setup(
         "test": test_requires,
         "build": build_requires,
     },
-    package_data={
-        "magic_folder": ["ported-modules.txt"],
-    },
     include_package_data=True,
     entry_points={
         "console_scripts": [
