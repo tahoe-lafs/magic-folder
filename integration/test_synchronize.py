@@ -278,7 +278,6 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
     original_folder.makedirs()
     recover_folder.makedirs()
 
-    # add our magic-folder and re-start
     await alice.add("internal", original_folder.path)
     alice_folders = await alice.list_(True)
 
@@ -300,8 +299,8 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
 
     # add the 'internal' magic-folder as a participant in the
     # 'rec' folder
-    alice_cap = Capability.from_string(alice_folders["internal"]["upload_dircap"]).to_readonly().danger_real_capability_string()
-    await bob.add_participant("rec", "alice", alice_cap)
+    alice_ro_cap = Capability.from_string(alice_folders["internal"]["upload_dircap"]).to_readonly()
+    await bob.add_participant("rec", "alice", alice_ro_cap.danger_real_capability_string())
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem

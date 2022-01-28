@@ -244,6 +244,11 @@ class MagicFolderEnabledNode(object):
         if self.magic_folder is None:
             return
         try:
+            log_message(
+                message_type=u"integation:magic-folder:stop",
+                node=self.name,
+                signal="TERM",
+            )
             self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
             self.magic_folder = None
