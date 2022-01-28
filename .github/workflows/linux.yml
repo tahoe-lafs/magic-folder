@@ -50,6 +50,7 @@ jobs:
     - name: Coverage report
       shell: bash
       run: cuv graph
+      run: git diff main.. | cuv report -
       continue-on-error: true
 
     - name: Generate eliot-tree.
