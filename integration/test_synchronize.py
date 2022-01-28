@@ -311,16 +311,17 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
         timeout=25,
     )
 
-    await bob.stop_magic_folder()
+    await bob.stop_magic_folder()  # restarted in "finally" below
 
-    # update the file (so now there's two versions)
-    content1 = non_lit_content("one")
-    original_folder.child("fluffy").setContent(content1)
-    await take_snapshot(alice, "internal", "fluffy")
+    try:
+        # update the file (so now there's two versions)
+        content1 = non_lit_content("one")
+        original_folder.child("fluffy").setContent(content1)
+        await take_snapshot(alice, "internal", "fluffy")
+        await twisted_sleep(reactor, 2)
 
-    await twisted_sleep(reactor, 2)
-
-    await bob.start_magic_folder()
+    finally:
+        await bob.start_magic_folder()
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
@@ -426,7 +427,11 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     await take_snapshot(alice, "original", "pussyfoot")
 
     await twisted_sleep(reactor, 5)
-    await alice.stop_magic_folder()
+    await alice.stop_magic_folder()  # restarted on cleanup
+
+    def cleanup_restart_alice():
+        pytest_twisted.blockon(alice.start_magic_folder())
+    request.addfinalizer(cleanup_restart_alice)
 
     # create the 'recovery' magic-folder
     await bob.add("recovery", recover_folder.path)
@@ -464,7 +469,11 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     )
 
     await twisted_sleep(reactor, 5)
-    await bob.stop_magic_folder()
+    await bob.stop_magic_folder()  # restarted on cleanup
+
+    def cleanup_restart_bob():
+        pytest_twisted.blockon(bob.start_magic_folder())
+    request.addfinalizer(cleanup_restart_bob)
 
     # create the second 'recovery' magic-folder
     await edmond.add("recovery-2", recover2_folder.path)
