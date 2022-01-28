@@ -47,9 +47,13 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
-    - name: Coverage report
+    - name: Coverage graph
       shell: bash
       run: cuv graph
+      continue-on-error: true
+
+    - name: Coverage report
+      shell: bash
       run: git diff main.. | cuv report -
       continue-on-error: true
 
