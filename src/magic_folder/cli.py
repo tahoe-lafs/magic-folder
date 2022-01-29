@@ -311,7 +311,7 @@ def status(options):
     """
     Status of magic-folders
     """
-    endpoint_str = options.parent.config.api_client_endpoint
+    endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
     from twisted.internet import reactor
