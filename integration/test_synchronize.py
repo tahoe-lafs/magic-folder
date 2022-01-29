@@ -317,7 +317,7 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
         content1 = non_lit_content("one")
         original_folder.child("fluffy").setContent(content1)
         await take_snapshot(alice, "internal", "fluffy")
-        await twisted_sleep(reactor, 2)
+        await twisted_sleep(reactor, 5)
 
     finally:
         await bob.start_magic_folder()
