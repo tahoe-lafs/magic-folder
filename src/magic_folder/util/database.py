@@ -151,8 +151,6 @@ class LockableDatabase(object):
             self._in_transaction = False
 
 
-# XXX: with_cursor lacks unit tests, see:
-#      https://github.com/LeastAuthority/magic-folder/issues/173
 def with_cursor(f):
     """
     Decorate a method so it is automatically passed a cursor with an active
