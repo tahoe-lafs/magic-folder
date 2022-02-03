@@ -2,19 +2,14 @@
 Tests for ``magic_folder.test.eliotutil``.
 """
 
-from sys import stdout
 import logging
 
-from fixtures import (
-    TempDir,
-)
 from testtools import (
     TestCase,
 )
 from testtools.matchers import (
     Is,
     IsInstance,
-    MatchesStructure,
     Equals,
     AfterPreprocessing,
 )
@@ -25,7 +20,6 @@ from testtools.twistedsupport import (
 
 from eliot import (
     Message,
-    FileDestination,
 )
 from eliot.twisted import DeferredContext
 from eliot.testing import (
@@ -45,7 +39,6 @@ from ..util.eliotutil import (
     _EliotLogging,
 )
 from .common import (
-    SyncTestCase,
     AsyncTestCase,
 )
 

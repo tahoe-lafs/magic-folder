@@ -48,13 +48,6 @@ from functools import wraps
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.logfile import (
-    LogFile,
-)
-
-from sys import (
-    stdout,
-)
 from twisted.application.service import Service
 from zope.interface import (
     implementer,
