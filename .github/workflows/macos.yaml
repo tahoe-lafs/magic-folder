@@ -39,7 +39,7 @@ jobs:
 
     - name: Coverage report
       shell: bash
-      run: git diff origin/main..
+      run: git diff origin/main.. | cuv diff -
       continue-on-error: true
 
     - name: Generate eliot-tree.
