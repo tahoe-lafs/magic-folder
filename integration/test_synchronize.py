@@ -3,7 +3,6 @@ Testing synchronizing files between participants
 """
 
 import sys
-import time
 from functools import partial
 
 from eliot import (
@@ -16,7 +15,7 @@ import pytest
 import pytest_twisted
 
 from magic_folder.util.capabilities import (
-    to_readonly_capability,
+    Capability,
 )
 from .util import (
     await_file_contents,
@@ -70,6 +69,7 @@ def periodic_scan(node, folder_name, path):
     log_message(message_type="integration:wait_for_scan", node=node.name, folder=folder_name)
     # XXX need a better way than "wait 3 seconds" to know if the scan is completed...
     return twisted_sleep(reactor, 3.0)
+
 
 @pytest.fixture(name='periodic_scan')
 def enable_periodic_scans(magic_folder_nodes, monkeypatch):
@@ -244,7 +244,7 @@ async def test_create_then_recover(request, reactor, temp_filepath, alice, bob, 
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
@@ -278,7 +278,6 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
     original_folder.makedirs()
     recover_folder.makedirs()
 
-    # add our magic-folder and re-start
     await alice.add("internal", original_folder.path)
     alice_folders = await alice.list_(True)
 
@@ -300,8 +299,8 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
 
     # add the 'internal' magic-folder as a participant in the
     # 'rec' folder
-    alice_cap = to_readonly_capability(alice_folders["internal"]["upload_dircap"])
-    await bob.add_participant("rec", "alice", alice_cap)
+    alice_ro_cap = Capability.from_string(alice_folders["internal"]["upload_dircap"]).to_readonly()
+    await bob.add_participant("rec", "alice", alice_ro_cap.danger_real_capability_string())
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
@@ -311,16 +310,17 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
         timeout=25,
     )
 
-    await bob.stop_magic_folder()
+    await bob.stop_magic_folder()  # restarted in "finally" below
 
-    # update the file (so now there's two versions)
-    content1 = non_lit_content("one")
-    original_folder.child("fluffy").setContent(content1)
-    await take_snapshot(alice, "internal", "fluffy")
+    try:
+        # update the file (so now there's two versions)
+        content1 = non_lit_content("one")
+        original_folder.child("fluffy").setContent(content1)
+        await take_snapshot(alice, "internal", "fluffy")
+        await twisted_sleep(reactor, 5)
 
-    time.sleep(2)
-
-    await bob.start_magic_folder()
+    finally:
+        await bob.start_magic_folder()
 
     # we should now see the only Snapshot we have in the folder appear
     # in the 'recovery' filesystem
@@ -361,7 +361,7 @@ async def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snaps
 
     # add the 'ancestor0' magic-folder as a participant in the
     # 'ancestor1' folder
-    alice_cap = to_readonly_capability(alice_folders["ancestor0"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["ancestor0"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("ancestor1", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
@@ -426,7 +426,11 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     await take_snapshot(alice, "original", "pussyfoot")
 
     await twisted_sleep(reactor, 5)
-    await alice.stop_magic_folder()
+    await alice.stop_magic_folder()  # restarted on cleanup
+
+    def cleanup_restart_alice():
+        pytest_twisted.blockon(alice.start_magic_folder())
+    request.addfinalizer(cleanup_restart_alice)
 
     # create the 'recovery' magic-folder
     await bob.add("recovery", recover_folder.path)
@@ -440,7 +444,7 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
@@ -464,7 +468,11 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     )
 
     await twisted_sleep(reactor, 5)
-    await bob.stop_magic_folder()
+    await bob.stop_magic_folder()  # restarted on cleanup
+
+    def cleanup_restart_bob():
+        pytest_twisted.blockon(bob.start_magic_folder())
+    request.addfinalizer(cleanup_restart_bob)
 
     # create the second 'recovery' magic-folder
     await edmond.add("recovery-2", recover2_folder.path)
@@ -475,7 +483,7 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
 
     # add the 'recovery' magic-folder as a participant in the
     # 'recovery-2' folder
-    bob_cap = to_readonly_capability(bob_folders["recovery"]["upload_dircap"])
+    bob_cap = Capability.from_string(bob_folders["recovery"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await edmond.add_participant("recovery-2", "bob", bob_cap)
 
     await await_file_contents(
@@ -525,7 +533,7 @@ async def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, t
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
@@ -593,7 +601,7 @@ async def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, tak
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear
@@ -656,7 +664,7 @@ async def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     # we should now see the only Snapshot we have in the folder appear

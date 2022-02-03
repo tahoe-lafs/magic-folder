@@ -88,6 +88,7 @@ class LocalSnapshotCreator(object):
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _tahoe_client = attr.ib()
+    _cooperator = attr.ib(default=None)
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -123,7 +124,7 @@ class LocalSnapshotCreator(object):
         if parent_remote:
             # XXX should double-check parent relationship if we have any..
             if not parents:
-                raw_remote = [parent_remote]
+                raw_remote = [parent_remote.danger_real_capability_string()]
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
@@ -139,8 +140,8 @@ class LocalSnapshotCreator(object):
                     )
 
             if path_info.exists:
-                input_stream = path.asBytesMode("utf-8").open('rb')
-                mtime = int(path.asBytesMode("utf8").getModificationTime())
+                input_stream = path.open('rb')
+                mtime = int(path.getModificationTime())
             else:
                 input_stream = None
                 mtime = int(time.time())
@@ -155,6 +156,7 @@ class LocalSnapshotCreator(object):
                     raw_remote_parents=raw_remote,
                     #FIXME from path_info
                     modified_time=mtime,
+                    cooperator=self._cooperator,
                 )
             finally:
                 if input_stream:
@@ -259,7 +261,7 @@ class LocalSnapshotService(service.Service):
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if path.asBytesMode('utf-8').isdir():
+        if path.isdir():
             raise APIError(
                 reason=u"expected a regular file, {!r} is a directory".format(path.path),
                 code=http.NOT_ACCEPTABLE,
@@ -337,7 +339,7 @@ class UploaderService(service.Service):
             self._config.author,
             self._tahoe_client,
         )
-        Message.log(remote_snapshot=remote_snapshot.capability)
+        Message.log(remote_snapshot=remote_snapshot.relpath)
         snapshot.remote_snapshot = remote_snapshot
         yield self._config.store_uploaded_snapshot(
             remote_snapshot.relpath,

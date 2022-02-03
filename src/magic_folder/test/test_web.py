@@ -111,6 +111,9 @@ from ..util.file import (
     PathState,
     seconds_to_ns,
 )
+from ..util.capabilities import (
+    random_immutable,
+)
 from ..client import (
     authorized_request,
     url_to_bytes,
@@ -124,10 +127,6 @@ from .strategies import (
     tahoe_lafs_dir_capabilities,
     tahoe_lafs_chk_capabilities,
     remote_snapshots,
-)
-from ..util.capabilities import (
-    to_readonly_capability,
-    capability_size,
 )
 
 # Pick any single API token value.  Any test suite that is not specifically
@@ -334,7 +333,7 @@ class MagicFolderTests(SyncTestCase):
         """
         A request for **POST /v1/magic-folder** receives a response.
         """
-        folder_path.asBytesMode("utf-8").makedirs(ignoreExistingDirectory=True)
+        folder_path.makedirs(ignoreExistingDirectory=True)
 
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
@@ -375,7 +374,7 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** with a path that does not exist
         fails with BAD REQUEST.
         """
-        folder_path = FilePath(self.mktemp()).asTextMode()
+        folder_path = FilePath(self.mktemp())
 
         basedir = FilePath(self.mktemp())
         treq = treq_for_folders(
@@ -482,12 +481,11 @@ class MagicFolderTests(SyncTestCase):
             local filesystem paths where we shall pretend the local filesystem
             state for those folders resides.
         """
-        for path_u in folders.values():
+        for path in folders.values():
             # Fix it so non-ASCII works reliably. :/ This is fine here but we
             # leave the original as text mode because that works better with
             # the config/database APIs.
-            path_b = path_u.asBytesMode("utf-8")
-            path_b.makedirs(ignoreExistingDirectory=True)
+            path.makedirs(ignoreExistingDirectory=True)
 
         basedir = FilePath(self.mktemp())
         node = MagicFolderNode.create(
@@ -841,12 +839,12 @@ class RedirectTests(SyncTestCase):
         We test this by using a `//` in the URL path, which werkzeug
         redirects to not have the `/`.
         """
-        local_path = FilePath(self.mktemp()).asTextMode()
+        local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
         treq = treq_for_folders(
             Clock(),
-            FilePath(self.mktemp()).asTextMode(),
+            FilePath(self.mktemp()),
             AUTH_TOKEN,
             {folder_name: magic_folder_config("alice", local_path)},
             start_folder_services=False,
@@ -933,7 +931,7 @@ class ScanFolderTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -977,7 +975,7 @@ class ScanFolderTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -1075,7 +1073,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -1119,7 +1117,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path.makedirs()
 
         # You may not create a snapshot of a directory.
-        not_a_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        not_a_file = local_path.preauthChild(path_in_folder)
         not_a_file.makedirs(ignoreExistingDirectory=True)
 
         node = MagicFolderNode.create(
@@ -1174,7 +1172,7 @@ class CreateSnapshotTests(SyncTestCase):
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
-        some_file = local_path.preauthChild(path_in_folder).asBytesMode("utf-8")
+        some_file = local_path.preauthChild(path_in_folder)
         some_file.parent().makedirs(ignoreExistingDirectory=True)
         some_file.setContent(some_content)
 
@@ -1420,9 +1418,9 @@ class ParticipantsTests(SyncTestCase):
         # one we already have .. and because Hypothesis is 'sneaky' we
         # have to make sure it's not our collective, either
         assume(personal_dmd != folder_config.upload_dircap)
-        assume(personal_dmd != to_readonly_capability(folder_config.upload_dircap))
+        assume(personal_dmd != folder_config.upload_dircap.to_readonly())
         assume(personal_dmd != folder_config.collective_dircap)
-        assume(personal_dmd != to_readonly_capability(folder_config.collective_dircap))
+        assume(personal_dmd != folder_config.collective_dircap.to_readonly())
 
         # add a participant using the API
         self.assertThat(
@@ -1433,7 +1431,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1462,10 +1460,10 @@ class ParticipantsTests(SyncTestCase):
                         loads,
                         Equals({
                             u"iris": {
-                                u"personal_dmd": to_readonly_capability(folder_config.upload_dircap),
+                                u"personal_dmd": folder_config.upload_dircap.to_readonly().danger_real_capability_string(),
                             },
                             u'kelly': {
-                                u'personal_dmd': personal_dmd,
+                                u'personal_dmd': personal_dmd.danger_real_capability_string(),
                             }
                         })
                     )
@@ -1653,7 +1651,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1703,7 +1701,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -1824,7 +1822,7 @@ class ParticipantsTests(SyncTestCase):
                 self.url.child(folder_name, "participants"),
                 dumps({
                     "author": {"name": "kelly"},
-                    "personal_dmd": personal_dmd,
+                    "personal_dmd": personal_dmd.danger_real_capability_string(),
                 }).encode("utf8")
             ),
             succeeded(
@@ -2042,10 +2040,10 @@ class ConflictStatusTests(SyncTestCase):
             "foo",
             create_local_author("nelli"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            random_immutable(directory=True),
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            random_immutable(),
+            random_immutable(),
         )
 
         mf_config.add_conflict(snap)
@@ -2053,7 +2051,7 @@ class ConflictStatusTests(SyncTestCase):
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals([Conflict("URI:DIR2-CHK:", "nelli")])
+            Equals([Conflict(snap.capability, "nelli")])
         )
 
         # external API
@@ -2120,7 +2118,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            capability_size(cap)
+            cap.size
             for cap in [
                     remote_snap.capability,
                     remote_snap.content_cap,
@@ -2185,7 +2183,7 @@ class TahoeObjectsTests(SyncTestCase):
         )
 
         expected_sizes = [
-            capability_size(cap)
+            cap.size
             for cap in [
                     remote_snap.capability,
                     remote_snap.metadata_cap,

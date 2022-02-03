@@ -7,7 +7,9 @@ from eliot.twisted import (
     inline_callbacks,
 )
 
-from magic_folder.util.capabilities import to_readonly_capability
+from magic_folder.util.capabilities import (
+    Capability,
+)
 
 from .util import await_file_contents, ensure_file_not_created
 
@@ -82,7 +84,7 @@ async def test_leave(request, reactor, temp_filepath, alice, bob):
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
-    alice_cap = to_readonly_capability(alice_folders["original"]["upload_dircap"])
+    alice_cap = Capability.from_string(alice_folders["original"]["upload_dircap"]).to_readonly().danger_real_capability_string()
     await bob.add_participant("recovery", "alice", alice_cap)
 
     await await_file_contents(

@@ -101,10 +101,10 @@ async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introd
         )
     )
 
-    # try for 10 seconds to get what we expect. we're waiting for each
+    # try for 15 seconds to get what we expect. we're waiting for each
     # of the magic-folders to upload their single "a_file_name" items
     # so that they each have one Snapshot in Tahoe-LAFS
-    for _ in range(10):
+    for _ in range(15):
         await util.twisted_sleep(reactor, 1)
         results = await DeferredList([
             yolandi.client.tahoe_objects(folder_name)

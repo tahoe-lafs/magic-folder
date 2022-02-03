@@ -72,9 +72,6 @@ from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
 )
-from ..util.capabilities import (
-    to_readonly_capability,
-)
 from ..magicpath import (
     path2magic,
 )
@@ -99,6 +96,10 @@ from ..snapshot import (
 from ..util.encoding import (
     normalize
 )
+from ..util.capabilities import (
+    random_dircap,
+)
+
 
 class CollectiveParticipantsTests(SyncTestCase):
     """
@@ -121,7 +122,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-write
         """
         tahoe_client = None
-        collective_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        collective_dircap = random_dircap()
         with ExpectedException(TypeError, "Upload dirnode was.*"):
             participants_from_collective(
                 collective_dircap,
@@ -145,7 +146,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         * is not read-only
         """
         tahoe_client = None
-        upload_dircap = "URI:DIR2:txkwxzcha3nfqtcv45a7wzri5i:2tlulhdv24a6t6jy73rvlhxncsj7nqf46zzh3d6zjvb7lkzolx7a"
+        upload_dircap = random_dircap()
         with ExpectedException(TypeError, "Collective dirnode was.*"):
             participants_from_collective(
                 collective_dirnode,
@@ -184,7 +185,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        root._uri.data[rw_collective_dircap] = dumps([
+        root._uri.data[rw_collective_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {
                 name: format_filenode(cap, {})
@@ -193,7 +194,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             }},
         ]).encode("utf8")
 
-        root._uri.data[upload_dircap] = dumps([
+        root._uri.data[upload_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {}},
         ]).encode("utf8")
@@ -248,7 +249,7 @@ class CollectiveParticipantsTests(SyncTestCase):
         # Pick someone in the collective to be us.
         author = sorted(collective_contents)[0]
         upload_dircap = collective_contents[author]
-        upload_dircap_ro = to_readonly_capability(upload_dircap)
+        upload_dircap_ro = upload_dircap.to_readonly()
 
         root = create_fake_tahoe_root()
         http_client = create_tahoe_treq_client(root)
@@ -257,7 +258,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             http_client,
         )
 
-        root._uri.data[rw_collective_dircap] = dumps([
+        root._uri.data[rw_collective_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {
                 u"children": {
@@ -266,7 +267,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             },
         ]).encode("utf8")
 
-        root._uri.data[upload_dircap] = dumps([
+        root._uri.data[upload_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {}},
         ]).encode("utf8")
@@ -283,7 +284,7 @@ class CollectiveParticipantsTests(SyncTestCase):
                 continue
             participants.add(
                 RemoteAuthor(name, VerifyKey(os.urandom(32))),
-                to_readonly_capability(dircap),
+                dircap.to_readonly(),
             )
 
         # confirm we added all the right participants by using the
@@ -303,7 +304,7 @@ class CollectiveParticipantsTests(SyncTestCase):
                     AfterPreprocessing(
                         lambda ps: sorted(p.dircap for p in ps),
                         Equals(sorted(
-                            to_readonly_capability(c)
+                            c.to_readonly()
                             for c in collective_contents.values()
                         )),
                     ),
@@ -350,6 +351,37 @@ class CollectiveParticipantsTests(SyncTestCase):
                     lambda f: str(f.value),
                     Equals(
                         "New participant Personal DMD must be read-only dircap"
+                    )
+                )
+            )
+        )
+
+    @given(
+        tahoe_lafs_dir_capabilities(),
+        tahoe_lafs_dir_capabilities(),
+    )
+    def test_add_wrong_dmd_type(self, rw_collective_dircap, rw_upload_dircap):
+        """
+        Calling ``IParticipants.add`` with an invalid object is an error
+        """
+        assume(rw_collective_dircap != rw_upload_dircap)
+        # we are testing error-cases, so don't need a real client
+        participants = participants_from_collective(
+            rw_collective_dircap,
+            rw_upload_dircap,
+            tahoe_client=None,
+        )
+
+        self.assertThat(
+            participants.add(
+                create_local_author("alice").to_remote_author(),
+                "personal dmd str not Capability"
+            ),
+            failed(
+                AfterPreprocessing(
+                    lambda f: str(f.value),
+                    Equals(
+                        "New participant Personal DMD was str not Capability"
                     )
                 )
             )
@@ -418,7 +450,7 @@ class CollectiveParticipantsTests(SyncTestCase):
             DecodedURL.from_text(u"http://example.invalid./"),
             http_client,
         )
-        root._uri.data[rw_collective_dircap] = dumps([
+        root._uri.data[rw_collective_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {
                 u"children": {},
@@ -509,8 +541,7 @@ class CollectiveParticipantTests(SyncTestCase):
             http_client,
         )
 
-        upload_dircap = upload_dircap
-        root._uri.data[upload_dircap] = dumps([
+        root._uri.data[upload_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {
                 path2magic(relpath): format_filenode(cap, {u"version": version})

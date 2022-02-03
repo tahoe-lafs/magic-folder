@@ -26,7 +26,6 @@ from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import IStatus, WebSocketStatusService
 from .tahoe_client import create_tahoe_client
-from .util.capabilities import to_readonly_capability
 from .util.observer import ListenObserver
 from .web import magic_folder_web_service
 from .invite import (
@@ -72,6 +71,7 @@ class MagicFolderService(MultiService):
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
+    _cooperator = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -111,6 +111,7 @@ class MagicFolderService(MultiService):
             name,
             self.config,
             self.status_service,
+            cooperator=self._cooperator,
         )
         mf.setServiceParent(self)
         return mf
@@ -299,7 +300,7 @@ class MagicFolderService(MultiService):
         )
 
         # 'attenuate' our personal dmd write-cap to a read-cap
-        personal_readonly_cap = to_readonly_capability(personal_write_cap)
+        personal_readonly_cap = personal_write_cap.to_readonly()
 
         # add ourselves to the collective
         yield self.tahoe_client.add_entry_to_mutable_directory(

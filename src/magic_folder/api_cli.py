@@ -106,14 +106,14 @@ def dump_state(options):
 
     author_info = "  author: {name} {public_key}".format(
         name=config.author.name,
-        public_key=config.author.verify_key.encode(encoder=HexEncoder),
+        public_key=config.author.verify_key.encode(encoder=HexEncoder).decode("utf8"),
     )
 
     print(config.name, file=options.stdout)
     print(author_info, file=options.stdout)
     print("  stash_path: {}".format(config.stash_path.path), file=options.stdout)
     print("  magic_path: {}".format(config.magic_path.path), file=options.stdout)
-    print("  collective: {}".format(config.collective_dircap), file=options.stdout)
+    print("  collective: {}".format(config.collective_dircap.danger_real_capability_string()), file=options.stdout)
     print("  local snapshots:", file=options.stdout)
     for relpath in config.get_all_localsnapshot_paths():
         snap = config.get_local_snapshot(relpath)
@@ -133,7 +133,7 @@ def dump_state(options):
             cap = None
             continue
         print("    {}:".format(relpath), file=options.stdout)
-        print("        cap: {}".format(cap), file=options.stdout)
+        print("        cap: {}".format(cap.danger_real_capability_string()), file=options.stdout)
         print("        mtime: {}".format(ps.mtime_ns), file=options.stdout)
         print("        size: {}".format(ps.size), file=options.stdout)
         if upload_duration:

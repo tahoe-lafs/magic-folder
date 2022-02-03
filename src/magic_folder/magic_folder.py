@@ -63,7 +63,7 @@ class MagicFolder(service.MultiService):
     """
 
     @classmethod
-    def from_config(cls, reactor, tahoe_client, name, config, status_service):
+    def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
@@ -74,6 +74,11 @@ class MagicFolder(service.MultiService):
             the Tahoe-LAFS client we're associated with.
 
         :param GlobalConfigurationDatabase config: our configuration
+
+        :param IStatus status_service: status-reporting service
+
+        :param Cooperator cooperator: a cooperator to use for child
+            services (or None for the Twisted global default cooperator).
         """
         mf_config = config.get_magic_folder(name)
 
@@ -99,6 +104,7 @@ class MagicFolder(service.MultiService):
                 mf_config.stash_path,
                 mf_config.magic_path,
                 tahoe_client,
+                cooperator=cooperator,
             ),
             status=folder_status,
         )
@@ -356,7 +362,7 @@ REMOVE_FROM_PENDING = ActionType(
 
 PATH = Field(
     u"path",
-    lambda fp: "<None>" if fp is None else fp.asTextMode().path,
+    lambda fp: "<None>" if fp is None else fp.path,
     u"A local filesystem path.",
     validateInstanceOf(FilePath),
 )

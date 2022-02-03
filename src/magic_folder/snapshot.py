@@ -21,6 +21,9 @@ from twisted.python.filepath import (
 from twisted.internet.defer import (
     returnValue,
 )
+from twisted.internet.task import (
+    cooperate as global_cooperate,
+)
 from twisted.web.client import (
     FileBodyProducer,
 )
@@ -41,7 +44,12 @@ from nacl.encoding import (
     Base64Encoder,
 )
 
-from .util.encoding import normalize
+from .util.encoding import (
+    normalize,
+)
+from .util.capabilities import (
+    Capability,
+)
 
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
@@ -176,9 +184,9 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
 
     :param unicode relpath: arbitrary snapshot name
 
-    :param str content_capability: Tahoe immutable capability-string
+    :param Capability content_capability: Tahoe immutable capability
 
-    :param str metadata_capability: Tahoe immutable capability-string
+    :param Capability metadata_capability: Tahoe immutable capability
 
     :returns bytes: the snapshop signature string encoded to utf8
     """
@@ -188,8 +196,8 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
         u"{metadata_capability}\n"
         u"{relpath}\n"
     ).format(
-        content_capability=content_capability,
-        metadata_capability=metadata_capability,
+        content_capability=content_capability.danger_real_capability_string() if content_capability else "",
+        metadata_capability=metadata_capability.danger_real_capability_string(),
         relpath=relpath,
     )
     return snapshot_string.encode("utf8")
@@ -203,23 +211,21 @@ def sign_snapshot(local_author, snapshot_relpath, content_capability, metadata_c
 
     :param unicode snapshot_name: snapshot name to sign
 
-    :param str content_capability: the Tahoe immutable
-        capability-string of the actual snapshot data.
+    :param Capability content_capability: the Tahoe immutable
+        capability of the actual snapshot data.
 
-    :param str metadata_capability: the Tahoe immutable
-        capability-string of the metadata (which is serialized JSON)
+    :param Capability metadata_capability: the Tahoe immutable
+        capability of the metadata (which is serialized JSON)
 
     :returns: instance of `nacl.signing.SignedMessage` (or exception on
         error).
     """
     # deletes have no content
-    assert content_capability is None or isinstance(content_capability, str), "capabilities are strings"
-    assert isinstance(metadata_capability, str), "capabilities are strings"
     # XXX Our cryptographers should look at this scheme; see
     # https://github.com/LeastAuthority/magic-folder/issues/190
     data_to_sign = _snapshot_signature_string(
         snapshot_relpath,
-        "" if content_capability is None else content_capability,
+        content_capability,
         metadata_capability,
     )
     return local_author.signing_key.sign(data_to_sign)
@@ -251,8 +257,8 @@ class LocalSnapshot(object):
     :ivar [LocalSnapshot] parents_local: The parents of this snapshot that are
         only known to exist locally.
 
-    :ivar [str] parents_remote: The capability strings of snapshots that are
-        known to exist remotely.
+    :ivar [Capability] parents_remote: The Capabilities of snapshots
+        that are known to exist remotely.
     """
     relpath = attr.ib()
     author = attr.ib()
@@ -276,7 +282,7 @@ class LocalSnapshot(object):
             on-disc content. Raises an error if we already have a
             capability. Note that this data will have been stashed previously.
         """
-        return FileBodyProducer(self.content_path.asBytesMode("utf-8").open("rb"))
+        return FileBodyProducer(self.content_path.open("rb"))
 
     def is_delete(self):
         """
@@ -359,11 +365,11 @@ class RemoteSnapshot(object):
 
     :ivar RemoteAuthor author: The author of this snapshot.
 
-    :ivar str capability: an immutable CHK:DIR2 capability-string.
+    :ivar Capability capability: an immutable directory capability
 
-    :ivar str content_cap: a capability-string for the actual
-        content of this RemoteSnapshot. Use `fetch_content()` to
-        retrieve the contents.
+    :ivar Capability content_cap: a capability for the actual content
+        of this RemoteSnapshot. Use `fetch_content()` to retrieve the
+        contents.
     """
 
     relpath = attr.ib()
@@ -395,8 +401,8 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
     :param tahoe_client: the Tahoe client to use
 
-    :param str capability_string: unicode data representing the
-        immutable CHK:DIR2 directory containing this snapshot.
+    :param Capability snapshot_cap: the immutable CHK:DIR2 directory
+        containing this snapshot.
 
     :return Deferred[Snapshot]: RemoteSnapshot instance on success.
         Otherwise an appropriate exception is raised.
@@ -414,7 +420,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
         # capabilities at this point .. that might be better anyway?
         # (A key advantage is not even trying to deserialize anything
         # that's not verified by a signature).
-        metadata_cap = snapshot["metadata"][1]["ro_uri"]
+        metadata_cap = Capability.from_string(snapshot["metadata"][1]["ro_uri"])
         author_signature = snapshot["metadata"][1]["metadata"]["magic_folder"]["author_signature"]
 
         metadata_json = yield tahoe_client.download_file(metadata_cap)
@@ -434,7 +440,8 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
         relpath = metadata["relpath"]
         # if 'ro_uri' is missing, there's no content_cap here (so it's a delete)
-        content_cap = snapshot["content"][1].get("ro_uri", None)
+        raw_content_cap = snapshot["content"][1].get("ro_uri", None)
+        content_cap = None if raw_content_cap is None else Capability.from_string(raw_content_cap)
 
         # create SnapshotAuthor
         author = create_author_from_json(metadata["author"])
@@ -461,7 +468,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 @inline_callbacks
 def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=None,
-                    raw_remote_parents=None, modified_time=None):
+                    raw_remote_parents=None, modified_time=None, cooperator=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -485,10 +492,16 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     :param int modified_time: timestamp to use as last-modified time
         (or None for "now")
 
+    :param Cooperator cooperator: a twisted.internet.task.Cooperator
+        to schedule the work of copying the file's data. None means
+        use the global one.
+
     :returns LocalSnapshot: the new snapshot instance
     """
     if parents is None:
         parents = []
+
+    cooperate = cooperator.cooperate if cooperator is not None else global_cooperate
 
     if not isinstance(author, LocalAuthor):
         raise ValueError(
@@ -513,32 +526,33 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
                 )
             )
     if raw_remote_parents:
-        parents_remote.extend(raw_remote_parents)
+        parents_remote.extend(Capability.from_string(cap) for cap in raw_remote_parents)
 
     if data_producer is not None:
         chunk_size = 1024*1024  # 1 MiB
-        chunks_per_yield = 100
 
         # 1. create a temp-file in our stash area
         temp_file_fd, temp_file_name = mkstemp(
             prefix="snap",
-            dir=snapshot_stash_dir.asTextMode().path,
+            dir=snapshot_stash_dir.path,
         )
         try:
             # 2. stream data_producer into our temp-file
-            done = False
-            while not done:
-                for _ in range(chunks_per_yield):
+
+            def copy_data():
+                while True:
                     data = data_producer.read(chunk_size)
                     if data:
-                        if len(data) > 0:
-                            os.write(temp_file_fd, data)
+                        os.write(temp_file_fd, data)
                     else:
-                        done = True
-                        break
-                # XXX should "actually yield" with deferLater(0), approx
-                # (well, i guess a cooperator ...)
-                yield
+                        return
+                    # note this method is a "real iterator" not an
+                    # inline-callbacks thing
+                    yield
+            # cooperatively copy the data
+            task = cooperate(copy_data())
+            yield task.whenDone()
+
         finally:
             os.close(temp_file_fd)
 
@@ -553,7 +567,7 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
             "mtime": modified_time,
             "ctime": now,
         },
-        content_path=None if data_producer is None else FilePath(temp_file_name),
+        content_path=None if data_producer is None else FilePath(temp_file_name).asTextMode(),
         parents_local=parents_local,
         parents_remote=parents_remote,
     )
@@ -567,7 +581,7 @@ def format_filenode(cap, metadata=None):
     """
     Create the data structure Tahoe-LAFS uses to represent a filenode.
 
-    :param str cap: The read-only capability string for the content of the
+    :param Capability cap: The read-only capability string for the content of the
         filenode.
 
     :param dict: Any metadata to associate with the filenode (or None
@@ -576,8 +590,9 @@ def format_filenode(cap, metadata=None):
     :return: The Tahoe-LAFS representation of a filenode with this
         information.
     """
+    # XXX is anything ensuring this is a RO uri?
     node = {
-        u"ro_uri": cap,
+        u"ro_uri": None if cap is None else cap.danger_real_capability_string(),
     }
     if metadata is not None:
         node[u"metadata"] = metadata
@@ -615,7 +630,7 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
 
     if len(snapshot.parents_remote):
         for parent in snapshot.parents_remote:
-            parents_raw.append(parent)
+            parents_raw.append(parent.danger_real_capability_string())
 
     # we can't reference any LocalSnapshot objects we have, so they
     # must be uploaded first .. we do this up front so we're also
@@ -626,9 +641,10 @@ def write_snapshot_to_tahoe(snapshot, author_key, tahoe_client):
         # first.
 
         to_upload = snapshot.parents_local[:]  # shallow-copy the thing we'll iterate
+        # parents_raw are capability-strings, not Capability instances
         for parent in to_upload:
             parent_remote_snapshot = yield write_snapshot_to_tahoe(parent, author_key, tahoe_client)
-            parents_raw.append(parent_remote_snapshot.capability)
+            parents_raw.append(parent_remote_snapshot.capability.danger_real_capability_string())
             snapshot.parents_local.remove(parent)  # the shallow-copy to_upload not affected
 
     # upload the content itself

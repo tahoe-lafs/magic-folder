@@ -153,9 +153,9 @@ greenlet==1.1.2 \
     --hash=sha256:fa877ca7f6b48054f847b61d6fa7bed5cebb663ebc55e018fda12db09dcc664c \
     --hash=sha256:fdcec0b8399108577ec290f55551d926d9a1fa6cad45882093a7a07ac5ec147b
     # via pytest-twisted
-hypothesis==6.35.0 \
-    --hash=sha256:b51d1cbfd5c5d38b59435f695a1ff790c5fa7600baa59eba202a7bf8498d9043 \
-    --hash=sha256:ce3961fff61e7353d022608788cbc9876c293d2468749eeba27511adc9565131
+hypothesis==6.35.1 \
+    --hash=sha256:536b928d14934809d0da676579436aaa379b06df84408b4c154412e8fd4e1b91 \
+    --hash=sha256:8533812bd277925b0c594ef2681dc8f4289a7b6be0169cc2df295d096c7cd783
     # via -r requirements/test.in
 iniconfig==1.1.1 \
     --hash=sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3 \

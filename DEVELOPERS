@@ -12,7 +12,7 @@ We are working to get rid of this so that all we need is a Tahoe-LAFS WebUI endp
 
 Where possible, new code should not use `allmydata.*` namespaces.
 This is not always possible.
-One place it's okay is for handling of Capability Strings directly (roughtly, parts of `allmydata.uri.*`)
+One place it's okay is for handling of Capability Strings directly (roughly, parts of `allmydata.uri.*`)
 
 Magic Folder is currently Python2 only.
 A port of Tahoe-LAFS to Python3 is under way currently.
@@ -25,9 +25,10 @@ General Development Process
 Development is co-ordinated on GitHub via Issues and Pull Requests.
 
 Generally any change requires a new Issue describing the feature, bug or enhancement.
-This Issue number will be used for a "news" item in ``./newsfragments.<number>.<kind>``, referenced by the eventual Pull Request(s) and are normally used in the branch name (such as ``<number>.descriptive-words``).
+This Issue number will be used for a "news" item in ``./newsfragments/<number>.<kind>``, referenced by the eventual Pull Request(s) and are normally used in the branch name (such as ``<number>.descriptive-words``).
+The different values for ``<kind>`` can be found in ``pyproject.toml``.
 
-Magic Folder is on-topic for the ``#tahoe-lafs`` channel on the Freenode IRC network.
+Magic Folder is on-topic for the ``#tahoe-lafs`` channel on the Libera IRC network.
 Feel free to discuss things there but be prepared to wait hours or more for replies; there aren't many people working on Magic Folder and we are in many time-zones.
 
 
@@ -35,17 +36,17 @@ Setting up a Development Environment
 ====================================
 
 There are many ways to set up development environments for Python programs.
-While we describe particular ways below you may wish to try differeent methods.
+While we describe particular ways below you may wish to try different methods.
 If you believe a different setup could serve other developers add those instructions here too (via a Pull Request).
 
 
 Creating a virtualenv
 ---------------------
 
-If you like to work using a virtualenv you will need a Python 2 one for magic-folder.
+If you like to work using a virtualenv you will need a Python one for magic-folder.
 One way to create it is::
 
-    % python -m virtualenv venv
+    % python3 -m virtualenv venv
     % ./venv/bin/pip install --editable .[test]
 
 Note the ``[test]`` "extra" after the "." (single dot).
@@ -57,7 +58,7 @@ Hypothesis
 
 Many of the tests use Hypothesis (see https://hypothesis.readthedocs.io/).
 
-You can select profiles with an evnironment variable:
+You can select profiles with an environment variable:
 
    export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-fast
    export MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-ci
@@ -105,6 +106,14 @@ Exceptions and @attr.s
 
 In Python3, Twisted removes the __traceback__ attribute from exceptions in some cases.
 Thus, no `Exception`-derived, `@attr.s()`-using class may use `frozen=True`.
+
+
+FilePath and text versus binary mode
+------------------------------------
+
+`twisted.python.filepath.FilePath` operates in "bytes" mode or "text" mode with conversion functions `.asTextMode()` and `.asBytesMode()`.
+Internally, all `FilePath`s shall be text mode.
+Outside users might need to call `.asTextMode()` on a FilePath to ensure this.
 
 
 Submitting a Pull Request
@@ -215,3 +224,32 @@ If in doubt, reach out on IRC or via a "question" Issue on GitHub.
   - no scraping HTML!
 - New code should be covered by unit-tests
 
+
+Creating a Release
+==================
+
+- Use a fresh virtualenv with the version of Python you want. For example:
+   - pyenv shell 3.9.2
+   - pyenv virtualenv buildvenv
+   - source ./buildvenv/bin/activate
+- Install the tools required:
+   - python3 -m pip install --editable .[build]
+- Update the NEWS:
+   - python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
+   - git add -u
+   - git commit -m "update NEWS"
+- Update the version:
+   - python3 misc/build_helpers/update-version.py
+- Build the release:
+   - python3 setup.py bdist_wheel
+- Double-check the artifact in dist/
+- Sign the wheel if you're happy:
+   - export VERSION=21.1.0
+   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-$(VERSION)-py3-none-any.whl
+
+- OR: do all the above steps with "make release"
+
+
+- Publish the release:
+   - twine upload dist/magic_folder-*-py3-none-any.whl dist/magic_folder-*-py3-none-any.whl.asc
+- OR: do all the publish steps with "make release-publish"

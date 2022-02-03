@@ -66,7 +66,7 @@ def ns_to_seconds_float(t):
 def get_pathinfo(path):
     # type: (FilePath) -> PathInfo
     try:
-        statinfo = os.lstat(path.asBytesMode("utf-8").path)
+        statinfo = os.lstat(path.path)
         mode = statinfo.st_mode
         is_file = stat.S_ISREG(mode)
         if is_file:

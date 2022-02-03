@@ -8,109 +8,203 @@ These APIs convert for use with the imported Tahoe-LAFS URI interaction code so 
 """
 
 from allmydata.uri import (
+    IURI,
+    UnknownURI,
     IDirectoryURI,
     IDirnodeURI,
     IFileURI,
     IImmutableFileURI,
     IReadonlyDirectoryURI,
-    IVerifierURI,
+    ImmutableDirectoryURI,
 )
-from allmydata.uri import from_string as tahoe_uri_from_string
+from allmydata.uri import from_string as _tahoe_uri_from_string
+import hashlib
+from base64 import (
+    b32encode,
+)
+from os import (
+    urandom,
+)
+import attr
 
 
-def capability_size(capability):
+@attr.s(frozen=True)
+class Capability:
     """
-    :param str capability: a Tahoe-LAFS Capability URI.
+    Represents a Tahoe-LAFS capability (Tahoe-LAFS calls these "URIs").
 
-    :returns int: the size, in bytes, the capability points to
+    Although it might be nice to grow this into the "URI handling
+    library" / API that Tahoe-LAFS _doesn't_ have for now it serves to
+    at leats wrap capability-use in a real class (instad of a str)
+    which allows better typing (e.g. in attrs and elsewhere) and helps
+    ensure we don't accidentally print out a capability in logs or
+    similar.
     """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    if IDirnodeURI.providedBy(uri):
-        return uri.get_filenode_cap().get_size()
-    return uri.get_size()
+
+    # the original capability-string
+    _uri = attr.ib(validator=attr.validators.instance_of(str), repr=False)
+    # a Tahoe object representing the capability
+    _tahoe_cap = attr.ib(validator=attr.validators.provides(IURI), repr=False)
+
+    @classmethod
+    def from_string(cls, capability_string):
+        """
+        :returns Capability: a new instance from the given capability-string, or an
+            exception if it is not well-formed.
+        """
+        cap = _tahoe_uri_from_string(capability_string)
+        if isinstance(cap, UnknownURI):
+            raise ValueError(
+                "Invalid capability-string {}".format(capability_string)
+            )
+        return cls(
+            uri=capability_string,
+            tahoe_cap=cap,
+        )
+
+    @property
+    def size(self):
+        """
+        The size, in bytes, of the data this capability represents
+        """
+        if IDirnodeURI.providedBy(self._tahoe_cap):
+            return self._tahoe_cap.get_filenode_cap().get_size()
+        return self._tahoe_cap.get_size()
+
+    def is_directory(self):
+        """
+        :returns bool: True if this is a directory-cap of any sort
+        """
+        return IDirnodeURI.providedBy(self._tahoe_cap)
+
+    def is_file(self):
+        """
+        :returns bool: True if this is a mutable or immutable file
+            capability (note this excludes all kinds of "verify"
+            capabilities).
+        """
+        return IFileURI.providedBy(self._tahoe_cap) or IImmutableFileURI.providedBy(self._tahoe_cap)
+
+    def is_mutable_directory(self):
+        """
+        :returns bool: True if this is a mutable directory capability
+            (note this excludes all kinds of "verify" capabilities).
+        """
+        return IDirectoryURI.providedBy(self._tahoe_cap)
+
+    def is_immutable_directory(self):
+        """
+        :returns bool: True if this is a mutable directory capability
+            (note this excludes all kinds of "verify" capabilities).
+        """
+        return isinstance(self._tahoe_cap, ImmutableDirectoryURI)
+
+    def is_readonly_directory(self):
+        """
+        :returns bool: True if this is a read-only directory capability
+            (note this excludes all kinds of "verify" capabilities).
+        """
+        return IReadonlyDirectoryURI.providedBy(self._tahoe_cap)
+
+    def to_readonly(self):
+        """
+        Converts to a read-only Capability. Note that this may be the same
+        instance if this is already read-only.
+
+        :returns Capability: a read-only version (could be the same Capability)
+        """
+        if self._tahoe_cap.is_readonly():
+            return self
+        return Capability.from_string(
+            self._tahoe_cap.get_readonly().to_string().decode("ascii")
+        )
+
+    def to_verifier(self):
+        """
+        Converts to a verify capability.
+
+        :returns Capbility: a verify-only version (which might be the
+            same instance if this is already a verify Capability).
+        """
+        return Capability.from_string(
+            self._tahoe_cap.get_verify_cap().to_string().decode("ascii")
+        )
+
+    def hex_digest(self):
+        """
+        :returns str: a hex-encoded sha256 digest of the
+            capability-string.
+        """
+        h = hashlib.sha256()
+        h.update(self._uri.encode("ascii"))
+        return h.hexdigest()
+
+    def __str__(self):
+        """
+        Return a SAFE string representation of this capability.
+
+        This should _not_ be the real capability-string but some
+        mangled version of it suitable for use in logs, etc. Code that
+        requires the real capability-string must use
+        danger_real_capability_string()
+        """
+        return "[REDACTED]"
+
+    def __repr__(self):
+        return "<Capability>"
+
+    def danger_real_capability_string(self):
+        """
+        Return the real capability string.
+
+        This is original str of the capability and usually contains
+        secret or sensitive data. We name this method to encourage
+        programmers to think about whether the actual
+        capability-string is required in such a case or not.
+
+        :returns str: a Tahoe-LAFS URI string
+        """
+        return self._uri
+
+    def __hash__(self):
+        """
+        Logically, two capabilities are 'the same' if their actual
+        underlying Tahoe-LAFS URI is identical
+        """
+        return self._uri
+
+    def __eq__(self, other):
+        """
+        Logically, two capabilities are 'the same' if their actual
+        underlying Tahoe-LAFS URI is identical
+        """
+        return self.__uri__ == other._uri
 
 
-def is_directory_cap(capability):
+def random_dircap(readonly=False):
     """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    :returns bool: True if `capability` is a directory-cap of any sort
+    :returns Capability: a random directory-capability ("URI:DIR2" or "URI:DIR2-RO")
     """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    return IDirnodeURI.providedBy(uri)
-
-
-def is_file_cap(capability):
-    """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    :returns bool: True if `capability` is a mutable or immutable file
-        capability (note this excludes all kinds of "verify"
-        capabilities).
-    """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    return IFileURI.providedBy(uri) or IImmutableFileURI.providedBy(uri)
-
-
-def is_immutable_directory_cap(capability):
-    """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    :returns bool: True if `capability` is an immmutable directory capability
-        (note this excludes all kinds of "verify" capabilities).
-    """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    return (
-        IDirnodeURI.providedBy(uri)
-        and not uri.is_mutable()
-        and not IVerifierURI.providedBy(uri)
+    return Capability.from_string(
+        u"{}:{}:{}".format(
+            "URI:DIR2-RO" if readonly else "URI:DIR2",
+            b32encode(urandom(16)).rstrip(b"=").lower().decode("ascii"),
+            b32encode(urandom(32)).rstrip(b"=").lower().decode("ascii"),
+        )
     )
 
-
-def is_mutable_directory_cap(capability):
+def random_immutable(directory=False, needed=2, extra=3, happy=3):
     """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    :returns bool: True if `capability` is a mutable directory capability
-        (note this excludes all kinds of "verify" capabilities).
+    :returns Capability: a random CHK immutable capability "URI:CHK"
+        or if directory is True a "URI:DIR2-CHK:"
     """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    return IDirectoryURI.providedBy(uri)
-
-
-def is_readonly_directory_cap(capability):
-    """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    :returns bool: True if `capability` is a read-only directory capability
-        (note this excludes all kinds of "verify" capabilities).
-    """
-    uri = tahoe_uri_from_string(capability.encode("ascii"))
-    return IReadonlyDirectoryURI.providedBy(uri)
-
-
-def to_readonly_capability(capability):
-    """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    Converts a capability-string to a readonly capability-string. This
-    may be the very same string if it is already read-only.
-
-    :returns str: a read-only version of the URI (could be the same URI)
-    """
-    cap = tahoe_uri_from_string(capability.encode("ascii"))
-    if cap.is_readonly():
-        return capability
-    return cap.get_readonly().to_string().decode("ascii")
-
-
-def to_verify_capability(capability):
-    """
-    :param str capability: a Tahoe-LAFS Capability URI.
-
-    Converts a capability-string to a verify capability-string.
-
-    :returns str: a verify-only version of the URI (could be the same URI)
-    """
-    verify = tahoe_uri_from_string(capability.encode("ascii")).get_verify_cap()
-    return verify.to_string().decode("ascii")
+    return Capability.from_string(
+        u"{}:{}:{}:{}:{}:{}".format(
+            "URI:DIR2-CHK" if directory else "URI:CHK",
+            b32encode(urandom(16)).rstrip(b"=").lower().decode("ascii"),
+            b32encode(urandom(32)).rstrip(b"=").lower().decode("ascii"),
+            needed,
+            needed + extra,
+            happy,
+        )
+    )

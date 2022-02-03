@@ -13,9 +13,13 @@ from functools import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.task import (
+    Cooperator,
+)
 
 from hypothesis import (
     given,
+    assume,
     example,
 )
 from hypothesis.strategies import (
@@ -67,6 +71,8 @@ from .strategies import (
     folder_names,
     path_states,
     author_names,
+    tahoe_lafs_immutable_dir_capabilities,
+    tahoe_lafs_chk_capabilities,
 )
 from ..common import (
     APIError,
@@ -90,7 +96,9 @@ from ..snapshot import (
     LocalSnapshot,
 )
 from ..util.capabilities import (
-    capability_size,
+    Capability,
+    random_dircap,
+    random_immutable,
 )
 from ..util.file import (
     PathState,
@@ -108,8 +116,8 @@ class TestGlobalConfig(SyncTestCase):
         self.setup_tempdir()
 
     def setup_tempdir(self):
-        self.temp = FilePath(self.mktemp()).asTextMode()
-        self.node_dir = FilePath(self.mktemp()).asTextMode()
+        self.temp = FilePath(self.mktemp())
+        self.node_dir = FilePath(self.mktemp())
         self.tahoe_dir = self.useFixture(NodeDirectory(self.node_dir))
 
     @given(
@@ -120,7 +128,7 @@ class TestGlobalConfig(SyncTestCase):
         ``create_global_configuration`` accepts a path that doesn't exist to which
         to write the configuration.
         """
-        confdir = self.temp.child(b"base")
+        confdir = self.temp.child(dirname)
         config = create_global_configuration(confdir, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
         self.assertThat(
             config,
@@ -270,8 +278,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             folder_name,
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
@@ -289,8 +297,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo",
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
@@ -321,8 +329,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo",
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
@@ -330,8 +338,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo.",
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
@@ -339,12 +347,11 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo ",
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
-
 
     def test_folder_nonexistant_magic_path(self):
         config = create_global_configuration(self.temp, u"tcp:1234", self.node_dir, u"tcp:localhost:1234")
@@ -393,8 +400,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             name,
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             60,
         )
@@ -419,8 +426,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             name,
             magic,
             alice,
-            u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-            u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
+            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
             60,
             None,
         )
@@ -482,12 +489,17 @@ class StoreLocalSnapshotTests(SyncTestCase):
     def setUp(self):
         super(StoreLocalSnapshotTests, self).setUp()
         self.author = create_local_author(u"alice")
+        self.uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(self.uncooperator.stop)
 
     def setup_example(self):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -495,8 +507,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            # collective dircap
+            random_dircap(readonly=True),
+            # upload dircap
+            random_dircap(),
             self.magic,
             60,
             60,
@@ -522,6 +536,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data1,
             snapshot_stash_dir=self.stash,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -540,6 +555,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash,
             parents=[snapshots[0]],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -587,6 +603,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data1,
             snapshot_stash_dir=self.stash,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -598,6 +615,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash,
             parents=[snapshots[0]],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -635,7 +653,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -643,8 +661,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            # collective dircap
+            random_dircap(readonly=True),
+            # upload dircap
+            random_dircap(),
             self.magic,
             60,
             60,
@@ -697,10 +717,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability="URI:DIR2-CHK:aaaa:aaaa",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:bbbb:bbbb",
-            metadata_cap="URI:CHK:cccc:cccc",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -741,10 +761,9 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         # the "middle" parent (above) has no local parents and one
         # remote, which is correct .. the final parent should be the
         # one we replaced the local with.
-        remote0 = dbsnap1.parents_remote[0]
         self.assertThat(
-            remote0,
-            Equals("URI:DIR2-CHK:aaaa:aaaa"),
+            dbsnap1.parents_remote[0],
+            Equals(remote0.capability),
         )
 
     def test_delete_several_local_snapshots(self):
@@ -764,10 +783,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability="URI:DIR2-CHK:aaaa:aaaa",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:bbbb:bbbb",
-            metadata_cap="URI:CHK:cccc:cccc",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -791,10 +810,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability="URI:DIR2-CHK:aaaa:aaaa",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:bbbb:bbbb",
-            metadata_cap="URI:CHK:cccc:cccc",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -849,7 +868,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -857,8 +876,8 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            random_dircap(readonly=True),
+            random_dircap(),
             self.magic,
             60,
             60,
@@ -1084,9 +1103,9 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
         """
         self.db.store_downloaded_snapshot(relpath, remote_snap, state)
 
-        s = capability_size(remote_snap.capability)
-        c = capability_size(remote_snap.content_cap)
-        m = capability_size(remote_snap.metadata_cap)
+        s = remote_snap.capability.size
+        c = remote_snap.content_cap.size
+        m = remote_snap.metadata_cap.size
         self.assertThat(
             self.db.get_tahoe_object_sizes(),
             Equals([s, c, m])
@@ -1103,7 +1122,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -1111,8 +1130,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            random_dircap(readonly=True),
+            random_dircap(),
             self.magic,
             60,
             60,
@@ -1130,10 +1149,10 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 relpath,
                 self.author,
                 {"relpath": relpath, "modification_time": x},
-                "URI:DIR2-CHK:",
+                random_immutable(directory=True),
                 [],
-                "URI:CHK:",
-                "URI:CHK:",
+                random_immutable(),
+                random_immutable(),
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
@@ -1167,7 +1186,7 @@ class ConflictTests(SyncTestCase):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
-        self.magic = self.temp.child(b"magic")
+        self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
         self.db = MagicFolderConfig.initialize(
@@ -1175,14 +1194,19 @@ class ConflictTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            u"URI:DIR2-RO:aaa:bbb",
-            u"URI:DIR2:ccc:ddd",
+            random_dircap(readonly=True),
+            random_dircap(),
             self.magic,
             60,
             60,
         )
 
-    def test_add_list_conflict(self):
+    @given(
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_list_conflict(self, remote_cap, meta_cap, content_cap):
         """
         Adding a conflict allows us to list it
         """
@@ -1190,21 +1214,27 @@ class ConflictTests(SyncTestCase):
             "foo",
             self.author,
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            remote_cap,
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            content_cap,
+            meta_cap,
         )
 
         self.db.add_conflict(snap)
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": [Conflict("URI:DIR2-CHK:", self.author.name)],
+                "foo": [Conflict(remote_cap, self.author.name)],
             }),
         )
+        self.db.resolve_conflict("foo")
 
-    def test_add_conflict_twice(self):
+    @given(
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_conflict_twice(self, remote_cap, meta_cap, content_cap):
         """
         It's an error to add the same conflict twice
         """
@@ -1212,38 +1242,46 @@ class ConflictTests(SyncTestCase):
             "foo",
             self.author,
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            remote_cap,
             [],
-            "URI:CHK:",  # content cap
-            "URI:CHK:",  # metadata cap
+            content_cap,
+            meta_cap,
         )
 
         self.db.add_conflict(snap)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.add_conflict(snap)
+        self.db.resolve_conflict("foo")
 
-    def test_add_list_multi_conflict(self):
+    @given(
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_add_list_multi_conflict(self, remote0_cap, remote1_cap, meta_cap, content_cap):
         """
         A multiple-conflict is reflected in the list
         """
+        assume(remote0_cap != remote1_cap)
 
         snap0 = RemoteSnapshot(
             "foo",
             create_local_author(u"desktop"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            remote0_cap,
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            content_cap,
+            meta_cap,
         )
         snap1 = RemoteSnapshot(
             "foo",
             create_local_author(u"laptop"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            remote1_cap,
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            content_cap,
+            meta_cap,
         )
 
         self.db.add_conflict(snap0)
@@ -1252,13 +1290,19 @@ class ConflictTests(SyncTestCase):
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict("URI:DIR2-CHK:aaaaaaaaaaaaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "desktop"),
-                    Conflict("URI:DIR2-CHK:bbbbbbbbbbbbbbbbbbbbbbbbbb:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "laptop"),
+                    Conflict(remote0_cap, "desktop"),
+                    Conflict(remote1_cap, "laptop"),
                 ],
             })
         )
+        self.db.resolve_conflict("foo")
 
-    def test_delete_multi_conflict(self):
+    @given(
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_immutable_dir_capabilities(),
+        tahoe_lafs_chk_capabilities(),
+    )
+    def test_delete_multi_conflict(self, remote0_cap, remote1_cap, immutable_cap):
         """
         A multiple-conflict is successfully deleted
         """
@@ -1267,19 +1311,19 @@ class ConflictTests(SyncTestCase):
             "foo",
             create_local_author(u"laptop"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            remote0_cap,
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            immutable_cap,
+            immutable_cap,
         )
         snap1 = RemoteSnapshot(
             "foo",
             create_local_author(u"phone"),
             {"relpath": "foo", "modification_time": 1234},
-            "URI:DIR2-CHK:",
+            remote1_cap,
             [],
-            "URI:CHK:",
-            "URI:CHK:",
+            immutable_cap,
+            immutable_cap,
         )
 
         self.db.add_conflict(snap0)
@@ -1288,8 +1332,8 @@ class ConflictTests(SyncTestCase):
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict("URI:DIR2-CHK:", "laptop"),
-                    Conflict("URI:DIR2-CHK:", "phone"),
+                    Conflict(remote0_cap, "laptop"),
+                    Conflict(remote1_cap, "phone"),
                 ]
             }),
         )

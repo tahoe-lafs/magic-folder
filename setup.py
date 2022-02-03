@@ -23,6 +23,7 @@ def load_requirements(filename):
 
 install_requires = load_requirements("base.in")
 test_requires = load_requirements("test.in")
+build_requires = load_requirements("build.in")
 
 
 trove_classifiers = [
@@ -55,13 +56,13 @@ trove_classifiers = [
 
 
 setup(
-    name="magic_folder",
-    version="0.1.0",
+    name="magic-folder",
+    # no version= because setuptools_scm
     description="Tahoe-LAFS-based file synchronization",
     long_description=open("README.rst", "r").read(),
     author="the Tahoe-LAFS developers, the Magic-Folder developers",
     author_email="tahoe-dev@tahoe-lafs.org",
-    url="https://github.com/LeastAuthority/magic_folder/",
+    url="https://github.com/LeastAuthority/magic-folder/",
     license="GNU GPL", # see README.rst -- there is an alternative licence
     package_dir={"": "src"},
     packages=find_packages("src") + ["twisted.plugins", "magic_folder.test.plugins"],
@@ -69,9 +70,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         "test": test_requires,
-    },
-    package_data={
-        "magic_folder": ["ported-modules.txt"],
+        "build": build_requires,
     },
     include_package_data=True,
     entry_points={

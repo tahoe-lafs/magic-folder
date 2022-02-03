@@ -22,7 +22,11 @@ hyperlink
 # there's good reason to expect things to break from release to
 # release.  Pin a specific version so we can upgrade intentionally
 # when we know it will work.
-tahoe-lafs == 1.17.1
+#
+# This is "slightly open-ended" here to let e.g. NixOS's packager
+# install .postX development versions of Tahoe but will still get
+# an exact pin for magic-folders releases
+tahoe-lafs >= 1.17.1, < 1.18.0
 
 # twisted-based HTTP client
 treq

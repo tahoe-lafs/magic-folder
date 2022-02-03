@@ -244,6 +244,11 @@ class MagicFolderEnabledNode(object):
         if self.magic_folder is None:
             return
         try:
+            log_message(
+                message_type=u"integation:magic-folder:stop",
+                node=self.name,
+                signal="TERM",
+            )
             self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
             self.magic_folder = None
@@ -484,13 +489,13 @@ class _CollectOutputProtocol(ProcessProtocol):
             self.done.errback(reason)
 
     def outReceived(self, data):
-        self.output.write(data.decode("utf8"))
+        self.output.write(data.decode(sys.getfilesystemencoding()))
 
     def errReceived(self, data):
-        print("ERR: {}".format(data.decode("utf8")))
+        print("ERR: {}".format(data.decode(sys.getfilesystemencoding())))
         with self._action.context():
-            log_message(message_type=u"err-received", data=data.decode("utf8"))
-        self.output.write(data.decode("utf8"))
+            log_message(message_type=u"err-received", data=data.decode(sys.getfilesystemencoding()))
+        self.output.write(data.decode(sys.getfilesystemencoding()))
 
 
 class _DumpOutputProtocol(ProcessProtocol):
@@ -726,6 +731,7 @@ def _cleanup_service_process(process, exited, action):
     except ProcessExitedAlready:
         pass
 
+
 @inline_callbacks
 def _package_runner(reactor, request, action_fields, package, other_args):
     """
@@ -788,6 +794,7 @@ def _magic_folder_api_runner(reactor, request, name, other_args):
         "magic_folder.api_cli",
         other_args,
     )
+
 
 def _tahoe_runner_args(tahoe_venv, other_args):
     tahoe_python = str(tahoe_venv.python)
@@ -991,7 +998,7 @@ def await_file_contents(path, contents, timeout=15):
                     print("     got: {}".format(current.decode("utf8").replace('\n', ' ')))
                 log_message(
                     message_type=u"integration:await-file-contents:mismatched",
-                    got=current,
+                    got=current.decode("utf8"),
                 )
         else:
             log_message(

@@ -52,14 +52,14 @@ class SyncTestCaseTests(TestCase):
     def setUp(self):
         self.case = SyncTestCase()
 
-    def test_mktemp_bytes(self):
+    def test_mktemp_str(self):
         """
-        ``SyncTestCase.mktemp`` returns ``bytes``.
+        ``SyncTestCase.mktemp`` returns ``str``.
         """
         tmp = self.case.mktemp()
         self.assertTrue(
-            isinstance(tmp, bytes),
-            "Expected bytes but {!r} is instance of {}".format(
+            isinstance(tmp, str),
+            "Expected str but {!r} is instance of {}".format(
                 tmp,
                 type(tmp),
             ),
@@ -70,11 +70,11 @@ class SyncTestCaseTests(TestCase):
         ``SyncTestCase.mktemp`` returns a path associated with the selected test.
         """
         tmp = self.case.mktemp()
-        actual_segments = tmp.split(os.sep.encode("utf8"))
+        actual_segments = tmp.split(os.sep)
         case_segments = [
-            b"magic_folder",
-            b"test",
-            b"common",
+            "magic_folder",
+            "test",
+            "common",
         ]
         self.assertTrue(
             is_sublist(case_segments, actual_segments),
