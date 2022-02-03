@@ -59,6 +59,13 @@ jobs:
           cuv report p
       continue-on-error: true
 
+    - name: Coverage details
+      shell: bash
+      run: |
+          git diff origin/main..HEAD > p
+          cuv diff p
+      continue-on-error: true
+
     - name: Generate eliot-tree.
       if: ${{ always() }}
       shell: bash
