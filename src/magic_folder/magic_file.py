@@ -726,6 +726,13 @@ class MagicFile(object):
         self._factory._folder_status.download_finished(self._relpath)
 
     @_machine.output()
+    def _cancel_queued_work(self):
+        for d in self._queue_local:
+            d.cancel()
+        for d in self._queue_remote:
+            d.cancel()
+
+    @_machine.output()
     def _create_local_snapshot(self):
         """
         Create a LocalSnapshot for this update
@@ -736,11 +743,10 @@ class MagicFile(object):
         # next thing in our queue (if any) as its parent (see assert below)
 
         def completed(snap):
-            if self._queue_local:
-                assert snap == self._queue_local[0], "Invalid queue; expected {} not {}".format(
-                    snap.identifier,
-                    self._queue_local[0].identifier,
-                )
+            # _queue_local contains Deferreds .. but ideally we'd
+            # check if "the thing those deferreds resolves to" is the
+            # right one .. namely, the _next_ thing in the queue
+            # should be (one of) "snap"'s parents
             self._call_later(self._snapshot_completed, snap)
             return snap
 
@@ -896,14 +902,14 @@ class MagicFile(object):
         # not to mess with our return-value
         ret_d = Deferred()
 
+        def failed(f):
+            # this still works for CancelledError right?
+            ret_d.errback(f)
+
         def got_snap(snap):
             ret_d.callback(snap)
             return snap
-
-        def err(f):
-            # check for cancel separately, or this enough?
-            ret_d.errback(f)
-        d.addCallbacks(got_snap, err)
+        d.addCallbacks(got_snap, failed)
         return ret_d
 
     @_machine.output()
@@ -1012,7 +1018,7 @@ class MagicFile(object):
     _downloading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1079,7 +1085,7 @@ class MagicFile(object):
     _uploading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1094,7 +1100,7 @@ class MagicFile(object):
     _updating_personal_dmd_upload.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1106,7 +1112,7 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
@@ -1128,6 +1134,12 @@ class MagicFile(object):
         outputs=[_check_for_remote_work],
         collector=_last_one,
     )
+    _checking_for_local_work.upon(
+        _remote_update,
+        enter=_checking_for_local_work,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
+    )
 
     _checking_for_remote_work.upon(
         _queued_download,
@@ -1139,6 +1151,12 @@ class MagicFile(object):
         _no_download_work,
         enter=_up_to_date,
         outputs=[_done_working],
+        collector=_last_one,
+    )
+    _checking_for_remote_work.upon(
+        _local_update,
+        enter=_checking_for_remote_work,
+        outputs=[_queue_local_update],
         collector=_last_one,
     )
 

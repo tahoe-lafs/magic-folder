@@ -33,7 +33,10 @@ from hyperlink import (
     DecodedURL,
 )
 from treq.client import HTTPClient
-from twisted.internet.task import Clock
+from twisted.internet.task import (
+    Clock,
+    Cooperator,
+)
 from twisted.internet.defer import (
     DeferredList,
 )
@@ -214,6 +217,12 @@ class MagicFileFactoryFixture(Fixture):
         self.status = WebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
 
+        uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(uncooperator.stop)
+
         local_snapshot_service = LocalSnapshotService(
             self.config,
             LocalSnapshotCreator(
@@ -222,6 +231,7 @@ class MagicFileFactoryFixture(Fixture):
                 self.config.stash_path,
                 self.config.magic_path,
                 self.tahoe_client,
+                cooperator=uncooperator,
             ),
             status=folder_status,
         )
@@ -275,6 +285,7 @@ class MagicFolderNode(object):
     tahoe_client = attr.ib()
     global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
     global_config = attr.ib(validator=attr.validators.instance_of(GlobalConfigDatabase))
+    _cooperator = attr.ib()
 
     @classmethod
     def create(
@@ -323,6 +334,11 @@ class MagicFolderNode(object):
         maybe_wrapper = None
 
         assert isinstance(auth_token, bytes), "token is bytes"
+
+        uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
 
         if tahoe_client is None or isinstance(tahoe_client, TahoeClientWrapper):
             # Setup a Tahoe client backed by a fake Tahoe instance Since we
@@ -379,6 +395,7 @@ class MagicFolderNode(object):
             # Tahoe-LAFS node URL in the non-existent directory we supplied above
             # in its efforts to create one itself.
             tahoe_client,
+            cooperator=uncooperator,
         )
 
         if folders and tahoe_root:
@@ -427,12 +444,14 @@ class MagicFolderNode(object):
             tahoe_client=tahoe_client,
             global_service=global_service,
             global_config=global_config,
+            cooperator=uncooperator,
         )
 
     def cleanup(self):
         """
         Stop the (selected) services we started
         """
+        self._cooperator.stop()
         return DeferredList([
             magic_folder.stopService()
             for magic_folder in self.global_service._iter_magic_folder_services()

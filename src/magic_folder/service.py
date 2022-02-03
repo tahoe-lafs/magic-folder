@@ -68,6 +68,7 @@ class MagicFolderService(MultiService):
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
+    _cooperator = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -107,6 +108,7 @@ class MagicFolderService(MultiService):
             name,
             self.config,
             self.status_service,
+            cooperator=self._cooperator,
         )
         mf.setServiceParent(self)
         return mf

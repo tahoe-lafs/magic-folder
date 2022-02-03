@@ -21,6 +21,9 @@ from twisted.python.filepath import (
 from twisted.internet.defer import (
     returnValue,
 )
+from twisted.internet.task import (
+    cooperate as global_cooperate,
+)
 from twisted.web.client import (
     FileBodyProducer,
 )
@@ -465,7 +468,7 @@ def create_snapshot_from_capability(snapshot_cap, tahoe_client):
 
 @inline_callbacks
 def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=None,
-                    raw_remote_parents=None, modified_time=None):
+                    raw_remote_parents=None, modified_time=None, cooperator=None):
     """
     Creates a new LocalSnapshot instance that is in-memory only. All
     data is stashed in `snapshot_stash_dir` before this function
@@ -489,10 +492,16 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     :param int modified_time: timestamp to use as last-modified time
         (or None for "now")
 
+    :param Cooperator cooperator: a twisted.internet.task.Cooperator
+        to schedule the work of copying the file's data. None means
+        use the global one.
+
     :returns LocalSnapshot: the new snapshot instance
     """
     if parents is None:
         parents = []
+
+    cooperate = cooperator.cooperate if cooperator is not None else global_cooperate
 
     if not isinstance(author, LocalAuthor):
         raise ValueError(
@@ -521,7 +530,6 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
 
     if data_producer is not None:
         chunk_size = 1024*1024  # 1 MiB
-        chunks_per_yield = 100
 
         # 1. create a temp-file in our stash area
         temp_file_fd, temp_file_name = mkstemp(
@@ -530,19 +538,21 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
         )
         try:
             # 2. stream data_producer into our temp-file
-            done = False
-            while not done:
-                for _ in range(chunks_per_yield):
+
+            def copy_data():
+                while True:
                     data = data_producer.read(chunk_size)
                     if data:
-                        if len(data) > 0:
-                            os.write(temp_file_fd, data)
+                        os.write(temp_file_fd, data)
                     else:
-                        done = True
-                        break
-                # XXX should "actually yield" with deferLater(0), approx
-                # (well, i guess a cooperator ...)
-                yield
+                        return
+                    # note this method is a "real iterator" not an
+                    # inline-callbacks thing
+                    yield
+            # cooperatively copy the data
+            task = cooperate(copy_data())
+            yield task.whenDone()
+
         finally:
             os.close(temp_file_fd)
 

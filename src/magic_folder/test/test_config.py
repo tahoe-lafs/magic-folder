@@ -13,6 +13,9 @@ from functools import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.internet.task import (
+    Cooperator,
+)
 
 from hypothesis import (
     given,
@@ -486,6 +489,11 @@ class StoreLocalSnapshotTests(SyncTestCase):
     def setUp(self):
         super(StoreLocalSnapshotTests, self).setUp()
         self.author = create_local_author(u"alice")
+        self.uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(self.uncooperator.stop)
 
     def setup_example(self):
         self.temp = FilePath(self.mktemp())
@@ -528,6 +536,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data1,
             snapshot_stash_dir=self.stash,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -546,6 +555,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash,
             parents=[snapshots[0]],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -593,6 +603,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data1,
             snapshot_stash_dir=self.stash,
             parents=[],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
@@ -604,6 +615,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             data_producer=data2,
             snapshot_stash_dir=self.stash,
             parents=[snapshots[0]],
+            cooperator=self.uncooperator,
         )
         d.addCallback(snapshots.append)
 
