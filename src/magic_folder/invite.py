@@ -22,9 +22,6 @@ from twisted.internet.defer import (
     returnValue,
     succeed,
 )
-from .util.capabilities import (
-    to_readonly_capability,
-)
 
 import attr
 import wormhole
@@ -48,8 +45,7 @@ from .tahoe_client import (
     CannotAddDirectoryEntryError,
 )
 from .util.capabilities import (
-    is_readonly_directory_cap,
-    to_readonly_capability,
+    Capability,
 )
 
 
@@ -207,7 +203,7 @@ class Invite(object):
                 tahoe_client,
             )
             existing_devices = yield participants.list()
-            collective_readcap = to_readonly_capability(mf_config.collective_dircap)
+            collective_readcap = mf_config.collective_dircap.to_readonly()
 
             if self.petname in (dev.name for dev in existing_devices):
                 raise ValueError(
@@ -229,7 +225,7 @@ class Invite(object):
             with start_action(action_type="invite:send_message") as action_msg:
                 invite_message = json.dumps({
                     "magic-folder-invite-version": 1,
-                    "collective-dmd": collective_readcap,
+                    "collective-dmd": collective_readcap.danger_real_capability_string(),
                     "petname": self.petname,
                 }).encode("utf8")
                 self._wormhole.send_message(invite_message)
@@ -255,8 +251,8 @@ class Invite(object):
                         reason=reply_msg["reject-reason"],
                     )
 
-                personal_dmd = reply_msg["personal-dmd"]
-                if not is_readonly_directory_cap(personal_dmd):
+                personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
+                if not personal_dmd.is_readonly_directory():
                     raise InvalidInviteReply(
                         invite=self,
                         reason="Personal DMD must be a read-only directory",
@@ -383,8 +379,8 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
             raise ValueError(
                 "No 'collective-dmd' in invite"
             )
-        collective_dmd = invite_msg["collective-dmd"]
-        if not is_readonly_directory_cap(collective_dmd):
+        collective_dmd = Capability.from_string(invite_msg["collective-dmd"])
+        if not collective_dmd.is_readonly_directory():
             raise ValueError(
                 "The 'collective-dmd' must be read-only"
             )
@@ -392,7 +388,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         # create a new Personal DMD for our new magic-folder
         with start_action(action_type="join:create_personal_dmd") as action_dmd:
             personal_dmd = yield tahoe_client.create_mutable_directory()
-            personal_readonly_cap = to_readonly_capability(personal_dmd)
+            personal_readonly_cap = personal_dmd.to_readonly()
 
         # create our author
         author = create_local_author(author_name)
@@ -408,7 +404,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
                     folder_name,
                     local_dir,
                     author,
-                    str(collective_dmd),
+                    collective_dmd,
                     personal_dmd,  # need read-write capability here
                     poll_interval,
                     scan_interval,
@@ -424,7 +420,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         # send back our invite-reply
         reply = {
             "magic-folder-invite-version": 1,
-            "personal-dmd": personal_readonly_cap,
+            "personal-dmd": personal_readonly_cap.danger_real_capability_string(),
         }
         yield wh.send_message(json.dumps(reply).encode("utf8"))
 
