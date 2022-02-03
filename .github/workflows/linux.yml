@@ -47,9 +47,23 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
+    - name: Coverage graph
+      shell: bash
+      run: cuv graph
+      continue-on-error: true
+
     - name: Coverage report
       shell: bash
-      run: git diff origin/main.. | cuv report -
+      run: |
+          git diff origin/main..HEAD > p
+          cuv report p
+      continue-on-error: true
+
+    - name: Coverage details
+      shell: bash
+      run: |
+          git diff origin/main..HEAD > p
+          cuv diff p
       continue-on-error: true
 
     - name: Generate eliot-tree.
