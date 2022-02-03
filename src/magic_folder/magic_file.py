@@ -1134,6 +1134,12 @@ class MagicFile(object):
         outputs=[_check_for_remote_work],
         collector=_last_one,
     )
+    _checking_for_local_work.upon(
+        _remote_update,
+        enter=_checking_for_local_work,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
+    )
 
     _checking_for_remote_work.upon(
         _queued_download,
@@ -1145,6 +1151,12 @@ class MagicFile(object):
         _no_download_work,
         enter=_up_to_date,
         outputs=[_done_working],
+        collector=_last_one,
+    )
+    _checking_for_remote_work.upon(
+        _local_update,
+        enter=_checking_for_remote_work,
+        outputs=[_queue_local_update],
         collector=_last_one,
     )
 
