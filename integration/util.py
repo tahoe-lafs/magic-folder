@@ -1397,40 +1397,6 @@ def _pair_magic_folder(reactor, alice_invite, alice, bob):
 
 
 @inline_callbacks
-def _generate_invite(reactor, inviter, invitee_name):
-    """
-    Create a new magic-folder invite.
-
-    :param MagicFolderEnabledNode inviter: the node who will generate the invite
-
-    :param str invitee: the name of the node who will be invited
-    """
-    action_prefix = u"integration:{}:magic_folder".format(inviter.name)
-    with start_action(action_type=u"{}:create".format(action_prefix)):
-        print("Creating magic-folder for {}".format(inviter.node_directory))
-        yield _command(
-            "--node-directory", inviter.node_directory,
-            "create",
-            "--poll-interval", "2", "magik:", inviter.name, inviter.magic_directory,
-        )
-
-    with start_action(action_type=u"{}:invite".format(action_prefix)) as a:
-        print("Inviting '{}' to magic-folder for {}".format(invitee_name, inviter.node_directory))
-        invite = yield _command(
-            "--node-directory", inviter.node_directory,
-            "invite",
-            "magik:", invitee_name,
-        )
-        a.add_success_fields(invite=invite)
-
-    with start_action(action_type=u"{}:restart".format(action_prefix)):
-        # before magic-folder works, we have to stop and restart (this is
-        # crappy for the tests -- can we fix it in magic-folder?)
-        yield inviter.restart_magic_folder()
-    returnValue(invite)
-
-
-@inline_callbacks
 def _command(*args):
     """
     Runs a single magic-folder command with the given arguments as CLI
