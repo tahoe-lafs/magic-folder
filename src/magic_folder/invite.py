@@ -25,9 +25,6 @@ from twisted.internet.defer import (
 
 import attr
 import wormhole
-from wormhole.cli.public_relay import (
-    RENDEZVOUS_RELAY,
-)
 from eliot import (
     start_action,
 )
@@ -47,28 +44,6 @@ from .tahoe_client import (
 from .util.capabilities import (
     Capability,
 )
-
-
-def magic_folder_invite(options):
-    """
-    Invite a user identified by the nickname to a folder
-    """
-    client = options.parent.client
-    return client.invite(
-        options["folder"],
-        options.petname,
-    )
-
-
-def magic_folder_invite_wait(options, invite_id):
-    """
-    Await the wormhole completion for a given invite
-    """
-    client = options.parent.client
-    return client.invite_wait(
-        options["folder"],
-        invite_id,
-    )
 
 
 class IInviteCollection(Interface):
