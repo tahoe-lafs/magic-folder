@@ -370,23 +370,3 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
             storage=True,
         )
     )
-
-@pytest.fixture(scope='session')
-@log_call(action_type=u"integration:alice:invite", include_args=["base_dir"])
-def alice_invite(reactor, alice, base_dir):
-    invite = pytest_twisted.blockon(
-        _generate_invite(reactor, alice, "bob")
-    )
-    return invite
-
-
-@pytest.fixture(scope='session')
-@log_call(
-    action_type=u"integration:magic_folder",
-    include_args=["alice_invite"],
-)
-def magic_folder(reactor, alice_invite, alice, bob):
-    print("pairing magic-folder")
-    return pytest_twisted.blockon(
-        _pair_magic_folder(reactor, alice_invite, alice, bob)
-    )
