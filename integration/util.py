@@ -1378,25 +1378,6 @@ def _run_magic_folder(reactor, request, base_dir, name):
 
 
 @inline_callbacks
-def _pair_magic_folder(reactor, alice_invite, alice, bob):
-    print("Joining bob to magic-folder")
-    yield _command(
-        "--node-directory", bob.node_directory,
-        "join",
-        "--author", "bob",
-        "--poll-interval", "1",
-        alice_invite,
-        bob.magic_directory,
-    )
-
-    # before magic-folder works, we have to stop and restart (this is
-    # crappy for the tests -- can we fix it in magic-folder?)
-    yield bob.restart_magic_folder()
-
-    returnValue((alice.magic_directory, bob.magic_directory))
-
-
-@inline_callbacks
 def _command(*args):
     """
     Runs a single magic-folder command with the given arguments as CLI
