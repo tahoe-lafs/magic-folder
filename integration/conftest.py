@@ -354,6 +354,7 @@ def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
         )
     )
 
+
 @pytest.fixture(scope='session')
 def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
