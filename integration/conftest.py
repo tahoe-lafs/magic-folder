@@ -14,6 +14,7 @@ from twisted.internet.error import ProcessTerminated
 
 from .util import (
     MagicFolderEnabledNode,
+    WormholeMailboxServer,
     _CollectOutputProtocol,
     _DumpOutputProtocol,
     _generate_invite,
@@ -354,6 +355,7 @@ def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
         )
     )
 
+
 @pytest.fixture(scope='session')
 def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
@@ -368,5 +370,18 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
             tahoe_web_port=u"tcp:9985:interface=localhost",
             magic_folder_web_port=u"tcp:19985:interface=localhost",
             storage=True,
+        )
+    )
+
+
+@pytest.fixture(scope='session')
+def wormhole(reactor, request):
+    """
+    A local Magic Wormhole mailbox server
+    """
+    return pytest_twisted.blockon(
+        WormholeMailboxServer.create(
+            reactor,
+            request,
         )
     )

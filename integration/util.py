@@ -455,6 +455,52 @@ class MagicFolderEnabledNode(object):
         )
 
 
+@attr.s
+class WormholeMailboxServer:
+    """
+    A locally-running Magic Wormhole mailbox server
+    """
+    reactor = attr.ib()
+    process_transport = attr.ib()
+    url = attr.ib()
+
+    @classmethod
+    @inline_callbacks
+    def create(cls, reactor, request):
+        action = start_task(
+            action_type=u"integration:wormhole-mailbox",
+        )
+        with action.context():
+            args = [
+                sys.executable,
+                "-m",
+                "twisted",
+                "wormhole-mailbox",
+                # note, this tied to "url" below
+                "--port", "tcp:4000:interface=localhost",
+            ]
+            transport = yield run_service(
+                reactor,
+                request,
+                action_fields={
+                    "action_type": "integration:wormhole-mailbox",
+                },
+                magic_text="Starting reactor...",
+                executable=sys.executable,
+                args=args,
+                print_logs=False,  # they're Twisted struct-log JSON stuff
+            )
+            # XXX some sort of cleanup
+            #request.addfinalizer(partial(_cleanup_service_process, transport, protocol.exited, ctx))
+            returnValue(
+                cls(
+                    reactor,
+                    transport,
+                    url="ws://localhost:4000/v1",
+                )
+            )
+
+
 class _ProcessExitedProtocol(ProcessProtocol):
     """
     Internal helper that .callback()s on self.done when the process
@@ -557,7 +603,8 @@ def run_service(
     magic_text,
     executable,
     args,
-    cwd=None
+    cwd=None,
+    print_logs=True,
 ):
     """
     Start a service, and capture the output from the service in an eliot
@@ -580,7 +627,7 @@ def run_service(
     :return Deferred[IProcessTransport]: The started process.
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
-        protocol = _MagicTextProtocol(magic_text)
+        protocol = _MagicTextProtocol(magic_text, print_logs=print_logs)
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -596,6 +643,7 @@ def run_service(
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
         return protocol.magic_seen.addCallback(lambda ignored: process)
+
 
 def run_tahoe_service(
     reactor,
@@ -644,7 +692,7 @@ class _MagicTextProtocol(ProcessProtocol):
     Also capture eliot logs from file descriptor 3, and logs them.
     """
 
-    def __init__(self, magic_text):
+    def __init__(self, magic_text, print_logs=True):
         self.magic_seen = Deferred()
         self.exited = Deferred()
         self._magic_text = magic_text
@@ -652,6 +700,7 @@ class _MagicTextProtocol(ProcessProtocol):
         self._eliot_stream = EliotLogStream(fallback=self.eliot_garbage_received)
         self._eliot_stderr = EliotLogStream(fallback=self.err_received)
         self._action = current_action()
+        self._print_logs = print_logs
         assert self._action is not None
 
     def processEnded(self, reason):
@@ -678,7 +727,8 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             log_message(message_type=u"out-received", data=data.decode("utf8"))
-            sys.stdout.write(data.decode("utf8"))
+            if self._print_logs:
+                sys.stdout.write(data.decode("utf8"))
             self._output.write(data.decode("utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))

@@ -24,3 +24,5 @@ testtools
 fixtures
 # Used to suspend tahoe on windows
 psutil
+# For testing invite/join via wormhole
+magic-wormhole-mailbox-server
