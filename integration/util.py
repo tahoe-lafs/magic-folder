@@ -1221,7 +1221,7 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _init_magic_folder(reactor, request, base_dir, name, web_port):
+def _init_magic_folder(reactor, request, base_dir, name, web_port, wormhole_url):
     """
     Create a new magic-folder-daemon configuration
 
@@ -1240,6 +1240,7 @@ def _init_magic_folder(reactor, request, base_dir, name, web_port):
         "init",
         "--node-directory", node_dir,
         "--listen-endpoint", web_port,
+        "--mailbox", wormhole_url,
     ]
     return _magic_folder_runner(reactor, request, name, args)
 

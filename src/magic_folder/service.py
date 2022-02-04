@@ -355,6 +355,7 @@ class MagicFolderService(MultiService):
             poll_interval,
             scan_interval,
             self.tahoe_client,
+            self.config.wormhole_uri,
         )
         returnValue(inv)
 

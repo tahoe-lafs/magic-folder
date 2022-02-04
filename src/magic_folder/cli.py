@@ -105,6 +105,8 @@ class InitializeOptions(usage.Options):
         ("client-endpoint", "c", None,
          "(Optional) the Twisted client-string for our REST API (only required "
          "if auto-converting from the --listen-endpoint fails)"),
+        ("mailbox", "m", RENDEZVOUS_RELAY,
+         "The URL upon which to contact the Magic Wormhole mailbox service"),
     ]
 
     description = (
@@ -135,6 +137,7 @@ def initialize(options):
         options['listen-endpoint'],
         FilePath(options['node-directory']),
         options['client-endpoint'],
+        options['mailbox'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
