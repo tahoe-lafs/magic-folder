@@ -159,6 +159,7 @@ class TestInitialize(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"tcp:localhost:1234",
+            u"ws://localhost.invalid/",  # dummy magic-wormhole URL
         )
 
 
@@ -261,6 +262,7 @@ class TestShowConfig(SyncTestCase):
             u"tcp:1234",
             self.node_dir.path,
             u"tcp:localhost:1234",
+            u"ws://localhost.invalid/",  # dummy magic-wormhole URL
         )
         stdout = StringIO()
         config = load_global_configuration(self.temp.child("good"))

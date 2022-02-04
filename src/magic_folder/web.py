@@ -189,7 +189,6 @@ class APIv1(object):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
-        print(failure)
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)

@@ -596,7 +596,7 @@ class ConfigOptionTests(SyncTestCase):
         nodedir = self.useFixture(
             NodeDirectory(FilePath(self.mktemp()))
         )
-        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
+        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None, u"ws://localhost.invalid/")
 
         options = magic_folder_cli.MagicFolderCommand()
         options.parseOptions(["--config", confdir.path, "list"])
@@ -618,7 +618,7 @@ class ConfigOptionTests(SyncTestCase):
         nodedir = self.useFixture(
             NodeDirectory(FilePath(self.mktemp()))
         )
-        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None)
+        yield magic_folder_initialize(confdir, u"tcp:5555", nodedir.path, None, u"ws://localhost.invalid/")
 
         options = magic_folder_cli.MagicFolderCommand()
         # twisted.python.usage.Options use .opts to store
@@ -725,7 +725,7 @@ class ClientEndpoint(SyncTestCase):
         """
         a 'tcp:'-style endpoint can be autoconverted
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555", self.nodedir.path, None, u"ws://localhost.invalid/")
         self.assertThat(
             config_d,
             succeeded(
@@ -739,7 +739,7 @@ class ClientEndpoint(SyncTestCase):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"tcp:5555:interface=127.1.2.3", self.nodedir.path, None, u"ws://localhost.invalid/")
         self.assertThat(
             config_d,
             succeeded(
@@ -754,13 +754,13 @@ class ClientEndpoint(SyncTestCase):
         unknown endpoint conversion fails
         """
         with ExpectedException(CannotConvertEndpointError):
-            magic_folder_initialize(self.basedir, u"onion:555", self.nodedir.path, None)
+            magic_folder_initialize(self.basedir, u"onion:555", self.nodedir.path, None, u"ws://localhost.invalid/")
 
     def test_convert_unix(self):
         """
         a tcp: endpoint can be autoconverted with host
         """
-        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None)
+        config_d = magic_folder_initialize(self.basedir, u"unix:/var/run/x", self.nodedir.path, None, u"ws://localhost.invalid/")
         self.assertThat(
             config_d,
             succeeded(
