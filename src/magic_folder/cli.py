@@ -21,12 +21,14 @@ from twisted.logger import (
     FileLogObserver,
     eventAsText,
 )
-
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
 from twisted.web import http
+from wormhole.cli.public_relay import (
+    RENDEZVOUS_RELAY,
+)
 
 from eliot.twisted import (
     inline_callbacks,
@@ -42,11 +44,6 @@ from .client import (
     MagicFolderApiError,
     create_magic_folder_client,
     create_http_client,
-)
-
-from .invite import (
-    magic_folder_invite,
-    magic_folder_invite_wait,
 )
 
 from .list import (
@@ -410,11 +407,17 @@ class InviteOptions(usage.Options):
 
 @inline_callbacks
 def invite(options):
-    data = yield magic_folder_invite(options)
+    client = options.parent.client
+
+    # do HTTP request to the API
+    data = yield client.invite(options["folder"], options.petname)
     print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
     print(u"  waiting for {} to accept...".format(data["petname"]), file=options.stdout)
+    options.stdout.flush()
+
     try:
-        res = yield magic_folder_invite_wait(options, data["id"])
+        # second HTTP request to the API
+        res = yield client.invite_wait(options["folder"], data["id"])
         print("Successfully added as '{}'".format(res["petname"]), file=options.stdout)
     except MagicFolderApiError as e:
         print("Error: {}".format(e.reason), file=options.stderr)
