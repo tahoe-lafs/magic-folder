@@ -73,6 +73,10 @@ from twisted.web import (
     http,
 )
 
+from wormhole.cli.public_relay import (
+    RENDEZVOUS_RELAY,
+)
+
 from zope.interface import (
     implementer,
     Interface,
@@ -146,7 +150,7 @@ _global_config_schema = Schema([
         """,
         """
         UPDATE [config] SET wormhole_uri='{}';
-        """.format("ws://relay.magic-wormhole.io:4000/v1"),
+        """.format(RENDEZVOUS_RELAY),
     ]),
 ])
 
@@ -329,7 +333,7 @@ class RemoteSnapshotWithoutPathState(Exception):
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
-                                api_client_endpoint_str, mailbox_uri):
+                                api_client_endpoint_str, mailbox_uri=None):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
@@ -345,7 +349,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         string where our API can be contacted.
 
     :param str mailbox_uri: the Magic Wormhole mailbox server API
-        endpoint.
+        endpoint (or None for the default)
 
     :returns: a GlobalConfigDatabase instance
     """
@@ -358,6 +362,8 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         raise ValueError(
             "'api_client_endpoint_str' must be str"
         )
+    if mailbox_uri is None:
+        mailbox_uri = RENDEZVOUS_RELAY
     # check that the endpoints are valid (will raise exception if not)
     api_endpoint_str = nativeString(api_endpoint_str)
     _validate_listen_endpoint_str(api_endpoint_str)
