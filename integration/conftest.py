@@ -17,8 +17,6 @@ from .util import (
     WormholeMailboxServer,
     _CollectOutputProtocol,
     _DumpOutputProtocol,
-    _generate_invite,
-    _pair_magic_folder,
     _ProcessExitedProtocol,
     _tahoe_runner,
     run_service,
