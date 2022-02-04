@@ -159,6 +159,7 @@ class MagicFolderEnabledNode(object):
             name,
             tahoe_web_port,
             magic_folder_web_port,
+            wormhole_url,
             storage,
     ):
         """
@@ -170,17 +171,18 @@ class MagicFolderEnabledNode(object):
         :param reactor: The reactor to use to launch the processes.
         :param tahoe_venv: Directory where our virtualenv is located.
         :param request: The pytest request object to use for cleanup.
-        :param bytes base_dir: A directory beneath which to place the
+        :param str base_dir: A directory beneath which to place the
             Tahoe-LAFS node.
-        :param bytes introducer_furl: The introducer fURL to configure the new
+        :param str introducer_furl: The introducer fURL to configure the new
             Tahoe-LAFS node with.
-        :param bytes flog_gatherer: The flog gatherer fURL to configure the
+        :param str flog_gatherer: The flog gatherer fURL to configure the
             new Tahoe-LAFS node with.
-        :param bytes name: A nickname to assign the new Tahoe-LAFS node.
-        :param bytes tahoe_web_port: An endpoint description of the web port
+        :param str name: A nickname to assign the new Tahoe-LAFS node.
+        :param str tahoe_web_port: An endpoint description of the web port
             for the new Tahoe-LAFS node to listen on.
-        :param bytes magic_folder_web_port: An endpoint description of the web
+        :param str magic_folder_web_port: An endpoint description of the web
             port for the new magic-folder process to listen on.
+        :param str wormhole_url: How to contact the Magic Folder mailbox
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
@@ -215,6 +217,7 @@ class MagicFolderEnabledNode(object):
                 base_dir,
                 name,
                 magic_folder_web_port,
+                wormhole_url,
             )
 
             # Run the magic-folder daemon
@@ -342,6 +345,75 @@ class MagicFolderEnabledNode(object):
                 "--name", folder_name,
                 "--really-delete-write-capability",
             ],
+        )
+
+    @inline_callbacks
+    def invite(self, folder_name, invitee_petname):
+        """
+        magic-folder invite
+        """
+        with self.action.context():
+            other_args = [
+                "--config", self.magic_config_directory,
+                "invite",
+                "--folder", folder_name,
+                invitee_petname,
+            ]
+            proto = _MagicTextProtocol(
+                "waiting for {} to accept".format(invitee_petname),
+                print_logs=True,
+            )
+            print("ZZZ", proto)
+            package = "magic_folder"
+            if self.request.config.getoption('coverage'):
+                prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
+            else:
+                prelude = [sys.executable, "-m", package]
+
+            transport = self.reactor.spawnProcess(
+                proto,
+                sys.executable,
+                prelude + other_args,
+            )
+            yield proto.magic_seen
+
+            # extract the secret code
+            code = None
+            for line in proto._output.getvalue().split("\n"):
+                if line.startswith("Secret invite code:"):
+                    code = line.split(":")[1].strip()
+            if code is None:
+                raise Exception("Couldn't find invite code")
+            returnValue((code, proto, transport))
+
+    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5):
+        """
+        magic-folder join
+        """
+        args = [
+            "--config",
+            self.magic_config_directory,
+            "join",
+            "--name", folder_name,
+            "--author", author,
+            "--poll-interval", str(poll_interval),
+        ]
+        if scan_interval is None:
+            args += ["--disable-scanning"]
+        else:
+            args += [
+                "--scan-interval",
+                str(scan_interval),
+            ]
+        args += [
+            invite_code,
+            magic_directory,
+        ]
+        return _magic_folder_runner(
+            self.reactor,
+            self.request,
+            self.name,
+            args,
         )
 
     def show_config(self):

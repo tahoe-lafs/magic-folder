@@ -474,6 +474,7 @@ class JoinOptions(usage.Options):
             )
 
 
+# XXX needs --disable-scanning and 
 @inline_callbacks
 def join(options):
     """

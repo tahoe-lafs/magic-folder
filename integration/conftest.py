@@ -310,7 +310,7 @@ def magic_folder_nodes(request):
 
 
 @pytest.fixture(scope='session')
-def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
+def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request, wormhole):
     try:
         mkdir(join(base_dir, 'magic-alice'))
     except OSError:
@@ -327,6 +327,7 @@ def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request
             name=u"alice",
             tahoe_web_port=u"tcp:9980:interface=localhost",
             magic_folder_web_port=u"tcp:19980:interface=localhost",
+            wormhole_url=wormhole.url,
             storage=True,
         )
     )
@@ -334,7 +335,7 @@ def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request
 
 
 @pytest.fixture(scope='session')
-def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
+def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request, wormhole):
     try:
         mkdir(join(base_dir, 'magic-bob'))
     except OSError:
@@ -351,6 +352,7 @@ def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
             name=u"bob",
             tahoe_web_port=u"tcp:9981:interface=localhost",
             magic_folder_web_port=u"tcp:19981:interface=localhost",
+            wormhole_url=wormhole.url,
             storage=False,
         )
     )
@@ -369,6 +371,7 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
             u"edmond",
             tahoe_web_port=u"tcp:9985:interface=localhost",
             magic_folder_web_port=u"tcp:19985:interface=localhost",
+            wormhole_url="ws://localhost:4000/v1",
             storage=True,
         )
     )

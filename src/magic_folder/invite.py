@@ -300,7 +300,7 @@ class Invite(object):
 
 
 @inline_callbacks
-def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client):
+def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client, relay_url):
     """
     This does the opposite side of the invite to Invite.perform_invite()
     above. That is:
@@ -310,12 +310,19 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     - send back our preferred petname and read-cap
     - (await seeing our name added to the Collective DMD?)
 
-    :param unicode wormhole_code:
-    :param unicode folder_name:
-    :param unicode author_name:
-    :param FilePath local_dir:
-    :param int poll_interval:
-    :param int scan_interval:
+    :param str wormhole_code: an unused Magic Wormhole code
+
+    :param str folder_name: arbitrary identifier for the new folder
+
+    :param str author_name: arbitrary identifier for ourselves
+
+    :param FilePath local_dir: the local Magic Folder
+
+    :param int poll_interval: seconds between searching for remote updates
+
+    :param int scan_interval: seconds between searching for local updates
+
+    :param str relay_url: the Magic Wormhole mailbox server to use
     """
     if poll_interval < 1:
         raise ValueError(
@@ -330,17 +337,19 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
     wh = wormhole.create(
         appid=u"tahoe-lafs.org/magic-folder/invite",
-        relay_url=RENDEZVOUS_RELAY,
+        relay_url=relay_url,
         reactor=reactor,
     )
     welcome = yield wh.get_welcome()
     if 'motd' in welcome:
+        # XXX probably shouldn't print() in a "utility" method, but
+        # also should surface the MotD somewhere..
         print(welcome['motd'])
     wh.set_code(wormhole_code)
     with start_action(action_type="join:get_invite") as action_code:
         invite_data = yield wh.get_message()
         invite_msg = json.loads(invite_data.decode("utf8"))
-        action_code.add_success_fields(invite=invite_msg)
+        action_code.add_success_fields(invite=list(invite_msg.keys()))
 
     version = invite_msg.get("magic-folder-invite-version", None)
     try:
@@ -457,7 +466,7 @@ class InMemoryInviteManager(service.Service):
         """
         wh = wormhole.create(
             appid=u"tahoe-lafs.org/magic-folder/invite",
-            relay_url=RENDEZVOUS_RELAY,
+            relay_url=self.parent.parent.config.wormhole_uri,
             reactor=reactor,
         )
         invite = Invite(
