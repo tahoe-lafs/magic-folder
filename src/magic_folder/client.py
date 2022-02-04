@@ -191,7 +191,7 @@ class MagicFolderClient(object):
         )
 
     def invite(self, magic_folder, petname):
-        # type: (unicode, unicode) -> dict
+        # type: (str, str) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite")
         return self._authorized_request(
             "POST",
@@ -205,7 +205,7 @@ class MagicFolderClient(object):
         )
 
     def invite_wait(self, magic_folder, invite_id):
-        # type: (unicode, unicode) -> dict
+        # type: (str, str) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite-wait")
         return self._authorized_request(
             "POST",
@@ -237,7 +237,7 @@ class MagicFolderClient(object):
         )
 
     def list_invites(self, magic_folder):
-        # type: (unicode, ) -> dict
+        # type: (str, ) -> dict
         api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invites")
         return self._authorized_request(
             "GET",

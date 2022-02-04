@@ -197,7 +197,7 @@ class Invite(object):
                 for d in self._awaiting_code:
                     d.callback(None)
 
-            with start_action(action_type="invite:send_message") as action_msg:
+            with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
                     "magic-folder-invite-version": 1,
                     "collective-dmd": collective_readcap.danger_real_capability_string(),
@@ -205,7 +205,7 @@ class Invite(object):
                 }).encode("utf8")
                 self._wormhole.send_message(invite_message)
 
-            with start_action(action_type="invite:get_reply") as action_reply:
+            with start_action(action_type="invite:get_reply"):
                 reply_data = yield self._wormhole.get_message()
                 reply_msg = json.loads(reply_data.decode("utf8"))
 
@@ -370,7 +370,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
             )
 
         # create a new Personal DMD for our new magic-folder
-        with start_action(action_type="join:create_personal_dmd") as action_dmd:
+        with start_action(action_type="join:create_personal_dmd"):
             personal_dmd = yield tahoe_client.create_mutable_directory()
             personal_readonly_cap = personal_dmd.to_readonly()
 
@@ -393,7 +393,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
                     poll_interval,
                     scan_interval,
                 )
-            except Exception as e:
+            except Exception:
                 reply = {
                     "magic-folder-invite-version": 1,
                     "reject-reason": "Failed to create folder locally"

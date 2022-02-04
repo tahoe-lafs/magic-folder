@@ -2,27 +2,13 @@
 Test invite + join workflow
 """
 
-import sys
-from functools import partial
-
-from eliot import (
-    log_message,
-)
 from eliot.twisted import (
     inline_callbacks,
 )
-import pytest
 import pytest_twisted
 
-from magic_folder.util.capabilities import (
-    Capability,
-)
 from .util import (
     await_file_contents,
-    await_file_vanishes,
-    ensure_file_not_created,
-    twisted_sleep,
-    database_retry,
 )
 
 
