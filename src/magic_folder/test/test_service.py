@@ -67,9 +67,9 @@ class TestService(AsyncTestCase):
         self.magic_dir.makedirs()
 
         self.node = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
-        # when the "service" is run it wants to check shares-needed from Tahoe
+        # when the "service" is run it wants to check shares-happy from Tahoe
         with self.node.tahoe_cfg.open("w") as f:
-            f.write(b"[client]\nshares.needed = 1\n")
+            f.write(b"[client]\nshares.happy = 1\n")
         self.basedir = FilePath(self.mktemp())
         self.config = create_global_configuration(
             self.basedir,

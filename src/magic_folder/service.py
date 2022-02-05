@@ -71,13 +71,17 @@ class ConnectedTahoeService(MultiService):
     While "check, then create mutable" still leaves a window when we
     _could_ create a mutable with fewer than 'happy' servers, it
     reduces the window considerably.
+
+    Note: find_happy_shares() is 'lazy' because the test fixtures play a bit
+    of a trick to avoid having to have a 'real' tahoe directory...
     """
     reactor = attr.ib()
-    happy = attr.ib(validator=attr.validators.instance_of(int))
+    find_happy_shares = attr.ib()  # callable() -> int
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib()
 
     # internal state
+    happy = attr.ib(default=None)
     _poller = attr.ib(default=None)
     _last_update = attr.ib(default=0)
     _storage_servers = attr.ib(factory=dict)
@@ -87,6 +91,7 @@ class ConnectedTahoeService(MultiService):
 
     def startService(self):
         MultiService.startService(self)
+        self.happy = self.find_happy_shares()
         self._poller = PeriodicService(
             self.reactor,
             5,
@@ -174,11 +179,13 @@ class MagicFolderService(MultiService):
         )
         web_service.setServiceParent(self)
 
-        tahoe_config = read_tahoe_config(self.config.tahoe_node_directory)
-        happy_shares = int(tahoe_config.get("client", "shares.happy"))
+        def find_happy_shares():
+            tahoe_config = read_tahoe_config(self.config.tahoe_node_directory)
+            return int(tahoe_config.get("client", "shares.happy"))
+
         self._tahoe_status_service = ConnectedTahoeService(
             self.reactor,
-            happy_shares,
+            find_happy_shares,
             self.status_service,
             self.tahoe_client,
         )
