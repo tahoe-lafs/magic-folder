@@ -104,18 +104,6 @@ class ConnectedTahoeService(MultiService):
         yield self._poller.call_soon()
         returnValue(self.connected_servers() >= self.happy)
 
-    @inline_callbacks
-    def when_connected_enough(self, delay_message=None):
-        while True:
-            yield self._poller.call_soon()
-            total = len(self._storage_servers)
-            connected = self.connected_servers()
-            if connected >= self.happy:
-                return
-            if delay_message is not None:
-                delay_message(self.happy, connected, total)
-            yield deferLater(self.reactor, 1.0, lambda: None)
-
     def connected_servers(self):
         """
         :returns int: the number of storage-servers our Tahoe-LAFS client
@@ -255,19 +243,12 @@ class MagicFolderService(MultiService):
     @inline_callbacks
     def run(self):
         yield self.startService()
-
-        def message_formatter(happy, connected_servers, total_servers):
-            print(
-                "Found {} of {} connected servers (want {})".format(
-                    connected_servers,
-                    total_servers,
-                    happy,
-                )
-            )
-        yield self._tahoe_status_service.when_connected_enough(message_formatter)
+        happy = yield self._tahoe_status_service.is_happy_connections()
         print("Connected to {} storage-servers".format(
             self._tahoe_status_service.connected_servers()
         ))
+        if not happy:
+            print("NOTE: not currently connected to enough storage-servers")
 
         def do_shutdown():
             self._run_deferred.callback(None)
