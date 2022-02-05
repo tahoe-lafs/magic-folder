@@ -40,18 +40,6 @@ from .util.twisted import (
 from .web import magic_folder_web_service
 
 
-@inline_callbacks
-def poll(label, operation, reactor):
-    while True:
-        print("Polling {}...".format(label))
-        status, message = yield operation()
-        if status:
-            print("{}: {}, done.".format(label, message))
-            break
-        print("Not {}: {}".format(label, message))
-        yield deferLater(reactor, 1.0, lambda: None)
-
-
 def read_tahoe_config(node_directory):
     """
     :return ConfigParser: The parsed configuration file.
