@@ -32,8 +32,13 @@ from .status import (
     WebSocketStatusService,
     TahoeStatus,
 )
-from .tahoe_client import create_tahoe_client
-from .util.observer import ListenObserver
+from .tahoe_client import (
+    InsufficientStorageServers,
+    create_tahoe_client,
+)
+from .util.observer import (
+    ListenObserver,
+)
 from .util.twisted import (
     PeriodicService,
 )
@@ -119,16 +124,25 @@ class ConnectedTahoeService(MultiService):
         try:
             welcome_body = yield self.tahoe_client.get_welcome()
             self._storage_servers = welcome_body["servers"]
-            self.status_service.tahoe_status(
-                TahoeStatus(self.connected_servers(), self.happy, True)
-            )
+            status = TahoeStatus(self.connected_servers(), self.happy, True)
         except Exception as e:
-            print(e)
             self._storage_servers = {}
+            status = TahoeStatus(0, self.happy, False)
 
-            self.status_service.tahoe_status(
-                TahoeStatus(0, self.happy, False)
+        # update status
+        self.status_service.tahoe_status(status)
+
+        # tell TahoeClient whether mutable operation is fine or not
+        if status.is_happy:
+            self.tahoe_client.mutables_okay()
+        else:
+            self.tahoe_client.mutables_bad(
+                InsufficientStorageServers(
+                    status.connected,
+                    status.desired,
+                )
             )
+
 
 @attr.s
 class MagicFolderService(MultiService):
