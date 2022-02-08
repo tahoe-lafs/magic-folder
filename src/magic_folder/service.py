@@ -392,6 +392,7 @@ class MagicFolderService(MultiService):
 
         mf = self._add_service_for_folder(name)
         yield mf.ready()
+        self.status_service._maybe_update_clients()
 
     @inline_callbacks
     def leave_folder(self, name, really_delete_write_capability):
