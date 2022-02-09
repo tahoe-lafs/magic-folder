@@ -464,6 +464,54 @@ class MagicFolderTests(SyncTestCase):
             ),
         )
 
+
+    def test_add_folder_tahoe_degraded(self):
+        """
+        A request for **POST /v1/magic-folder** while TahoeLAFS isn't
+        connected to enough servers fails with NOT ACCEPTABLE.
+        """
+        from ..tahoe_client import (
+            create_tahoe_client,
+            InsufficientStorageServers,
+        )
+        from ..testing.web import (
+            create_fake_tahoe_root,
+            create_tahoe_treq_client,
+        )
+        tahoe_root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(tahoe_root),
+        )
+        tahoe_client.mutables_bad(InsufficientStorageServers(1, 4))
+        treq = treq_for_folders(
+            object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False, tahoe_client,
+        )
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, dumps({
+                    'name': 'valid',
+                    'author_name': 'author',
+                    'local_path': 'foo',
+                    'poll_interval': 60,
+                    'scan_interval': 60,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Equals("Wanted 4 storage-servers but have 1"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
     @given(
         dictionaries(
             folder_names(),

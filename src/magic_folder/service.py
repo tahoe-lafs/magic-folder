@@ -1,6 +1,7 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
+import sys
 import json
 from configparser import (
     ConfigParser,
@@ -158,6 +159,7 @@ class MagicFolderService(MultiService):
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
+    _stdout = attr.ib(default=sys.stdout)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -258,11 +260,17 @@ class MagicFolderService(MultiService):
     def run(self):
         yield self.startService()
         happy = yield self._tahoe_status_service.is_happy_connections()
-        print("Connected to {} storage-servers".format(
-            self._tahoe_status_service.connected_servers()
-        ))
+        print(
+            "Connected to {} storage-servers".format(
+                self._tahoe_status_service.connected_servers()
+            ),
+            file=self._stdout,
+        )
         if not happy:
-            print("NOTE: not currently connected to enough storage-servers")
+            print(
+                "NOTE: not currently connected to enough storage-servers",
+                file=self._stdout,
+            )
 
         def do_shutdown():
             self._run_deferred.callback(None)
@@ -297,7 +305,10 @@ class MagicFolderService(MultiService):
 
         # The integration tests look for this message.  You cannot get rid of
         # it (without also changing the tests).
-        print("Completed initial Magic Folder setup")
+        print(
+            "Completed initial Magic Folder setup",
+            file=self._stdout,
+        )
         self._starting = gatherResults(ds)
 
     @inline_callbacks

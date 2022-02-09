@@ -1,3 +1,4 @@
+import io
 from eliot.twisted import (
     inline_callbacks,
 )
@@ -49,6 +50,59 @@ from magic_folder.tahoe_client import (
 )
 
 
+class TestTahoeMonitor(AsyncTestCase):
+    """
+    Tests relating to ConnectedTahoeservice
+    """
+
+    def setUp(self):
+        super(TestTahoeMonitor, self).setUp()
+
+        self.root = create_fake_tahoe_root()
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com"),
+            self.http_client,
+        )
+
+        self.node = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
+        # when the "service" is run it wants to check shares-happy from Tahoe
+        with self.node.tahoe_cfg.open("w") as f:
+            f.write(b"[client]\nshares.happy = 1\n")
+        self.basedir = FilePath(self.mktemp())
+        self.config = create_global_configuration(
+            self.basedir,
+            u"tcp:0",
+            self.node.path,
+            u"tcp:localhost:0",
+        )
+        self.reactor = MemoryReactorClock()
+        self.service = MagicFolderService(
+            self.reactor,
+            self.config,
+            WebSocketStatusService(self.reactor, self.config),
+            self.tahoe_client,
+        )
+        self.service._stdout = self.out = io.StringIO()
+
+    def test_welcome_fails(self):
+        """
+        if get_welcome() fails we should print a message
+        """
+
+        def fail(*args, **kw):
+            raise Exception("fail")
+        self.tahoe_client.get_welcome = fail
+        d = self.service.run()
+        # not-ideal sekrit knowledge of how the service works
+        self.reactor.triggers["before"]["shutdown"][0][0]()
+        self.assertThat(
+            self.out.getvalue(),
+            Contains("not currently connected to enough"),
+        )
+        return d
+
+
 class TestService(AsyncTestCase):
     """
     Tests relating to MagicFolderService
@@ -84,6 +138,7 @@ class TestService(AsyncTestCase):
             WebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
+        self.service._stdout = self.out = io.StringIO()
 
     @inline_callbacks
     def test_allocate_port(self):
@@ -129,7 +184,6 @@ class TestService(AsyncTestCase):
             self.basedir.child("api_client_endpoint").getContent().strip(),
             Equals(b"not running"),
         )
-
 
 
 class TestAdd(SyncTestCase):
