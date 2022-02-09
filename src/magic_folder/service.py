@@ -145,6 +145,10 @@ class ConnectedTahoeService(MultiService):
             )
 
 
+from twisted.logger import (
+    Logger,
+)
+
 @attr.s
 class MagicFolderService(MultiService):
     """
@@ -159,7 +163,7 @@ class MagicFolderService(MultiService):
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
-    _stdout = attr.ib(default=sys.stdout)
+    log = Logger()
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -260,16 +264,14 @@ class MagicFolderService(MultiService):
     def run(self):
         yield self.startService()
         happy = yield self._tahoe_status_service.is_happy_connections()
-        print(
+        self.log.info(
             "Connected to {} storage-servers".format(
                 self._tahoe_status_service.connected_servers()
             ),
-            file=self._stdout,
         )
         if not happy:
-            print(
+            self.log.info(
                 "NOTE: not currently connected to enough storage-servers",
-                file=self._stdout,
             )
 
         def do_shutdown():
@@ -305,9 +307,8 @@ class MagicFolderService(MultiService):
 
         # The integration tests look for this message.  You cannot get rid of
         # it (without also changing the tests).
-        print(
+        self.log.info(
             "Completed initial Magic Folder setup",
-            file=self._stdout,
         )
         self._starting = gatherResults(ds)
 

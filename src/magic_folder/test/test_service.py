@@ -25,6 +25,9 @@ from twisted.python.filepath import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
+from twisted.logger import (
+    capturedLogs,
+)
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
@@ -83,7 +86,6 @@ class TestTahoeMonitor(AsyncTestCase):
             WebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
-        self.service._stdout = self.out = io.StringIO()
 
     def test_welcome_fails(self):
         """
@@ -93,12 +95,17 @@ class TestTahoeMonitor(AsyncTestCase):
         def fail(*args, **kw):
             raise Exception("fail")
         self.tahoe_client.get_welcome = fail
-        d = self.service.run()
-        # not-ideal sekrit knowledge of how the service works
-        self.reactor.triggers["before"]["shutdown"][0][0]()
+        with capturedLogs() as captured:
+            d = self.service.run()
+            # not-ideal sekrit knowledge of how the service works
+            self.reactor.triggers["before"]["shutdown"][0][0]()
+
         self.assertThat(
-            self.out.getvalue(),
-            Contains("not currently connected to enough"),
+            [
+                log["log_format"]
+                for log in captured
+            ],
+            Contains("NOTE: not currently connected to enough storage-servers")
         )
         return d
 
