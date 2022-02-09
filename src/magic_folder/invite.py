@@ -24,7 +24,6 @@ from twisted.internet.defer import (
 )
 
 import attr
-import wormhole
 from eliot import (
     start_action,
 )
@@ -61,7 +60,7 @@ class IInviteCollection(Interface):
         :returns IInvite: an invite with the given ID (or KeyError)
         """
 
-    def create_invite(self, petname):
+    def create_invite(self, petname, folder_config, wormhole):
         """
         Create a brand new IInvite and add it to our collection
 
@@ -300,7 +299,7 @@ class Invite(object):
 
 
 @inline_callbacks
-def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client, relay_url):
+def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client, wh):
     """
     This does the opposite side of the invite to Invite.perform_invite()
     above. That is:
@@ -322,7 +321,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
     :param int scan_interval: seconds between searching for local updates
 
-    :param str relay_url: the Magic Wormhole mailbox server to use
+    :param IDeferredWormhole wh: the Magic Wormhole object to use
     """
     if poll_interval < 1:
         raise ValueError(
@@ -335,11 +334,6 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
             )
         )
 
-    wh = wormhole.create(
-        appid=u"tahoe-lafs.org/magic-folder/invite",
-        relay_url=relay_url,
-        reactor=reactor,
-    )
     welcome = yield wh.get_welcome()
     if 'motd' in welcome:
         # XXX probably shouldn't print() in a "utility" method, but
@@ -455,7 +449,7 @@ class InMemoryInviteManager(service.Service):
         """
         return self._invites[id_]
 
-    def create_invite(self, reactor, petname, mf_config):
+    def create_invite(self, reactor, petname, mf_config, wh):
         """
         Create a fresh invite and add it to ourselves.
 
@@ -463,12 +457,9 @@ class InMemoryInviteManager(service.Service):
 
         :param str petname: None or a user-defined petname
             for the invited participant.
+
+        :param IDeferredWormhole wh: the Magic Wormhole object to use
         """
-        wh = wormhole.create(
-            appid=u"tahoe-lafs.org/magic-folder/invite",
-            relay_url=self.parent.parent.config.wormhole_uri,
-            reactor=reactor,
-        )
         invite = Invite(
             uuid=str(uuid4()),
             petname=petname,

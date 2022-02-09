@@ -6,6 +6,7 @@ from configparser import (
     ConfigParser,
 )
 
+import wormhole
 import attr
 from eliot import start_action
 from eliot.twisted import inline_callbacks
@@ -72,6 +73,7 @@ class MagicFolderService(MultiService):
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
+    _wormhole_factory = attr.ib(default=wormhole.create)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -323,6 +325,33 @@ class MagicFolderService(MultiService):
         yield mf.ready()
 
     @inline_callbacks
+    def invite_to_folder(self, folder_name, author_name):
+        """
+        Create a new invite for a folder. This fires once the invite is
+        created at the Magic Wormhole mailbox server; use
+        invite.await_done() to wait for the invitee to accept (or
+        reject) the invite.
+
+        :returns Invite: the prepared invite
+        :raises ValueError: on input problems
+        """
+        folder_service = self.get_folder_service(folder_name)
+        folder_config = folder_service.config
+
+        invite = yield folder_service.invite_manager.create_invite(
+            self.reactor,
+            author_name,
+            folder_service.config,
+            self._wormhole_factory(
+                appid=u"tahoe-lafs.org/magic-folder/invite",
+                relay_url=self.config.wormhole_uri,
+                reactor=self.reactor,
+            ),
+        )
+        yield invite.await_code()  # may raise ValueError
+        returnValue(invite)
+
+    @inline_callbacks
     def join_folder(self, wormhole_code, folder_name, author_name,
                     local_dir, poll_interval, scan_interval):
         """
@@ -355,7 +384,11 @@ class MagicFolderService(MultiService):
             poll_interval,
             scan_interval,
             self.tahoe_client,
-            self.config.wormhole_uri,
+            self._wormhole_factory(
+                appid=u"tahoe-lafs.org/magic-folder/invite",
+                relay_url=self.config.wormhole_uri,
+                reactor=self.reactor,
+            ),
         )
         returnValue(inv)
 
