@@ -299,7 +299,11 @@ class APIv1(object):
         if not personal_dmd_cap.is_readonly_directory():
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
-        yield folder_service.add_participant(author, personal_dmd_cap)
+        try:
+            yield folder_service.add_participant(author, personal_dmd_cap)
+        except ValueError as e:
+            # return a nicer message than "500"
+            raise _InputError(str(e))
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
