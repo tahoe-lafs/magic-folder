@@ -51,19 +51,20 @@ class MagicFolderClientTests(SyncTestCase):
         super(MagicFolderClientTests, self).setUp()
         self.setup_client()
 
-    def test_tahoe_objects(self):
+    def _client_method_request(self, method, args, req_kind, req_url):
         """
-        The /tahoe-objects API works
+        Test that calling a given `method` results in the client making a
+        request to the given `req_url` (with HTTP verb `req_kind`).
         """
         self.assertThat(
-            self.client.tahoe_objects("a_magic_folder"),
+            getattr(self.client, method)(*args),
             succeeded(Always()),
         )
         self.assertThat(
             self.api_calls,
             Equals([
-                (b'GET',
-                 'http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects',
+                (req_kind,
+                 req_url,
                  {},
                  {
                      b'Accept-Encoding': [b'gzip'],
@@ -74,4 +75,26 @@ class MagicFolderClientTests(SyncTestCase):
                  b'',
                 ),
             ])
+        )
+
+    def test_tahoe_objects(self):
+        """
+        The /tahoe-objects API works
+        """
+        return self._client_method_request(
+            "tahoe_objects",
+            ("a_magic_folder", ),
+            b"GET",
+            "http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects",
+        )
+
+    def test_list_invites(self):
+        """
+        The /list-invites API works
+        """
+        return self._client_method_request(
+            "list_invites",
+            ("folder_name", ),
+            b"GET",
+            "http://invalid./v1/magic-folder/folder_name/invites",
         )
