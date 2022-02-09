@@ -337,7 +337,6 @@ class WebSocketStatusService(service.Service):
                 ],
                 "recent": most_recent,
                 "tahoe": {
-                    "connected": self._tahoe.is_connected,
                     "happy": self._tahoe.is_happy,
                     "connected": self._tahoe.connected,
                     "desired": self._tahoe.desired,

@@ -1,7 +1,6 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
-import sys
 import json
 from configparser import (
     ConfigParser,
@@ -13,11 +12,9 @@ from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
 from twisted.application.service import (
     MultiService,
-    Service,
 )
 from twisted.internet.defer import Deferred, gatherResults, returnValue
 from twisted.internet.endpoints import serverFromString
-from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
 from twisted.python.compat import (
@@ -126,7 +123,7 @@ class ConnectedTahoeService(MultiService):
             welcome_body = yield self.tahoe_client.get_welcome()
             self._storage_servers = welcome_body["servers"]
             status = TahoeStatus(self.connected_servers(), self.happy, True)
-        except Exception as e:
+        except Exception:
             self._storage_servers = {}
             status = TahoeStatus(0, self.happy, False)
 
