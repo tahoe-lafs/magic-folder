@@ -441,16 +441,15 @@ class APIv1(object):
                 u'Body must be {"petname": "..."}'
             )
         author_name = body[u"petname"]
-        folder_service = self._global_service.get_folder_service(folder_name)
-        folder_config = folder_service.config
 
-        from twisted.internet import reactor
-        invite = yield folder_service.invite_manager.create_invite(reactor, author_name, folder_config)
         try:
-            yield invite.await_code()
+            invite = yield self._global_service.invite_to_folder(
+                folder_name,
+                author_name,
+            )
         except ValueError as e:
             raise _InputError(str(e))
-        returnValue(json.dumps(invite.marshal()))
+        returnValue(json.dumps(invite.marshal()).encode("utf8"))
 
     @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
     @inline_callbacks
@@ -517,9 +516,9 @@ class APIv1(object):
             )
 
         local_dir = FilePath(body["local-directory"])
-        if not local_dir.exists():
+        if not local_dir.exists() or not local_dir.isdir():
             raise _InputError(
-                "No directory '{}'".format(local_dir.toTextMode().path)
+                "No directory '{}'".format(local_dir.path)
             )
 
         _application_json(request)
@@ -557,7 +556,7 @@ class APIv1(object):
         request.write(
             json.dumps(
                 folder_service.invite_manager.list_invites()
-            )
+            ).encode("utf-8")
         )
         request.finish()
 
