@@ -202,6 +202,31 @@ class TestGlobalConfig(SyncTestCase):
             Equals("tcp:42")
         )
 
+    def test_change_websocket_url(self):
+        """
+        An assignment that changes the value of
+        ``GlobalConfigDatabase.wormhole_uri`` results in the new value
+        being available when the database is loaded again with
+        ``load_global_configuration``.
+        """
+        config = create_global_configuration(
+            self.temp,
+            u"tcp:1234",
+            self.node_dir,
+            u"tcp:localhost:1234",
+            u"ws://localhost:4444/",
+        )
+        config.wormhole_uri = "ws://example.invalid./"
+        config2 = load_global_configuration(self.temp)
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals(config.wormhole_uri)
+        )
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals("ws://example.invalid./")
+        )
+
 
 class EndpointDescriptionConverterTests(SyncTestCase):
     """

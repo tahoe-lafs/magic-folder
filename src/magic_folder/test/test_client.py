@@ -5,11 +5,15 @@
 Tests for ``magic_folder.client``.
 """
 
+import json
 from testtools.matchers import (
     Equals,
     Always,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
 from testtools.twistedsupport import (
     succeeded,
 )
@@ -51,7 +55,8 @@ class MagicFolderClientTests(SyncTestCase):
         super(MagicFolderClientTests, self).setUp()
         self.setup_client()
 
-    def _client_method_request(self, method, args, req_kind, req_url):
+    def _client_method_request(self, method, args, req_kind, req_url,
+                               body=b"", extra_headers={}):
         """
         Test that calling a given `method` results in the client making a
         request to the given `req_url` (with HTTP verb `req_kind`).
@@ -60,19 +65,22 @@ class MagicFolderClientTests(SyncTestCase):
             getattr(self.client, method)(*args),
             succeeded(Always()),
         )
+        headers = {
+            b'Accept-Encoding': [b'gzip'],
+            b'Authorization': [b'Bearer fake token'],
+            b'Connection': [b'close'],
+            b'Host': [b'invalid.'],
+        }
+        headers.update(extra_headers)
+
         self.assertThat(
             self.api_calls,
             Equals([
                 (req_kind,
                  req_url,
                  {},
-                 {
-                     b'Accept-Encoding': [b'gzip'],
-                     b'Authorization': [b'Bearer fake token'],
-                     b'Connection': [b'close'],
-                     b'Host': [b'invalid.'],
-                 },
-                 b'',
+                 headers,
+                 body,
                 ),
             ])
         )
@@ -88,6 +96,36 @@ class MagicFolderClientTests(SyncTestCase):
             "http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects",
         )
 
+    def test_create_invite(self):
+        """
+        The /create-invite API works
+        """
+        return self._client_method_request(
+            "invite",
+            ("folder_name", "petname"),
+            b"POST",
+            "http://invalid./v1/magic-folder/folder_name/invite",
+            b'{"petname": "petname"}',
+            {
+                b"Content-Length": [b"22"],
+            },
+        )
+
+    def test_invite_wait(self):
+        """
+        The /invite-wait API works
+        """
+        return self._client_method_request(
+            "invite_wait",
+            ("folder_name", "an-id"),
+            b"POST",
+            "http://invalid./v1/magic-folder/folder_name/invite-wait",
+            b'{"id": "an-id"}',
+            {
+                b"Content-Length": [b"15"],
+            },
+        )
+
     def test_list_invites(self):
         """
         The /list-invites API works
@@ -97,4 +135,28 @@ class MagicFolderClientTests(SyncTestCase):
             ("folder_name", ),
             b"GET",
             "http://invalid./v1/magic-folder/folder_name/invites",
+        )
+
+    def test_join(self):
+        """
+        The /join API works
+        """
+        return self._client_method_request(
+            "join",
+            ("folder_name", "2-suspicious-penguin", FilePath("/dev/null"), "amy", 123, 321),
+            b"POST",
+            "http://invalid./v1/magic-folder/folder_name/join",
+            json.dumps(
+                {
+                    "name": "folder_name",
+                    "invite-code": "2-suspicious-penguin",
+                    "local-directory": "/dev/null",
+                    "author": "amy",
+                    "poll-interval": 123,
+                    "scan-interval": 321,
+                }
+            ).encode("utf-8"),
+            {
+                b"Content-Length": [b"155"],
+            },
         )
