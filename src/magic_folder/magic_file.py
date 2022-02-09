@@ -792,6 +792,7 @@ class MagicFile(object):
                 )
                 delay_amt = next(retry_delay_sequence)
                 delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
+                delay.addCallback(got_remote)
                 delay.addErrback(upload_error, snap)
                 return delay
 
