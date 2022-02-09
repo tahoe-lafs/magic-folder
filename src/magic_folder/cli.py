@@ -436,6 +436,9 @@ class JoinOptions(usage.Options):
         ("name", "n", None, "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
     ]
+    optFlags = [
+        ["disable-scanning", None, "Disable scanning for local changes."],
+    ]
 
     def parseArgs(self, invite_code, local_dir):
         super(JoinOptions, self).parseArgs()
@@ -474,7 +477,6 @@ class JoinOptions(usage.Options):
             )
 
 
-# XXX needs --disable-scanning
 @inline_callbacks
 def join(options):
     """
@@ -486,7 +488,7 @@ def join(options):
         options.local_dir,
         options["author"],
         int(options["poll-interval"]),
-        int(options["scan-interval"]),
+        None if options['disable-scanning'] else int(options["scan-interval"]),
     )
     if ans["success"]:
         print("Successfully joined as '{}'".format(ans["petname"]))
