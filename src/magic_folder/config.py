@@ -228,6 +228,7 @@ _magicfolder_config_schema = Schema([
         # table. See ticket 558
         """
         -- This table represents the current state of the file on disk, as last known to us
+        -- A correct mtime/ctime exists for any LocalSnapshots created.
         CREATE TABLE [current_snapshots]
         (
             [relpath]          TEXT PRIMARY KEY, -- snapshot relative-path in UTF-8
