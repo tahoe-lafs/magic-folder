@@ -1477,7 +1477,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap.danger_real_capability_string()] = parent
 
-        def permissions_suck(relpath, mtime, staged_content):
+        def permissions_suck(relpath, mtime, staged_content, prior_pathstate):
             """
             cause the filesystem to fail to write due to a permissions problem
             """
@@ -1929,7 +1929,7 @@ class FilesystemModificationTests(SyncTestCase):
         staged = self.staging.child("new_content")
         staged.setContent(dummy_content)
 
-        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged)
+        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged, None)
 
         self.assertThat(
             self.magic.child("sub").exists(),
@@ -1959,7 +1959,7 @@ class FilesystemModificationTests(SyncTestCase):
         # where we wanted a directory .. perhaps there should be a
         # better / different answer?
         with ExpectedException(RuntimeError, ".*not a directory.*"):
-            self.filesystem.mark_overwrite("sub/foo", 12345, staged)
+            self.filesystem.mark_overwrite("sub/foo", 12345, staged, None)
         self.assertThat(
             self.magic.child("sub"),
             MatchesAll(
