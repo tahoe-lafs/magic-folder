@@ -864,6 +864,116 @@ class UpdateTests(AsyncTestCase):
             )
         )
 
+
+    @inline_callbacks
+    def test_conflict_at_really_the_last_second(self):
+        """
+        There is a window between _download_check_local and point in the
+        actual call to .mark_overwrite when other procesess could have
+        written to our local file (or its tempfile).
+
+        To test this, we hook into the state-machine to cause such a
+        write _immediately after_ the machine identifies "continue
+        with the update"
+        """
+
+        print(self.root._uri.data.keys())
+        start = set(self.root._uri.data.keys())
+        print("start", start, len(start))
+        # give us a current file for "foo"
+        content0 = b"original" * 1000
+        with self.magic_path.child("foo").open("w") as f:
+            f.write(content0)
+
+        # wait for the uploader to do its work
+        yield self.service.scanner_service.scan_once()
+        parents = []
+        for _ in range(20):
+            yield deferLater(reactor, 1.0, lambda: None)
+            ##print(dir(self.root._uri))
+            print(set(self.root._uri.data.keys()) - start)
+            if len(self.root._uri.data.keys()) != len(start):
+                print("found more!")
+                break
+
+        content1 = b"foo" * 1000
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            raw_remote_parents=[
+                self.config.get_remotesnapshot("foo").danger_real_capability_string(),
+            ],
+        )
+        # arrange to hook ourselves in to the "download" code-path
+        # immediately _after_ the state-transition out of
+        # _download_checking_local happens.
+        mf = self.service.file_factory.magic_file_for(self.magic_path.child("foo"))
+
+        orig = mf._download_matches
+
+        def wrap(*args, **kw):
+            print("WRAP", len(args), len(kw))
+            print(orig)
+            print(args)
+            print("last-second change", args[2])
+            with self.magic_path.child("foo").open("w") as f:
+                f.write(b"last-second change")
+            time.sleep(1.0)
+            r = orig(*args, **kw)
+            time.sleep(1.0)
+            print("RR", r)
+            return r
+        mf._download_matches = wrap
+
+        # create a change in zara's Personal DMD
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability,
+        )
+
+        # wait for the downloader to detect zara's change
+        for _ in range(10):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
+                break
+
+        # now, we download zara's change but our wrapped
+        # _download_matches input makes a last-millisecond change in
+        # the window between the state-machine's check and the running
+        # of the mark_overwrite function, essentially .. this should
+        # then preserve the tempfile and cause a conflict
+
+        print("XXXX", self.magic_path.listdir())
+        for x in self.magic_path.listdir():
+            with self.magic_path.child(x).open("r") as f:
+                print("{}: {}".format(x, f.read(20)))
+            print("---")
+
+        print("xxxx")
+        # we should discover and mark this last-second conflict by
+        # keeping "our" content in "foo" and putting zara's content in
+        # a conflict-file.
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(b"So conflicted")),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
+        # we should also generate a user-visible error message ideally
+        # explaining to them what the weird .snaptmp file is.
+
     @inline_callbacks
     def test_state_mismatch(self):
         """
