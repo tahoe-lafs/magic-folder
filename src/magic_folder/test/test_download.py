@@ -66,6 +66,7 @@ from ..downloader import (
     InMemoryMagicFolderFilesystem,
     RemoteScannerService,
     LocalMagicFolderFilesystem,
+    BackupRetainedError,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -877,25 +878,22 @@ class UpdateTests(AsyncTestCase):
         with the update"
         """
 
-        print(self.root._uri.data.keys())
         start = set(self.root._uri.data.keys())
-        print("start", start, len(start))
-        # give us a current file for "foo"
+        # make some existing content for file "foo"
         content0 = b"original" * 1000
         with self.magic_path.child("foo").open("w") as f:
             f.write(content0)
 
-        # wait for the uploader to do its work
+        # wait for the uploader to do its work (that is, for more data
+        # to appear in "tahoe")
         yield self.service.scanner_service.scan_once()
-        parents = []
-        for _ in range(20):
+        for _ in range(10):
             yield deferLater(reactor, 1.0, lambda: None)
-            ##print(dir(self.root._uri))
-            print(set(self.root._uri.data.keys()) - start)
             if len(self.root._uri.data.keys()) != len(start):
-                print("found more!")
                 break
 
+        # create a (legitimate) update from zara to the same file (so
+        # that our downloader has some work to do)
         content1 = b"foo" * 1000
         local_snap1 = yield create_snapshot(
             "foo",
@@ -906,28 +904,23 @@ class UpdateTests(AsyncTestCase):
                 self.config.get_remotesnapshot("foo").danger_real_capability_string(),
             ],
         )
+
         # arrange to hook ourselves in to the "download" code-path
         # immediately _after_ the state-transition out of
-        # _download_checking_local happens.
+        # _download_checking_local happens -- putting us inside the
+        # "very last millisecond" window for other writes
         mf = self.service.file_factory.magic_file_for(self.magic_path.child("foo"))
 
         orig = mf._download_matches
 
         def wrap(*args, **kw):
-            print("WRAP", len(args), len(kw))
-            print(orig)
-            print(args)
-            print("last-second change", args[2])
             with self.magic_path.child("foo").open("w") as f:
                 f.write(b"last-second change")
-            time.sleep(1.0)
-            r = orig(*args, **kw)
-            time.sleep(1.0)
-            print("RR", r)
-            return r
+            return orig(*args, **kw)
         mf._download_matches = wrap
 
-        # create a change in zara's Personal DMD
+        # create the change in zara's Personal DMD (that is, as if her
+        # instance had done an upload)
         remote_snap0 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
         yield self.tahoe_client.add_entry_to_mutable_directory(
             self.other_personal_cap,
@@ -935,44 +928,41 @@ class UpdateTests(AsyncTestCase):
             remote_snap0.capability,
         )
 
-        # wait for the downloader to detect zara's change
+        # now, we download zara's change but our wrapped
+        # _download_matches @input method makes a last-millisecond
+        # change in the window between the state-machine's check and
+        # the running of the mark_overwrite function, essentially
+        # .. this should then rename the preserved tempfile as a
+        # conflict-file
         for _ in range(10):
             yield deferLater(reactor, 1.0, lambda: None)
             if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
                 break
 
-        # now, we download zara's change but our wrapped
-        # _download_matches input makes a last-millisecond change in
-        # the window between the state-machine's check and the running
-        # of the mark_overwrite function, essentially .. this should
-        # then preserve the tempfile and cause a conflict
-
-        print("XXXX", self.magic_path.listdir())
-        for x in self.magic_path.listdir():
-            with self.magic_path.child(x).open("r") as f:
-                print("{}: {}".format(x, f.read(20)))
-            print("---")
-
-        print("xxxx")
-        # we should discover and mark this last-second conflict by
-        # keeping "our" content in "foo" and putting zara's content in
-        # a conflict-file.
         self.assertThat(
             self.magic_path.child("foo"),
             MatchesAll(
                 AfterPreprocessing(lambda x: x.exists(), Equals(True)),
-                AfterPreprocessing(lambda x: x.getContent(), Equals(b"So conflicted")),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
             )
         )
         self.assertThat(
             self.magic_path.child("foo.conflict-zara"),
             MatchesAll(
                 AfterPreprocessing(lambda x: x.exists(), Equals(True)),
-                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(b"last-second change")),
             )
         )
-        # we should also generate a user-visible error message ideally
-        # explaining to them what the weird .snaptmp file is.
+        # we should also generate a user-visible error message
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(BackupRetainedError),
+            MatchesListwise([
+                matches_flushed_traceback(
+                    BackupRetainedError,
+                    ".*unexpected modification-time.*",
+                )
+            ]),
+        )
 
     @inline_callbacks
     def test_state_mismatch(self):
