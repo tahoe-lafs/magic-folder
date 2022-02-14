@@ -32,6 +32,9 @@ from twisted.application.internet import (
 from .util.file import (
     get_pathinfo,
 )
+from .downloader import (
+    BackupRetainedError,
+)
 
 
 def _last_one(things):
@@ -376,7 +379,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _download_matches(self, snapshot, staged_path):
+    def _download_matches(self, snapshot, staged_path, local_pathstate):
         """
         The local file (if any) matches what we expect given database
         state
@@ -579,7 +582,7 @@ class MagicFile(object):
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
-        self._call_later(self._download_matches, snapshot, staged_path)
+        self._call_later(self._download_matches, snapshot, staged_path, current_pathstate or local_pathinfo.state)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -611,7 +614,7 @@ class MagicFile(object):
         return
 
     @_machine.output()
-    def _perform_remote_update(self, snapshot, staged_path):
+    def _perform_remote_update(self, snapshot, staged_path, local_pathstate):
         """
         Resolve a remote update locally
         """
@@ -625,10 +628,20 @@ class MagicFile(object):
             path_state = None
         else:
             try:
+                try:
+                    prior_ps = self._factory._config.get_currentsnapshot_pathstate(snapshot.relpath)
+                except KeyError:
+                    # the pathinfo of the local file as it exists
+                    # _right_ before we decided "no conflict" in the
+                    # state-machine
+                    prior_ps = None
+                if prior_ps is None:
+                    prior_ps = local_pathstate
                 path_state = self._factory._magic_fs.mark_overwrite(
                     snapshot.relpath,
                     snapshot.metadata["modification_time"],
                     staged_path,
+                    prior_ps,
                 )
             except OSError as e:
                 self._factory._folder_status.error_occurred(
@@ -637,6 +650,25 @@ class MagicFile(object):
                 with self._action.context():
                     write_traceback()
                 self._call_later(self._fatal_error_download, snapshot)
+                return
+            except BackupRetainedError as e:
+                # this means that the mark_overwrite() code has
+                # noticed some mismatch to the replaced file or its
+                # .snaptmp version -- so this is a conflict, but we
+                # didn't detect it in the _download_check_local since
+                # it happened in the window _after_ that check.
+                print("BACKUP RETAIN", e, staged_path)
+                self._factory._folder_status.error_occurred(
+                    "Unexpected content in '{}': {}".format(snapshot.relpath, str(e))
+                )
+                with self._action.context():
+                    write_traceback()
+                # mark as a conflict -- we use the retained tmpfile as
+                # the original "staged" path here, causing "our"
+                # emergency data to be in the conflict file .. maybe
+                # this should just be the original tmpfile and we
+                # shouldn't mess with it further?
+                self._call_later(self._download_mismatch, snapshot, e.path)
                 return
 
         # Note, if we crash here (after moving the file into place but
@@ -1119,6 +1151,16 @@ class MagicFile(object):
         _fatal_error_download,
         enter=_failed,
         outputs=[_status_download_finished, _done_working],
+        collector=_last_one,
+    )
+    # this is the "last-minute" conflict window -- that is, when
+    # .mark_overwrite() determines something wrote to the tempfile (or
+    # wrote to the "real" file immediately after the state-machine
+    # check)
+    _updating_personal_dmd_download.upon(
+        _download_mismatch,
+        enter=_conflicted,
+        outputs=[_mark_download_conflict, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
