@@ -34,7 +34,7 @@ release:
 
 	@echo "Build and sign source-dist"
 	python3 setup.py sdist
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`.tar.gz
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic-folder-`git describe --abbrev=0`.tar.gz
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
