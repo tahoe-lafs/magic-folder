@@ -181,6 +181,8 @@ async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take
                 found = True
                 break
         await twisted_sleep(reactor, 1)
+    x = await alice.dump_state("local")
+    print(x)
     assert found, "Expected 'sylvester' to be (only) a remote-snapshot"
 
 
