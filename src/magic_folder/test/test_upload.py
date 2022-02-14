@@ -685,3 +685,188 @@ class AsyncMagicFileTests(AsyncTestCase):
                 }),
             })
         )
+
+    @inline_callbacks
+    def test_update_dmd_fails_then_succeeds(self):
+        """
+        Some attempts to update the Personal DMD fail, then stop failing.
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "trouble"
+
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            start_folder_services=True,
+        )
+        self.addCleanup(alice.cleanup)
+
+        service = alice.global_service.get_folder_service("default")
+        local = magic_path.child(relpath)
+        with local.open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        # arrange for the "participant.update_snapshot" call to fail
+        # exactly twice and then succeed
+        bad_stuff = Exception("bad stuff")
+
+        def temporary_error(orig, count):
+            temporary_error.remain = count
+
+            def maybe_fail(*args, **kw):
+                temporary_error.remain -= 1
+                if temporary_error.remain >= 0:
+                    raise bad_stuff
+                return orig(*args, **kw)
+            return maybe_fail
+
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=temporary_error(
+                service.file_factory._write_participant.update_snapshot,
+                2,
+            )
+        )
+
+        # simulate the update
+        mf = service.file_factory.magic_file_for(local)
+        yield mf.create_update()
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: [error["summary"] for error in errors],
+                                Equals([
+                                    "Error updating personal DMD: bad stuff",
+                                    "Error updating personal DMD: bad stuff",
+                                ]),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+        # ...as should the logger
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            AfterPreprocessing(
+                lambda errors: [err["reason"] for err in errors],
+                Equals([
+                    bad_stuff,
+                    bad_stuff,
+                ])
+            )
+        )
+
+    @inline_callbacks
+    def test_upload_fails_then_succeeds(self):
+        """
+        Some attempts to upload fail, then stop failing.
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "danger"
+
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            start_folder_services=True,
+        )
+        self.addCleanup(alice.cleanup)
+
+        service = alice.global_service.get_folder_service("default")
+
+        # arrange for the "tahoe_client.create_immutable" call to fail
+        # exactly twice and then succeed
+        bad_stuff = Exception("bad stuff")
+
+        def temporary_error(orig, count):
+            temporary_error.remain = count
+
+            def maybe_fail(*args, **kw):
+                temporary_error.remain -= 1
+                if temporary_error.remain >= 0:
+                    d = Deferred()
+                    d.errback(bad_stuff)
+                    return d
+                return orig(*args, **kw)
+            return maybe_fail
+
+        service.file_factory._uploader = service.uploader_service = wrap_frozen(
+            service.uploader_service,
+            upload_snapshot=temporary_error(
+                service.uploader_service.upload_snapshot,
+                2,
+            )
+        )
+
+        local = magic_path.child(relpath)
+        with local.open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        # simulate the update
+        mf = service.file_factory.magic_file_for(local)
+        yield mf.create_update()
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: [error["summary"] for error in errors],
+                                Equals([
+                                    "Error uploading danger: bad stuff",
+                                    "Error uploading danger: bad stuff",
+                                ]),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+        # ...as should the logger
+        # XXX why does this only return _one_ error -- should be two!
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            AfterPreprocessing(
+                lambda errors: [err["reason"] for err in errors],
+                Equals([
+                    bad_stuff,
+                ])
+            )
+        )

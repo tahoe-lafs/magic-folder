@@ -27,12 +27,34 @@ from .util.file import (
 )
 
 
+@attr.s(frozen=True)
+class TahoeStatus:
+    # number of connected servers (0 if we can't contact our client at all)
+    connected = attr.ib(validator=attr.validators.instance_of(int))
+
+    # number of servers we _want_ to connect to
+    desired = attr.ib(validator=attr.validators.instance_of(int))
+
+    # False if we can't get the welcome page at all
+    is_connected = attr.ib(validator=attr.validators.instance_of(bool))
+
+    @property
+    def is_happy(self):
+        return self.is_connected and (self.connected >= self.desired)
+
+
 class IStatus(Interface):
     """
     An internal API for services to report realtime status
     information. These don't necessarily correspond 1:1 to outgoing
     messages from the status API.
     """
+
+    def tahoe_status(status):
+        """
+        Update the status of our Tahoe-LAFS connection.
+        :param TahoeStatus status: the current status
+        """
 
     def error_occurred(folder, message):
         """
@@ -231,6 +253,7 @@ class WebSocketStatusService(service.Service):
 
     # current live state
     _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
+    _tahoe = attr.ib(default=attr.Factory(lambda: TahoeStatus(0, 0, False)))
 
     def client_connected(self, protocol):
         """
@@ -312,6 +335,11 @@ class WebSocketStatusService(service.Service):
                     for err in self._folders.get(name, {}).get("errors", [])
                 ],
                 "recent": most_recent,
+                "tahoe": {
+                    "happy": self._tahoe.is_happy,
+                    "connected": self._tahoe.connected,
+                    "desired": self._tahoe.desired,
+                },
             }
 
         return json.dumps({
@@ -354,13 +382,22 @@ class WebSocketStatusService(service.Service):
         except KeyError:
             pass
 
+    def tahoe_status(self, status):
+        """
+        IStatus API
+        """
+        if status != self._tahoe:
+            self._tahoe = status
+            self._maybe_update_clients()
+
     def error_occurred(self, folder, message):
         """
         IStatus API
 
-        :param unicode folder: the folder this error pertains to
+        :param str folder: the folder this error pertains to (or
+            None for "all folders")
 
-        :param unicode message: a message suitable for an end-user to
+        :param str message: a message suitable for an end-user to
             read that describes the error. Such a message MUST NOT
             include any secrects such as Tahoe capabilities.
         """
