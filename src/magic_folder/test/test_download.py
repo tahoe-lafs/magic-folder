@@ -868,9 +868,9 @@ class UpdateTests(AsyncTestCase):
     @inline_callbacks
     def test_conflict_at_really_the_last_second(self):
         """
-        There is a window between _download_check_local and point in the
-        actual call to .mark_overwrite when other procesess could have
-        written to our local file (or its tempfile).
+        There is a window between _download_check_local and the point in
+        the actual call to .mark_overwrite when other procesess could
+        have written to our local file (or its tempfile).
 
         To test this, we hook into the state-machine to cause such a
         write _immediately after_ the machine identifies "continue

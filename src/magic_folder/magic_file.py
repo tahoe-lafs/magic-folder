@@ -563,8 +563,8 @@ class MagicFile(object):
 
         # we give this downstream to the mark-overwrite, ultimately,
         # so it can double-check that there was no last-millisecond
-        # change to the local path (note this will be None if there is
-        # no file at all here)
+        # change to the local path (note local_pathinfo.state will be
+        # None if there is no file at all here)
         local_pathinfo = get_pathinfo(self._path)
 
         # if we got a local-update during the "download" branch, we
@@ -635,8 +635,9 @@ class MagicFile(object):
         # window for last-second changes to happen .. we do the
         # equivalent of the dance described in detail in
         # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-        # although that doesn't include when to remove the ".backup"
-        # files, we use local_pathstate to double-check that.
+        # although that spec doesn't include when to remove the
+        # ".backup" files -- we use local_pathstate to double-check
+        # that.
 
         if snapshot.content_cap is None:
             self._factory._magic_fs.mark_delete(snapshot.relpath)
@@ -1141,7 +1142,7 @@ class MagicFile(object):
         collector=_last_one,
     )
 
-
+    # downloader updates
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
