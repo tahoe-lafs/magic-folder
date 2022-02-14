@@ -52,7 +52,6 @@ from .util.file import (
     PathState,
     get_pathinfo,
     seconds_to_ns,
-    ns_to_seconds,
 )
 from .util.twisted import (
     exclusively,
