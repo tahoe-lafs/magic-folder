@@ -29,7 +29,7 @@ from .util.file import (
 
 @attr.s(frozen=True)
 class TahoeStatus:
-    # number of connected servers, or None if can't contact our Tahoe client
+    # number of connected servers (0 if we can't contact our client at all)
     connected = attr.ib(validator=attr.validators.instance_of(int))
 
     # number of servers we _want_ to connect to
@@ -41,7 +41,6 @@ class TahoeStatus:
     @property
     def is_happy(self):
         return self.is_connected and (self.connected >= self.desired)
-
 
 
 class IStatus(Interface):

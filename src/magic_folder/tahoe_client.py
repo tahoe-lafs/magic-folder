@@ -163,7 +163,7 @@ class TahoeClient(object):
 
     # When available and running, usually a ConnectedTahoeService will
     # update this based on the number of "connected" versus "desired"
-    # servers. If this is None, we will perform any operations at
+    # servers. If this is None, we will not perform any operations at
     # all. If it is non-None we will raise the given error upon any
     # "mutable" operation (including "create a mutable")
     _error_on_mutable_operation = attr.ib(default=None)

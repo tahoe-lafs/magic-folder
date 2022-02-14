@@ -118,6 +118,14 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..tahoe_client import (
+    create_tahoe_client,
+    InsufficientStorageServers,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
@@ -470,14 +478,6 @@ class MagicFolderTests(SyncTestCase):
         A request for **POST /v1/magic-folder** while TahoeLAFS isn't
         connected to enough servers fails with NOT ACCEPTABLE.
         """
-        from ..tahoe_client import (
-            create_tahoe_client,
-            InsufficientStorageServers,
-        )
-        from ..testing.web import (
-            create_fake_tahoe_root,
-            create_tahoe_treq_client,
-        )
         tahoe_root = create_fake_tahoe_root()
         tahoe_client = create_tahoe_client(
             DecodedURL.from_text(u"http://invalid./"),
