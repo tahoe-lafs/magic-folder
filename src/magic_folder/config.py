@@ -910,11 +910,14 @@ class MagicFolderConfig(object):
         )
 
     @with_cursor
-    def store_local_snapshot(self, cursor, snapshot):
+    def store_local_snapshot(self, cursor, snapshot, path_state):
         """
         Store or update the given local snapshot.
 
         :param LocalSnapshot snapshot: The snapshot to store.
+
+        :param PathState path_state: Status of the on-disk data (can be
+            None if there is nothing on disk, i.e. a delete).
         """
         # Ensure that the local parent snapshots are already in the database.
         for parent in snapshot.parents_local:
@@ -998,6 +1001,10 @@ class MagicFolderConfig(object):
                 )
             ],
         )
+
+        # record the PathState (path_state can be None here in case of
+        # a delete, but the called method handles that)
+        self.store_currentsnapshot_state.__wrapped__(self, cursor, snapshot.relpath, path_state)
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
