@@ -303,27 +303,8 @@ class LocalMagicFolderFilesystem(object):
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
 
-            # If we didn't know about this file before now,
-            # prior_pathstate is None .. in which case we care about
-            # checking for modifications between here and when the
-            # .snaptmp file is removed .. otherwise, prior_pathstate
-            # is the in-database details of the file (note we already
-            # checked for mismatches in _download_checking_local
-            # state)
-            if prior_pathstate is None:
-                # the following call can return None if local_path is
-                # a dir (can it be, here? it's certainly _possible_
-                # that something turned it into a directory between
-                # the last time we looked and now..)
-                prior_pathstate = get_pathinfo(local_path).state
             tmp = local_path.temporarySibling(".snaptmp")
             local_path.moveTo(tmp)
-            # we could check here if the local_path has changed from
-            # what we expect to be there (which is a matching mtime to
-            # the mtime from "current_snapshots" table, passed in here
-            # as "prior_pathstate") .. but there is still more window
-            # open, until we decide to _delete_ this tempfile .. so we
-            # rely only on the later check
             Message.log(
                 message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
                 source_path=local_path.path,
@@ -367,16 +348,20 @@ class LocalMagicFolderFilesystem(object):
             with start_action(
                 action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
             ):
-                # if something else has written to "local_path" or the
-                # tempfile by now, we preserve that data as a "backup"
-                # file. Something could have written the non-tmp file
-                # between when the statemachine decided in
-                # _download_check_local to do the update and now
-                # .. the tmp file could have been written to after the
-                # moveTo() above .. so, we check against the
-                # in-database mtime, which is passed as
-                # "prior_pathstate" (or None if there's no known
-                # information).
+                # prior_pathstate comes from inside the state-machine
+                # _immediately_ before we conclude "there's no
+                # download conflict" (see _check_local_update in
+                # Magicfile) .. here, we double-check that the
+                # modification time and size match what we checked
+                # against in _check_local_update.
+
+                # if prior_pathstate is None, there was no file at all
+                # before this function ran .. so we must preserve the
+                # tmpfile
+                #
+                # otherwise, the pathstate of the tmp file must match
+                # what was there before
+
                 tmp.restat()
                 modtime = seconds_to_ns(tmp.getModificationTime())
                 size = tmp.getsize()

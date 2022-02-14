@@ -558,6 +558,10 @@ class MagicFile(object):
         except KeyError:
             current_pathstate = None
 
+        # we give this downstream to the mark-overwrite, ultimately,
+        # so it can double-check that there was no last-millisecond
+        # change to the local path (note this will be None if there is
+        # no file at all here)
         local_pathinfo = get_pathinfo(self._path)
 
         # if we got a local-update during the "download" branch, we
@@ -582,7 +586,7 @@ class MagicFile(object):
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
-        self._call_later(self._download_matches, snapshot, staged_path, current_pathstate or local_pathinfo.state)
+        self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -617,31 +621,30 @@ class MagicFile(object):
     def _perform_remote_update(self, snapshot, staged_path, local_pathstate):
         """
         Resolve a remote update locally
+
+        :param PathState local_pathstate: the PathState of the local
+            file as it existed _right_ before we concluded it was fine
+            (None if there was no local file before now)
         """
-        # there is a longer dance described in detail in
+        # between when we checked for a local conflict while in the
+        # _download_checking_local and when we _actually_ overwrite
+        # the file (inside .mark_overwrite) there is an additional
+        # window for last-second changes to happen .. we do the
+        # equivalent of the dance described in detail in
         # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-        # which may do even better at reducing the window for local
-        # changes to get overwritten. Currently, that window is the 3
-        # python statements between here and ".mark_overwrite()"
+        # although that doesn't include when to remove the ".backup"
+        # files, we use local_pathstate to double-check that.
+
         if snapshot.content_cap is None:
             self._factory._magic_fs.mark_delete(snapshot.relpath)
             path_state = None
         else:
             try:
-                try:
-                    prior_ps = self._factory._config.get_currentsnapshot_pathstate(snapshot.relpath)
-                except KeyError:
-                    # the pathinfo of the local file as it exists
-                    # _right_ before we decided "no conflict" in the
-                    # state-machine
-                    prior_ps = None
-                if prior_ps is None:
-                    prior_ps = local_pathstate
                 path_state = self._factory._magic_fs.mark_overwrite(
                     snapshot.relpath,
                     snapshot.metadata["modification_time"],
                     staged_path,
-                    prior_ps,
+                    local_pathstate,
                 )
             except OSError as e:
                 self._factory._folder_status.error_occurred(
@@ -657,7 +660,6 @@ class MagicFile(object):
                 # .snaptmp version -- so this is a conflict, but we
                 # didn't detect it in the _download_check_local since
                 # it happened in the window _after_ that check.
-                print("BACKUP RETAIN", e, staged_path)
                 self._factory._folder_status.error_occurred(
                     "Unexpected content in '{}': {}".format(snapshot.relpath, str(e))
                 )
@@ -1135,6 +1137,8 @@ class MagicFile(object):
         outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
+
+
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
