@@ -1172,7 +1172,10 @@ class ConflictTests(AsyncTestCase):
         # if we have a local, we must have the path locally
         local_path = self.alice_magic_path.child("foo")
         local_path.setContent(local0_content)
-        self.alice_config.store_local_snapshot(local0)
+        self.alice_config.store_local_snapshot(
+            local0,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
         self.alice_config.store_currentsnapshot_state("foo", get_pathinfo(local_path).state)
 
         # tell the state-machine about the local, and then get it to
