@@ -118,6 +118,14 @@ from ..client import (
     authorized_request,
     url_to_bytes,
 )
+from ..tahoe_client import (
+    create_tahoe_client,
+    InsufficientStorageServers,
+)
+from ..testing.web import (
+    create_fake_tahoe_root,
+    create_tahoe_treq_client,
+)
 from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
@@ -457,6 +465,46 @@ class MagicFolderTests(SyncTestCase):
                         MatchesDict(
                             {
                                 "reason": StartsWith("scan_interval must be positive integer or null"),
+                            }
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+
+    def test_add_folder_tahoe_degraded(self):
+        """
+        A request for **POST /v1/magic-folder** while TahoeLAFS isn't
+        connected to enough servers fails with NOT ACCEPTABLE.
+        """
+        tahoe_root = create_fake_tahoe_root()
+        tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(tahoe_root),
+        )
+        tahoe_client.mutables_bad(InsufficientStorageServers(1, 4))
+        treq = treq_for_folders(
+            object(), FilePath(self.mktemp()), AUTH_TOKEN, {}, False, tahoe_client,
+        )
+        self.assertThat(
+            authorized_request(
+                treq, AUTH_TOKEN, "POST", self.url, dumps({
+                    'name': 'valid',
+                    'author_name': 'author',
+                    'local_path': 'foo',
+                    'poll_interval': 60,
+                    'scan_interval': 60,
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(INTERNAL_SERVER_ERROR),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict(
+                            {
+                                "reason": Equals("Wanted 4 storage-servers but have 1"),
                             }
                         ),
                     ),

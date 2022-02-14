@@ -53,6 +53,9 @@ from .status import (
     StatusFactory,
     IStatus,
 )
+from .tahoe_client import (
+    InsufficientStorageServers,
+)
 from .snapshot import (
     create_author,
 )
@@ -183,6 +186,13 @@ class APIv1(object):
             request.setHeader(header, value)
         _application_json(request)
         return json.dumps({"reason": exc.description}).encode("utf8")
+
+    @app.handle_errors(InsufficientStorageServers)
+    def no_servers(self, request, failure):
+        write_failure(failure)
+        request.setResponseCode(http.INTERNAL_SERVER_ERROR)
+        _application_json(request)
+        return json.dumps({"reason": str(failure.value)}).encode("utf8")
 
     @app.handle_errors(Exception)
     def fallback_error(self, request, failure):

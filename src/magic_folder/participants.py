@@ -283,7 +283,7 @@ class _CollectiveDirnodeParticipant(object):
     name = attr.ib(validator=attr.validators.instance_of(str))
     dircap = attr.ib(validator=attr.validators.instance_of(Capability))
     is_self = attr.ib(validator=attr.validators.instance_of(bool))
-    _tahoe_client = attr.ib()
+    _tahoe_client = attr.ib(hash=False)
 
     @inline_callbacks
     def files(self):
@@ -312,7 +312,7 @@ class _WriteableParticipant(object):
         participant's files.
     """
     upload_cap = attr.ib()
-    _tahoe_client = attr.ib(eq=False)
+    _tahoe_client = attr.ib(eq=False, hash=False)
 
     @upload_cap.validator
     def _mutable_dirnode(self, attribute, value):

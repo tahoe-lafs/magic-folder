@@ -77,6 +77,21 @@ class TahoeAPIError(Exception):
 
 
 @attr.s(auto_exc=True)
+class InsufficientStorageServers(Exception):
+    """
+    Not enough storage-servers are currently connected.
+    """
+    connected = attr.ib()
+    desired = attr.ib()
+
+    def __str__(self):
+        return "Wanted {} storage-servers but have {}".format(
+            self.desired,
+            self.connected,
+        )
+
+
+@attr.s(auto_exc=True)
 class CannotCreateDirectoryError(Exception):
     """
     Failed to create a (mutable) directory.
@@ -124,7 +139,7 @@ def _get_content_check_code(acceptable_codes, res):
     returnValue(body)
 
 
-@attr.s(frozen=True)
+@attr.s
 class TahoeClient(object):
     """
     An object that knows how to call a particular tahoe client's
@@ -145,6 +160,27 @@ class TahoeClient(object):
     http_client = attr.ib(
         validator=attr.validators.instance_of((HTTPClient, StubTreq)),
     )
+
+    # When available and running, usually a ConnectedTahoeService will
+    # update this based on the number of "connected" versus "desired"
+    # servers. If this is None, we will not perform any operations at
+    # all. If it is non-None we will raise the given error upon any
+    # "mutable" operation (including "create a mutable")
+    _error_on_mutable_operation = attr.ib(default=None)
+
+    def mutables_okay(self):
+        """
+        It has been determined that it is currently okay to perform
+        mutable operations.
+        """
+        self._error_on_mutable_operation = None
+
+    def mutables_bad(self, err):
+        """
+        It has been determined that mutable operations are problemmatic
+        :param Exception err: something suitable to 'raise'
+        """
+        self._error_on_mutable_operation = err
 
     @inline_callbacks
     def get_welcome(self):
@@ -216,6 +252,9 @@ class TahoeClient(object):
         :return Deferred[bytes]: The write capability string for the new
             directory.
         """
+        if self._error_on_mutable_operation is not None:
+            raise self._error_on_mutable_operation
+
         post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir")],
         )
@@ -328,6 +367,9 @@ class TahoeClient(object):
 
         :return Deferred[None]: or exception on error
         """
+
+        if self._error_on_mutable_operation is not None:
+            raise self._error_on_mutable_operation
 
         if replace is True:
             replace_arg = u"true"

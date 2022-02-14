@@ -209,7 +209,7 @@ class IMagicFolderFilesystem(Interface):
             content (or errback if the download fails).
         """
 
-    def mark_overwrite(relpath, mtime, staged_content):
+    def mark_overwrite(relpath, mtime, staged_content, prior_pathstate):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -243,6 +243,17 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
+@attr.s(auto_exc=True)
+class BackupRetainedError(Exception):
+    path = attr.ib(instance_of(FilePath))
+
+    def __str__(self):
+        return "Local backup {} has unexpected modification-time; not deleting!".format(
+            self.path.path,
+        )
+
+
+
 @implementer(IMagicFolderFilesystem)
 @attr.s
 class LocalMagicFolderFilesystem(object):
@@ -265,7 +276,7 @@ class LocalMagicFolderFilesystem(object):
         returnValue(staged_path)
 
     @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
-    def mark_overwrite(self, relpath, mtime, staged_content):
+    def mark_overwrite(self, relpath, mtime, staged_content, prior_pathstate):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -290,6 +301,7 @@ class LocalMagicFolderFilesystem(object):
             # As long as the poller is running in-process, in the reactor,
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
+
             tmp = local_path.temporarySibling(".snaptmp")
             local_path.moveTo(tmp)
             Message.log(
@@ -303,7 +315,7 @@ class LocalMagicFolderFilesystem(object):
         # Ideally, we would get this from the staged file. However, depending
         # on the operating system, the ctime can change when we rename.
         # Instead, we get the path state before and after the move, and use
-        # the later if the mtime and size match.
+        # the latter if the mtime and size match.
         staged_path_state = get_pathinfo(staged_content).state
         with start_action(
             action_type=u"downloader:filesystem:mark-overwrite:emplace",
@@ -335,12 +347,44 @@ class LocalMagicFolderFilesystem(object):
             with start_action(
                 action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
             ):
-                # FIXME: We should verify that this moved file has
-                # the same (except ctime) state as the the previous snapshot
-                # before we remove it.
-                # https://github.com/LeastAuthority/magic-folder/issues/454
-                # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
-                tmp.remove()
+                # prior_pathstate comes from inside the state-machine
+                # _immediately_ before we conclude "there's no
+                # download conflict" (see _check_local_update in
+                # Magicfile) .. here, we double-check that the
+                # modification time and size match what we checked
+                # against in _check_local_update.
+
+                # if prior_pathstate is None, there was no file at all
+                # before this function ran .. so we must preserve the
+                # tmpfile
+                #
+                # otherwise, the pathstate of the tmp file must match
+                # what was there before
+
+                tmp.restat()
+                modtime = seconds_to_ns(tmp.getModificationTime())
+                size = tmp.getsize()
+
+                if prior_pathstate is None or \
+                   prior_pathstate.mtime_ns != modtime or \
+                   prior_pathstate.size != size:
+                    # "something" has written to the file (or the
+                    # tmpfile, after it was moved) causing mtime or
+                    # size to be differt; OR prior_pathstate points at
+                    # a directory (or some other reason causing
+                    # get_fileinfo() to return a None pathstate
+                    # above). Thus, we keep the file as a backup
+
+                    # the MagicFile statemachine knows about this
+                    # exception and processes it separately -- turning
+                    # it into a conflict
+                    raise BackupRetainedError(
+                        tmp,
+                    )
+                else:
+                    # all good, the times + size match
+                    tmp.remove()
+
         return path_state
 
     def mark_conflict(self, relpath, conflict_path, staged_content):
@@ -389,7 +433,7 @@ class InMemoryMagicFolderFilesystem(object):
         self._staged_content[marker] = file_cap
         return succeed(marker)
 
-    def mark_overwrite(self, relpath, mtime, staged_content):
+    def mark_overwrite(self, relpath, mtime, staged_content, prior_pathstate):
         assert staged_content in self._staged_content, "Overwrite but no staged content"
         self.actions.append(
             ("overwrite", relpath, self._staged_content[staged_content])
