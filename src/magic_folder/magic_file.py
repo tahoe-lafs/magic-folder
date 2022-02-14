@@ -39,7 +39,10 @@ from .downloader import (
 
 def _last_one(things):
     """
-    Used as a 'collector' for some Automat state transitions.
+    Used as a 'collector' for some Automat state transitions. Usually
+    the only interesting object comes from the final output (and using
+    this collector indicates that).
+
     :returns: the last thing in the iterable
     """
     return list(things)[-1]
