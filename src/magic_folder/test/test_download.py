@@ -66,6 +66,7 @@ from ..downloader import (
     InMemoryMagicFolderFilesystem,
     RemoteScannerService,
     LocalMagicFolderFilesystem,
+    BackupRetainedError,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -865,6 +866,179 @@ class UpdateTests(AsyncTestCase):
         )
 
     @inline_callbacks
+    def test_conflict_at_really_the_last_second(self):
+        """
+        There is a window between _download_check_local and the point in
+        the actual call to .mark_overwrite when other procesess could
+        have written to our local file (or its tempfile).
+
+        To test this, we hook into the state-machine to cause such a
+        write _immediately after_ the machine identifies "continue
+        with the update"
+        """
+
+        start = set(self.root._uri.data.keys())
+        # make some existing content for file "foo"
+        content0 = b"original" * 1000
+        with self.magic_path.child("foo").open("w") as f:
+            f.write(content0)
+
+        # wait for the uploader to do its work (that is, for more data
+        # to appear in "tahoe")
+        yield self.service.scanner_service.scan_once()
+        for _ in range(10):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if len(self.root._uri.data.keys()) != len(start):
+                break
+
+        # create a (legitimate) update from zara to the same file (so
+        # that our downloader has some work to do)
+        content1 = b"foo" * 1000
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+            raw_remote_parents=[
+                self.config.get_remotesnapshot("foo").danger_real_capability_string(),
+            ],
+        )
+
+        # arrange to hook ourselves in to the "download" code-path
+        # immediately _after_ the state-transition out of
+        # _download_checking_local happens -- putting us inside the
+        # "very last millisecond" window for other writes
+        mf = self.service.file_factory.magic_file_for(self.magic_path.child("foo"))
+
+        orig = mf._download_matches
+
+        def wrap(*args, **kw):
+            with self.magic_path.child("foo").open("w") as f:
+                f.write(b"last-second change")
+            return orig(*args, **kw)
+        mf._download_matches = wrap
+
+        # create the change in zara's Personal DMD (that is, as if her
+        # instance had done an upload)
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability,
+        )
+
+        # now, we download zara's change but our wrapped
+        # _download_matches @input method makes a last-millisecond
+        # change in the window between the state-machine's check and
+        # the running of the mark_overwrite function, essentially
+        # .. this should then rename the preserved tempfile as a
+        # conflict-file
+        for _ in range(10):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
+                break
+
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(b"last-second change")),
+            )
+        )
+        # we should also generate a user-visible error message
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(BackupRetainedError),
+            MatchesListwise([
+                matches_flushed_traceback(
+                    BackupRetainedError,
+                    ".*unexpected modification-time.*",
+                )
+            ]),
+        )
+
+    @inline_callbacks
+    def test_conflict_at_really_the_last_second_no_local(self):
+        """
+        Same as above check but without an existing local file at all.
+        """
+
+        # create a (legitimate) update from zara to non-existant local
+        # file "foo"
+        content1 = b"foo" * 1000
+        local_snap1 = yield create_snapshot(
+            "foo",
+            self.other,
+            io.BytesIO(content1),
+            self.state_path,
+        )
+
+        # arrange to hook ourselves in to the "download" code-path
+        # immediately _after_ the state-transition out of
+        # _download_checking_local happens -- putting us inside the
+        # "very last millisecond" window for other writes
+        mf = self.service.file_factory.magic_file_for(self.magic_path.child("foo"))
+
+        orig = mf._download_matches
+
+        def wrap(*args, **kw):
+            with self.magic_path.child("foo").open("w") as f:
+                f.write(b"last-second change")
+            return orig(*args, **kw)
+        mf._download_matches = wrap
+
+        # create the change in zara's Personal DMD (that is, as if her
+        # instance had done an upload)
+        remote_snap0 = yield write_snapshot_to_tahoe(local_snap1, self.other, self.tahoe_client)
+        yield self.tahoe_client.add_entry_to_mutable_directory(
+            self.other_personal_cap,
+            u"foo",
+            remote_snap0.capability,
+        )
+
+        # now, we download zara's change but our wrapped
+        # _download_matches @input method makes a last-millisecond
+        # change in the window between the state-machine's check and
+        # the running of the mark_overwrite function, essentially
+        # .. this should then rename the preserved tempfile as a
+        # conflict-file
+        for _ in range(10):
+            yield deferLater(reactor, 1.0, lambda: None)
+            if self.magic_path.listdir() == ['foo.conflict-zara', 'foo']:
+                break
+
+        self.assertThat(
+            self.magic_path.child("foo"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(content1)),
+            )
+        )
+        self.assertThat(
+            self.magic_path.child("foo.conflict-zara"),
+            MatchesAll(
+                AfterPreprocessing(lambda x: x.exists(), Equals(True)),
+                AfterPreprocessing(lambda x: x.getContent(), Equals(b"last-second change")),
+            )
+        )
+        # we should also generate a user-visible error message
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(BackupRetainedError),
+            MatchesListwise([
+                matches_flushed_traceback(
+                    BackupRetainedError,
+                    ".*unexpected modification-time.*",
+                )
+            ]),
+        )
+
+    @inline_callbacks
     def test_state_mismatch(self):
         """
         If the database-stored pathstate doesn't match what's on disk when
@@ -1303,7 +1477,7 @@ class ConflictTests(AsyncTestCase):
         )
         self.remote_cache._cached_snapshots[parent_cap.danger_real_capability_string()] = parent
 
-        def permissions_suck(relpath, mtime, staged_content):
+        def permissions_suck(relpath, mtime, staged_content, prior_pathstate):
             """
             cause the filesystem to fail to write due to a permissions problem
             """
@@ -1755,7 +1929,7 @@ class FilesystemModificationTests(SyncTestCase):
         staged = self.staging.child("new_content")
         staged.setContent(dummy_content)
 
-        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged)
+        self.filesystem.mark_overwrite("sub/dir/foo", 12345, staged, None)
 
         self.assertThat(
             self.magic.child("sub").exists(),
@@ -1785,7 +1959,7 @@ class FilesystemModificationTests(SyncTestCase):
         # where we wanted a directory .. perhaps there should be a
         # better / different answer?
         with ExpectedException(RuntimeError, ".*not a directory.*"):
-            self.filesystem.mark_overwrite("sub/foo", 12345, staged)
+            self.filesystem.mark_overwrite("sub/foo", 12345, staged, None)
         self.assertThat(
             self.magic.child("sub"),
             MatchesAll(

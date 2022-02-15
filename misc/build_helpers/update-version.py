@@ -11,7 +11,7 @@
 # Any "options" are hard-coded in here (e.g. the GnuPG key to use)
 #
 
-author = "meejah@meejah.ca"
+author = "meejah <meejah@meejah.ca>"
 
 
 import sys

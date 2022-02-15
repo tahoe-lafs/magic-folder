@@ -32,11 +32,17 @@ from twisted.application.internet import (
 from .util.file import (
     get_pathinfo,
 )
+from .downloader import (
+    BackupRetainedError,
+)
 
 
 def _last_one(things):
     """
-    Used as a 'collector' for some Automat state transitions.
+    Used as a 'collector' for some Automat state transitions. Usually
+    the only interesting object comes from the final output (and using
+    this collector indicates that).
+
     :returns: the last thing in the iterable
     """
     return list(things)[-1]
@@ -376,7 +382,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _download_matches(self, snapshot, staged_path):
+    def _download_matches(self, snapshot, staged_path, local_pathstate):
         """
         The local file (if any) matches what we expect given database
         state
@@ -555,6 +561,10 @@ class MagicFile(object):
         except KeyError:
             current_pathstate = None
 
+        # we give this downstream to the mark-overwrite, ultimately,
+        # so it can double-check that there was no last-millisecond
+        # change to the local path (note local_pathinfo.state will be
+        # None if there is no file at all here)
         local_pathinfo = get_pathinfo(self._path)
 
         # if we got a local-update during the "download" branch, we
@@ -579,7 +589,7 @@ class MagicFile(object):
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
-        self._call_later(self._download_matches, snapshot, staged_path)
+        self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -611,15 +621,24 @@ class MagicFile(object):
         return
 
     @_machine.output()
-    def _perform_remote_update(self, snapshot, staged_path):
+    def _perform_remote_update(self, snapshot, staged_path, local_pathstate):
         """
         Resolve a remote update locally
+
+        :param PathState local_pathstate: the PathState of the local
+            file as it existed _right_ before we concluded it was fine
+            (None if there was no local file before now)
         """
-        # there is a longer dance described in detail in
+        # between when we checked for a local conflict while in the
+        # _download_checking_local and when we _actually_ overwrite
+        # the file (inside .mark_overwrite) there is an additional
+        # window for last-second changes to happen .. we do the
+        # equivalent of the dance described in detail in
         # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-        # which may do even better at reducing the window for local
-        # changes to get overwritten. Currently, that window is the 3
-        # python statements between here and ".mark_overwrite()"
+        # although that spec doesn't include when to remove the
+        # ".backup" files -- we use local_pathstate to double-check
+        # that.
+
         if snapshot.content_cap is None:
             self._factory._magic_fs.mark_delete(snapshot.relpath)
             path_state = None
@@ -629,6 +648,7 @@ class MagicFile(object):
                     snapshot.relpath,
                     snapshot.metadata["modification_time"],
                     staged_path,
+                    local_pathstate,
                 )
             except OSError as e:
                 self._factory._folder_status.error_occurred(
@@ -637,6 +657,24 @@ class MagicFile(object):
                 with self._action.context():
                     write_traceback()
                 self._call_later(self._fatal_error_download, snapshot)
+                return
+            except BackupRetainedError as e:
+                # this means that the mark_overwrite() code has
+                # noticed some mismatch to the replaced file or its
+                # .snaptmp version -- so this is a conflict, but we
+                # didn't detect it in the _download_check_local since
+                # it happened in the window _after_ that check.
+                self._factory._folder_status.error_occurred(
+                    "Unexpected content in '{}': {}".format(snapshot.relpath, str(e))
+                )
+                with self._action.context():
+                    write_traceback()
+                # mark as a conflict -- we use the retained tmpfile as
+                # the original "staged" path here, causing "our"
+                # emergency data to be in the conflict file .. maybe
+                # this should just be the original tmpfile and we
+                # shouldn't mess with it further?
+                self._call_later(self._download_mismatch, snapshot, e.path)
                 return
 
         # Note, if we crash here (after moving the file into place but
@@ -792,6 +830,7 @@ class MagicFile(object):
                 )
                 delay_amt = next(retry_delay_sequence)
                 delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
+                delay.addCallback(got_remote)
                 delay.addErrback(upload_error, snap)
                 return delay
 
@@ -1103,6 +1142,8 @@ class MagicFile(object):
         outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
+
+    # downloader updates
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
@@ -1119,6 +1160,16 @@ class MagicFile(object):
         _fatal_error_download,
         enter=_failed,
         outputs=[_status_download_finished, _done_working],
+        collector=_last_one,
+    )
+    # this is the "last-minute" conflict window -- that is, when
+    # .mark_overwrite() determines something wrote to the tempfile (or
+    # wrote to the "real" file immediately after the state-machine
+    # check)
+    _updating_personal_dmd_download.upon(
+        _download_mismatch,
+        enter=_conflicted,
+        outputs=[_mark_download_conflict, _status_download_finished, _done_working],
         collector=_last_one,
     )
 

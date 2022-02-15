@@ -21,32 +21,32 @@ docutils==0.18.1 \
     --hash=sha256:23010f129180089fbcd3bc08cfefccb3b890b0050e1ca00c867036e9d161b98c \
     --hash=sha256:679987caf361a7539d76e584cbeddc311e3aee937877c87346f31debc63e9d06
     # via readme-renderer
-dulwich==0.20.30 \
-    --hash=sha256:10e7930236e9be118bd3ac5650188efc4bba4d504bbce0b534d59a728ef2672b \
-    --hash=sha256:2998e950e899d564f7b96679384e6083696f9006f8e5d9d17178180733fdcadd \
-    --hash=sha256:35bb491f5d9961af6e5ff04344d23973452afaa3686faef8582506049e0fa148 \
-    --hash=sha256:3b023c6e93b3d3c5d2634d3137cb5e1ae562602c4168df0e979675efeafde1f5 \
-    --hash=sha256:3b476b338ada4654a881ad3af1946e373609e19726e112b6cd980a0a7a8a1428 \
-    --hash=sha256:42c090a96bf617ba198611257b0333b07c37bce6975fb4c090b32e309c534e41 \
-    --hash=sha256:45c4c8d24cd40633cddd4198ff1d63875e4373301b38b34d0027164f87831a7b \
-    --hash=sha256:46c1e26810f87bfd7a3658366499bceb47399f1f5f1cc8e13333e493ad555a7c \
-    --hash=sha256:49d2999deaebbb91568c2f99e478117ffb46ee16ef4138d606990a89d25a4611 \
-    --hash=sha256:4aabc6b704f6e5c6f874f8d4ef818b0b39e9cd997a22e5959bdc09357f7e5106 \
-    --hash=sha256:5408b95e1927f5446cc2b784a81a51048091d06356075049687dbd85336824c4 \
-    --hash=sha256:5682bb5b4da89f571a6ded65bd8a570ccb90dd6d402bf7ca22f1182ef2a32ada \
-    --hash=sha256:66f886b314f4fb0e3d8defe9e78f3ff9ddc5a9db85780bc0f91456267ebeabaa \
-    --hash=sha256:98fca502ab62405b50be389e056d827b4645746ef02541e42a5ef24b1ac6cd41 \
-    --hash=sha256:a92df4f612984e5d37356f3e02b5864a4ad740b790f83e5510fa91cc14acedae \
-    --hash=sha256:ad7b04706f197b0c39e63635a6c2c53adcc41755dd341a24ba034ea2a432a2d5 \
-    --hash=sha256:bdbc80809a0d211ccb160eb0a5a699b9a0c51c8bfcb0b87fe2d34c40e3e68d45 \
-    --hash=sha256:cd979fe0b83b4157ef5558b51e872386b3141af5c6268baa6a24224446bf45c8 \
-    --hash=sha256:d287fdd8a067ffc26b0f914b930e3e42189aeebd952d88aa5cf4a8df66b93604 \
-    --hash=sha256:e05f81dde255cd95a7e139f7e6a590f4c734a7c57b6f7f8fba4c201564883a67 \
-    --hash=sha256:f7b785b2adf497a73b77b0d66a823ea55154576207f00623ebb8ef89b38cabd3
+dulwich==0.20.32 \
+    --hash=sha256:16cfe93d29f95cefad66bffe8c170acf30243a7e56aef75cffeb0ef6cf9e4973 \
+    --hash=sha256:16fc4e78ada02d77e544fd608f07ba408149ec69fc6ef1fa7fa7f1659607a1a7 \
+    --hash=sha256:37ae7904a8bc1e3a8f7895d721ea253446d3eba10664007ee31eda1cf5e7522b \
+    --hash=sha256:38d33bce2ca8ab14373dc363a8930f0d0b9fc68b6e8a9ea2091fa43f1a17fd71 \
+    --hash=sha256:3b7d052650919590283cb8bd9f30e9ec7b0ab5778ab4aea90fe8e491386de458 \
+    --hash=sha256:440375b238cd9b4ce41ca479632205036ac6eedffe9b7b416afd53b67aeab365 \
+    --hash=sha256:462ce6fbeca5270212539f7cde141185561627c5d50e0eec8fa6d2c385dde062 \
+    --hash=sha256:47b0d2f1faec23f813d1a20b789c6dd20f9d63d8eda56ee739d01bcf743e196e \
+    --hash=sha256:67431bac92d543ca39b90388c7f8bd70496717ab146cb9e266c844e6ef7ca9aa \
+    --hash=sha256:84c042b1d64f6a0a073f3d5ced9e2bcbdbd373484754cb79b9cf7d8f01708c75 \
+    --hash=sha256:86a2efbf45691bbb84b1b193b3bfb1450a87daf670ad5de5b423740c62a18bef \
+    --hash=sha256:90205e53c2f6cd6b626d6110fc001220abbd19b187a35ecb78790723be98d4ff \
+    --hash=sha256:99138609fae8cdba5f8abbeb6090019b5caaf61c24bfda52c65bac69c0f30e61 \
+    --hash=sha256:bf4828913fd2380935e46826eef25bebc9083ccf3e41562e77fd3aef9d7b837a \
+    --hash=sha256:d4236e0e2c9887acd20e49ce5be1f79e78db318bc6533715efa447df2a0e1d44 \
+    --hash=sha256:dc5498b072bdc12c1effef4b6202cd2a4542bb1c6dbb4ddcfc8c6d53e08b488c \
+    --hash=sha256:e7059d7816b560a534278e07071604f38a77772d1cc0eb2d97217c429704e6a4 \
+    --hash=sha256:ef88cd018d577d6b7154b5876b42e3a377db3419d8f62b06167a6e21f00d6ac3 \
+    --hash=sha256:f8c27a526fadd76a1b46606102a248fbc59224632a98a8f228f28d553b422af7 \
+    --hash=sha256:fc04ba51cdd54beb3d4c2ed01c0644a76393616dd3f90a42373d3f9c3a3a2395 \
+    --hash=sha256:fd7450c84e4a976aa5a07e8065ae5be4763998ee668a981b6e66c00e124bfe1f
     # via -r requirements/build.in
-importlib-metadata==4.10.1 \
-    --hash=sha256:899e2a40a8c4a1aec681feef45733de8a6c58f3f6a0dbed2eb6574b4387a77b6 \
-    --hash=sha256:951f0d8a5b7260e9db5e41d429285b5f451e928479f19d80818878527d36e95e
+importlib-metadata==4.11.0 \
+    --hash=sha256:6affcdb3aec542dd98df8211e730bba6c5f2bec8288d47bacacde898f548c9ad \
+    --hash=sha256:9e5e553bbba1843cb4a00823014b907616be46ee503d2b9ba001d214a8da218f
     # via
     #   keyring
     #   twine
@@ -149,9 +149,9 @@ pygments==2.11.2 \
     --hash=sha256:44238f1b60a76d78fc8ca0528ee429702aae011c265fe6a8dd8b63049ae41c65 \
     --hash=sha256:4e426f72023d88d03b2fa258de560726ce890ff3b630f88c21cbb8b2503b8c6a
     # via readme-renderer
-pyparsing==3.0.6 \
-    --hash=sha256:04ff808a5b90911829c55c4e26f75fa5ca8a2f5f36aa3a51f68e27033341d3e4 \
-    --hash=sha256:d9bdec0013ef1eb5a84ab39a3b3868911598afa494f5faa038647101504e2b81
+pyparsing==3.0.7 \
+    --hash=sha256:18ee9022775d270c55187733956460083db60b37d0d0fb357445f3094eed3eea \
+    --hash=sha256:a6c06a88f252e6c322f65faf8f418b16213b51bdfaece0524c1c1bc30c63c484
     # via packaging
 readme-renderer==32.0 \
     --hash=sha256:a50a0f2123a4c1145ac6f420e1a348aafefcc9211c846e3d51df05fe3d865b7d \
@@ -171,25 +171,23 @@ secretstorage==3.3.1 \
     --hash=sha256:422d82c36172d88d6a0ed5afdec956514b189ddbfb72fefab0c8a1cee4eaf71f \
     --hash=sha256:fd666c51a6bf200643495a04abb261f83229dcb6fd8472ec393df7ffc8b6f195
     # via keyring
-setuptools-scm==6.4.0 \
-    --hash=sha256:54f5b1dcccd28e7813236609e620671f23d548548d744270a07d8df6df623649 \
-    --hash=sha256:cd3906321824191cfd6972c1a8ad6f5171b49edc5996eba14bcbd33e98fb1ebe
+setuptools-scm==6.4.2 \
+    --hash=sha256:6833ac65c6ed9711a4d5d2266f8024cfa07c533a0e55f4c12f6eff280a5a9e30 \
+    --hash=sha256:acea13255093849de7ccb11af9e1fb8bde7067783450cee9ef7a93139bddf6d4
     # via -r requirements/build.in
-toml==0.10.2 \
-    --hash=sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b \
-    --hash=sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f
-    # via towncrier
-tomli==2.0.0 \
-    --hash=sha256:b5bde28da1fed24b9bd1d4d2b8cba62300bfb4ec9a6187a957e8ddb9434c5224 \
-    --hash=sha256:c292c34f58502a1eb2bbb9f5bbc9a5ebc37bee10ffb8c2d6bbdfa8eb13cc14e1
-    # via setuptools-scm
-towncrier==21.3.0 \
-    --hash=sha256:6eed0bc924d72c98c000cb8a64de3bd566e5cb0d11032b73fcccf8a8f956ddfe \
-    --hash=sha256:e6ccec65418bbcb8de5c908003e130e37fe0e9d6396cb77c1338241071edc082
+tomli==2.0.1 \
+    --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc \
+    --hash=sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f
+    # via
+    #   setuptools-scm
+    #   towncrier
+towncrier==21.9.0 \
+    --hash=sha256:9cb6f45c16e1a1eec9d0e7651165e7be60cd0ab81d13a5c96ca97a498ae87f48 \
+    --hash=sha256:fc5a88a2a54988e3a8ed2b60d553599da8330f65722cc607c839614ed87e0f92
     # via -r requirements/build.in
-twine==3.7.1 \
-    --hash=sha256:28460a3db6b4532bde6a5db6755cf2dce6c5020bada8a641bb2c5c7a9b1f35b8 \
-    --hash=sha256:8c120845fc05270f9ee3e9d7ebbed29ea840e41f48cd059e04733f7e1d401345
+twine==3.8.0 \
+    --hash=sha256:8efa52658e0ae770686a13b675569328f1fba9837e5de1867bfe5f46a9aefe19 \
+    --hash=sha256:d0550fca9dc19f3d5e8eadfce0c227294df0a2a951251a4385797c8a6198b7c8
     # via -r requirements/build.in
 webencodings==0.5.1 \
     --hash=sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78 \
