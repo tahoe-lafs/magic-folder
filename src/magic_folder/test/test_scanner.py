@@ -37,7 +37,11 @@ from ..snapshot import (
     create_local_author,
 )
 from ..status import FolderStatus, WebSocketStatusService
-from ..util.file import PathState, get_pathinfo
+from ..util.file import (
+    PathState,
+    get_pathinfo,
+    seconds_to_ns,
+)
 from ..util.capabilities import (
     random_dircap,
     random_immutable,
@@ -496,7 +500,10 @@ class FindUpdatesTests(SyncTestCase):
             content_path=stash.child(relpath),
             parents_local=[],
         )
-        self.config.store_local_snapshot(local_snap)
+        self.config.store_local_snapshot(
+            local_snap,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
         files = []
 
