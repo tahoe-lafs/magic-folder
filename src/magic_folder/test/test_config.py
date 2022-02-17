@@ -570,7 +570,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
             succeeded(Always()),
         )
 
-        self.db.store_local_snapshot(snapshots[0])
+        self.db.store_local_snapshot(
+            snapshots[0],
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
         # now modify the same file and create a new local snapshot
         data2 = BytesIO(content2)
@@ -586,7 +589,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
 
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
-        self.db.store_local_snapshot(snapshots[1])
+        self.db.store_local_snapshot(
+            snapshots[1],
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
         # now read back the serialized snapshot from db
         reconstructed_local_snapshot = self.db.get_local_snapshot(filename)
@@ -647,7 +653,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
         with ExpectedException(LocalSnapshotMissingParent):
-            self.db.store_local_snapshot(snapshots[1])
+            self.db.store_local_snapshot(
+                snapshots[1],
+                PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+            )
 
     @given(
         local_snapshots(),
@@ -658,7 +667,10 @@ class StoreLocalSnapshotTests(SyncTestCase):
         ``MagicFolderConfig.get_local_snapshot`` raises ``KeyError`` for that
         snapshot's path.
         """
-        self.db.store_local_snapshot(snapshot)
+        self.db.store_local_snapshot(
+            snapshot,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
         self.db.delete_all_local_snapshots_for(snapshot.relpath)
         with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
             self.db.get_local_snapshot(snapshot.relpath)
@@ -703,7 +715,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             parents_local=[],
             parents_remote=[],
         )
-        self.db.store_local_snapshot(self.snap0)
+        self.db.store_local_snapshot(
+            self.snap0,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
         self.snap1 = LocalSnapshot(
             relpath="foo",
@@ -713,7 +728,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             parents_local=[self.snap0],
             parents_remote=[],
         )
-        self.db.store_local_snapshot(self.snap1)
+        self.db.store_local_snapshot(
+            self.snap1,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
         self.snap2 = LocalSnapshot(
             relpath="foo",
@@ -723,7 +741,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             parents_local=[self.snap1],
             parents_remote=[],
         )
-        self.db.store_local_snapshot(self.snap2)
+        self.db.store_local_snapshot(
+            self.snap2,
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
 
     def test_delete_one_local_snapshot(self):
         """
