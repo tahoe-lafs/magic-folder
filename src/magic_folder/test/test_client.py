@@ -148,7 +148,6 @@ class MagicFolderClientTests(SyncTestCase):
             "http://invalid./v1/magic-folder/folder_name/join",
             json.dumps(
                 {
-                    "name": "folder_name",
                     "invite-code": "2-suspicious-penguin",
                     "local-directory": "/dev/null",
                     "author": "amy",
@@ -157,6 +156,6 @@ class MagicFolderClientTests(SyncTestCase):
                 }
             ).encode("utf-8"),
             {
-                b"Content-Length": [b"155"],
+                b"Content-Length": [b"132"],
             },
         )

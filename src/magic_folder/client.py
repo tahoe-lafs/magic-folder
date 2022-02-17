@@ -225,7 +225,6 @@ class MagicFolderClient(object):
             api_url,
             body=json.dumps(
                 {
-                    "name": magic_folder,
                     "invite-code": invite_code,
                     "local-directory": local_dir.asTextMode().path,
                     "author": author,

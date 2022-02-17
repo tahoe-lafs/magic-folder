@@ -499,16 +499,16 @@ class APIv1(object):
         The body of the request must be a JSON dict that has the
         following keys:
 
-        - "name": arbitrary, valid magic folder name
         - "invite-code": wormhole code
         - "local-directory": absolute path of an existing local directory to synchronize files in
         - "author": arbitrary, valid author name
         - "poll-interval": seconds between remote update checks
         - "scan-interval": seconds between local update checks
+
+        The "name" for the folder comes from the URI.
         """
         body = _load_json(request.content.read())
         required_keys = {
-            u"name",
             u"invite-code",
             u"local-directory",
             u"author",
@@ -537,7 +537,7 @@ class APIv1(object):
         try:
             reply = yield self._global_service.join_folder(
                 wormhole_code=body["invite-code"],
-                folder_name=body["name"],
+                folder_name=folder_name,
                 author_name=body["author"],
                 local_dir=local_dir,
                 poll_interval=int(body["poll-interval"]),

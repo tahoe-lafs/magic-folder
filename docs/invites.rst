@@ -72,7 +72,7 @@ Inviting Bob
 ~~~~~~~~~~~~
 
 To invite a new participant, Alice needs to send a piece of information and receive a piece of information.
-This is accomplished by connecting to the other device by means of `Magic Wormhole <http://magic-wormhole.io>`_.
+This is accomplished by communicating to the other device by means of `Magic Wormhole <http://magic-wormhole.io>`_.
 Since the pieces of information that we exchange are small, we do not need a "bulk transfer" connection and can send the data via the Magic Wormhole "mailbox" server .. so both deviecs don't strictly need to be online at the same time.
 Note that mailbox allocations "time out" so at least one side has to contact the mailbox server within this timeout window.
 
@@ -124,7 +124,6 @@ Bob creates a message to send back to Alice encrypted using the shared secret (a
         "personal-dmd": "<read-capability of Bob's Personal DMD>",
     }
 
-This concludes the invitation process.
 Bob will not close the wormhole; that will be done by Alice.
 Bob may accept the invite with the command-line::
 
@@ -143,8 +142,7 @@ If Bob wishes to reject the connection, a reject message is sent back (not imple
 Finalizing the Invite
 ~~~~~~~~~~~~~~~~~~~~~
 
-Once Alice receives Bob's reply message the wormhole is closed (by Alice, not Bob).
-Alice adds Bob to the Collective DMD.
+Once Alice receives Bob's reply message Alice adds Bob to the Collective DMD.
 
 Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability.
 In this case, ``bob -> <Bob's Personal DMD>``.
@@ -165,10 +163,11 @@ Looking at the whole process from the magic-wormhole perspective, this is what h
 - Bob: uses the wormhole code to complete the SPAKE2 handshake.
 - Bob: retrieves the first invite message.
 - Bob: creates Personal DMD
-- Bob: sends the invite reply ``{"personal-dmd": "...", "preferred-petname": "bobby"}``
+- Bob: sends the invite reply ``{"personal-dmd": "...", }``
 - Alice: retrieves the invite reply.
-- Alice: closes the wormhole.
 - Alice: writes a new entry in the Collective DMD (pointing at Bob's Personal DMD read-capability)
+- Alice: sends confirmation message ``{"success": true, "petname": "...", }``
+- Alice: closes the wormhole.
 
 
 Invite HTTP API
@@ -182,8 +181,8 @@ We describe endpoints below this.
 POST .../invite
 ~~~~~~~~~~~~~~~
 
-Accepts a JSON body containing keys: `suggested-petname`.
-This should be a free-form string suggesting a name for this participant.
+Accepts a JSON body containing keys: `petname`.
+This should be a free-form string with the name for this participant.
 Once the invite is created and a Wormhole code is successfully allocated a reply is rendered.
 The reply is a JSON serialization of the invite::
 
@@ -201,7 +200,7 @@ POST .../invite-wait
 
 Accepts a JSON body containing keys: `id`.
 The `id` is the UUID of an existing invite.
-This endpoint will wait until the invite is consumed and then return code 200 with the serialized JSON of the invite (as above) or an error.
+This endpoint will wait until the invite is consumed and then return code 200 with the serialized JSON of the invite (as above) or a 400 error.
 
 
 GET .../invites
@@ -213,18 +212,18 @@ Currently invites are ephemeral but aren't deleted, so this will be all invites 
 Note that `wormhole-code` may be `null` for consumed invites or extremely-recently created invites that haven't yet allocated a code.
 
 
-POST .../accept-invite
-~~~~~~~~~~~~~~~~~~~~~~
+POST .../join
+~~~~~~~~~~~~~
 
 This is for the client receiving an invite.
 This endpoint will accept an invite and create a new magic-folder joined to it.
 Takes a JSON body containing the following keys:
 
-- `name`: arbitrary, valid magic folder name
 - `invite-code`: the Wormhole code from the inviter
 - `local-directory`: absolute path of an existing local directory to synchronize files in
 - `author`: arbitrary, valid author name
 - `poll-interval`: seconds between remote update checks
 - `scan-interval`: seconds between local update checks
 
+(The `name` for the folder comes from the URI).
 When the endpoint returns (code 200, empty JSON), the new folder will be added and its services will be running.
