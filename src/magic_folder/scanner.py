@@ -21,7 +21,6 @@ from twisted.internet.task import (
 )
 
 from .status import (
-    IStatus,
     ScannerStatus,
 )
 from .util.file import (
