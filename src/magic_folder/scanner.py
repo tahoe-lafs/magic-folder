@@ -16,9 +16,18 @@ from twisted.application.service import MultiService
 from twisted.internet.defer import (
     DeferredLock,
 )
-from twisted.internet.task import Cooperator
+from twisted.internet.task import (
+    Cooperator,
+)
 
-from .util.file import get_pathinfo
+from .status import (
+    IStatus,
+    ScannerStatus,
+)
+from .util.file import (
+    get_pathinfo,
+    seconds_to_ns,
+)
 from .util.twisted import (
     exclusively,
     PeriodicService,
@@ -52,7 +61,8 @@ class ScannerService(MultiService):
 
     _config = attr.ib()
     _file_factory = attr.ib()
-    _status = attr.ib()
+    # "tests" and "relative_proxy_for" don't play nicely w/ validator
+    _status = attr.ib()  #validator=attr.validators.provides(IStatus))
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _clock = attr.ib()
@@ -122,6 +132,11 @@ class ScannerService(MultiService):
         """
         try:
             yield self._scan()
+            self._status.scan_status(
+                ScannerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
         except Exception:
             write_traceback()
 
