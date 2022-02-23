@@ -24,6 +24,7 @@ from twisted.application import (
 from .util.file import (
     seconds_to_ns,
     ns_to_seconds,
+    ns_to_seconds_float,
 )
 
 
@@ -43,6 +44,42 @@ class TahoeStatus:
         return self.is_connected and (self.connected >= self.desired)
 
 
+@attr.s(frozen=True)
+class ScannerStatus:
+    """
+    Represents the current status of the scanner
+    """
+    # epoch, in nanoseconds, of the last completed run's end or None
+    # if one isn't complete
+    last_completed = attr.ib()
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "last-scan": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+        }
+
+
+@attr.s(frozen=True)
+class PollerStatus:
+    """
+    Represents the current status of the poller
+    """
+    # epoch, in nanoseconds, of the last completed run's end or None
+    # if one isn't complete yet
+    last_completed = attr.ib()
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "last-poll": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+        }
+
+
 class IStatus(Interface):
     """
     An internal API for services to report realtime status
@@ -54,6 +91,18 @@ class IStatus(Interface):
         """
         Update the status of our Tahoe-LAFS connection.
         :param TahoeStatus status: the current status
+        """
+
+    def scan_status(folder, status):
+        """
+        :param str folder: folder name
+        :param ScannerStatus: the status
+        """
+
+    def poll_status(folder, status):
+        """
+        :param str folder: folder name
+        :param PollerStatus: the status
         """
 
     def error_occurred(folder, message):
@@ -191,6 +240,8 @@ def _create_blank_folder_state():
         "downloads": {},
         "recent": [],
         "errors": [],
+        "scanner": ScannerStatus(None),
+        "poller": PollerStatus(None),
     }
 
 
@@ -340,6 +391,8 @@ class WebSocketStatusService(service.Service):
                     "connected": self._tahoe.connected,
                     "desired": self._tahoe.desired,
                 },
+                "scanner": self._folders.get(name, {"scanner": ScannerStatus(None)})["scanner"].to_json(),
+                "poller": self._folders.get(name, {"poller": PollerStatus(None)})["poller"].to_json(),
             }
 
         return json.dumps({
@@ -389,6 +442,20 @@ class WebSocketStatusService(service.Service):
         if status != self._tahoe:
             self._tahoe = status
             self._maybe_update_clients()
+
+    def scan_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["scanner"] = status
+        self._maybe_update_clients()
+
+    def poll_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["poller"] = status
+        self._maybe_update_clients()
 
     def error_occurred(self, folder, message):
         """
@@ -508,6 +575,7 @@ def relative_proxy_for(iface, original, relative):
     return decorator
 
 
+@implementer(IStatus)
 @relative_proxy_for(IStatus, "_status", "folder")
 @attr.s
 class FolderStatus(object):

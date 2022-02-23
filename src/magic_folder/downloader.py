@@ -47,6 +47,7 @@ from .snapshot import (
 )
 from .status import (
     IStatus,
+    PollerStatus,
 )
 from .util.file import (
     PathState,
@@ -499,6 +500,12 @@ class RemoteScannerService(service.MultiService):
     def _loop(self):
         try:
             yield self._poll_collective()
+            self._status.poll_status(
+                self._config.name,
+                PollerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
         except Exception:
             # in some cases, might want to surface elsewhere
             write_traceback()

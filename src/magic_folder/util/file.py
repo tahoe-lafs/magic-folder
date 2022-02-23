@@ -46,7 +46,7 @@ def seconds_to_ns(t):
 def ns_to_seconds(t):
     """
     :param int t: nanoseconds
-    :returns float: the seconds representation of 't'
+    :returns int: the seconds representation of 't'
     """
     if t is None:
         return None

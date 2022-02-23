@@ -250,7 +250,7 @@ Upon connecting, a new client will immediately receive a "state" message::
                             "relpath": "foo"
                             "conflicted": false,
                             "modified": 1634431697,
-                            "last-updated": 1634431700,
+                            "last-updated": 1634431700
                         }
                     ]
                 }
@@ -260,6 +260,12 @@ Upon connecting, a new client will immediately receive a "state" message::
                 "connected": 3,
                 "happy": true,
                 "desired": 2
+            },
+            "scanner": {
+                "last-scan": 1634431700.1234
+            },
+            "poller": {
+                "last-poll": null
             }
         }
     }
@@ -290,6 +296,10 @@ The state for each folder consists of the following information:
     - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
     - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
     - ``"conflicted"``: a boolean indicating if there is a conflict for this relative path
+  - ``"scanner"`` contains information about the local changes scanner
+    - ``"last-scan"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
+  - ``"poller"`` contains information about the remote changes poller
+    - ``"last-poll"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
 
 Clients should be tolerant of keys in the state they don't understand.
 Unknown state keys should be ignored.
