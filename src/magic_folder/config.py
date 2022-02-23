@@ -272,12 +272,6 @@ DELETE_SNAPSHOTS = ActionType(
     u"Delete the row corresponding to the given path from the local snapshot table.",
 )
 
-FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
-    u"config:state-db:get-remote-snapshot-entry",
-    [RELPATH],
-    [],
-    u"Delete the row corresponding to the given path from the local snapshot table.",
-)
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
     [str],
@@ -910,11 +904,14 @@ class MagicFolderConfig(object):
         )
 
     @with_cursor
-    def store_local_snapshot(self, cursor, snapshot):
+    def store_local_snapshot(self, cursor, snapshot, path_state):
         """
         Store or update the given local snapshot.
 
         :param LocalSnapshot snapshot: The snapshot to store.
+
+        :param PathState path_state: Status of the on-disk data (can be
+            None if there is nothing on disk, i.e. a delete).
         """
         # Ensure that the local parent snapshots are already in the database.
         for parent in snapshot.parents_local:
@@ -998,6 +995,10 @@ class MagicFolderConfig(object):
                 )
             ],
         )
+
+        # record the PathState (path_state can be None here in case of
+        # a delete, but the called method handles that)
+        self.store_currentsnapshot_state.__wrapped__(self, cursor, snapshot.relpath, path_state)
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
@@ -1328,19 +1329,15 @@ class MagicFolderConfig(object):
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
-        )
-        with action:
-            cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [relpath]=?",
-                           (relpath,))
-            row = cursor.fetchone()
-            if row and row[0] is not None:
-                return Capability.from_string(row[0])
-            # XXX weird to have "KeyError" if snapshot_cap is there,
-            # but null _as well_ as when the row is simply missing.
-            raise KeyError(relpath)
+        cursor.execute("SELECT snapshot_cap FROM current_snapshots"
+                       " WHERE [relpath]=?",
+                       (relpath,))
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return Capability.from_string(row[0])
+        # XXX weird to have "KeyError" if snapshot_cap is there,
+        # but null _as well_ as when the row is simply missing.
+        raise KeyError(relpath)
 
 
     @with_cursor
@@ -1354,31 +1351,27 @@ class MagicFolderConfig(object):
 
         :returns: A 3-tuple of (snapshot-cap, content-cap, metadata-cap)
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
+        cursor.execute(
+            """
+            SELECT
+                snapshot_cap, content_cap, metadata_cap
+            FROM
+                current_snapshots
+            WHERE
+                [relpath]=?
+            """,
+            (relpath,)
         )
-        with action:
-            cursor.execute(
-                """
-                SELECT
-                    snapshot_cap, content_cap, metadata_cap
-                FROM
-                    current_snapshots
-                WHERE
-                    [relpath]=?
-                """,
-                (relpath,)
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return (
+                Capability.from_string(row[0]),  # snapshot-cap
+                None if row[1] is None else Capability.from_string(row[1]),  # content-cap
+                Capability.from_string(row[2]),  # metadata-cap
             )
-            row = cursor.fetchone()
-            if row and row[0] is not None:
-                return (
-                    Capability.from_string(row[0]),  # snapshot-cap
-                    None if row[1] is None else Capability.from_string(row[1]),  # content-cap
-                    Capability.from_string(row[2]),  # metadata-cap
-                )
-            # XXX kind of weird to throw KeyError for things we know
-            # abou, but the snapshot_cap is still null...
-            raise KeyError(relpath)
+        # XXX kind of weird to throw KeyError for things we know
+        # abou, but the snapshot_cap is still null...
+        raise KeyError(relpath)
 
     @with_cursor
     def get_currentsnapshot_pathstate(self, cursor, relpath):
@@ -1392,19 +1385,15 @@ class MagicFolderConfig(object):
 
         :returns int: the timestamp of the remotesnapshot
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
+        cursor.execute(
+            "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
+            " WHERE [relpath]=?",
+            (relpath,),
         )
-        with action:
-            cursor.execute(
-                "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
-                " WHERE [relpath]=?",
-                (relpath,),
-            )
-            row = cursor.fetchone()
-            if row:
-                return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
-            raise KeyError(relpath)
+        row = cursor.fetchone()
+        if row:
+            return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
+        raise KeyError(relpath)
 
     @with_cursor
     def get_all_current_snapshot_pathstates(self, cursor):

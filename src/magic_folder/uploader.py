@@ -162,10 +162,8 @@ class LocalSnapshotCreator(object):
                 if input_stream:
                     input_stream.close()
 
-            # store the local snapshot to the disk
-            # FIXME: should be in a transaction
-            self._db.store_local_snapshot(snapshot)
-            self._db.store_currentsnapshot_state(relpath, path_info.state)
+            # store the local snapshot to the database
+            self._db.store_local_snapshot(snapshot, path_info.state)
             returnValue(snapshot)
 
 
