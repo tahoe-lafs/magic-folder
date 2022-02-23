@@ -47,3 +47,8 @@ klein>=20.6.0
 # Loading old magic-folders config for migration
 # Minimum version is the version packaged in the nix snapshot we use.
 #PyYAML >= 5.1.1
+
+# used for double-checking if a process is actually running when our
+# PID-file still exists (we already transitively depend on psutil in
+# any case)
+psutil >= 5.8.0

@@ -1,4 +1,6 @@
+import os
 import sys
+import atexit
 import getpass
 from io import StringIO
 
@@ -8,6 +10,8 @@ from appdirs import (
 from base64 import (
     urlsafe_b64decode,
 )
+
+import psutil
 
 from twisted.internet import defer
 from twisted.internet.task import (
@@ -564,8 +568,32 @@ def run(options):
         FileLogObserver(options.stdout, event_to_string),
     ])
 
-    # start the daemon services
+    # check if we have another instance running already
     config = options.parent.config
+    pidfile = config.basedir.child("pid")
+    if pidfile.exists():
+        print("{}: exists..".format(pidfile.path))
+        with pidfile.open("r") as f:
+            pid = int(f.read().decode("utf8").strip())
+        if pid in psutil.pids():
+            print("An existing magic-folder process is running as process {}".format(pid))
+            return
+        else:
+            print("The PID-file refers to a process that isn't running; removing the file")
+            pidfile.remove()
+
+    # arrange to get rid of our PID-file
+    def remove_pid(pidfile):
+        # delete our pid-file
+        pidfile.remove()
+    atexit.register(remove_pid, pidfile)
+
+    # write our PID to the pid-file
+    pid = os.getpid()
+    with pidfile.open("w") as f:
+        f.write("{}\n".format(pid).encode("utf8"))
+
+    # start the daemon services
     service = MagicFolderService.from_config(reactor, config)
     return service.run()
 
