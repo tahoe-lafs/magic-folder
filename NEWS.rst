@@ -5,6 +5,21 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.2.1 (2022-02-23)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- The status API now shows last-scan and last-poll timestamps (`#646 <https://github.com/LeastAuthority/magic-folder/issues/646>`_)
+
+
+Misc/Other
+----------
+
+- `#642 <https://github.com/LeastAuthority/magic-folder/issues/642>`_
+
+
 Magic_Folder 22.2.0 (2022-02-14)
 ''''''''''''''''''''''''''''''''
 
