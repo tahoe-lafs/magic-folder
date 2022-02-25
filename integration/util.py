@@ -989,7 +989,7 @@ def await_file_contents(path, contents, timeout=15):
             except IOError:
                 print("IOError; trying again")
             else:
-                if current == contents:
+                if current is not None and current == contents:
                     return
                 print("  file contents still mismatched")
                 # annoying if we dump huge files to console
