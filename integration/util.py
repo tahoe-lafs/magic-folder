@@ -991,7 +991,7 @@ def await_file_contents(path, contents, timeout=15):
             else:
                 log_message(
                     message_type=u"integration:weirdness",
-                    got=type(current),
+                    got=u"{}".format(type(current)),
                 )
                 print("current={}".format(type(current)))
                 if current == contents:
