@@ -465,6 +465,7 @@ class _ProcessExitedProtocol(ProcessProtocol):
         self.done = Deferred()
 
     def processEnded(self, reason):
+        print("PROC END", reason)
         self.done.callback(None)
 
 
