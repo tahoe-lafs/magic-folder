@@ -966,7 +966,7 @@ class FileShouldVanishException(Exception):
         )
 
 
-@log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)
+@log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=("path", "timeout"))
 def await_file_contents(path, contents, timeout=15):
     """
     Return a deferred that fires when the file at `path` (any path-like
