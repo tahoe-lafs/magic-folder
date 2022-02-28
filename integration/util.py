@@ -988,6 +988,8 @@ def await_file_contents(path, contents, timeout=15):
                     current = f.read()
             except IOError:
                 print("IOError; trying again")
+            except Exception as e:
+                print("some other error: {}".format(e))
             else:
                 log_message(
                     message_type=u"integration:weirdness",
