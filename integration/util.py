@@ -983,6 +983,7 @@ def await_file_contents(path, contents, timeout=15):
     start_time = reactor.seconds()
     while reactor.seconds() - start_time < timeout:
         print("  waiting for '{}'".format(path))
+        print("  have files: {}".format(FilePath(path).parent().listdir()))
         if exists(path):
             try:
                 with open(path, 'rb') as f:
