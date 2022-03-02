@@ -711,6 +711,8 @@ async def test_stress_move(request, reactor, temp_filepath):
 
     try:
         for x in range(500):
+            tmp = dest.temporarySibling(".snaptmp")
+            dest.moveTo(tmp)
             stage.setContent(random.choice((content0, content1)))
             stage.moveTo(dest)
             await deferLater(reactor, 0.01, lambda: None)
