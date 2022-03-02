@@ -235,6 +235,8 @@ async def test_create_then_recover(request, reactor, temp_filepath, alice, bob, 
     content1 = non_lit_content("one")
     original_file.setContent(content1)
     await take_snapshot(alice, "original", relpath)
+    # XXX how to know if/when the second version is uploaded?
+    await twisted_sleep(reactor, 5)
 
     # create the 'recovery' magic-folder
     await bob.add("recovery", recover_folder.path)
@@ -318,13 +320,11 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
         content1 = non_lit_content("one")
         original_folder.child("fluffy").setContent(content1)
         await take_snapshot(alice, "internal", "fluffy")
-        await twisted_sleep(reactor, 5)
 
     finally:
         await bob.start_magic_folder()
 
-    # we should now see the only Snapshot we have in the folder appear
-    # in the 'recovery' filesystem
+    # new content should appear in the recovery system
     await await_file_contents(
         recover_folder.child("fluffy").path,
         content1,
