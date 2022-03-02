@@ -13,6 +13,7 @@ from eliot.twisted import (
 )
 import pytest
 import pytest_twisted
+from twisted.internet.task import LoopingCall, deferLater
 
 from magic_folder.util.capabilities import (
     Capability,
@@ -683,3 +684,37 @@ async def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot
         recover_folder.child("jerry").path,
         timeout=20,
     )
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_stress_move(request, reactor, temp_filepath):
+    """
+    Repeatedly move content over top of a file
+    """
+    dest = temp_filepath.child("dest")
+    stage = temp_filepath.child("stage")
+
+    content0 = non_lit_content("zero")
+    content1 = non_lit_content("once")
+
+    dest.setContent(content0)
+
+    def consider_contents():
+        with open(dest.path, 'rb') as f:
+            current = f.read()
+        assert current == content0 or current == content1, "mistmatched contents"
+    call = LoopingCall(consider_contents)
+    call.clock = reactor
+    call_d = call.start(0.1)
+    import random
+
+    try:
+        for x in range(500):
+            stage.setContent(random.choice((content0, content1)))
+            stage.moveTo(dest)
+            await deferLater(reactor, 0.01, lambda: None)
+
+    finally:
+        call.stop()
+        await call_d
