@@ -8,8 +8,16 @@ from twisted.python.filepath import (
     FilePath,
 )
 from testtools.matchers import (
+    Always,
     Equals,
     Contains,
+    ContainsDict,
+    MatchesListwise,
+    AllMatch,
+    HasLength,
+)
+from twisted.internet.testing import (
+    EventLoggingObserver,
 )
 
 from .common import (
@@ -55,3 +63,28 @@ class TestPidObserver(SyncTestCase):
                 str(ctx.exception),
                 Contains("existing magic-folder process")
             )
+
+    def test_not_running(self):
+        """
+        a pid-file refers to a non-running process
+        """
+        pidfile = FilePath(self.mktemp())
+        pidfile.setContent(b"0")
+        obs = EventLoggingObserver()
+        log = Logger()
+        log.observer = obs
+        with check_pid_process(pidfile, log):
+            pass
+
+        events = list(obs)
+
+        # both logged events should have a "pidpath" kwarg
+        self.assertThat(events, HasLength(2))
+        self.assertThat(
+            events,
+            AllMatch(
+                ContainsDict({
+                    "pidpath": Always(),
+                }),
+            )
+        )
