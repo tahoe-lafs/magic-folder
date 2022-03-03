@@ -13,6 +13,7 @@ from testtools.matchers import (
     Contains,
     ContainsDict,
     MatchesListwise,
+    AfterPreprocessing,
     AllMatch,
     HasLength,
 )
@@ -28,6 +29,22 @@ from ..pid import (
 )
 
 
+class _FakeProcess:
+    """
+    Enough of psutil.Process to test check_pid_process
+    """
+    running = True
+
+    def __init__(self, pid):
+        self.pid = pid
+
+    def cmdline(self):
+        return ["magic-folder"]
+
+    def terminate(self):
+        self.running = False
+
+
 class TestPidObserver(SyncTestCase):
     """
     Confirm operation of magic_folder.pid functions
@@ -39,7 +56,7 @@ class TestPidObserver(SyncTestCase):
         """
         pidfile = FilePath(self.mktemp())
         log = Logger()
-        with check_pid_process(pidfile, log):
+        with check_pid_process(pidfile, log, find_process=_FakeProcess):
             self.assertThat(
                 pidfile.exists(),
                 Equals(True),
@@ -51,18 +68,29 @@ class TestPidObserver(SyncTestCase):
 
     def test_existing(self):
         """
-        an existing pid-file is discovered
+        an existing pid-file is discovered and killed
         """
         pidfile = FilePath(self.mktemp())
         log = Logger()
-        with check_pid_process(pidfile, log):
-            with self.assertRaises(Exception) as ctx:
-                with check_pid_process(pidfile, log):
-                    pass
-            self.assertThat(
-                str(ctx.exception),
-                Contains("existing magic-folder process")
-            )
+        procs = []
+
+        def create_process(pid):
+            procs.append(_FakeProcess(pid))
+            return procs[-1]
+
+        with check_pid_process(pidfile, log, find_process=create_process):
+            with check_pid_process(pidfile, log, find_process=create_process):
+                pass
+
+        self.assertThat(
+            procs,
+            MatchesListwise([
+                AfterPreprocessing(
+                    lambda x: x.running,
+                    Equals(False)
+                ),
+            ])
+        )
 
     def test_not_running(self):
         """
@@ -87,4 +115,33 @@ class TestPidObserver(SyncTestCase):
                     "pidpath": Always(),
                 }),
             )
+        )
+
+    def test_kill(self):
+        """
+        a pid-file refers to a magic-folder process so it should be killed
+        """
+        pidfile = FilePath(self.mktemp())
+        pidfile.setContent(b"0")
+        obs = EventLoggingObserver()
+        log = Logger()
+        log.observer = obs
+
+        with check_pid_process(pidfile, log, find_process=_FakeProcess):
+            pass
+
+        events = list(obs)
+
+        # both logged events should have a "pidpath" kwarg
+        self.assertThat(events, HasLength(2))
+        self.assertThat(
+            events,
+            MatchesListwise([
+                ContainsDict({
+                    "pid": Equals(0),
+                }),
+                ContainsDict({
+                    "pidpath": Always(),
+                }),
+            ])
         )
