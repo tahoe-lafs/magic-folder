@@ -64,5 +64,3 @@ def check_pid_process(pidfile, log, find_process=None):
             pidfile=pidfile.path,
             err=e,
         )
-
-

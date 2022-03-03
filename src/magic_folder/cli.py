@@ -1,6 +1,4 @@
-import os
 import sys
-import atexit
 import getpass
 from io import StringIO
 
@@ -10,8 +8,6 @@ from appdirs import (
 from base64 import (
     urlsafe_b64decode,
 )
-
-import psutil
 
 from twisted.internet import defer
 from twisted.internet.task import (
