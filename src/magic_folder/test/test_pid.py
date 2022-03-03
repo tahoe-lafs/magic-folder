@@ -145,3 +145,27 @@ class TestPidObserver(SyncTestCase):
                 }),
             ])
         )
+
+    def test_kill_wrong_process(self):
+        """
+        a pid-file refers to a non-magic-folder process so it should not
+        be killed
+        """
+        pidfile = FilePath(self.mktemp())
+        pidfile.setContent(b"0")
+        obs = EventLoggingObserver()
+        log = Logger()
+        log.observer = obs
+
+        class _FakeNonMagicProcess(_FakeProcess):
+            def cmdline(self):
+                return ["init"]
+
+        with self.assertRaises(Exception) as ctx:
+            with check_pid_process(pidfile, log, find_process=_FakeNonMagicProcess):
+                pass
+
+        self.assertThat(
+            str(ctx.exception),
+            Contains("not killing"),
+        )
