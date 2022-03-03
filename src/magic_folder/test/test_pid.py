@@ -97,7 +97,7 @@ class TestPidObserver(SyncTestCase):
         a pid-file refers to a non-running process
         """
         pidfile = FilePath(self.mktemp())
-        pidfile.setContent(b"0")
+        pidfile.setContent(b"65537")  # "impossible" process-id .. right?
         obs = EventLoggingObserver()
         log = Logger()
         log.observer = obs
