@@ -424,12 +424,9 @@ class InMemoryInviteManager(service.Service):
     """
     A manager of Invites that keeps all state in memory (only).
     """
-
-    # XXX maybe better to have one of these per folder, so we can
-    # remember mf_config in class (we do, so we can ..)
-
     tahoe_client = attr.ib()  # magic_folder.tahoe_client.TahoeClient
     folder_status = attr.ib()  # magic_folder.status.FolderStatus
+    folder_config = attr.ib()  # magic_folder.config.MagicFolderConfig
     # "parent" from service.Service will be our MagicFolderService instance
     _invites = attr.ib(default=attr.Factory(dict))  # dict: uuid -> Invite
     _in_progress = attr.ib(default=attr.Factory(list))  # list[Deferred]
@@ -449,7 +446,7 @@ class InMemoryInviteManager(service.Service):
         """
         return self._invites[id_]
 
-    def create_invite(self, reactor, petname, mf_config, wh):
+    def create_invite(self, reactor, petname, wh):
         """
         Create a fresh invite and add it to ourselves.
 
@@ -468,7 +465,7 @@ class InMemoryInviteManager(service.Service):
         )
         self._invites[invite.uuid] = invite
 
-        d = invite.perform_invite(reactor, mf_config, self.tahoe_client)
+        d = invite.perform_invite(reactor, self.folder_config, self.tahoe_client)
         d.addCallback(self._invite_succeeded, d, invite)
         d.addErrback(self._invite_failed, d, invite)
         self._in_progress.append(d)

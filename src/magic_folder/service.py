@@ -426,7 +426,6 @@ class MagicFolderService(MultiService):
         invite = yield folder_service.invite_manager.create_invite(
             self.reactor,
             author_name,
-            folder_service.config,
             self._wormhole_factory(
                 appid=u"tahoe-lafs.org/magic-folder/invite",
                 relay_url=self.config.wormhole_uri,

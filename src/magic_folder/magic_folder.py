@@ -137,7 +137,7 @@ class MagicFolder(service.MultiService):
             client=tahoe_client,
             config=mf_config,
             name=name,
-            invite_manager=InMemoryInviteManager(tahoe_client, folder_status),
+            invite_manager=InMemoryInviteManager(tahoe_client, folder_status, mf_config),
             local_snapshot_service=local_snapshot_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=RemoteScannerService.from_config(
