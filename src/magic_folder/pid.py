@@ -1,4 +1,4 @@
-# Copyright 2020 Least Authority TFA GmbH
+# Copyright 2022 Least Authority TFA GmbH
 # See COPYING for details.
 
 import os
