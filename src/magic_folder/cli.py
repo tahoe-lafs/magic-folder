@@ -31,6 +31,9 @@ from twisted.python.filepath import (
 from twisted.python import usage
 from twisted.web import http
 
+from twisted.logger import (
+    Logger,
+)
 from treq.client import (
     HTTPClient,
 )
@@ -43,7 +46,9 @@ from .common import (
     valid_magic_folder_name,
     InvalidMagicFolderName,
 )
-
+from .pid import (
+    check_pid_process,
+)
 from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
@@ -541,6 +546,7 @@ class RunOptions(usage.Options):
     ]
 
 
+@defer.inlineCallbacks
 def run(options):
     """
     This is the long-running magic-folders function which performs
@@ -564,10 +570,15 @@ def run(options):
         FileLogObserver(options.stdout, event_to_string),
     ])
 
-    # start the daemon services
     config = options.parent.config
-    service = MagicFolderService.from_config(reactor, config)
-    return service.run()
+    pidfile = config.basedir.child("pid")
+
+    # check our pidfile to see if another process is running (if not,
+    # write our PID to it)
+    with check_pid_process(pidfile, Logger()):
+        # start the daemon services
+        service = MagicFolderService.from_config(reactor, config)
+        yield service.run()
 
 
 @with_eliot_options
