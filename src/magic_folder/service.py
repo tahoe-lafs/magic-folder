@@ -145,10 +145,10 @@ class ConnectedTahoeService(MultiService):
                 )
             )
 
-
 from twisted.logger import (
     Logger,
 )
+
 
 @attr.s
 class MagicFolderService(MultiService):
