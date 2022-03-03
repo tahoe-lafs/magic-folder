@@ -27,10 +27,9 @@ def check_pid_process(pidfile, log):
             )
         else:
             log.info(
-                "'{pidpath}' refers to {pid} that isn't running\n".format(
-                    pidpath=pidfile.path,
-                    pid=pid,
-                )
+                "'{pidpath}' refers to {pid} that isn't running\n",
+                pidpath=pidfile.path,
+                pid=pid,
             )
             pidfile.remove()
 
