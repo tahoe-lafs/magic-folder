@@ -35,6 +35,9 @@ from twisted.python.filepath import (
 from twisted.python import usage
 from twisted.web import http
 
+from twisted.logger import (
+    Logger,
+)
 from treq.client import (
     HTTPClient,
 )
@@ -47,7 +50,9 @@ from .common import (
     valid_magic_folder_name,
     InvalidMagicFolderName,
 )
-
+from .pid import (
+    check_pid_process,
+)
 from .client import (
     CannotAccessAPIError,
     MagicFolderApiError,
@@ -545,6 +550,7 @@ class RunOptions(usage.Options):
     ]
 
 
+@defer.inlineCallbacks
 def run(options):
     """
     This is the long-running magic-folders function which performs
@@ -568,34 +574,15 @@ def run(options):
         FileLogObserver(options.stdout, event_to_string),
     ])
 
-    # check if we have another instance running already
     config = options.parent.config
     pidfile = config.basedir.child("pid")
-    if pidfile.exists():
-        print("{}: exists..".format(pidfile.path))
-        with pidfile.open("r") as f:
-            pid = int(f.read().decode("utf8").strip())
-        if pid in psutil.pids():
-            print("An existing magic-folder process is running as process {}".format(pid))
-            return
-        else:
-            print("The PID-file refers to a process that isn't running; removing the file")
-            pidfile.remove()
 
-    # arrange to get rid of our PID-file
-    def remove_pid(pidfile):
-        # delete our pid-file
-        pidfile.remove()
-    atexit.register(remove_pid, pidfile)
-
-    # write our PID to the pid-file
-    pid = os.getpid()
-    with pidfile.open("w") as f:
-        f.write("{}\n".format(pid).encode("utf8"))
-
-    # start the daemon services
-    service = MagicFolderService.from_config(reactor, config)
-    return service.run()
+    # check our pidfile to see if another process is running (if not,
+    # write our PID to it)
+    with check_pid_process(pidfile, Logger()):
+        # start the daemon services
+        service = MagicFolderService.from_config(reactor, config)
+        yield service.run()
 
 
 @with_eliot_options
