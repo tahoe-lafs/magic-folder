@@ -1,3 +1,5 @@
 A pid-file is now written
 
-magic-folder will not start if another process appears to be running
+If a previous instance is running _and_ appears to be an actual
+magic-folder process, it is killed. Otherwise, magic-folder will
+refuse to start.
