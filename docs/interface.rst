@@ -228,6 +228,59 @@ Request an immediate scan of the Collective DMD and remote participants of the g
 Returns an empty `dict` after the scan is complete.
 
 
+POST `/v1/magic-folder/<folder-name>/invite`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a new invite.
+The body of the invite is a JSON object containing the keys:
+* `petname`: maps to a string describing what to call the invitee when they join
+
+This will initiate the invite and returns the serialized invite.
+To await the end of the invite process, see the `.../invite-wait` endpoing.
+
+A serialized invite is a JSON object that has keys:
+
+* `id`: A UUID, like `92148d89-85ae-4677-8629-8ef6de54417d`
+* `petname`: the name to call the invitee in the Collective DMD
+* `consumed`: True if the wormhole code has been used up
+* `success`: True if the invite has completed successfully
+* `wormhole-code`: None or the text wormhole code
+
+
+POST `/v1/magic-folder/<folder-name>/invite-wait`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Wait for an invite to complete (either successfully or not).
+
+The body of the invite is a JSON object with keys:
+* `id`: the UUID of the invite to await
+
+This endpoint returns 200 OK with the serialized Invite (see above) if the invite concluded successfully.
+Otherwise, the endpoint returns a 400 error describing the error.
+
+
+POST `/v1/magic-folder/<folder-name>/join`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Join a magic-folder by accepting an invite.
+The body of the request is a JSON object with keys:
+
+* `invite-code`: the wormhole code
+* `local-directory`: absolute path of an existing local directory to synchronize files in
+* `author`: arbitrary, valid author name
+* `poll-interval`: seconds between remote update checks
+* `scan-interval`: seconds between local update checks
+
+The endpoint returns 201 Created once the folder is created and joined.
+Otherwise, a 400 error is returned describing the error.
+
+
+POST `/v1/magic-folder/<folder-name>/invites`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List all invites.
+Invites are stored in memory only, so this is any active or completed invites since the prorgam started.
+
 
 Status API
 ----------
