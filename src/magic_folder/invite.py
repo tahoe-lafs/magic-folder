@@ -117,9 +117,8 @@ class Invite(object):
     uuid = attr.ib()  # unique ID
     petname = attr.ib()
     _collection = attr.ib()  # IInviteCollection instance
-    _wormhole = attr.ib()  # wormhole.IWormhole() instance
-    # I guess actually wormhole.IDeferredWormhole ..
-    _code = None
+    _wormhole = attr.ib()  # wormhole.IDeferredWormhole instance
+    _code = None  # if non-None, our wormhole code
     _consumed = None  # True if the wormhole code was consumed
     _success = None  # True if succeeded, False if something went wrong
     _reject_reason = None  # if _success is False, this will say why
