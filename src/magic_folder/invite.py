@@ -87,12 +87,6 @@ class InviteError(Exception):
     invite = attr.ib()
     reason = attr.ib()
 
-    def to_json(self):
-        return {
-            "invite": self.invite,
-            "reason": self.reason,
-        }
-
 
 @attr.s
 class InviteRejected(InviteError):
