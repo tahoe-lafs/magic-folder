@@ -102,9 +102,6 @@ class InvalidInviteReply(InviteError):
     Something is semantically invalid about an invite reply
     """
 
-    def __str__(self):
-        return "InvalidInviteReply({})".format(self.reason)
-
 
 @implementer(IInvite)
 @attr.s

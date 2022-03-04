@@ -476,7 +476,6 @@ class MagicFolderService(MultiService):
         )
         returnValue(inv)
 
-
     @inline_callbacks
     def leave_folder(self, name, really_delete_write_capability):
         with start_action(
