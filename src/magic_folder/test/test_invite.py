@@ -72,6 +72,12 @@ from ..testing.web import (
 from ..invite import (
     InMemoryInviteManager,
 )
+from ..service import (
+    MagicFolderService,
+)
+from ..status import (
+    WebSocketStatusService,
+)
 
 from magic_folder.snapshot import (
     create_local_author,
@@ -176,6 +182,7 @@ class FakeWormhole:
     def close(self):
         assert not self._closed, "closed more than once"
         self._closed = True
+
 
 class TestInviteManager(SyncTestCase):
     """
@@ -347,3 +354,143 @@ class TestInviteManager(SyncTestCase):
                 "wormhole-code": Equals(None),
             })
         )
+
+    def test_reject(self):
+        """
+        The 'other side' says no, nicely.
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "magic-folder-invite-version": 1,
+                "reject-reason": "not feeling it",
+            }).encode("utf8"),
+        ]
+
+        inv = self.manager.create_invite(
+            self.reactor,
+            "Mary Keller",
+            self.wormhole,
+        )
+
+        # the error was logged
+        self.assertThat(
+            self.status.errors,
+            MatchesListwise([
+                MatchesAll(
+                    Contains("Mary Keller"),
+                    Contains("not feeling it"),
+                )
+            ])
+        )
+
+        # serialization makes sense
+        self.assertThat(
+            inv.marshal(),
+            ContainsDict({
+                "id": Always(), # '48c773ff-ad0f-46a9-9ae0-69b2ed5aeb86',
+                "petname": Equals("Mary Keller"),
+                "consumed": Equals(True),
+                "success": Equals(False),
+                "wormhole-code": Equals(None),
+            })
+        )
+
+
+class TestService(SyncTestCase):
+    """
+    Tests for invite-related service functions
+    """
+
+    def setUp(self):
+        self.basedir = FilePath(self.mktemp())
+        self.nodedir = FilePath(self.mktemp())
+        self.basedir.makedirs()
+
+        self.reactor = Clock()
+
+        self.root = create_fake_tahoe_root()
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(self.root),
+        )
+
+        class FakeStatus:
+            def __init__(self):
+                self.errors = []
+
+            def error_occurred(self, err):
+                self.errors.append(err)
+        self.status = FakeStatus()
+
+        self.global_config = create_testing_configuration(self.basedir, self.nodedir)
+
+        self.magic_path = FilePath(self.mktemp())
+        self.magic_path.makedirs()
+        self.upload_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2:", b"")[1]
+        )
+        self.invitee_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2:", b"")[1]
+        )
+        dirdata = [
+            "dirnode",
+            {
+                "children": {
+                    u"Margaret Hamilton": [
+                        "filenode", {
+                            "mutable": False,
+                            "ro_uri": self.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "format": "SDMF",
+                        }
+                    ],
+                }
+            }
+        ]
+        self.collective_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2-RO:", json.dumps(dirdata).encode("utf8"))[1]
+        )
+        self.config = self.global_config.create_magic_folder(
+            u"foldername",
+            self.magic_path,
+            create_local_author(u"Margaret Hamilton"),
+            self.collective_dircap,
+            self.upload_dircap,
+            60,
+            None,
+        )
+
+        self.manager = InMemoryInviteManager(
+            self.tahoe_client,
+            self.status,
+            self.config,
+        )
+        # we seed the wormhole with all the messages from the other side
+        self.wormhole = FakeWormhole([
+            json.dumps({
+                "magic-folder-invite-version": 1,
+                "personal-dmd": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+
+            json.dumps({
+                "success": True,
+            }).encode("utf8"),
+        ])
+
+        self.global_status = WebSocketStatusService(
+            self.reactor,
+            self.global_config,
+        )
+
+        self.service = MagicFolderService(
+            self.reactor,
+            self.global_config,
+            self.global_status,
+            self.tahoe_client,
+        )
+
+        return super(TestService, self).setUp()
+
+    def test_folder_invite(self):
+        """
+        Create an invite for a particular folder
+        """
