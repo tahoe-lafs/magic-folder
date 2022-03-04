@@ -355,7 +355,7 @@ class TestInviteManager(SyncTestCase):
             })
         )
 
-    def test_reject(self):
+    def test_explicit_reject(self):
         """
         The 'other side' says no, nicely.
         """
@@ -393,6 +393,61 @@ class TestInviteManager(SyncTestCase):
                 "success": Equals(False),
                 "wormhole-code": Equals(None),
             })
+        )
+
+    def test_invalid_version(self):
+        """
+        Invalid version for the reply message
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "magic-folder-invite-version": 0,
+                "reject-reason": "won't even matter",
+            }).encode("utf8"),
+        ]
+
+        inv = self.manager.create_invite(
+            self.reactor,
+            "Jean Bartik",
+            self.wormhole,
+        )
+
+        # the error was logged
+        self.assertThat(
+            self.status.errors,
+            MatchesListwise([
+                MatchesAll(
+                    Contains("Invalid invite reply version"),
+                )
+            ])
+        )
+
+    def test_invalid_personal_dmd(self):
+        """
+        The personal DMD sent back is incorrect
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "magic-folder-invite-version": 1,
+                # not read-only -- other invalid ones could be immutable, ...?
+                "personal-dmd": self.invitee_dircap.danger_real_capability_string(),
+            }).encode("utf8"),
+        ]
+        inv = self.manager.create_invite(
+            self.reactor,
+            "Frances Holder",
+            self.wormhole,
+        )
+
+        # the error was logged
+        self.assertThat(
+            self.status.errors,
+            MatchesListwise([
+                MatchesAll(
+                    Contains("Frances Holder"),
+                    Contains("must be a read-only directory"),
+                )
+            ])
         )
 
 
