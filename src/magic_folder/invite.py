@@ -494,7 +494,7 @@ class InMemoryInviteManager(service.Service):
         self.folder_status.error_occurred(
             "Invite of '{}' failed: {}".format(
                 invite.petname,
-                invite._reject_reason,
+                invite._reject_reason if invite._reject_reason is not None else str(fail.value),
             )
         )
         for x in invite._awaiting_code:
