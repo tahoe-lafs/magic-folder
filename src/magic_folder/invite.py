@@ -79,7 +79,7 @@ class IInvite(Interface):
     wormhole_code = Attribute("The wormhole code for this invite (or None)")
 
 
-@attr.s
+@attr.s(auto_exc=True)
 class InviteError(Exception):
     """
     Base class for all invite-related errors
@@ -88,7 +88,7 @@ class InviteError(Exception):
     reason = attr.ib()
 
 
-@attr.s
+@attr.s(auto_exc=True)
 class InviteRejected(InviteError):
     """
     The other side has (nicely) rejected our invite with a provided
@@ -96,7 +96,7 @@ class InviteRejected(InviteError):
     """
 
 
-@attr.s
+@attr.s(auto_exc=True)
 class InvalidInviteReply(InviteError):
     """
     Something is semantically invalid about an invite reply
