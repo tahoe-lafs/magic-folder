@@ -442,8 +442,8 @@ def create_testing_configuration(basedir, tahoe_node_directory):
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint, wormhole_uri) VALUES (?, ?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str, "ws://ws.example.com/")
         )
 
     tokens = MemoryTokenProvider()
