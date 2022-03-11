@@ -52,6 +52,7 @@ from twisted.internet.defer import (
 
 from .common import (
     SyncTestCase,
+    AsyncTestCase,
     success_result_of,
 )
 from .strategies import (
@@ -451,7 +452,7 @@ class TestInviteManager(SyncTestCase):
         )
 
 
-class TestService(SyncTestCase):
+class TestService(AsyncTestCase):
     """
     Tests for invite-related service functions
     """
@@ -543,9 +544,18 @@ class TestService(SyncTestCase):
             self.tahoe_client,
         )
 
+        def create_wormhole(*args, **kw):
+            print("ding", args, kw)
+            return FakeWormhole()
+        self.service._wormhole_factory=create_wormhole
+
         return super(TestService, self).setUp()
 
     def test_folder_invite(self):
         """
         Create an invite for a particular folder
         """
+        d = self.service.invite_to_folder("foldername", "Elizabeth Feinler")
+        print(id(self.service._wormhole_factory))
+        print(id(self.manager._invites))
+        return d
