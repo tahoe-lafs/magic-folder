@@ -16,25 +16,41 @@ To begin we outline some definitions and assumptions:
   All other clients have a read-capability to the Collective so they may discover new devices.
   Each entry in the Collective DMD points to read-capability for the DMD of that participant device.
 
-* The **collective** is the set of clients subscribed to a given Magic Folder (and we refer to the "Collective DMD" or just "Collective" as the Tahoe mutable containing the canonical list of participants).
+* Every client has a **Personal DMD** that they hold the write-capability to.
+  The corresponding read-capability appears in the **Collective DMD**.
+
+* The **collective** is the set of clients subscribed to a given Magic Folder
+  We refer to the "Collective DMD" or just "Collective" as the Tahoe mutable containing the canonical list of participants.
 
 
 Overview
 --------
 
 Alice has a magic-folder.
-She created this magic-folder, so she also has the **write** capability to the Collective DMD. That is, she is the admin.
+She created this magic-folder, so she also has the **write** capability to the Collective DMD; i.e. she is the admin.
 Alice wishes to add Bob as a member of the collective.
-She must send to Bob: a read-capability to the Collective DMD.
+She must send to Bob: a read-capability to the Collective DMD and the petname (as it will appear in the Collective).
 She must receive from Bob: a read-capability to a fresh "Personal DMD" for Bob.
 
 It may be useful to exchange some other information; the above is a minimum.
+
+We exchange message between the Alice and Bob devices via a magic-wormhole.
+Besides the wormhole setup messages themselves, we exchange three messages.
+The JSON format of these is detailed later (they contain the information as above).
+
+The flow is fairly straightforward:
+* on the Alice device, a wormhole invite-code is created
+* (out-of-band the code is securely communicated to the Bob device)
+* on the Bob device, the wormhole code is consumed
+* upon a successful wormhole, Alice posts her message and Bob posts his.
+* Alice creates the Collective entry and posts a final message before closing the wormhole.
+* (If Alice failed to do this for some reason, an error message is posted instead).
 
 
 Detailed Process
 ----------------
 
-Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory ``~/.magic-folder`` on both Alice and Bob's computers.
+Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory ``~/.magic-folder`` on both the Alice and Bob devices.
 
 
 Creating the Folder
@@ -89,7 +105,7 @@ Note that Alice never shares her write-capability to the Collective DMD (nor to 
 To start the invitation process, Alice runs ``magic-folder invite``.
 This process will tell Alice a code that looks like ``5-secret-words`` or similar.
 She must securely communicate this code to the invitee, Bob.
-Alice's magic-folder client sends a message via the wormhole server as JSON::
+Once the wormhole is established Alice's magic-folder client sends a message via the wormhole server as JSON::
 
     {
         "magic-folder-invite-version": 1,
