@@ -24,6 +24,25 @@ Misc/Other
 - `#656 <https://github.com/LeastAuthority/magic-folder/issues/656>`_
 
 
+Magic_Folder 22.5.0 (2022-05-13)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- A pid-file is now written
+
+  If a previous instance is running _and_ appears to be an actual
+  magic-folder process, it is killed. Otherwise, magic-folder will
+  refuse to start. (`#644 <https://github.com/LeastAuthority/magic-folder/issues/644>`_)
+
+
+Misc/Other
+----------
+
+- `#656 <https://github.com/LeastAuthority/magic-folder/issues/656>`_
+
+
 Magic_Folder 22.2.1 (2022-02-23)
 ''''''''''''''''''''''''''''''''
 
