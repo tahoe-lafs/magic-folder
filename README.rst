@@ -21,12 +21,10 @@ which are tested in CI. This should be done in a virtualenv, or other
 isolated python environment, so as to not interfere with system or user
 python packages.
 
-```
-git clone https://github.com/LeastAuthority/magic-folder
-cd magic-folder
-pip install --require-hashes -r requirements/base.txt
-pip install --no-deps .
-```
+    git clone https://github.com/LeastAuthority/magic-folder
+    cd magic-folder
+    pip install --require-hashes -r requirements/base.txt
+    pip install --no-deps .
 
 
 from source

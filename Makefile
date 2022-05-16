@@ -20,7 +20,7 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Update NEWS"
-	python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
+	python3 -m towncrier build --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
 	git add -u
 	git commit -m "update NEWS for release"
 
