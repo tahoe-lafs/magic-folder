@@ -14,7 +14,7 @@ To begin we outline some definitions and assumptions:
 
 * One client ("the admin") holds a write-capability to a **Collective DMD** and thus has the ability to add new devices to that collection.
   All other clients have a read-capability to the Collective so they may discover new devices.
-  Each entry in the Collective DMD points to read-capability for the DMD of that participant device.
+  Each entry in the Collective DMD points to a read-capability for the DMD of that participant device.
 
 * Every client has a **Personal DMD** that they hold the write-capability to.
   The corresponding read-capability appears in the **Collective DMD**.
@@ -29,12 +29,12 @@ Overview
 Alice has a magic-folder.
 She created this magic-folder, so she also has the **write** capability to the Collective DMD; i.e. she is the admin.
 Alice wishes to add Bob as a member of the collective.
-She must send to Bob: a read-capability to the Collective DMD and the petname (as it will appear in the Collective).
+She must send to Bob: a read-capability to the Collective DMD and her chosen petname (as it will appear in the Collective).
 She must receive from Bob: a read-capability to a fresh "Personal DMD" for Bob.
 
 It may be useful to exchange some other information; the above is a minimum.
 
-We exchange message between the Alice and Bob devices via a magic-wormhole.
+We exchange messages between the Alice and Bob devices via a magic-wormhole.
 Besides the wormhole setup messages themselves, we exchange three messages.
 The JSON format of these is detailed later (they contain the information as above).
 
@@ -44,11 +44,11 @@ The flow is fairly straightforward:
 
 * (out-of-band the code is securely communicated to the Bob device)
 
-* on the Bob device, the wormhole code is consumed
+* on the Bob device, the wormhole code is presented to the wormhole server completing the wormhole
 
-* upon a successful wormhole, Alice posts her message and Bob posts his.
+* upon a successful wormhole, Alice posts her message and Bob posts his after creating his Personal DMD.
 
-* Alice creates the Collective entry and posts a final message before closing the wormhole.
+* Alice creates the Collective entry and posts a final message. Bob closes the wormhole.
 
 * (If Alice failed to do this for some reason, an error message is posted instead).
 
@@ -131,7 +131,7 @@ Alice may start this process with the command-line::
 
 The CLI command accomplishes this using two HTTP APIs: one to start the invite and one to await its completion.
 The CLI will now block until the wormhole is completed.
-Exiting the process will not kill the invite, though, as that is running in the daemon.
+Exiting the process (e.g. ctrl-c) will not kill the invite, though, as that is running in the daemon.
 See the HTTP API below for more details.
 
 
