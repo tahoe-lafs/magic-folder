@@ -39,12 +39,12 @@ Besides the wormhole setup messages themselves, we exchange three messages.
 The JSON format of these is detailed later (they contain the information as above).
 
 The flow is fairly straightforward:
-* on the Alice device, a wormhole invite-code is created
-* (out-of-band the code is securely communicated to the Bob device)
-* on the Bob device, the wormhole code is consumed
-* upon a successful wormhole, Alice posts her message and Bob posts his.
-* Alice creates the Collective entry and posts a final message before closing the wormhole.
-* (If Alice failed to do this for some reason, an error message is posted instead).
+- on the Alice device, a wormhole invite-code is created
+- (out-of-band the code is securely communicated to the Bob device)
+- on the Bob device, the wormhole code is consumed
+- upon a successful wormhole, Alice posts her message and Bob posts his.
+- Alice creates the Collective entry and posts a final message before closing the wormhole.
+- (If Alice failed to do this for some reason, an error message is posted instead).
 
 
 Detailed Process
