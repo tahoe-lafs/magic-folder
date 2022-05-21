@@ -52,6 +52,10 @@ The flow is fairly straightforward:
 
 * (If Alice failed to do this for some reason, an error message is posted instead).
 
+An illustration of the process:
+
+.. seqdiag:: invite-diagram.seqdiag
+
 
 Detailed Process
 ----------------
