@@ -207,7 +207,7 @@ We describe endpoints below this.
 POST .../invite
 ~~~~~~~~~~~~~~~
 
-Accepts a JSON body containing keys: `petname`.
+Accepts a JSON body containing keys: ``petname``.
 This should be a free-form string with the name for this participant.
 Once the invite is created and a Wormhole code is successfully allocated a reply is rendered.
 The reply is a JSON serialization of the invite::
@@ -224,8 +224,8 @@ The reply is a JSON serialization of the invite::
 POST .../invite-wait
 ~~~~~~~~~~~~~~~~~~~~
 
-Accepts a JSON body containing keys: `id`.
-The `id` is the UUID of an existing invite.
+Accepts a JSON body containing keys: ``id``.
+The ``id`` is the UUID of an existing invite.
 This endpoint will wait until the invite is consumed and then return code 200 with the serialized JSON of the invite (as above) or a 400 error.
 
 
@@ -235,7 +235,7 @@ GET .../invites
 List currently pending invites.
 This returns a serialized JSON list containing all invites known to this client.
 Currently invites are ephemeral but aren't deleted, so this will be all invites that have been created since the last time the daemon started.
-Note that `wormhole-code` may be `null` for consumed invites or extremely-recently created invites that haven't yet allocated a code.
+Note that ``wormhole-code`` may be ``null`` for consumed invites or extremely-recently created invites that haven't yet allocated a code.
 
 
 POST .../join
@@ -245,11 +245,11 @@ This is for the client receiving an invite.
 This endpoint will accept an invite and create a new magic-folder joined to it.
 Takes a JSON body containing the following keys:
 
-- `invite-code`: the Wormhole code from the inviter
-- `local-directory`: absolute path of an existing local directory to synchronize files in
-- `author`: arbitrary, valid author name
-- `poll-interval`: seconds between remote update checks
-- `scan-interval`: seconds between local update checks
+- ``invite-code``: the Wormhole code from the inviter
+- ``local-directory``: absolute path of an existing local directory to synchronize files in
+- ``author``: arbitrary, valid author name
+- ``poll-interval``: seconds between remote update checks
+- ``scan-interval``: seconds between local update checks
 
-(The `name` for the folder comes from the URI).
+(The ``name`` for the folder comes from the URI).
 When the endpoint returns (code 200, empty JSON), the new folder will be added and its services will be running.
