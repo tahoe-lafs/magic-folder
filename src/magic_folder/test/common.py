@@ -19,6 +19,9 @@ from socket import (
 
 from zope.interface import implementer
 
+from tahoe_capabilities import readonly_directory_from_string, writeable_directory_from_string
+from tahoe_capabilities.strategies import ssk_directories
+
 from testtools import (
     TestCase,
     skip,
@@ -209,3 +212,13 @@ class AsyncBrokenTestCase(_TestCaseMixin, TestCase):
 # access to any test case.
 _TWISTED_TEST_CASE = _TwistedSynchronousTestCase()
 success_result_of = _TWISTED_TEST_CASE.successResultOf
+
+RO_DIRCAP = readonly_directory_from_string(
+    "URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"
+)
+
+RW_DIRCAP = writeable_directory_from_string(
+    "URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"
+)
+
+SSKDIRS = ssk_directories()
