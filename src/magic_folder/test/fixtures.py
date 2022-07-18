@@ -24,6 +24,8 @@ from ..util.wrap import (
     delayed_wrap_frozen,
 )
 
+from tahoe_capabilities import DirectoryCapability, DirectoryWriteCapability
+
 import attr
 
 from fixtures import (
@@ -113,12 +115,12 @@ class NodeDirectory(Fixture):
 
     def create_magic_folder(
             self,
-            folder_name,
-            collective_dircap,
-            upload_dircap,
-            directory,
-            poll_interval,
-    ):
+            folder_name: str,
+            collective_dircap: DirectoryCapability,
+            upload_dircap: DirectoryWriteCapability,
+            directory: FilePath,
+            poll_interval: float,
+    ) -> None:
         try:
             magic_folder_config_bytes = self.magic_folder_yaml.getContent()
         except IOError as e:
@@ -133,8 +135,8 @@ class NodeDirectory(Fixture):
             u"magic-folders",
             {},
         )[folder_name] = {
-            u"collective_dircap": collective_dircap,
-            u"upload_dircap": upload_dircap,
+            u"collective_dircap": collective_dircap.danger_real_capability_string(),
+            u"upload_dircap": upload_dircap.danger_real_capability_string(),
             u"directory": directory.path,
             u"poll_interval": u"{}".format(poll_interval),
         }
