@@ -48,13 +48,10 @@ from ..snapshot import (
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
-from ..util.capabilities import (
-    random_immutable,
-    random_dircap,
-)
-
 from .common import (
     SyncTestCase,
+    RO_DIRCAP,
+    RW_DIRCAP,
 )
 from .strategies import (
     relative_paths,
@@ -129,8 +126,8 @@ class MagicFolderServiceTests(SyncTestCase):
             u"foldername",
             magic_path,
             create_local_author(u"zara"),
-            random_immutable(directory=True),
-            random_dircap(),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             None,
         )

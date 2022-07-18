@@ -65,12 +65,11 @@ from ...cli import MagicFolderCommand
 from ...common import (
     InvalidMagicFolderName,
 )
-from ...util.capabilities import (
-    Capability,
-)
 from ..common import (
     AsyncTestCase,
     SyncTestCase,
+    RO_DIRCAP,
+    RW_DIRCAP,
 )
 from ..fixtures import (
     NodeDirectory,
@@ -159,8 +158,8 @@ class ListMagicFolder(AsyncTestCase):
             u"list-some-folder",
             folder_path,
             create_local_author(u"alice"),
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             1,
             None,
         )
@@ -182,8 +181,8 @@ class ListMagicFolder(AsyncTestCase):
             u"list-some-json-folder",
             folder_path,
             create_local_author(u"alice"),
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             1,
             60,
         )

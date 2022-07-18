@@ -110,6 +110,7 @@ from ..util.twisted import (
 from .common import (
     SyncTestCase,
     AsyncTestCase,
+    SSKDIRS,
 )
 from .matchers import (
     matches_flushed_traceback,
@@ -135,8 +136,8 @@ class CacheTests(SyncTestCase):
             FilePath(self.mktemp()),
             FilePath("dummy"),
         )
-        self.collective_cap = Capability.from_string("URI:DIR2:mfqwcylbmfqwcylbmfqwcylbme:mfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqwcylbmfqq")
-        self.personal_cap = Capability.from_string("URI:DIR2:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra")
+        self.collective_cap = SSKDIRS.example()
+        self.personal_cap = SSKDIRS.example()
 
         self.config = self._global_config.create_magic_folder(
             "default",
