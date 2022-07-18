@@ -28,6 +28,11 @@ hyperlink
 # an exact pin for magic-folders releases
 tahoe-lafs >= 1.17.1, < 1.18.0
 
+# Also depend on the stand-alone library for working with Tahoe-LAFS
+# capabilities.  This will probably also be a transitive dependency via
+# Tahoe-LAFS itself someday, but not yet.
+tahoe-capabilities == 2022.7.18
+
 # twisted-based HTTP client
 treq
 
