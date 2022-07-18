@@ -13,6 +13,7 @@ __all__ = [
     "load_global_configuration",
 ]
 
+from typing import Dict, List, Tuple
 import re
 import hashlib
 import time
@@ -104,6 +105,7 @@ from eliot import (
     start_action,
 )
 
+from tahoe_capabilities import immutable_directory_from_string, ImmutableDirectoryReadCapability
 from .util.capabilities import (
     Capability,
 )
@@ -652,22 +654,21 @@ def _find_leaf_snapshot(leaf_candidates, parents):
     return leaf_identifier
 
 
-def _get_remote_parents(identifier, parents):
+def _get_remote_parents(identifier: str, parents: Dict[str, List[Tuple[int, bool, str]]]) -> [ImmutableDirectoryReadCapability]:
     """
     Get the identifiers for remote parents for the given snapshot.
 
-    :param unicode identifier: The identifier of the snapshot about which to
-        retrieve information.
+    :param identifier: The identifier of the snapshot about which to retrieve
+        information.
 
-    :param dict[unicode, [(int, bool, unicode)]] parents: Information about
-        the parent/child relationships between the snapshots.  See
-        ``_get_parents`` for details.
+    :param parents: Information about the parent/child relationships between
+        the snapshots.  See ``_get_parents`` for details.
 
-    :return [unicode]: Identifiers for the remote parents of the identified
+    :return: Identifiers for the remote parents of the identified
         snapshot.
     """
     return list(
-        Capability.from_string(parent_identifier)
+        immutable_directory_from_string(parent_identifier)
         for (ignored, only_local, parent_identifier)
         in parents.get(identifier, [])
         if not only_local

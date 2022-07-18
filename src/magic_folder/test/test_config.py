@@ -10,6 +10,8 @@ from functools import (
     partial,
 )
 
+from tahoe_capabilities.strategies import chk_objects, chk_directories
+
 from twisted.python.filepath import (
     FilePath,
 )
@@ -55,6 +57,9 @@ from hyperlink import (
 
 from .common import (
     SyncTestCase,
+    RO_DIRCAP,
+    RW_DIRCAP,
+    SSKDIRS
 )
 from .fixtures import (
     NodeDirectory,
@@ -95,16 +100,10 @@ from ..snapshot import (
     RemoteSnapshot,
     LocalSnapshot,
 )
-from ..util.capabilities import (
-    Capability,
-    random_dircap,
-    random_immutable,
-)
 from ..util.file import (
     PathState,
     seconds_to_ns,
 )
-
 
 class TestGlobalConfig(SyncTestCase):
 
@@ -278,8 +277,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             folder_name,
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -297,8 +296,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo",
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -307,8 +306,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"foo",
                 magic,
                 alice,
-                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                RO_DIRCAP,
+                RW_DIRCAP,
                 60,
                 60,
             )
@@ -329,8 +328,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo",
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -338,8 +337,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo.",
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -347,8 +346,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             u"foo ",
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -362,8 +361,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 u"foo",
                 magic,
                 alice,
-                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                RO_DIRCAP,
+                RW_DIRCAP,
                 60,
                 None,
             )
@@ -381,8 +380,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 name,
                 state,
                 alice,
-                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                RO_DIRCAP,
+                RW_DIRCAP,
                 60,
                 60,
             )
@@ -400,8 +399,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             name,
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             60,
         )
@@ -426,8 +425,8 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
             name,
             magic,
             alice,
-            Capability.from_string(u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq"),
-            Capability.from_string(u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"),
+            RO_DIRCAP,
+            RW_DIRCAP,
             60,
             None,
         )
@@ -474,12 +473,11 @@ class GlobalConfigDatabaseMagicFolderTests(SyncTestCase):
                 folder_name,
                 magic,
                 alice,
-                u"URI:DIR2-RO:ou5wvazwlyzmqw7yof5ifmgmau:xqzt6uoulu4f3m627jtadpofnizjt3yoewzeitx47vw6memofeiq",
-                u"URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia",
+                RO_DIRCAP,
+                RW_DIRCAP,
                 60,
                 60,
             )
-
 
 class StoreLocalSnapshotTests(SyncTestCase):
     """
@@ -508,9 +506,9 @@ class StoreLocalSnapshotTests(SyncTestCase):
             self.author,
             self.stash,
             # collective dircap
-            random_dircap(readonly=True),
+            SSKDIRS.example(),
             # upload dircap
-            random_dircap(),
+            SSKDIRS.example(),
             self.magic,
             60,
             60,
@@ -655,13 +653,12 @@ class StoreLocalSnapshotTests(SyncTestCase):
 class DeleteLocalSnapshotTests(SyncTestCase):
     """
     Test the 'delete single snapshot' codepaths in MagicFolderConfig
-
-    non-Hypothesis-using tests
     """
     def setUp(self):
         super(DeleteLocalSnapshotTests, self).setUp()
         self.author = create_local_author(u"alice")
 
+    def setup_example(self):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
@@ -674,9 +671,9 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             self.author,
             self.stash,
             # collective dircap
-            random_dircap(readonly=True),
+            SSKDIRS.example().to_readonly(),
             # upload dircap
-            random_dircap(),
+            SSKDIRS.example(),
             self.magic,
             60,
             60,
@@ -721,7 +718,8 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
         )
 
-    def test_delete_one_local_snapshot(self):
+    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    def test_delete_one_local_snapshot(self, capability, content_cap, metadata_cap):
         """
         Given a chain of three snapshots deleting the oldest one results
         in a proper chain of two snapshots.
@@ -738,10 +736,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability=random_immutable(directory=True),
+            capability=capability,
             parents_raw=[],
-            content_cap=random_immutable(),
-            metadata_cap=random_immutable(),
+            content_cap=content_cap,
+            metadata_cap=metadata_cap,
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -787,7 +785,8 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             Equals(remote0.capability),
         )
 
-    def test_delete_several_local_snapshots(self):
+    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    def test_delete_several_local_snapshots(self, capability, content_cap, metadata_cap):
         """
         Given a chain of three snapshots deleting them all results in now
         snapshots.
@@ -804,10 +803,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability=random_immutable(directory=True),
+            capability=capability,
             parents_raw=[],
-            content_cap=random_immutable(),
-            metadata_cap=random_immutable(),
+            content_cap=content_cap,
+            metadata_cap=metadata_cap,
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -820,7 +819,8 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except KeyError:
             pass
 
-    def test_delete_snapshot_twice(self):
+    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    def test_delete_snapshot_twice(self, capability, content_cap, metadata_cap):
         """
         Attempting to delete a snapshot that doesn't exist is an error.
         """
@@ -831,10 +831,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": self.snap0.relpath,
                 "modification_time": 1234,
             },
-            capability=random_immutable(directory=True),
+            capability=capability,
             parents_raw=[],
-            content_cap=random_immutable(),
-            metadata_cap=random_immutable(),
+            content_cap=content_cap,
+            metadata_cap=metadata_cap,
         )
 
         self.db.delete_local_snapshot(self.snap0, remote0)
@@ -845,7 +845,8 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except ValueError:
             pass
 
-    def test_delete_no_snapshots_for_relpath(self):
+    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    def test_delete_no_snapshots_for_relpath(self, capability, content_cap, metadata_cap):
         """
         Attempting to delete an unknown relpath is an error.
         """
@@ -864,10 +865,10 @@ class DeleteLocalSnapshotTests(SyncTestCase):
                 "relpath": snap.relpath,
                 "modification_time": 1234,
             },
-            capability="URI:DIR2-CHK:aaaa:aaaa",
+            capability=capability,
             parents_raw=[],
-            content_cap="URI:CHK:bbbb:bbbb",
-            metadata_cap="URI:CHK:cccc:cccc",
+            content_cap=content_cap,
+            metadata_cap=metadata_cap,
         )
 
         try:
@@ -897,8 +898,8 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            random_dircap(readonly=True),
-            random_dircap(),
+            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example(),
             self.magic,
             60,
             60,
@@ -1140,6 +1141,8 @@ class RemoteSnapshotTimeTests(SyncTestCase):
     def setUp(self):
         super(RemoteSnapshotTimeTests, self).setUp()
         self.author = create_local_author(u"alice")
+
+    def setup_example(self):
         self.temp = FilePath(self.mktemp())
         self.stash = self.temp.child("stash")
         self.stash.makedirs()
@@ -1151,14 +1154,15 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            random_dircap(readonly=True),
-            random_dircap(),
+            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example(),
             self.magic,
             60,
             60,
         )
 
-    def test_limit(self):
+    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    def test_limit(self, capability, content_cap, metadata_cap):
         """
         Add 35 RemoteSnapshots and ensure we only get 30 back from
         'recent' list.
@@ -1170,10 +1174,10 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 relpath,
                 self.author,
                 {"relpath": relpath, "modification_time": x},
-                random_immutable(directory=True),
+                capability,
                 [],
-                random_immutable(),
-                random_immutable(),
+                content_cap,
+                metadata_cap,
             )
             # XXX this seems fraught; have to remember to call two
             # APIs or we get exceptions / inconsistent state...
@@ -1215,8 +1219,8 @@ class ConflictTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            random_dircap(readonly=True),
-            random_dircap(),
+            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example(),
             self.magic,
             60,
             60,
