@@ -7,17 +7,8 @@ Magic Folders uses text ("str" on Python3) to store Tahoe URIs.
 These APIs convert for use with the imported Tahoe-LAFS URI interaction code so always use the Magic Folders format when calling the APIs and expect the same to be returned.
 """
 
-from allmydata.uri import (
-    IURI,
-    UnknownURI,
-    IDirectoryURI,
-    IDirnodeURI,
-    IFileURI,
-    IImmutableFileURI,
-    IReadonlyDirectoryURI,
-    ImmutableDirectoryURI,
-)
-from allmydata.uri import from_string as _tahoe_uri_from_string
+import tahoe_capabilities as _caplib
+
 import hashlib
 from base64 import (
     b32encode,
@@ -26,6 +17,7 @@ from os import (
     urandom,
 )
 import attr
+
 
 
 @attr.s(frozen=True)
@@ -43,96 +35,133 @@ class Capability:
 
     # the original capability-string
     _uri = attr.ib(validator=attr.validators.instance_of(str), repr=False)
-    # a Tahoe object representing the capability
-    _tahoe_cap = attr.ib(validator=attr.validators.provides(IURI), repr=False)
+    # a Tahoe-Capabilities object representing the capability
+    _cap: _caplib.Capability = attr.ib(repr=False)
 
     @classmethod
-    def from_string(cls, capability_string):
+    def from_string(cls, capability_string: str) -> "Capability":
         """
-        :returns Capability: a new instance from the given capability-string, or an
-            exception if it is not well-formed.
+        :raise ValueError: If the capability string is not well-formed or
+            is otherwise unparseable.
+
+        :returns: a new instance from the given capability-string.
         """
-        cap = _tahoe_uri_from_string(capability_string)
-        if isinstance(cap, UnknownURI):
-            raise ValueError(
-                "Invalid capability-string {}".format(capability_string)
-            )
+        cap = _caplib.capability_from_string(capability_string)
         return cls(
             uri=capability_string,
-            tahoe_cap=cap,
+            cap=cap,
+        )
+
+    @classmethod
+    def from_capability(cls, cap: _caplib.Capability) -> "Capability":
+        return cls(
+            uri=_caplib.danger_real_capability_string(cap),
+            cap=cap,
         )
 
     @property
-    def size(self):
+    def size(self) -> int:
         """
         The size, in bytes, of the data this capability represents
-        """
-        if IDirnodeURI.providedBy(self._tahoe_cap):
-            return self._tahoe_cap.get_filenode_cap().get_size()
-        return self._tahoe_cap.get_size()
 
-    def is_directory(self):
+        :raise TypeError: if the underlying capability type does not have a
+            fixed size.
         """
-        :returns bool: True if this is a directory-cap of any sort
+        cap = self._cap
+        if _caplib.is_directory(cap):
+            # Check on the underlying capability
+            cap = self._cap.cap_object
+
+        try:
+            return cap.size
+        except AttributeError:
+            raise TypeError(f"Capability type {self._cap.prefix} has no fixed size")
+
+    def is_directory(self) -> bool:
         """
-        return IDirnodeURI.providedBy(self._tahoe_cap)
+        :returns: True if this is a directory-cap of any sort (note
+            this excludes all kinds of "verify" capabilities)
+        """
+        return _caplib.is_directory(self._cap) and not self.is_verify()
 
     def is_file(self):
         """
-        :returns bool: True if this is a mutable or immutable file
+        :returns: True if this is a mutable or immutable file
             capability (note this excludes all kinds of "verify"
             capabilities).
         """
-        return IFileURI.providedBy(self._tahoe_cap) or IImmutableFileURI.providedBy(self._tahoe_cap)
+        return not _caplib.is_directory(self._cap) and not self.is_verify()
 
-    def is_mutable_directory(self):
+    def is_mutable_directory(self) -> bool:
         """
-        :returns bool: True if this is a mutable directory capability
+        :returns: True if this is a mutable directory capability
             (note this excludes all kinds of "verify" capabilities).
         """
-        return IDirectoryURI.providedBy(self._tahoe_cap)
+        return self.is_mutable() and self.is_directory()
 
-    def is_immutable_directory(self):
+    def is_immutable_directory(self) -> bool:
         """
-        :returns bool: True if this is a mutable directory capability
+        :returns: True if this is a mutable directory capability
             (note this excludes all kinds of "verify" capabilities).
         """
-        return isinstance(self._tahoe_cap, ImmutableDirectoryURI)
+        return not self.is_mutable() and self.is_directory()
 
-    def is_readonly_directory(self):
+    def is_readonly_directory(self) -> bool:
         """
-        :returns bool: True if this is a read-only directory capability
+        :returns: True if this is a read-only directory capability
             (note this excludes all kinds of "verify" capabilities).
         """
-        return IReadonlyDirectoryURI.providedBy(self._tahoe_cap)
+        return self.is_readonly() and self.is_directory()
 
-    def to_readonly(self):
+    def is_verify(self):
+        return _caplib.is_verify(self._cap)
+
+    def is_mutable(self):
+        return _caplib.is_mutable(self._cap)
+
+    def is_readonly(self):
+        return _caplib.is_read(self._cap)
+
+    def to_readonly(self) -> "Capability":
         """
         Converts to a read-only Capability. Note that this may be the same
         instance if this is already read-only.
 
         :returns Capability: a read-only version (could be the same Capability)
         """
-        if self._tahoe_cap.is_readonly():
+        if self.is_verify():
+            raise ValueError(f"Capability type {self._cap.prefix} cannot be converted to read-only.")
+        if self.is_readonly():
             return self
-        return Capability.from_string(
-            self._tahoe_cap.get_readonly().to_string().decode("ascii")
-        )
+        return Capability.from_capability(self._cap.reader)
 
-    def to_verifier(self):
+    def to_verifier(self) -> "Capability":
         """
         Converts to a verify capability.
 
-        :returns Capbility: a verify-only version (which might be the
+        :returns: a verify-only version (which might be the
             same instance if this is already a verify Capability).
         """
-        return Capability.from_string(
-            self._tahoe_cap.get_verify_cap().to_string().decode("ascii")
-        )
+        if self.is_verify():
+            return self
+        if self.is_readonly():
+            # We can perhaps read the verifier for this cap directly.
+            cap = self._cap
+        else:
+            # It is neither verify nor readonly, it is probably a write cap.
+            # We can read a verifier from its reader.
+            cap = self._cap.reader
 
-    def hex_digest(self):
+        try:
+            v = cap.verifier
+        except AttributeError:
+            raise TypeError(f"Capability type {self._cap.prefix} has no verifier")
+
+        return Capability.from_capability(v)
+
+    def hex_digest(self) -> str:
         """
-        :returns str: a hex-encoded sha256 digest of the
+        :returns: a hex-encoded sha256 digest of the
             capability-string.
         """
         h = hashlib.sha256()

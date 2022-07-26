@@ -63,6 +63,9 @@ from ..util.capabilities import (
     Capability,
 )
 
+from tahoe_capabilities import CHKDirectoryRead, danger_real_capability_string, SSKDirectoryWrite, MDMFDirectoryWrite
+from tahoe_capabilities.strategies import mdmf_writes, ssk_writes, chk_reads
+
 if platformType == "win32":
     INVALID_FILENAME_CHARACTERS = (u"\x00", u"/", u"\\", ":", "\"", "?", "<", ">", "|", "*")
 else:
@@ -215,63 +218,34 @@ def folder_names():
         normalize,
     )
 
-
 def tahoe_lafs_chk_capabilities():
     """
-    Build unicode strings which look like Tahoe-LAFS CHK capability strings.
+    Build Capability objects representing Tahoe-LAFS CHK capabilities.
     """
-    return builds(
-        lambda a, b, needed, extra, size: Capability.from_string(
-            u"URI:CHK:{}:{}:{}:{}:{}".format(
-                base32.b2a(a).decode("ascii"),
-                base32.b2a(b).decode("ascii"),
-                needed,
-                # Total is how many you need plus how many more there might be.
-                needed + extra,
-                size,
-            )
-        ),
-        binary(min_size=16, max_size=16),
-        binary(min_size=32, max_size=32),
-        integers(min_value=1, max_value=128),
-        integers(min_value=0, max_value=127),
-        integers(min_value=56),
-    )
-
-
-def tahoe_lafs_dir_capabilities():
-    """
-    Build Capability instances which look like Tahoe-LAFS directories.
-    """
-    return builds(
-        lambda a, b: Capability.from_string(
-            "URI:DIR2:{}:{}".format(base32.b2a(a).decode(), base32.b2a(b).decode())
-        ),
-        binary(min_size=16, max_size=16),
-        binary(min_size=32, max_size=32),
-    )
-
+    return chk_reads().map(Capability.from_capability)
 
 def tahoe_lafs_immutable_dir_capabilities():
     """
     Build Capability instances which look like Tahoe-LAFS immutable
     directory capability strings.
     """
-    return tahoe_lafs_chk_capabilities().map(
-        lambda chkcap: Capability.from_string(
-            chkcap._uri.replace(":CHK:", ":DIR2-CHK:")
-        )
-    )
+    return chk_reads().map(CHKDirectoryRead).map(Capability.from_capability)
+
+def tahoe_lafs_dir_capabilities():
+    """
+    Build Capability instances which look like Tahoe-LAFS directories.
+    """
+    return one_of([
+        ssk_writes().map(SSKDirectoryWrite),
+        mdmf_writes().map(MDMFDirectoryWrite),
+    ]).map(Capability.from_capability)
 
 def tahoe_lafs_readonly_dir_capabilities():
     """
     Build unicode strings which look like Tahoe-LAFS read-only directory
     capability strings.
     """
-    return tahoe_lafs_dir_capabilities().map(
-        lambda chkcap: chkcap.to_readonly()
-    )
-
+    return tahoe_lafs_dir_capabilities().map(lambda cap: cap.to_readonly())
 
 def tokens():
     """
@@ -292,9 +266,7 @@ def filenodes():
     """
     return fixed_dictionaries({
         # CHK capabilities are only read-only.
-        "ro_uri": tahoe_lafs_chk_capabilities().map(
-            lambda cap: cap.danger_real_capability_string()
-        ),
+        "ro_uri": chk_reads().map(danger_real_capability_string),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({
