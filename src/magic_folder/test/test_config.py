@@ -10,7 +10,8 @@ from functools import (
     partial,
 )
 
-from tahoe_capabilities.strategies import chk_objects, chk_directories
+from tahoe_capabilities import CHKDirectoryRead
+from tahoe_capabilities.strategies import chk_reads
 
 from twisted.python.filepath import (
     FilePath,
@@ -506,7 +507,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
             self.author,
             self.stash,
             # collective dircap
-            SSKDIRS.example(),
+            SSKDIRS.example().reader,
             # upload dircap
             SSKDIRS.example(),
             self.magic,
@@ -671,7 +672,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             self.author,
             self.stash,
             # collective dircap
-            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example().reader,
             # upload dircap
             SSKDIRS.example(),
             self.magic,
@@ -718,7 +719,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
         )
 
-    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    @given(capability=chk_reads().map(CHKDirectoryRead), content_cap=chk_reads(), metadata_cap=chk_reads())
     def test_delete_one_local_snapshot(self, capability, content_cap, metadata_cap):
         """
         Given a chain of three snapshots deleting the oldest one results
@@ -785,7 +786,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
             Equals(remote0.capability),
         )
 
-    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    @given(capability=chk_reads().map(CHKDirectoryRead), content_cap=chk_reads(), metadata_cap=chk_reads())
     def test_delete_several_local_snapshots(self, capability, content_cap, metadata_cap):
         """
         Given a chain of three snapshots deleting them all results in now
@@ -819,7 +820,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except KeyError:
             pass
 
-    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    @given(capability=chk_reads().map(CHKDirectoryRead), content_cap=chk_reads(), metadata_cap=chk_reads())
     def test_delete_snapshot_twice(self, capability, content_cap, metadata_cap):
         """
         Attempting to delete a snapshot that doesn't exist is an error.
@@ -845,7 +846,7 @@ class DeleteLocalSnapshotTests(SyncTestCase):
         except ValueError:
             pass
 
-    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    @given(capability=chk_reads().map(CHKDirectoryRead), content_cap=chk_reads(), metadata_cap=chk_reads())
     def test_delete_no_snapshots_for_relpath(self, capability, content_cap, metadata_cap):
         """
         Attempting to delete an unknown relpath is an error.
@@ -898,7 +899,7 @@ class MagicFolderConfigCurrentSnapshotTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example().reader,
             SSKDIRS.example(),
             self.magic,
             60,
@@ -1154,14 +1155,14 @@ class RemoteSnapshotTimeTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example().reader,
             SSKDIRS.example(),
             self.magic,
             60,
             60,
         )
 
-    @given(capability=chk_directories(), content_cap=chk_objects(), metadata_cap=chk_objects())
+    @given(capability=chk_reads().map(CHKDirectoryRead), content_cap=chk_reads(), metadata_cap=chk_reads())
     def test_limit(self, capability, content_cap, metadata_cap):
         """
         Add 35 RemoteSnapshots and ensure we only get 30 back from
@@ -1219,7 +1220,7 @@ class ConflictTests(SyncTestCase):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash,
-            SSKDIRS.example().to_readonly(),
+            SSKDIRS.example().reader,
             SSKDIRS.example(),
             self.magic,
             60,

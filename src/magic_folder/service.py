@@ -380,7 +380,7 @@ class MagicFolderService(MultiService):
         )
 
         # 'attenuate' our personal dmd write-cap to a read-cap
-        personal_readonly_cap = personal_write_cap.to_readonly()
+        personal_readonly_cap = personal_write_cap.reader
 
         # add ourselves to the collective
         yield self.tahoe_client.add_entry_to_mutable_directory(

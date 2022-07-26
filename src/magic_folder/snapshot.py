@@ -4,6 +4,9 @@
 """
 Functions and types that implement snapshots
 """
+
+from typing import Optional
+
 import os
 import time
 import json
@@ -47,9 +50,8 @@ from nacl.encoding import (
 from .util.encoding import (
     normalize,
 )
-from .util.capabilities import (
-    Capability,
-)
+
+from tahoe_capabilities import Capability, danger_real_capability_string, ReadCapability
 
 # version of the snapshot scheme
 SNAPSHOT_VERSION = 1
@@ -178,15 +180,15 @@ def create_author_from_json(data):
     return create_author(data["name"], verify_key)
 
 
-def _snapshot_signature_string(relpath, content_capability, metadata_capability):
+def _snapshot_signature_string(relpath, content_capability: Optional[Capability], metadata_capability: Capability):
     """
     Formats snapshot information into bytes to sign
 
     :param unicode relpath: arbitrary snapshot name
 
-    :param Capability content_capability: Tahoe immutable capability
+    :param content_capability: Tahoe immutable capability
 
-    :param Capability metadata_capability: Tahoe immutable capability
+    :param metadata_capability: Tahoe immutable capability
 
     :returns bytes: the snapshop signature string encoded to utf8
     """
@@ -196,8 +198,8 @@ def _snapshot_signature_string(relpath, content_capability, metadata_capability)
         u"{metadata_capability}\n"
         u"{relpath}\n"
     ).format(
-        content_capability=content_capability.danger_real_capability_string() if content_capability else "",
-        metadata_capability=metadata_capability.danger_real_capability_string(),
+        content_capability=danger_real_capability_string(content_capability) if content_capability else "",
+        metadata_capability=danger_real_capability_string(metadata_capability),
         relpath=relpath,
     )
     return snapshot_string.encode("utf8")
@@ -577,11 +579,11 @@ def create_snapshot(relpath, author, data_producer, snapshot_stash_dir, parents=
     returnValue(local_snap)
 
 
-def format_filenode(cap, metadata=None):
+def format_filenode(cap: ReadCapability, metadata=None):
     """
     Create the data structure Tahoe-LAFS uses to represent a filenode.
 
-    :param Capability cap: The read-only capability string for the content of the
+    :param cap: The read-only capability string for the content of the
         filenode.
 
     :param dict: Any metadata to associate with the filenode (or None
@@ -590,9 +592,8 @@ def format_filenode(cap, metadata=None):
     :return: The Tahoe-LAFS representation of a filenode with this
         information.
     """
-    # XXX is anything ensuring this is a RO uri?
     node = {
-        u"ro_uri": None if cap is None else cap.danger_real_capability_string(),
+        u"ro_uri": None if cap is None else danger_real_capability_string(cap),
     }
     if metadata is not None:
         node[u"metadata"] = metadata

@@ -13,7 +13,7 @@ __all__ = [
     "load_global_configuration",
 ]
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 import re
 import hashlib
 import time
@@ -105,7 +105,7 @@ from eliot import (
     start_action,
 )
 
-from tahoe_capabilities import immutable_directory_from_string, ImmutableDirectoryReadCapability
+from tahoe_capabilities import immutable_directory_from_string, ImmutableDirectoryReadCapability, danger_real_capability_string, DirectoryReadCapability, DirectoryWriteCapability
 from .util.capabilities import (
     Capability,
 )
@@ -777,8 +777,8 @@ class MagicFolderConfig(object):
             db_location,
             author,
             stash_path,
-            collective_dircap,
-            upload_dircap,
+            collective_dircap: Union[DirectoryReadCapability, DirectoryWriteCapability],
+            upload_dircap: DirectoryWriteCapability,
             magic_path,
             poll_interval,
             scan_interval,
@@ -845,8 +845,8 @@ class MagicFolderConfig(object):
                     author.name,
                     author.signing_key.encode(Base32Encoder),
                     stash_path.path,
-                    collective_dircap.danger_real_capability_string(),
-                    upload_dircap.danger_real_capability_string(),
+                    danger_real_capability_string(collective_dircap),
+                    danger_real_capability_string(upload_dircap),
                     magic_path.path,
                     poll_interval,
                     scan_interval,
@@ -1067,7 +1067,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, remote_snapshot.capability.danger_real_capability_string(), str(child.identifier))
+                (False, danger_real_capability_string(remote_snapshot.capability), str(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1144,8 +1144,8 @@ class MagicFolderConfig(object):
                 """,
                 (
                     snapshot_cap.danger_real_capability_string(),
-                    None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
-                    remote_snapshot.metadata_cap.danger_real_capability_string(),
+                    None if remote_snapshot.content_cap is None else danger_real_capability_string(remote_snapshot.content_cap),
+                    danger_real_capability_string(remote_snapshot.metadata_cap),
                     now_ns,
                     duration_ns,
                     relpath,
@@ -1914,8 +1914,8 @@ class GlobalConfigDatabase(object):
         name,
         magic_path,
         author,
-        collective_dircap,
-        upload_dircap,
+        collective_dircap: DirectoryWriteCapability,
+        upload_dircap: DirectoryReadCapability,
         poll_interval,
         scan_interval,
     ):

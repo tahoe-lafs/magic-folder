@@ -5,6 +5,8 @@
 Common fixtures to let the test suite focus on application logic.
 """
 
+from typing import Union
+
 from errno import (
     ENOENT,
 )
@@ -24,7 +26,7 @@ from ..util.wrap import (
     delayed_wrap_frozen,
 )
 
-from tahoe_capabilities import DirectoryCapability, DirectoryWriteCapability
+from tahoe_capabilities import DirectoryReadCapability, DirectoryWriteCapability
 
 import attr
 
@@ -116,7 +118,7 @@ class NodeDirectory(Fixture):
     def create_magic_folder(
             self,
             folder_name: str,
-            collective_dircap: DirectoryCapability,
+            collective_dircap: Union[DirectoryReadCapability, DirectoryWriteCapability],
             upload_dircap: DirectoryWriteCapability,
             directory: FilePath,
             poll_interval: float,
@@ -203,8 +205,8 @@ class MagicFileFactoryFixture(Fixture):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash_path,
-            random_dircap(readonly=True),
-            self.upload_dircap,
+            SSKDIRS.example().reader,
+            SSKDIRS.example(),
             self.magic_path,
             self.poll_interval,
             self.scan_interval,

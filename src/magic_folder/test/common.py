@@ -19,8 +19,8 @@ from socket import (
 
 from zope.interface import implementer
 
-from tahoe_capabilities import readonly_directory_from_string, writeable_directory_from_string
-from tahoe_capabilities.strategies import ssk_directories
+from tahoe_capabilities import readonly_directory_from_string, writeable_directory_from_string, SSKDirectoryWrite
+from tahoe_capabilities.strategies import ssk_writes
 
 from testtools import (
     TestCase,
@@ -221,4 +221,4 @@ RW_DIRCAP = writeable_directory_from_string(
     "URI:DIR2:bgksdpr3lr2gvlvhydxjo2izea:dfdkjc44gg23n3fxcxd6ywsqvuuqzo4nrtqncrjzqmh4pamag2ia"
 )
 
-SSKDIRS = ssk_directories()
+SSKDIRS = ssk_writes().map(SSKDirectoryWrite)
