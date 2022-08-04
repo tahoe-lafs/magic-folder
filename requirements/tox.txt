@@ -19,7 +19,7 @@ wheel==0.37.1 \
     # via -r requirements/tox.in
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==22.0.3 \
-    --hash=sha256:c146f331f0805c77017c6bb9740cec4a49a0d4582d0c3cc8244b057f83eca359 \
-    --hash=sha256:f29d589df8c8ab99c060e68ad294c4a9ed896624f6368c5349d70aa581b333d0
+pip==22.2.2 \
+    --hash=sha256:3fd1929db052f056d7a998439176d3333fa1b3f6c1ad881de1885c0717608a4b \
+    --hash=sha256:b61a374b5bc40a6e982426aede40c9b5a08ff20e640f5b56977f4f91fed1e39a
     # via -r requirements/tox.in
