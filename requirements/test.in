@@ -14,7 +14,8 @@ mock
 pytest
 # pytest depends on colorama on windows include it here so
 # pip-compile records its hashes
-colorama
+# XXX meejah: get rid of hack in platform.txt and/or upgrade there?
+colorama==0.4.4
 pytest-twisted
 # https://github.com/pytest-dev/pytest/issues/349
 pytest-lazy-fixture

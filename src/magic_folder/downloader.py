@@ -4,6 +4,7 @@ Classes and services relating to the operation of the Downloader
 
 import os
 from collections import deque
+import hashlib
 
 import attr
 from attr.validators import (
@@ -271,7 +272,10 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         assert file_cap is not None, "must supply a file-cap"
-        staged_path = self.staging_path.child(file_cap.hex_digest())
+        relpath_hasher = hashlib.sha256()  # rather blake2b, but is it all-platform?
+        relpath_hasher.update(file_cap.danger_real_capability_string().encode("ascii"))
+        relpath_hasher.update(relpath.encode("utf8"))
+        staged_path = self.staging_path.child(relpath_hasher.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)

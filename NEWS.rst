@@ -5,6 +5,21 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.8.0 (2022-08-04)
+''''''''''''''''''''''''''''''''
+
+No significant changes.
+
+
+Magic_Folder 22.8.0 (2022-08-04)
+''''''''''''''''''''''''''''''''
+
+Bug Fixes
+---------
+
+- Stashed file-paths are unique even with same capability (`#662 <https://github.com/LeastAuthority/magic-folder/issues/662>`_)
+
+
 Magic_Folder 22.5.0 (2022-05-13)
 ''''''''''''''''''''''''''''''''
 
