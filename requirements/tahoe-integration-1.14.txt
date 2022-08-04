@@ -1,3 +1,0 @@
-tahoe-lafs==1.14.0
-cryptography < 3
-pyopenssl < 20

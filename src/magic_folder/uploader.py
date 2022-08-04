@@ -1,9 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import time
 import attr
 
@@ -94,6 +88,7 @@ class LocalSnapshotCreator(object):
     _stash_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _tahoe_client = attr.ib()
+    _cooperator = attr.ib(default=None)
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -129,7 +124,7 @@ class LocalSnapshotCreator(object):
         if parent_remote:
             # XXX should double-check parent relationship if we have any..
             if not parents:
-                raw_remote = [parent_remote]
+                raw_remote = [parent_remote.danger_real_capability_string()]
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
@@ -145,8 +140,8 @@ class LocalSnapshotCreator(object):
                     )
 
             if path_info.exists:
-                input_stream = path.asBytesMode("utf-8").open('rb')
-                mtime = int(path.asBytesMode("utf8").getModificationTime())
+                input_stream = path.open('rb')
+                mtime = int(path.getModificationTime())
             else:
                 input_stream = None
                 mtime = int(time.time())
@@ -161,15 +156,14 @@ class LocalSnapshotCreator(object):
                     raw_remote_parents=raw_remote,
                     #FIXME from path_info
                     modified_time=mtime,
+                    cooperator=self._cooperator,
                 )
             finally:
                 if input_stream:
                     input_stream.close()
 
-            # store the local snapshot to the disk
-            # FIXME: should be in a transaction
-            self._db.store_local_snapshot(snapshot)
-            self._db.store_currentsnapshot_state(relpath, path_info.state)
+            # store the local snapshot to the database
+            self._db.store_local_snapshot(snapshot, path_info.state)
             returnValue(snapshot)
 
 
@@ -214,15 +208,18 @@ class LocalSnapshotService(service.Service):
                 d.errback()
                 write_traceback()
 
+    @inline_callbacks
     def stopService(self):
         """
         Don't process queued items anymore.
         """
-        super(LocalSnapshotService, self).stopService()
-        d = self._service_d
-        self._service_d = None
-        d.cancel()
-        return d
+        yield super(LocalSnapshotService, self).stopService()
+        for d in self._queue.waiting:
+            d.cancel()  # nobody is getting an answer now
+        if self._service_d is not None:
+            self._service_d.cancel()
+            yield self._service_d
+            self._service_d = None
 
     @log_call_deferred(u"magic-folder:local-snapshots:add-file")
     def add_file(self, path):
@@ -262,7 +259,7 @@ class LocalSnapshotService(service.Service):
         # isdir() can fail and can raise an appropriate exception like
         # FileNotFoundError or PermissionError or other filesystem
         # exceptions
-        if path.asBytesMode('utf-8').isdir():
+        if path.isdir():
             raise APIError(
                 reason=u"expected a regular file, {!r} is a directory".format(path.path),
                 code=http.NOT_ACCEPTABLE,
@@ -320,8 +317,9 @@ class UploaderService(service.Service):
         super(UploaderService, self).stopService()
         d = self._service_d
         self._service_d = None
-        d.cancel()
-        return d
+        if d is not None:
+            d.cancel()
+            return d
 
     @inline_callbacks
     def _perform_upload(self, snapshot):
@@ -339,7 +337,7 @@ class UploaderService(service.Service):
             self._config.author,
             self._tahoe_client,
         )
-        Message.log(remote_snapshot=remote_snapshot.capability)
+        Message.log(remote_snapshot=remote_snapshot.relpath)
         snapshot.remote_snapshot = remote_snapshot
         yield self._config.store_uploaded_snapshot(
             remote_snapshot.relpath,

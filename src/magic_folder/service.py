@@ -1,8 +1,6 @@
 # Copyright (c) Least Authority TFA GmbH.
 # See COPYING.* for details.
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import json
 from configparser import (
     ConfigParser,
@@ -12,34 +10,37 @@ import attr
 from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
-from twisted.application.service import MultiService
+from twisted.application.service import (
+    MultiService,
+)
 from twisted.internet.defer import Deferred, gatherResults, returnValue
 from twisted.internet.endpoints import serverFromString
-from twisted.internet.task import deferLater
 from twisted.web import http
 from twisted.web.client import Agent
+from twisted.python.compat import (
+    nativeString,
+)
 
 from .common import APIError, NoSuchMagicFolder
 from .endpoints import client_endpoint_from_address
 from .magic_folder import MagicFolder
 from .snapshot import create_local_author
-from .status import IStatus, WebSocketStatusService
-from .tahoe_client import create_tahoe_client
-from .util.capabilities import to_readonly_capability
-from .util.observer import ListenObserver
+from .status import (
+    IStatus,
+    WebSocketStatusService,
+    TahoeStatus,
+)
+from .tahoe_client import (
+    InsufficientStorageServers,
+    create_tahoe_client,
+)
+from .util.observer import (
+    ListenObserver,
+)
+from .util.twisted import (
+    PeriodicService,
+)
 from .web import magic_folder_web_service
-
-
-@inline_callbacks
-def poll(label, operation, reactor):
-    while True:
-        print("Polling {}...".format(label))
-        status, message = yield operation()
-        if status:
-            print("{}: {}, done.".format(label, message))
-            break
-        print("Not {}: {}".format(label, message))
-        yield deferLater(reactor, 1.0, lambda: None)
 
 
 def read_tahoe_config(node_directory):
@@ -56,6 +57,96 @@ def read_tahoe_config(node_directory):
 
 
 @attr.s
+class ConnectedTahoeService(MultiService):
+    """
+    A service that periodically checks whether the Tahoe client we're
+    using is currently connected to 'enough' servers.
+
+    This is reflected in our status service.
+
+    When creating Tahoe objects, it can be important to know whether
+    we are currently connected to 'enough' servers (e.g. >=
+    'happy'). This is especially important for mutables because they
+    do not follow the 'servers of happiness' algorithm and will not
+    fail if there are less than a 'happy' number of storage servers
+    currently connected.
+
+    While "check, then create mutable" still leaves a window when we
+    _could_ create a mutable with fewer than 'happy' servers, it
+    reduces the window considerably.
+
+    Note: find_happy_shares() is 'lazy' because the test fixtures play a bit
+    of a trick to avoid having to have a 'real' tahoe directory...
+    """
+    reactor = attr.ib()
+    find_happy_shares = attr.ib()  # callable() -> int
+    status_service = attr.ib(validator=attr.validators.provides(IStatus))
+    tahoe_client = attr.ib()
+
+    # internal state
+    happy = attr.ib(default=None)
+    _poller = attr.ib(default=None)
+    _last_update = attr.ib(default=0)
+    _storage_servers = attr.ib(factory=dict)
+
+    def __attrs_post_init__(self):
+        MultiService.__init__(self)
+
+    def startService(self):
+        MultiService.startService(self)
+        self.happy = self.find_happy_shares()
+        self._poller = PeriodicService(
+            self.reactor,
+            5,
+            self._update_status,
+        )
+        self._poller.setServiceParent(self)
+
+    @inline_callbacks
+    def is_happy_connections(self):
+        yield self._poller.call_soon()
+        returnValue(self.connected_servers() >= self.happy)
+
+    def connected_servers(self):
+        """
+        :returns int: the number of storage-servers our Tahoe-LAFS client
+        is currently connected to.
+        """
+        return sum(
+            1 if server["connection_status"].startswith("Connected to") else 0
+            for server in self._storage_servers
+        )
+
+    @inline_callbacks
+    def _update_status(self):
+        try:
+            welcome_body = yield self.tahoe_client.get_welcome()
+            self._storage_servers = welcome_body["servers"]
+            status = TahoeStatus(self.connected_servers(), self.happy, True)
+        except Exception:
+            self._storage_servers = {}
+            status = TahoeStatus(0, self.happy, False)
+
+        # update status
+        self.status_service.tahoe_status(status)
+
+        # tell TahoeClient whether mutable operation is fine or not
+        if status.is_happy:
+            self.tahoe_client.mutables_okay()
+        else:
+            self.tahoe_client.mutables_bad(
+                InsufficientStorageServers(
+                    status.connected,
+                    status.desired,
+                )
+            )
+
+from twisted.logger import (
+    Logger,
+)
+
+
+@attr.s
 class MagicFolderService(MultiService):
     """
     :ivar reactor: the Twisted reactor to use
@@ -68,6 +159,8 @@ class MagicFolderService(MultiService):
     status_service = attr.ib(validator=attr.validators.provides(IStatus))
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
+    _cooperator = attr.ib(default=None)
+    log = Logger()
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -79,7 +172,7 @@ class MagicFolderService(MultiService):
         self._listen_endpoint = ListenObserver(
             serverFromString(
                 self.reactor,
-                self.config.api_endpoint,
+                nativeString(self.config.api_endpoint),
             )
         )
         web_service = magic_folder_web_service(
@@ -90,6 +183,18 @@ class MagicFolderService(MultiService):
             self.status_service,
         )
         web_service.setServiceParent(self)
+
+        def find_happy_shares():
+            tahoe_config = read_tahoe_config(self.config.tahoe_node_directory)
+            return int(tahoe_config.get("client", "shares.happy"))
+
+        self._tahoe_status_service = ConnectedTahoeService(
+            self.reactor,
+            find_happy_shares,
+            self.status_service,
+            self.tahoe_client,
+        )
+        self._tahoe_status_service.setServiceParent(self)
 
         # We can create the services for all configured folders right now.
         # They won't do anything until they are started which won't happen
@@ -107,6 +212,7 @@ class MagicFolderService(MultiService):
             name,
             self.config,
             self.status_service,
+            cooperator=self._cooperator,
         )
         mf.setServiceParent(self)
         return mf
@@ -151,42 +257,19 @@ class MagicFolderService(MultiService):
             WebSocketStatusService(reactor, config),
         )
 
-    def _when_connected_enough(self):
-        # start processing the upload queue when we've connected to
-        # enough servers
-        tahoe_config = read_tahoe_config(self.config.tahoe_node_directory)
-        threshold = int(tahoe_config.get("client", "shares.needed"))
-
-        @inline_callbacks
-        def enough():
-            try:
-                welcome_body = yield self.tahoe_client.get_welcome()
-            except Exception:
-                returnValue((False, "Failed to get welcome page"))
-
-            servers = welcome_body["servers"]
-            connected_servers = [
-                server
-                for server in servers
-                if server["connection_status"].startswith("Connected ")
-            ]
-
-            message = "Found {} of {} connected servers (want {})".format(
-                len(connected_servers),
-                len(servers),
-                threshold,
-            )
-
-            if len(connected_servers) < threshold:
-                returnValue((False, message))
-            returnValue((True, message))
-
-        return poll("connected enough", enough, self.reactor)
-
     @inline_callbacks
     def run(self):
-        yield self._when_connected_enough()
         yield self.startService()
+        happy = yield self._tahoe_status_service.is_happy_connections()
+        self.log.info(
+            "Connected to {} storage-servers".format(
+                self._tahoe_status_service.connected_servers()
+            ),
+        )
+        if not happy:
+            self.log.info(
+                "NOTE: not currently connected to enough storage-servers",
+            )
 
         def do_shutdown():
             self._run_deferred.callback(None)
@@ -221,7 +304,9 @@ class MagicFolderService(MultiService):
 
         # The integration tests look for this message.  You cannot get rid of
         # it (without also changing the tests).
-        print("Completed initial Magic Folder setup")
+        self.log.info(
+            "Completed initial Magic Folder setup",
+        )
         self._starting = gatherResults(ds)
 
     @inline_callbacks
@@ -295,7 +380,7 @@ class MagicFolderService(MultiService):
         )
 
         # 'attenuate' our personal dmd write-cap to a read-cap
-        personal_readonly_cap = to_readonly_capability(personal_write_cap)
+        personal_readonly_cap = personal_write_cap.to_readonly()
 
         # add ourselves to the collective
         yield self.tahoe_client.add_entry_to_mutable_directory(
@@ -316,6 +401,7 @@ class MagicFolderService(MultiService):
 
         mf = self._add_service_for_folder(name)
         yield mf.ready()
+        self.status_service._maybe_update_clients()
 
     @inline_callbacks
     def leave_folder(self, name, really_delete_write_capability):

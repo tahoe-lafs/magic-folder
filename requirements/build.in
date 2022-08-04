@@ -1,0 +1,10 @@
+# these requirements are for developers producing release builds
+# see also the Makefile and DEVELOPERS for more information
+-r base.in
+setuptools_scm>=6.4.0
+dulwich>=0.20.30
+twine>=3.7.1
+towncrier>=21.3.0
+readme_renderer>=32.0
+wheel>=0.37.1
+gpg>=1.10.0

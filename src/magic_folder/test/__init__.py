@@ -8,12 +8,6 @@ This also does some test-only related setup.  The expectation is that this
 code will never be loaded under real usage.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from sys import (
     stderr,
 )
@@ -69,7 +63,7 @@ def _configure_hypothesis():
         suppress_health_check=[
             HealthCheck.too_slow,
         ],
-        deadline=None,
+        deadline=60*10*1000,  # _some_ number that's not "forever" (milliseconds)
     )
 
     settings.register_profile(
@@ -83,7 +77,7 @@ def _configure_hypothesis():
             HealthCheck.too_slow,
         ],
         # With the same reasoning, disable the test deadline.
-        deadline=None,
+        deadline=60*10*1000,  # _some_ number that's not "forever" (milliseconds)
     )
 
     profile_name = environ.get("MAGIC_FOLDER_HYPOTHESIS_PROFILE", "default")
@@ -92,4 +86,4 @@ def _configure_hypothesis():
 _configure_hypothesis()
 
 from eliot import to_file
-to_file(open("eliot.log", "w"))
+to_file(open("eliot.log", "w", encoding="utf8"))

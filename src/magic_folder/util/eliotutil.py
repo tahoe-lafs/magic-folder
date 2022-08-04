@@ -5,12 +5,6 @@
 Eliot logging utility imported from Tahoe-LAFS code.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import inspect
 import json
 import os
@@ -54,13 +48,6 @@ from functools import wraps
 from twisted.python.filepath import (
     FilePath,
 )
-from twisted.python.logfile import (
-    LogFile,
-)
-
-from sys import (
-    stdout,
-)
 from twisted.application.service import Service
 from zope.interface import (
     implementer,
@@ -73,16 +60,7 @@ from attr.validators import (
 )
 
 from json import loads
-
-try:
-    # unwrap was introduced in python 3.4
-    from inspect import unwrap
-except ImportError:
-
-    def unwrap(f):
-        while hasattr(f, "__wrapped__"):
-            f = f.__wrapped__
-        return f
+from inspect import unwrap
 
 
 def validateInstanceOf(t):
@@ -97,7 +75,7 @@ def validateInstanceOf(t):
 
 RELPATH = Field.for_types(
     u"relpath",
-    [unicode],
+    [str],
     u"The relative path of a file in a magic-folder.",
 )
 
@@ -110,25 +88,25 @@ ABSPATH = Field(
 
 VERSION = Field.for_types(
     u"version",
-    [int, long],
+    [int],
     u"The version of the file.",
 )
 
 LAST_UPLOADED_URI = Field.for_types(
     u"last_uploaded_uri",
-    [unicode, bytes, None],
+    [str, bytes, None],
     u"The filecap to which this version of this file was uploaded.",
 )
 
 LAST_DOWNLOADED_URI = Field.for_types(
     u"last_downloaded_uri",
-    [unicode, bytes, None],
+    [str, bytes, None],
     u"The filecap from which the previous version of this file was downloaded.",
 )
 
 LAST_DOWNLOADED_TIMESTAMP = Field.for_types(
     u"last_downloaded_timestamp",
-    [float, int, long],
+    (float, int),
     u"(XXX probably not really, don't trust this) The timestamp of the last download of this file.",
 )
 
@@ -307,76 +285,6 @@ def _stdlib_logging_to_eliot_configuration(stdlib_logger, eliot_logger=None):
     handler.setLevel(INFO)
     stdlib_logger.addHandler(handler)
     return lambda: stdlib_logger.removeHandler(handler)
-
-
-class _DestinationParser(object):
-    def parse(self, description):
-        description = description.decode(u"ascii")
-
-        try:
-            kind, args = description.split(u":", 1)
-        except ValueError:
-            raise ValueError(
-                u"Eliot destination description must be formatted like "
-                u"<kind>:<args>."
-            )
-        try:
-            parser = getattr(self, u"_parse_{}".format(kind))
-        except AttributeError:
-            raise ValueError(
-                u"Unknown destination description: {}".format(description)
-            )
-        else:
-            return parser(kind, args)
-
-    def _get_arg(self, arg_name, default, arg_list):
-        return dict(
-            arg.split(u"=", 1)
-            for arg
-            in arg_list
-        ).get(
-            arg_name,
-            default,
-        )
-
-    def _parse_file(self, kind, arg_text):
-        # Reserve the possibility of an escape character in the future.  \ is
-        # the standard choice but it's the path separator on Windows which
-        # pretty much ruins it in this context.  Most other symbols already
-        # have some shell-assigned meaning which makes them treacherous to use
-        # in a CLI interface.  Eliminating all such dangerous symbols leaves
-        # approximately @.
-        if u"@" in arg_text:
-            raise ValueError(
-                u"Unsupported escape character (@) in destination text ({!r}).".format(arg_text),
-            )
-        arg_list = arg_text.split(u",")
-        path_name = arg_list.pop(0)
-        if path_name == "-":
-            get_file = lambda: stdout
-        else:
-            path = FilePath(path_name)
-            rotate_length = int(self._get_arg(
-                u"rotate_length",
-                1024 * 1024 * 1024,
-                arg_list,
-            ))
-            max_rotated_files = int(self._get_arg(
-                u"max_rotated_files",
-                10,
-                arg_list,
-            ))
-            def get_file():
-                path.parent().makedirs(ignoreExistingDirectory=True)
-                return LogFile(
-                    path.basename(),
-                    path.dirname(),
-                    rotateLength=rotate_length,
-                    maxRotatedFiles=max_rotated_files,
-                )
-        return lambda reactor: FileDestination(get_file())
-
-_parse_destination_description = _DestinationParser().parse
 
 
 def log_call_deferred(action_type, include_args=False):

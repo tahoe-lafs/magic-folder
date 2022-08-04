@@ -5,12 +5,6 @@
 Tests for ``magic_folder.test.common``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import os
 import os.path
 from sys import (
@@ -50,26 +44,22 @@ from twisted.python.filepath import (
 
 from twisted.python import runtime
 
-def get_synctestcase():
-    # Hide this in a function so the test runner doesn't discover it and try
-    # to run it.
-    class Tests(SyncTestCase):
-        def test_foo(self):
-            pass
-    return Tests("test_foo")
 
 class SyncTestCaseTests(TestCase):
     """
     Tests for ``magic_folder.test.common.SyncTestCase``.
     """
-    def test_mktemp_bytes(self):
+    def setUp(self):
+        self.case = SyncTestCase()
+
+    def test_mktemp_str(self):
         """
-        ``SyncTestCase.mktemp`` returns ``bytes``.
+        ``SyncTestCase.mktemp`` returns ``str``.
         """
-        tmp = get_synctestcase().mktemp()
+        tmp = self.case.mktemp()
         self.assertTrue(
-            isinstance(tmp, bytes),
-            "Expected bytes but {!r} is instance of {}".format(
+            isinstance(tmp, str),
+            "Expected str but {!r} is instance of {}".format(
                 tmp,
                 type(tmp),
             ),
@@ -79,14 +69,12 @@ class SyncTestCaseTests(TestCase):
         """
         ``SyncTestCase.mktemp`` returns a path associated with the selected test.
         """
-        tmp = get_synctestcase().mktemp()
+        tmp = self.case.mktemp()
         actual_segments = tmp.split(os.sep)
         case_segments = [
             "magic_folder",
             "test",
-            "test_common",
-            "Tests",
-            "test_foo",
+            "common",
         ]
         self.assertTrue(
             is_sublist(case_segments, actual_segments),
@@ -101,7 +89,7 @@ class SyncTestCaseTests(TestCase):
         ``SyncTestCase.mktemp`` returns a path the parent of which exists and is a
         directory.
         """
-        tmp = get_synctestcase().mktemp()
+        tmp = self.case.mktemp()
         self.assertTrue(
             os.path.isdir(os.path.split(tmp)[0]),
             "Expected parent of {!r} to be a directory".format(tmp),
@@ -113,7 +101,7 @@ class SyncTestCaseTests(TestCase):
         ``SyncTestCase.mktemp`` returns a path the parent of which is writeable
         only by the owner.
         """
-        tmp = get_synctestcase().mktemp()
+        tmp = self.case.mktemp()
         stat = os.stat(os.path.split(tmp)[0])
         self.assertEqual(
             stat.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH),
@@ -128,7 +116,7 @@ class SyncTestCaseTests(TestCase):
         """
         ``SyncTestCase.mktemp`` returns a path which does not exist.
         """
-        tmp = get_synctestcase().mktemp()
+        tmp = self.case.mktemp()
         self.assertFalse(
             os.path.exists(tmp),
             "Expected {!r} not to exist".format(tmp),

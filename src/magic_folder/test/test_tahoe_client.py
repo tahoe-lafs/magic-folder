@@ -5,13 +5,6 @@
 Tests for ``magic_folder.tahoe_client``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from functools import (
     partial,
 )
@@ -64,6 +57,9 @@ from twisted.web.http import (
 from ..tahoe_client import (
     TahoeAPIError,
     create_tahoe_client
+)
+from ..util.capabilities import (
+    Capability,
 )
 
 from ..testing.web import (
@@ -123,7 +119,7 @@ class TahoeClientTests(SyncTestCase):
             succeeded(
                 # TODO Check that it's the kind of cap we expected?
                 AfterPreprocessing(
-                    lambda cap: self.root._uri.data[cap],
+                    lambda cap: self.root._uri.data[cap.danger_real_capability_string()],
                     Equals(data),
                 ),
             ),
@@ -157,7 +153,7 @@ class TahoeClientTests(SyncTestCase):
         """
         ignored, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
-            self.tahoe_client.download_file(cap),
+            self.tahoe_client.download_file(Capability.from_string(cap)),
             succeeded(Equals(data)),
         )
 
@@ -236,10 +232,10 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
-            self.tahoe_client.list_directory(cap),
+            self.tahoe_client.list_directory(Capability.from_string(cap)),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
@@ -263,10 +259,10 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
-            self.tahoe_client.list_directory(cap),
+            self.tahoe_client.list_directory(Capability.from_string(cap)),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
@@ -290,14 +286,14 @@ class TahoeClientTests(SyncTestCase):
                 "ro_uri": "URI:CHK:lfnzol6woyz42falzttgxrvth4:lrimqiz4fyvqhfruf25rt56ncdsqojlu66hih3lkeen4lh3vgvjq:1:5:6798975",
                 "size": 6798975
             }
-        ])
+        ]).encode("utf8")
         _, cap = self.root.add_data("URI:CHK:", data)
         self.assertThat(
-            self.tahoe_client.directory_data(cap),
+            self.tahoe_client.directory_data(Capability.from_string(cap)),
             failed(
                 AfterPreprocessing(
                     lambda fail: str(fail.value),
-                    Equals("{} is not a directory-capability".format(cap))
+                    Equals("[REDACTED] is not a directory-capability")
                 )
             )
         )
@@ -310,7 +306,7 @@ class TahoeClientTests(SyncTestCase):
         ignored, cap = self.root.add_data("URI:CHK:", data)
         output = BytesIO()
         self.assertThat(
-            self.tahoe_client.stream_capability(cap, output),
+            self.tahoe_client.stream_capability(Capability.from_string(cap), output),
             succeeded(Equals(None)),
         )
         self.assertThat(
@@ -340,7 +336,7 @@ class TahoeClientTests(SyncTestCase):
             self.tahoe_client.create_immutable_directory(children),
             succeeded(
                 AfterPreprocessing(
-                    lambda cap: loads(self.root._uri.data[cap])[1]["children"],
+                    lambda cap: loads(self.root._uri.data[cap.danger_real_capability_string()])[1]["children"],
                     Equals(children),
                 ),
             ),
@@ -354,7 +350,10 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(
             self.tahoe_client.create_mutable_directory(),
             succeeded(
-                contained_by(self.root._uri.data),
+                AfterPreprocessing(
+                    lambda cap: cap.danger_real_capability_string(),
+                    contained_by(self.root._uri.data),
+                ),
             ),
         )
 
@@ -386,7 +385,7 @@ class TahoeClientTests(SyncTestCase):
         """
         mutable_d = self.tahoe_client.create_mutable_directory()
         child_d = self.tahoe_client.create_immutable(content)
-        self.assertThat(gatherResults([mutable_d, child_d]), Always())
+        self.assertThat(gatherResults([mutable_d, child_d]), succeeded(Always()))
 
         mutable_cap = mutable_d.result
         child_cap = child_d.result
@@ -397,7 +396,7 @@ class TahoeClientTests(SyncTestCase):
             child_cap,
         )
 
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), child_name)
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.danger_real_capability_string(), child_name)
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,
@@ -411,7 +410,7 @@ class TahoeClientTests(SyncTestCase):
         self.assertThat(child_content_d.result, Equals(content))
 
         # getting a different child fails
-        child_uri = ANY_ROOT.child(u"uri", mutable_cap.decode("utf8"), u"not-the-child-name")
+        child_uri = ANY_ROOT.child(u"uri", mutable_cap.danger_real_capability_string(), u"not-the-child-name")
         resp_d = self.http_client.get(child_uri.to_text())
         self.assertThat(
             resp_d,

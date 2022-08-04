@@ -5,13 +5,6 @@
 Implements the magic-folder invite command.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
-
 def magic_folder_invite(config, folder_name, treq):
     """
     Invite a user identified by the nickname to a folder owned by the alias

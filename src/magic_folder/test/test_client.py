@@ -5,13 +5,6 @@
 Tests for ``magic_folder.client``.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from testtools.matchers import (
     Equals,
     Always,
@@ -51,7 +44,7 @@ class MagicFolderClientTests(SyncTestCase):
 
         self.client = MagicFolderClient(
             StubTreq(StringStubbingResource(get_resource_for)),
-            lambda: "fake token",
+            lambda: b"fake token",
         )
 
     def setUp(self):
@@ -69,16 +62,16 @@ class MagicFolderClientTests(SyncTestCase):
         self.assertThat(
             self.api_calls,
             Equals([
-                ('GET',
+                (b'GET',
                  'http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects',
                  {},
                  {
-                     'Accept-Encoding': ['gzip'],
-                     'Authorization': ['Bearer fake token'],
-                     'Connection': ['close'],
-                     'Host': ['invalid.'],
+                     b'Accept-Encoding': [b'gzip'],
+                     b'Authorization': [b'Bearer fake token'],
+                     b'Connection': [b'close'],
+                     b'Host': [b'invalid.'],
                  },
-                 '',
+                 b'',
                 ),
             ])
         )

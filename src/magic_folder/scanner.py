@@ -4,23 +4,29 @@
 Scan a Magic Folder for changes.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import attr
 from eliot import (
     current_action,
     start_action,
+    write_traceback,
     write_failure,
 )
 from eliot.twisted import inline_callbacks
 from twisted.application.service import MultiService
 from twisted.internet.defer import (
     DeferredLock,
-    gatherResults,
 )
-from twisted.internet.task import Cooperator
+from twisted.internet.task import (
+    Cooperator,
+)
 
-from .util.file import get_pathinfo
+from .status import (
+    ScannerStatus,
+)
+from .util.file import (
+    get_pathinfo,
+    seconds_to_ns,
+)
 from .util.twisted import (
     exclusively,
     PeriodicService,
@@ -54,7 +60,8 @@ class ScannerService(MultiService):
 
     _config = attr.ib()
     _file_factory = attr.ib()
-    _status = attr.ib()
+    # "tests" and "relative_proxy_for" don't play nicely w/ validator
+    _status = attr.ib()  #validator=attr.validators.provides(IStatus))
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _clock = attr.ib()
@@ -85,12 +92,10 @@ class ScannerService(MultiService):
         self._deserialize_local_snapshots()
         return super(ScannerService, self).startService()
 
+    @inline_callbacks
     def stopService(self):
-        return (
-            super(ScannerService, self)
-            .stopService()
-            .addCallback(lambda _: self._cooperator.stop())
-        )
+        yield super(ScannerService, self).stopService()
+        yield self._cooperator.stop()
 
     def scan_once(self):
         """
@@ -111,18 +116,28 @@ class ScannerService(MultiService):
             snap = self._config.get_local_snapshot(relpath)
             return mf.local_snapshot_exists(snap)
 
-        self._cooperator.coiterate(
+        d = self._cooperator.coiterate(
             existing_snapshot(relpath)
             for relpath in localsnapshot_paths
         )
+        d.addErrback(write_failure)
 
+    @inline_callbacks
     def _loop(self):
         """
         Called periodically to scan for new files.
 
         Performs a scan for files, and logs and consumes all errors.
         """
-        return self._scan().addErrback(write_failure)
+        try:
+            yield self._scan()
+            self._status.scan_status(
+                ScannerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
+        except Exception:
+            write_traceback()
 
     @exclusively
     @inline_callbacks
@@ -156,7 +171,6 @@ class ScannerService(MultiService):
             )
 
         results = []
-        snapshots = []
 
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
@@ -169,9 +183,6 @@ class ScannerService(MultiService):
             create_update(path)
             for path in updates
         )
-
-        yield gatherResults(snapshots)
-        # XXX update/use IStatus to report scan start/end
 
 
 def find_updated_files(cooperator, folder_config, on_new_file, status):
@@ -191,7 +202,6 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
     """
     action = current_action()
     magic_path = folder_config.magic_path
-    bytes_path = magic_path.asBytesMode("utf-8")
 
     def process_file(path):
         with action.context():
@@ -229,9 +239,9 @@ def find_updated_files(cooperator, folder_config, on_new_file, status):
 
     return cooperator.coiterate(
         (
-            process_file(path.asTextMode("utf-8"))
-            for path in bytes_path.walk()
-            if path != bytes_path
+            process_file(path)
+            for path in magic_path.walk()
+            if path != magic_path
         )
     )
 
@@ -257,7 +267,7 @@ def find_deleted_files(cooperator, folder_config, on_deleted_file, status):
         Check if this file still exists locally; if not, it's a delete
         """
         path = folder_config.magic_path.preauthChild(relpath)
-        if not path.asBytesMode("utf8").exists():
+        if not path.exists():
             try:
                 local = folder_config.get_local_snapshot(relpath)
             except KeyError:

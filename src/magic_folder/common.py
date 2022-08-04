@@ -5,12 +5,6 @@
 Common functions and types used by other modules.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from contextlib import contextmanager
 import unicodedata
 
@@ -51,7 +45,8 @@ def does_not_have_keys(*keys):
     return validator
 
 
-@attr.s(auto_exc=True, frozen=True)
+# this cannot be frozen=True because of Twisted
+@attr.s(auto_exc=True)
 class APIError(Exception):
     """
     An error to be reported from the API.
@@ -64,7 +59,7 @@ class APIError(Exception):
     code = attr.ib(
         validator=attr.validators.optional(attr.validators.instance_of(int)),
     )
-    reason = attr.ib(validator=attr.validators.instance_of(unicode))
+    reason = attr.ib(validator=attr.validators.instance_of(str))
     extra_fields = attr.ib(
         default=None,
         validator=attr.validators.optional(
@@ -106,13 +101,13 @@ class APIError(Exception):
         return self.reason
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class NoSuchMagicFolder(APIError):
     """
     There is not a magic folder of the given name.
     """
 
-    name = attr.ib(validator=attr.validators.instance_of(unicode))
+    name = attr.ib(validator=attr.validators.instance_of(str))
     code = attr.ib(
         init=False,
         default=http.NOT_FOUND,
@@ -135,18 +130,17 @@ def atomic_makedirs(path):
 
     :param FilePath path: the directory/ies to create
     """
-    path_b = path.asBytesMode("utf-8")
-    path_b.makedirs()
+    path.makedirs()
     try:
         yield path
     except Exception:
         # on error, clean up our directory
-        path_b.remove()
+        path.remove()
         # ...and pass on the error
         raise
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class InvalidMagicFolderName(APIError):
     """
     The given magic folder name contains an invalid character.
@@ -159,7 +153,7 @@ class InvalidMagicFolderName(APIError):
         u"control characters or unassigned characters."
     )
 
-    name = attr.ib(validator=attr.validators.instance_of(unicode))
+    name = attr.ib(validator=attr.validators.instance_of(str))
     code = attr.ib(
         default=http.BAD_REQUEST,
         validator=attr.validators.optional(attr.validators.instance_of(int)),

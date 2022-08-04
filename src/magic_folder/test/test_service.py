@@ -1,9 +1,4 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
+import io
 from eliot.twisted import (
     inline_callbacks,
 )
@@ -30,6 +25,9 @@ from twisted.python.filepath import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
+from twisted.logger import (
+    capturedLogs,
+)
 
 # After a Tahoe 1.15.0 or higher release, these should be imported
 # from Tahoe instead
@@ -55,6 +53,63 @@ from magic_folder.tahoe_client import (
 )
 
 
+class TestTahoeMonitor(AsyncTestCase):
+    """
+    Tests relating to ConnectedTahoeservice
+    """
+
+    def setUp(self):
+        super(TestTahoeMonitor, self).setUp()
+
+        self.root = create_fake_tahoe_root()
+        self.http_client = create_tahoe_treq_client(self.root)
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://example.com"),
+            self.http_client,
+        )
+
+        self.node = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
+        # when the "service" is run it wants to check shares-happy from Tahoe
+        with self.node.tahoe_cfg.open("w") as f:
+            f.write(b"[client]\nshares.happy = 1\n")
+        self.basedir = FilePath(self.mktemp())
+        self.config = create_global_configuration(
+            self.basedir,
+            u"tcp:0",
+            self.node.path,
+            u"tcp:localhost:0",
+        )
+        self.reactor = MemoryReactorClock()
+        self.service = MagicFolderService(
+            self.reactor,
+            self.config,
+            WebSocketStatusService(self.reactor, self.config),
+            self.tahoe_client,
+        )
+
+    def test_welcome_fails(self):
+        """
+        if get_welcome() fails we should print a message
+        """
+
+        def fail(*args, **kw):
+            raise Exception("fail")
+        self.tahoe_client.get_welcome = fail
+        with capturedLogs() as captured:
+            d = self.service.run()
+            # not-ideal sekrit knowledge of how the service works
+            self.reactor.triggers["before"]["shutdown"][0][0]()
+
+        self.assertThat(
+            [
+                log["log_format"]
+                for log in captured
+            ],
+            Contains("NOTE: not currently connected to enough storage-servers")
+        )
+        return d
+
+
 class TestService(AsyncTestCase):
     """
     Tests relating to MagicFolderService
@@ -73,9 +128,9 @@ class TestService(AsyncTestCase):
         self.magic_dir.makedirs()
 
         self.node = self.useFixture(NodeDirectory(FilePath(self.mktemp())))
-        # when the "service" is run it wants to check shares-needed from Tahoe
+        # when the "service" is run it wants to check shares-happy from Tahoe
         with self.node.tahoe_cfg.open("w") as f:
-            f.write("[client]\nshares.needed = 1\n")
+            f.write(b"[client]\nshares.happy = 1\n")
         self.basedir = FilePath(self.mktemp())
         self.config = create_global_configuration(
             self.basedir,
@@ -90,6 +145,7 @@ class TestService(AsyncTestCase):
             WebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
+        self.service._stdout = self.out = io.StringIO()
 
     @inline_callbacks
     def test_allocate_port(self):
@@ -103,7 +159,7 @@ class TestService(AsyncTestCase):
         )
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("tcp:0.0.0.0:0"),
+            Equals(b"tcp:0.0.0.0:0"),
         )
         self.assertThat(
             len(self.reactor.triggers),
@@ -117,7 +173,7 @@ class TestService(AsyncTestCase):
         yield d
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("not running"),
+            Equals(b"not running"),
         )
 
     @inline_callbacks
@@ -133,9 +189,8 @@ class TestService(AsyncTestCase):
             yield d
         self.assertThat(
             self.basedir.child("api_client_endpoint").getContent().strip(),
-            Equals("not running"),
+            Equals(b"not running"),
         )
-
 
 
 class TestAdd(SyncTestCase):

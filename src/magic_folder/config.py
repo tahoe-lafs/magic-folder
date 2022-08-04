@@ -4,13 +4,6 @@ Configuration and state database interaction.
 See also docs/config.rst
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 __all__ = [
     "MagicFolderConfig",
     "GlobalConfigDatabase",
@@ -112,9 +105,7 @@ from eliot import (
 )
 
 from .util.capabilities import (
-    is_readonly_directory_cap,
-    is_directory_cap,
-    capability_size,
+    Capability,
 )
 from .util.database import (
     with_cursor,
@@ -238,6 +229,7 @@ _magicfolder_config_schema = Schema([
         # table. See ticket 558
         """
         -- This table represents the current state of the file on disk, as last known to us
+        -- A correct mtime/ctime exists for any LocalSnapshots created.
         CREATE TABLE [current_snapshots]
         (
             [relpath]          TEXT PRIMARY KEY, -- snapshot relative-path in UTF-8
@@ -281,15 +273,9 @@ DELETE_SNAPSHOTS = ActionType(
     u"Delete the row corresponding to the given path from the local snapshot table.",
 )
 
-FETCH_CURRENT_SNAPSHOTS_FROM_DB = ActionType(
-    u"config:state-db:get-remote-snapshot-entry",
-    [RELPATH],
-    [],
-    u"Delete the row corresponding to the given path from the local snapshot table.",
-)
 _INSERT_OR_UPDATE = Field.for_types(
     u"insert_or_update",
-    [unicode],
+    [str],
     u"An indication of whether the record for this upload was new or an update to a previous entry.",
     validateSetMembership({u"insert", u"update"}),
 )
@@ -309,7 +295,7 @@ class LocalSnapshotCollision(Exception):
     database.
     """
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class LocalSnapshotMissingParent(Exception):
     """
     An attempt was made to store a local snapshot whose parents aren't in
@@ -318,15 +304,15 @@ class LocalSnapshotMissingParent(Exception):
     parent_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class RemoteSnapshotWithoutPathState(Exception):
     """
     An attempt was made to insert a remote snapshot into the database without
     corresponding path state (either provided, or already in the database).
     """
 
-    folder_name = attr.ib(validator=attr.validators.instance_of(unicode))
-    relpath = attr.ib(validator=attr.validators.instance_of(unicode))
+    folder_name = attr.ib(validator=attr.validators.instance_of(str))
+    relpath = attr.ib(validator=attr.validators.instance_of(str))
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
@@ -351,11 +337,11 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     # our APIs insist on endpoint-strings being unicode, but Twisted
     # only accepts "str" .. so we have to convert on py2. When we
     # support python3 this check only needs to happen on py2
-    if not isinstance(api_endpoint_str, unicode):
+    if not isinstance(api_endpoint_str, str):
         raise ValueError(
             "'api_endpoint_str' must be unicode"
         )
-    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, unicode):
+    if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, str):
         raise ValueError(
             "'api_client_endpoint_str' must be unicode"
         )
@@ -366,10 +352,6 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         api_client_endpoint_str = nativeString(api_client_endpoint_str)
         _validate_connect_endpoint_str(api_client_endpoint_str)
 
-    # note that we put *bytes* in .child() calls after this so we
-    # don't convert again..
-    basedir = basedir.asBytesMode("utf8")
-
     try:
         basedir.makedirs()
     except OSError as e:
@@ -378,18 +360,18 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         )
 
     # explain what is in this directory
-    with basedir.child(b"README").open("wb") as f:
+    with basedir.child("README").open("wb") as f:
         f.write(
             u"This is a Magic Folder daemon configuration\n"
             u"\n"
             u"To find out more you can run a command like:\n"
             u"\n"
             u"    magic-folder --config {} --help\n"
-            u"\n".format(basedir.asTextMode("utf8").path).encode("utf8")
+            u"\n".format(basedir.path).encode("utf8")
         )
 
     # set up the configuration database
-    db_fname = basedir.child(b"global.sqlite")
+    db_fname = basedir.child("global.sqlite")
     connection = _upgraded(
         _global_config_schema,
         sqlite3.connect(db_fname.path),
@@ -405,7 +387,7 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
         basedir=basedir,
         database=connection,
         token_provider=FilesystemTokenProvider(
-            basedir.child(b"api_token"),
+            basedir.child("api_token"),
         )
     )
     # make sure we have an API token
@@ -432,7 +414,7 @@ def create_testing_configuration(basedir, tahoe_node_directory):
         sqlite3.connect(":memory:"),
     )
     api_endpoint_str = "tcp:-1"
-    api_client_endpoint_str = "tcp:127.0.0.1:-1"
+    api_client_endpoint_str = "tcp:127.0.0.1:1"
     with connection:
         cursor = connection.cursor()
         cursor.execute(
@@ -442,8 +424,9 @@ def create_testing_configuration(basedir, tahoe_node_directory):
 
     tokens = MemoryTokenProvider()
 
+    # ensure the paths are in text mode
     config = GlobalConfigDatabase(
-        basedir=basedir,
+        basedir=basedir.asTextMode(),
         database=connection,
         token_provider=tokens,
     )
@@ -685,7 +668,7 @@ def _get_remote_parents(identifier, parents):
         snapshot.
     """
     return list(
-        parent_identifier
+        Capability.from_string(parent_identifier)
         for (ignored, only_local, parent_identifier)
         in parents.get(identifier, [])
         if not only_local
@@ -775,7 +758,7 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_name = attr.ib(validator=instance_of(unicode))
+    author_name = attr.ib(validator=instance_of(str))
 
 
 @attr.s
@@ -815,12 +798,13 @@ class MagicFolderConfig(object):
         :param FilePath stash_path: The filesystem location to which to write
             snapshot content before uploading it.
 
-        :param unicode collective_dircap: A Tahoe-LAFS directory capability
-            representing the Magic-Folder "collective" directory (where
-            participant DMDs can be found).
+        :param Capability collective_dircap: A Tahoe-LAFS directory
+            capability representing the Magic-Folder "collective"
+            directory (where participant DMDs can be found).
 
-        :param unicode upload_dircap: A Tahoe-LAFS read-write directory
-            capability representing the DMD belonging to ``author``.
+        :param Capability upload_dircap: A Tahoe-LAFS read-write
+            directory capability representing the DMD belonging to
+            ``author``.
 
         :param FilePath magic_path: The local filesystem path where magic
             folder will read and write files belonging to this folder.
@@ -861,8 +845,8 @@ class MagicFolderConfig(object):
                     author.name,
                     author.signing_key.encode(Base32Encoder),
                     stash_path.path,
-                    collective_dircap,
-                    upload_dircap,
+                    collective_dircap.danger_real_capability_string(),
+                    upload_dircap.danger_real_capability_string(),
                     magic_path.path,
                     poll_interval,
                     scan_interval,
@@ -921,11 +905,14 @@ class MagicFolderConfig(object):
         )
 
     @with_cursor
-    def store_local_snapshot(self, cursor, snapshot):
+    def store_local_snapshot(self, cursor, snapshot, path_state):
         """
         Store or update the given local snapshot.
 
         :param LocalSnapshot snapshot: The snapshot to store.
+
+        :param PathState path_state: Status of the on-disk data (can be
+            None if there is nothing on disk, i.e. a delete).
         """
         # Ensure that the local parent snapshots are already in the database.
         for parent in snapshot.parents_local:
@@ -936,7 +923,7 @@ class MagicFolderConfig(object):
                 WHERE
                     identifier= ?
                 """,
-                (unicode(parent.identifier),),
+                (str(parent.identifier),),
             )
             count = cursor.fetchone()
             if count[0] != 1:
@@ -944,7 +931,7 @@ class MagicFolderConfig(object):
 
         try:
             # Create the primary row.
-            content_path = None if snapshot.content_path is None else snapshot.content_path.asTextMode("utf-8").path
+            content_path = None if snapshot.content_path is None else snapshot.content_path.path
             cursor.execute(
                 """
                 INSERT INTO
@@ -952,7 +939,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?, ?, ?)
                 """,
-                (unicode(snapshot.identifier), snapshot.relpath, content_path),
+                (str(snapshot.identifier), snapshot.relpath, content_path),
             )
         except sqlite3.IntegrityError:
             # The UNIQUE constraint on `identifier` failed - which *should*
@@ -968,7 +955,7 @@ class MagicFolderConfig(object):
                 (?, ?, ?)
             """,
             list(
-                (unicode(snapshot.identifier), k, v)
+                (str(snapshot.identifier), k, v)
                 for (k, v)
                 in snapshot.metadata.items()
             ),
@@ -994,21 +981,25 @@ class MagicFolderConfig(object):
                 (?, ?, ?, ?)
             """,
             [
-                (unicode(snapshot.identifier), index, local_only, parent_identifier)
+                (str(snapshot.identifier), index, local_only, parent_identifier)
                 for (index, (local_only, parent_identifier)) in enumerate(
                     chain(
                         (
-                            (False, parent_identifier)
+                            (False, parent_identifier.danger_real_capability_string())
                             for parent_identifier in snapshot.parents_remote
                         ),
                         (
-                            (True, unicode(parent.identifier))
+                            (True, str(parent.identifier))
                             for parent in snapshot.parents_local
                         ),
                     )
                 )
             ],
         )
+
+        # record the PathState (path_state can be None here in case of
+        # a delete, but the called method handles that)
+        self.store_currentsnapshot_state.__wrapped__(self, cursor, snapshot.relpath, path_state)
 
     @with_cursor
     def get_all_localsnapshot_paths(self, cursor):
@@ -1076,7 +1067,7 @@ class MagicFolderConfig(object):
                 WHERE
                    [snapshot_identifier]=?
                 """,
-                (False, unicode(remote_snapshot.capability), unicode(child.identifier))
+                (False, remote_snapshot.capability.danger_real_capability_string(), str(child.identifier))
             )
             child.parents_local = [
                 snap
@@ -1092,7 +1083,7 @@ class MagicFolderConfig(object):
             WHERE
                 [snapshot_identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
         cursor.execute(
             """
@@ -1101,7 +1092,7 @@ class MagicFolderConfig(object):
             WHERE
                 [identifier]=?
             """,
-            (unicode(our_snap.identifier),)
+            (str(our_snap.identifier),)
         )
 
     @with_cursor
@@ -1109,7 +1100,7 @@ class MagicFolderConfig(object):
         """
         remove all rows corresponding to the given relpath from the local_snapshots table
 
-        :param unicode relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
+        :param str relpath: The relpath to match.  See ``LocalSnapshot.relpath``.
         """
         action = DELETE_SNAPSHOTS(
             relpath=relpath,
@@ -1135,7 +1126,6 @@ class MagicFolderConfig(object):
             if there is not already path state in the database for the given
             relpath.
         """
-        # TODO: We should consider merging this with local_snapshot_become_remote
         snapshot_cap = remote_snapshot.capability
         action = STORE_OR_UPDATE_SNAPSHOTS(
             relpath=relpath,
@@ -1152,8 +1142,14 @@ class MagicFolderConfig(object):
                 WHERE
                     [relpath]=?
                 """,
-                (snapshot_cap, remote_snapshot.content_cap, remote_snapshot.metadata_cap,
-                 now_ns, duration_ns, relpath),
+                (
+                    snapshot_cap.danger_real_capability_string(),
+                    None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
+                    remote_snapshot.metadata_cap.danger_real_capability_string(),
+                    now_ns,
+                    duration_ns,
+                    relpath,
+                ),
             )
             if cursor.rowcount != 1:
                 raise RemoteSnapshotWithoutPathState(
@@ -1183,9 +1179,9 @@ class MagicFolderConfig(object):
                     " VALUES (?,?,?,?,?,?,?,?,?)",
                     (
                         relpath,
-                        snapshot_cap,
-                        remote_snapshot.metadata_cap,
-                        remote_snapshot.content_cap,
+                        snapshot_cap.danger_real_capability_string(),
+                        remote_snapshot.metadata_cap.danger_real_capability_string(),
+                        None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
                         None if path_state is None else path_state.mtime_ns,
                         None if path_state is None else path_state.ctime_ns,
                         None if path_state is None else path_state.size,
@@ -1205,9 +1201,9 @@ class MagicFolderConfig(object):
                         [relpath]=?
                     """,
                     (
-                        snapshot_cap,
-                        remote_snapshot.metadata_cap,
-                        remote_snapshot.content_cap,
+                        snapshot_cap.danger_real_capability_string(),
+                        remote_snapshot.metadata_cap.danger_real_capability_string(),
+                        None if remote_snapshot.content_cap is None else remote_snapshot.content_cap.danger_real_capability_string(),
                         None if path_state is None else path_state.mtime_ns,
                         None if path_state is None else path_state.ctime_ns,
                         None if path_state is None else path_state.size,
@@ -1293,8 +1289,9 @@ class MagicFolderConfig(object):
                 # whenever we do finally upload.
                 continue
             sizes.extend([
-                capability_size(c)
+                c.size
                 for c in caps
+                if c is not None
             ])
         return sizes
 
@@ -1365,19 +1362,15 @@ class MagicFolderConfig(object):
 
         :returns: A byte string that represents the RemoteSnapshot cap.
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
-        )
-        with action:
-            cursor.execute("SELECT snapshot_cap FROM current_snapshots"
-                           " WHERE [relpath]=?",
-                           (relpath,))
-            row = cursor.fetchone()
-            if row and row[0] is not None:
-                return row[0].encode("utf-8")
-            # XXX weird to have "KeyError" if snapshot_cap is there,
-            # but null _as well_ as when the row is simply missing.
-            raise KeyError(relpath)
+        cursor.execute("SELECT snapshot_cap FROM current_snapshots"
+                       " WHERE [relpath]=?",
+                       (relpath,))
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return Capability.from_string(row[0])
+        # XXX weird to have "KeyError" if snapshot_cap is there,
+        # but null _as well_ as when the row is simply missing.
+        raise KeyError(relpath)
 
 
     @with_cursor
@@ -1391,31 +1384,27 @@ class MagicFolderConfig(object):
 
         :returns: A 3-tuple of (snapshot-cap, content-cap, metadata-cap)
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
+        cursor.execute(
+            """
+            SELECT
+                snapshot_cap, content_cap, metadata_cap
+            FROM
+                current_snapshots
+            WHERE
+                [relpath]=?
+            """,
+            (relpath,)
         )
-        with action:
-            cursor.execute(
-                """
-                SELECT
-                    snapshot_cap, content_cap, metadata_cap
-                FROM
-                    current_snapshots
-                WHERE
-                    [relpath]=?
-                """,
-                (relpath,)
+        row = cursor.fetchone()
+        if row and row[0] is not None:
+            return (
+                Capability.from_string(row[0]),  # snapshot-cap
+                None if row[1] is None else Capability.from_string(row[1]),  # content-cap
+                Capability.from_string(row[2]),  # metadata-cap
             )
-            row = cursor.fetchone()
-            if row and row[0] is not None:
-                return (
-                    row[0].encode("utf-8"),  # snapshot-cap
-                    None if row[1] is None else row[1].encode("utf-8"),  # content-cap
-                    row[2].encode("utf-8"),  # metadata-cap
-                )
-            # XXX kind of weird to throw KeyError for things we know
-            # abou, but the snapshot_cap is still null...
-            raise KeyError(relpath)
+        # XXX kind of weird to throw KeyError for things we know
+        # abou, but the snapshot_cap is still null...
+        raise KeyError(relpath)
 
     @with_cursor
     def get_currentsnapshot_pathstate(self, cursor, relpath):
@@ -1429,19 +1418,15 @@ class MagicFolderConfig(object):
 
         :returns int: the timestamp of the remotesnapshot
         """
-        action = FETCH_CURRENT_SNAPSHOTS_FROM_DB(
-            relpath=relpath,
+        cursor.execute(
+            "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
+            " WHERE [relpath]=?",
+            (relpath,),
         )
-        with action:
-            cursor.execute(
-                "SELECT mtime_ns, ctime_ns, size FROM current_snapshots"
-                " WHERE [relpath]=?",
-                (relpath,),
-            )
-            row = cursor.fetchone()
-            if row:
-                return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
-            raise KeyError(relpath)
+        row = cursor.fetchone()
+        if row:
+            return PathState(mtime_ns=row[0], ctime_ns=row[1], size=row[2])
+        raise KeyError(relpath)
 
     @with_cursor
     def get_all_current_snapshot_pathstates(self, cursor):
@@ -1491,9 +1476,19 @@ class MagicFolderConfig(object):
             conflicts = dict()
             for relpath, author_name, snap_cap in cursor.fetchall():
                 try:
-                    conflicts[relpath].append(Conflict(snap_cap, author_name))
+                    conflicts[relpath].append(
+                        Conflict(
+                            Capability.from_string(snap_cap),
+                            author_name,
+                        )
+                    )
                 except KeyError:
-                    conflicts[relpath] = [Conflict(snap_cap, author_name)]
+                    conflicts[relpath] = [
+                        Conflict(
+                            Capability.from_string(snap_cap),
+                            author_name,
+                        )
+                    ]
             return conflicts
 
     @with_cursor
@@ -1518,7 +1513,7 @@ class MagicFolderConfig(object):
             )
             rows = cursor.fetchall()
             return [
-                Conflict(snap_cap, author_name)
+                Conflict(Capability.from_string(snap_cap), author_name)
                 for author_name, snap_cap in rows
             ]
 
@@ -1537,7 +1532,7 @@ class MagicFolderConfig(object):
                 VALUES
                     (?,?,?)
                 """,
-                (snapshot.relpath, snapshot.author.name, snapshot.capability),
+                (snapshot.relpath, snapshot.author.name, snapshot.capability.danger_real_capability_string()),
             )
 
     @with_cursor
@@ -1587,13 +1582,13 @@ class MagicFolderConfig(object):
     def magic_path(self, cursor):
         cursor.execute("SELECT magic_directory FROM config")
         path_raw = cursor.fetchone()[0]
-        return FilePath(path_raw)
+        return FilePath(path_raw).asTextMode()
 
     @property
     @with_cursor
     def collective_dircap(self, cursor):
         cursor.execute("SELECT collective_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return Capability.from_string(cursor.fetchone()[0])
 
     @collective_dircap.setter
     @with_cursor
@@ -1601,19 +1596,24 @@ class MagicFolderConfig(object):
         """
         This is for use by tests that need a non-admin collective.
         """
-        if not is_directory_cap(dircap):
+        if not dircap.is_directory():
             raise AssertionError(
                 "Collective dirnode was {!r}, must be a directory node.".format(
                     dircap,
                 )
             )
-        cursor.execute("UPDATE [config] SET collective_dircap=?", (dircap,))
+        cursor.execute(
+            "UPDATE [config] SET collective_dircap=?",
+            (
+                dircap.danger_real_capability_string(),
+            )
+        )
 
     @property
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return cursor.fetchone()[0].encode("utf8")
+        return Capability.from_string(cursor.fetchone()[0])
 
     @property
     @with_cursor
@@ -1633,7 +1633,7 @@ class MagicFolderConfig(object):
             if the collective capability we have is mutable.
         """
         # check if this folder has a writable collective dircap
-        return not is_readonly_directory_cap(self.collective_dircap)
+        return not self.collective_dircap.is_readonly_directory()
 
 
 class ITokenProvider(Interface):
@@ -1683,7 +1683,7 @@ class FilesystemTokenProvider(object):
         # this goes directly into Web headers, so we use the same
         # encoding as Tahoe uses.
         self._api_token = urlsafe_b64encode(urandom(32))
-        with self.api_token_path.open('wb') as f:
+        with self.api_token_path.open("wb") as f:
             f.write(self._api_token)
         return self._api_token
 
@@ -1692,7 +1692,8 @@ class FilesystemTokenProvider(object):
         Internal helper. Reads the token file into _api_token
         """
         with self.api_token_path.open('rb') as f:
-            self._api_token = f.read()
+            data = f.read()
+            self._api_token = data
 
 
 @attr.s
@@ -1758,7 +1759,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_endpoint FROM config")
-            return cursor.fetchone()[0].encode("utf8")
+            return cursor.fetchone()[0]
 
     @api_endpoint.setter
     def api_endpoint(self, ep_string):
@@ -1775,10 +1776,8 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT api_client_endpoint FROM config")
-            endpoint = cursor.fetchone()[0]
-            if endpoint is not None:
-                endpoint = endpoint.encode("utf8")
-            return endpoint
+            # can be None
+            return cursor.fetchone()[0]
 
     @api_client_endpoint.setter
     def api_client_endpoint(self, ep_string):
@@ -1795,9 +1794,9 @@ class GlobalConfigDatabase(object):
         """
         with self.basedir.child("api_client_endpoint").open("wb") as f:
             if self.api_client_endpoint is None:
-                f.write("not running\n")
+                f.write("not running\n".encode("utf8"))
             else:
-                f.write("{}\n".format(self.api_client_endpoint))
+                f.write("{}\n".format(self.api_client_endpoint).encode("utf8"))
 
     @property
     def tahoe_client_url(self):
@@ -1808,7 +1807,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT tahoe_node_directory FROM config")
-            node_dir = FilePath(cursor.fetchone()[0])
+            node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         with node_dir.child("node.url").open("r") as f:
             return DecodedURL.from_text(f.read().strip().decode("utf8"))
 
@@ -1821,7 +1820,7 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("SELECT tahoe_node_directory FROM config")
-            node_dir = FilePath(cursor.fetchone()[0])
+            node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
 
     def list_magic_folders(self):
@@ -1963,10 +1962,10 @@ class GlobalConfigDatabase(object):
         :param LocalAuthor author: the signer of snapshots created in
             this folder
 
-        :param unicode collective_dircap: the read-capability of the
+        :param Capability collective_dircap: the read-capability of the
             directory defining the magic-folder.
 
-        :param unicode upload_dircap: the write-capability of the
+        :param Capability upload_dircap: the write-capability of the
             directory we upload data into.
 
         :param int poll_interval: how often to scan for remote changes
@@ -2003,29 +2002,29 @@ class GlobalConfigDatabase(object):
                     code=http.CONFLICT,
                     reason="Already have a magic-folder named '{}'".format(name)
                 )
-        if not magic_path.asBytesMode("utf-8").exists():
+        if not magic_path.exists():
             raise APIError(
                 code=http.BAD_REQUEST,
                 reason="'{}' does not exist".format(magic_path.path)
             )
-        state_path = self._get_state_path(name).asTextMode("utf-8")
-        if state_path.asBytesMode("utf-8").exists():
+        state_path = self._get_state_path(name)
+        if state_path.exists():
             raise APIError(
                 code=http.INTERNAL_SERVER_ERROR,
                 reason="magic-folder state directory '{}' already exists".format(state_path.path)
             )
 
-        stash_path = state_path.child(u"stash").asTextMode("utf-8")
+        stash_path = state_path.child(u"stash")
         with atomic_makedirs(state_path), atomic_makedirs(stash_path):
             db_path = state_path.child("state.sqlite")
             mfc = MagicFolderConfig.initialize(
                 name,
                 SQLite3DatabaseLocation(db_path.path),
                 author,
-                stash_path.asTextMode("utf-8"),
+                stash_path,
                 collective_dircap,
                 upload_dircap,
-                magic_path.asTextMode("utf-8"),
+                magic_path,
                 poll_interval,
                 scan_interval,
             )
@@ -2035,7 +2034,7 @@ class GlobalConfigDatabase(object):
                 cursor.execute("BEGIN IMMEDIATE TRANSACTION")
                 cursor.execute(
                     "INSERT INTO magic_folders VALUES (?, ?)",
-                    (name, state_path.asTextMode("utf-8").path)
+                    (name, state_path.path)
                 )
 
         return mfc

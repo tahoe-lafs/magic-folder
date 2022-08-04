@@ -1,14 +1,6 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
-from functools import partial
 import json
+from functools import partial
 
-from six import string_types
 import attr
 from collections import (
     defaultdict,
@@ -32,7 +24,60 @@ from twisted.application import (
 from .util.file import (
     seconds_to_ns,
     ns_to_seconds,
+    ns_to_seconds_float,
 )
+
+
+@attr.s(frozen=True)
+class TahoeStatus:
+    # number of connected servers (0 if we can't contact our client at all)
+    connected = attr.ib(validator=attr.validators.instance_of(int))
+
+    # number of servers we _want_ to connect to
+    desired = attr.ib(validator=attr.validators.instance_of(int))
+
+    # False if we can't get the welcome page at all
+    is_connected = attr.ib(validator=attr.validators.instance_of(bool))
+
+    @property
+    def is_happy(self):
+        return self.is_connected and (self.connected >= self.desired)
+
+
+@attr.s(frozen=True)
+class ScannerStatus:
+    """
+    Represents the current status of the scanner
+    """
+    # epoch, in nanoseconds, of the last completed run's end or None
+    # if one isn't complete
+    last_completed = attr.ib()
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "last-scan": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+        }
+
+
+@attr.s(frozen=True)
+class PollerStatus:
+    """
+    Represents the current status of the poller
+    """
+    # epoch, in nanoseconds, of the last completed run's end or None
+    # if one isn't complete yet
+    last_completed = attr.ib()
+
+    def to_json(self):
+        """
+        :returns: a dict suitable for serializing to JSON
+        """
+        return {
+            "last-poll": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+        }
 
 
 class IStatus(Interface):
@@ -41,6 +86,24 @@ class IStatus(Interface):
     information. These don't necessarily correspond 1:1 to outgoing
     messages from the status API.
     """
+
+    def tahoe_status(status):
+        """
+        Update the status of our Tahoe-LAFS connection.
+        :param TahoeStatus status: the current status
+        """
+
+    def scan_status(folder, status):
+        """
+        :param str folder: folder name
+        :param ScannerStatus: the status
+        """
+
+    def poll_status(folder, status):
+        """
+        :param str folder: folder name
+        :param PollerStatus: the status
+        """
 
     def error_occurred(folder, message):
         """
@@ -177,6 +240,8 @@ def _create_blank_folder_state():
         "downloads": {},
         "recent": [],
         "errors": [],
+        "scanner": ScannerStatus(None),
+        "poller": PollerStatus(None),
     }
 
 
@@ -192,8 +257,8 @@ class PublicError(object):
     avoiding jargon and technical details (except where immediately
     relevant). This is used by the IStatus API.
     """
-    timestamp = attr.ib(validator=attr.validators.instance_of((float, int, long)))
-    summary = attr.ib(validator=attr.validators.instance_of(unicode))
+    timestamp = attr.ib(validator=attr.validators.instance_of((float, int)))
+    summary = attr.ib(validator=attr.validators.instance_of(str))
 
     def to_json(self):
         """
@@ -239,6 +304,7 @@ class WebSocketStatusService(service.Service):
 
     # current live state
     _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
+    _tahoe = attr.ib(default=attr.Factory(lambda: TahoeStatus(0, 0, False)))
 
     def client_connected(self, protocol):
         """
@@ -337,6 +403,13 @@ class WebSocketStatusService(service.Service):
                 ],
                 "recent": most_recent,
                 "remaining-upload-time": self.upload_seconds_remaining(name),
+                "tahoe": {
+                    "happy": self._tahoe.is_happy,
+                    "connected": self._tahoe.connected,
+                    "desired": self._tahoe.desired,
+                },
+                "scanner": self._folders.get(name, {"scanner": ScannerStatus(None)})["scanner"].to_json(),
+                "poller": self._folders.get(name, {"poller": PollerStatus(None)})["poller"].to_json(),
             }
 
         return json.dumps({
@@ -379,13 +452,36 @@ class WebSocketStatusService(service.Service):
         except KeyError:
             pass
 
+    def tahoe_status(self, status):
+        """
+        IStatus API
+        """
+        if status != self._tahoe:
+            self._tahoe = status
+            self._maybe_update_clients()
+
+    def scan_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["scanner"] = status
+        self._maybe_update_clients()
+
+    def poll_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["poller"] = status
+        self._maybe_update_clients()
+
     def error_occurred(self, folder, message):
         """
         IStatus API
 
-        :param unicode folder: the folder this error pertains to
+        :param str folder: the folder this error pertains to (or
+            None for "all folders")
 
-        :param unicode message: a message suitable for an end-user to
+        :param str message: a message suitable for an end-user to
             read that describes the error. Such a message MUST NOT
             include any secrects such as Tahoe capabilities.
         """
@@ -458,9 +554,9 @@ class _ProxyDescriptor(object):
     """
     Descriptor that returns ``partial(self.<original>.<method>, self.<relative>)``.
     """
-    original = attr.ib(validator=attr.validators.instance_of(unicode))
-    relative = attr.ib(validator=attr.validators.instance_of(unicode))
-    method = attr.ib(validator=attr.validators.instance_of(string_types))
+    original = attr.ib(validator=attr.validators.instance_of(str))
+    relative = attr.ib(validator=attr.validators.instance_of(str))
+    method = attr.ib(validator=attr.validators.instance_of(str))
 
     def __get__(self, oself, type=None):
         if oself is None:
@@ -496,6 +592,7 @@ def relative_proxy_for(iface, original, relative):
     return decorator
 
 
+@implementer(IStatus)
 @relative_proxy_for(IStatus, "_status", "folder")
 @attr.s
 class FolderStatus(object):
@@ -503,5 +600,5 @@ class FolderStatus(object):
     Wrapper around an :py:`IStatus` implementation that automatically passes
     the ``folder`` argument.
     """
-    folder = attr.ib(validator=attr.validators.instance_of(unicode))
+    folder = attr.ib(validator=attr.validators.instance_of(str))
     _status = attr.ib(validator=attr.validators.provides(IStatus))

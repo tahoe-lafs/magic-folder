@@ -5,12 +5,6 @@
 Hypothesis strategies useful for testing Magic Folder.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 from uuid import (
     UUID,
 )
@@ -62,7 +56,12 @@ from ..snapshot import (
     RemoteSnapshot,
     LocalSnapshot,
 )
-from ..util.file import PathState
+from ..util.file import (
+    PathState,
+)
+from ..util.capabilities import (
+    Capability,
+)
 
 if platformType == "win32":
     INVALID_FILENAME_CHARACTERS = (u"\x00", u"/", u"\\", ":", "\"", "?", "<", ">", "|", "*")
@@ -222,13 +221,15 @@ def tahoe_lafs_chk_capabilities():
     Build unicode strings which look like Tahoe-LAFS CHK capability strings.
     """
     return builds(
-        lambda a, b, needed, extra, size: u"URI:CHK:{}:{}:{}:{}:{}".format(
-            base32.b2a(a),
-            base32.b2a(b),
-            needed,
-            # Total is how many you need plus how many more there might be.
-            needed + extra,
-            size,
+        lambda a, b, needed, extra, size: Capability.from_string(
+            u"URI:CHK:{}:{}:{}:{}:{}".format(
+                base32.b2a(a).decode("ascii"),
+                base32.b2a(b).decode("ascii"),
+                needed,
+                # Total is how many you need plus how many more there might be.
+                needed + extra,
+                size,
+            )
         ),
         binary(min_size=16, max_size=16),
         binary(min_size=32, max_size=32),
@@ -240,23 +241,26 @@ def tahoe_lafs_chk_capabilities():
 
 def tahoe_lafs_dir_capabilities():
     """
-    Build unicode strings which look like Tahoe-LAFS directory capability strings.
+    Build Capability instances which look like Tahoe-LAFS directories.
     """
     return builds(
-        lambda a, b: b"URI:DIR2:{}:{}".format(base32.b2a(a), base32.b2a(b)),
+        lambda a, b: Capability.from_string(
+            "URI:DIR2:{}:{}".format(base32.b2a(a).decode(), base32.b2a(b).decode())
+        ),
         binary(min_size=16, max_size=16),
-
         binary(min_size=32, max_size=32),
     )
 
 
 def tahoe_lafs_immutable_dir_capabilities():
     """
-    Build unicode strings which look like Tahoe-LAFS immutable directory
-    capability strings.
+    Build Capability instances which look like Tahoe-LAFS immutable
+    directory capability strings.
     """
     return tahoe_lafs_chk_capabilities().map(
-        lambda chkcap: chkcap.replace(u":CHK:", u":DIR2-CHK:"),
+        lambda chkcap: Capability.from_string(
+            chkcap._uri.replace(":CHK:", ":DIR2-CHK:")
+        )
     )
 
 def tahoe_lafs_readonly_dir_capabilities():
@@ -265,7 +269,7 @@ def tahoe_lafs_readonly_dir_capabilities():
     capability strings.
     """
     return tahoe_lafs_dir_capabilities().map(
-        lambda chkcap: chkcap.replace(u":DIR2:", u":DIR2-RO:"),
+        lambda chkcap: chkcap.to_readonly()
     )
 
 
@@ -288,7 +292,9 @@ def filenodes():
     """
     return fixed_dictionaries({
         # CHK capabilities are only read-only.
-        "ro_uri": tahoe_lafs_chk_capabilities(),
+        "ro_uri": tahoe_lafs_chk_capabilities().map(
+            lambda cap: cap.danger_real_capability_string()
+        ),
         "size": integers(min_value=0),
         "format": just(u"CHK"),
         "metadata": fixed_dictionaries({

@@ -2,16 +2,9 @@
 Classes and services relating to the operation of the Downloader
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import os
-import hashlib
 from collections import deque
+import hashlib
 
 import attr
 from attr.validators import (
@@ -30,7 +23,7 @@ from eliot import (
     log_call,
     Message,
     start_action,
-    write_failure,
+    write_traceback,
 )
 
 from twisted.application import (
@@ -55,6 +48,7 @@ from .snapshot import (
 )
 from .status import (
     IStatus,
+    PollerStatus,
 )
 from .util.file import (
     PathState,
@@ -64,6 +58,9 @@ from .util.file import (
 from .util.twisted import (
     exclusively,
     PeriodicService,
+)
+from .util.capabilities import (
+    Capability,
 )
 
 
@@ -92,6 +89,7 @@ class RemoteSnapshotCacheService(service.Service):
     # We maintain the invariant that either these snapshots are closed
     # under taking parents, or we are locked, and the remaining parents
     # are queued to be downloaded
+    # maps capability-string -> RemoteSnapshot
     _cached_snapshots = attr.ib(factory=dict)
     _lock = attr.ib(init=False, factory=DeferredLock)
 
@@ -112,16 +110,17 @@ class RemoteSnapshotCacheService(service.Service):
         (When we have signatures this should verify the signature
         before downloading anything else)
 
-        :param bytes snapshot_cap: an immutable directory capability-string
+        :param Capability snapshot_cap: an immutable directory capability-string
 
         :returns Deferred[RemoteSnapshot]: a Deferred that fires with
             the RemoteSnapshot when this item has been processed (or
             errbacks if any of the downloads fail).
         """
-        with start_action(action_type="cache-service:locate_snapshot",
-                          capability=snapshot_cap) as t:
+        if not isinstance(snapshot_cap, Capability):
+            raise TypeError("not a cap")
+        with start_action(action_type="cache-service:locate_snapshot") as t:
             try:
-                snapshot = self._cached_snapshots[snapshot_cap]
+                snapshot = self._cached_snapshots[snapshot_cap.danger_real_capability_string()]
                 t.add_success_fields(cached=True)
             except KeyError:
                 t.add_success_fields(cached=False)
@@ -133,7 +132,7 @@ class RemoteSnapshotCacheService(service.Service):
         """
         Internal helper.
 
-        :param bytes snapshot_cap: capability-string of a Snapshot
+        :param Capability snapshot_cap: capability-string of a Snapshot
 
         Cache a single snapshot, which we shall return. We also cache
         all parent snapshots.
@@ -142,10 +141,11 @@ class RemoteSnapshotCacheService(service.Service):
             snapshot_cap,
             self.tahoe_client,
         )
-        self._cached_snapshots[snapshot_cap] = snapshot
-        Message.log(message_type="remote-cache:cached",
-                    relpath=snapshot.metadata["relpath"],
-                    capability=snapshot.capability)
+        self._cached_snapshots[snapshot_cap.danger_real_capability_string()] = snapshot
+        Message.log(
+            message_type="remote-cache:cached",
+            relpath=snapshot.metadata["relpath"],
+        )
 
         # breadth-first traversal of the parents
         q = deque([snapshot])
@@ -157,10 +157,10 @@ class RemoteSnapshotCacheService(service.Service):
                     # or we've already queued it for traversal
                     continue
                 parent = yield create_snapshot_from_capability(
-                    parent_cap,
+                    Capability.from_string(parent_cap),
                     self.tahoe_client,
                 )
-                self._cached_snapshots[parent.capability] = parent
+                self._cached_snapshots[parent.capability.danger_real_capability_string()] = parent
                 q.append(parent)
 
         returnValue(snapshot)
@@ -182,14 +182,14 @@ class RemoteSnapshotCacheService(service.Service):
         #   only incrementally adds to the ancestors of the remote
         # - for checking in the other direction, we can skip checking parents of any ancestors that are
         #   also ancestors of our remotesnapshot
-        assert child_cap in self._cached_snapshots is not None, "Remote should be cached already"
-        snapshot = self._cached_snapshots[child_cap]
+        assert child_cap.danger_real_capability_string() in self._cached_snapshots is not None, "Remote should be cached already"
+        snapshot = self._cached_snapshots[child_cap.danger_real_capability_string()]
 
         q = deque([snapshot])
         while q:
             snap = q.popleft()
             for parent_cap in snap.parents_raw:
-                if target_cap == parent_cap:
+                if target_cap.danger_real_capability_string() == parent_cap:
                     return True
                 else:
                     q.append(self._cached_snapshots[parent_cap])
@@ -211,7 +211,7 @@ class IMagicFolderFilesystem(Interface):
             content (or errback if the download fails).
         """
 
-    def mark_overwrite(relpath, mtime, staged_content):
+    def mark_overwrite(relpath, mtime, staged_content, prior_pathstate):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -245,6 +245,17 @@ class IMagicFolderFilesystem(Interface):
         """
 
 
+@attr.s(auto_exc=True)
+class BackupRetainedError(Exception):
+    path = attr.ib(instance_of(FilePath))
+
+    def __str__(self):
+        return "Local backup {} has unexpected modification-time; not deleting!".format(
+            self.path.path,
+        )
+
+
+
 @implementer(IMagicFolderFilesystem)
 @attr.s
 class LocalMagicFolderFilesystem(object):
@@ -261,15 +272,16 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         assert file_cap is not None, "must supply a file-cap"
-        h = hashlib.sha256()
-        h.update(file_cap)
-        staged_path = self.staging_path.child(h.hexdigest())
+        relpath_hasher = hashlib.sha256()  # rather blake2b, but is it all-platform?
+        relpath_hasher.update(file_cap.danger_real_capability_string().encode("ascii"))
+        relpath_hasher.update(relpath.encode("utf8"))
+        staged_path = self.staging_path.child(relpath_hasher.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
 
     @log_call(action_type="downloader:filesystem:mark-overwrite", include_args=[], include_result=False)
-    def mark_overwrite(self, relpath, mtime, staged_content):
+    def mark_overwrite(self, relpath, mtime, staged_content, prior_pathstate):
         """
         This snapshot is an overwrite. Move it from the staging area over
         top of the existing file (if any) in the magic-folder.
@@ -294,7 +306,8 @@ class LocalMagicFolderFilesystem(object):
             # As long as the poller is running in-process, in the reactor,
             # it won't see this temporary file.
             # https://github.com/LeastAuthority/magic-folder/pull/451#discussion_r660885345
-            tmp = local_path.temporarySibling(b".snaptmp")
+
+            tmp = local_path.temporarySibling(".snaptmp")
             local_path.moveTo(tmp)
             Message.log(
                 message_type=u"downloader:filesystem:mark-overwrite:set-aside-existing",
@@ -307,7 +320,7 @@ class LocalMagicFolderFilesystem(object):
         # Ideally, we would get this from the staged file. However, depending
         # on the operating system, the ctime can change when we rename.
         # Instead, we get the path state before and after the move, and use
-        # the later if the mtime and size match.
+        # the latter if the mtime and size match.
         staged_path_state = get_pathinfo(staged_content).state
         with start_action(
             action_type=u"downloader:filesystem:mark-overwrite:emplace",
@@ -339,12 +352,44 @@ class LocalMagicFolderFilesystem(object):
             with start_action(
                 action_type=u"downloader:filesystem:mark-overwrite:dispose-existing",
             ):
-                # FIXME: We should verify that this moved file has
-                # the same (except ctime) state as the the previous snapshot
-                # before we remove it.
-                # https://github.com/LeastAuthority/magic-folder/issues/454
-                # https://github.com/LeastAuthority/magic-folder/issues/454#issuecomment-870923942
-                tmp.remove()
+                # prior_pathstate comes from inside the state-machine
+                # _immediately_ before we conclude "there's no
+                # download conflict" (see _check_local_update in
+                # Magicfile) .. here, we double-check that the
+                # modification time and size match what we checked
+                # against in _check_local_update.
+
+                # if prior_pathstate is None, there was no file at all
+                # before this function ran .. so we must preserve the
+                # tmpfile
+                #
+                # otherwise, the pathstate of the tmp file must match
+                # what was there before
+
+                tmp.restat()
+                modtime = seconds_to_ns(tmp.getModificationTime())
+                size = tmp.getsize()
+
+                if prior_pathstate is None or \
+                   prior_pathstate.mtime_ns != modtime or \
+                   prior_pathstate.size != size:
+                    # "something" has written to the file (or the
+                    # tmpfile, after it was moved) causing mtime or
+                    # size to be differt; OR prior_pathstate points at
+                    # a directory (or some other reason causing
+                    # get_fileinfo() to return a None pathstate
+                    # above). Thus, we keep the file as a backup
+
+                    # the MagicFile statemachine knows about this
+                    # exception and processes it separately -- turning
+                    # it into a conflict
+                    raise BackupRetainedError(
+                        tmp,
+                    )
+                else:
+                    # all good, the times + size match
+                    tmp.remove()
+
         return path_state
 
     def mark_conflict(self, relpath, conflict_path, staged_content):
@@ -393,7 +438,7 @@ class InMemoryMagicFolderFilesystem(object):
         self._staged_content[marker] = file_cap
         return succeed(marker)
 
-    def mark_overwrite(self, relpath, mtime, staged_content):
+    def mark_overwrite(self, relpath, mtime, staged_content, prior_pathstate):
         assert staged_content in self._staged_content, "Overwrite but no staged content"
         self.actions.append(
             ("overwrite", relpath, self._staged_content[staged_content])
@@ -455,19 +500,28 @@ class RemoteScannerService(service.MultiService):
         )
         self._poller.setServiceParent(self)
 
+    @inline_callbacks
     def _loop(self):
-        d = self._poll_collective()
-        # in some cases, might want to surface elsewhere
-        d.addErrback(write_failure)
-        return d
+        try:
+            yield self._poll_collective()
+            self._status.poll_status(
+                self._config.name,
+                PollerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
+        except Exception:
+            # in some cases, might want to surface elsewhere
+            write_traceback()
 
+    @inline_callbacks
     def poll_once(self):
         """
         Perform a remote poll.
 
         :returns Deferred[None]: fires when the poll is completed
         """
-        return self._poller.call_soon()
+        yield self._poller.call_soon()
 
     def _is_remote_update(self, relpath, snapshot_cap):
         """
@@ -530,7 +584,6 @@ class RemoteScannerService(service.MultiService):
         with start_action(
             action_type="downloader:poll-file",
             relpath=relpath,
-            remote_cap=snapshot_cap,
         ):
             snapshot = yield self._remote_snapshot_cache.get_snapshot_from_capability(snapshot_cap)
             try:

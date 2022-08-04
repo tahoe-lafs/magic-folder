@@ -1,16 +1,10 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import itertools
 
 import automat
 import attr
 from eliot import (
     write_traceback,
+    write_failure,
     start_action,
     Message,
 )
@@ -38,11 +32,17 @@ from twisted.application.internet import (
 from .util.file import (
     get_pathinfo,
 )
+from .downloader import (
+    BackupRetainedError,
+)
 
 
 def _last_one(things):
     """
-    Used as a 'collector' for some Automat state transitions.
+    Used as a 'collector' for some Automat state transitions. Usually
+    the only interesting object comes from the final output (and using
+    this collector indicates that).
+
     :returns: the last thing in the iterable
     """
     return list(things)[-1]
@@ -82,6 +82,7 @@ class MagicFileFactory(object):
     _magic_files = attr.ib(default=attr.Factory(dict))  # relpath -> MagicFile
     _download_parallel = attr.ib(default=attr.Factory(lambda: DeferredSemaphore(5)))
     _delays = attr.ib(default=attr.Factory(list))
+    _logger = attr.ib(default=None)  # mainly for tests
 
     def magic_file_for(self, path):
         """
@@ -103,6 +104,7 @@ class MagicFileFactory(object):
                 action=start_action(
                     action_type="magic_file",
                     relpath=relpath,
+                    logger=self._logger,
                 ),
             )
             if self._synchronous:
@@ -152,10 +154,11 @@ class MagicFileFactory(object):
         Mostly for testing, this will yield on .when_idle() for every
         MagicFile we know about
         """
-        return DeferredList([
+        idles = [
             mf.when_idle()
             for mf in self._magic_files.values()
-        ])
+        ]
+        return DeferredList(idles)
 
 
 @attr.s
@@ -379,7 +382,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _download_matches(self, snapshot, staged_path):
+    def _download_matches(self, snapshot, staged_path, local_pathstate):
         """
         The local file (if any) matches what we expect given database
         state
@@ -493,7 +496,7 @@ class MagicFile(object):
 
         retry_delay_sequence = _delay_sequence()
 
-        def failed(f):
+        def error(f):
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -506,10 +509,11 @@ class MagicFile(object):
                     self._relpath,
                 )
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_download)
-            delay.addErrback(failed)
+            delay.addErrback(error)
             return None
 
         @inline_callbacks
@@ -535,7 +539,7 @@ class MagicFile(object):
                 d.addBoth(clean)
 
             d.addCallback(downloaded)
-            d.addErrback(failed)
+            d.addErrback(error)
             return d
 
         return perform_download()
@@ -557,6 +561,10 @@ class MagicFile(object):
         except KeyError:
             current_pathstate = None
 
+        # we give this downstream to the mark-overwrite, ultimately,
+        # so it can double-check that there was no last-millisecond
+        # change to the local path (note local_pathinfo.state will be
+        # None if there is no file at all here)
         local_pathinfo = get_pathinfo(self._path)
 
         # if we got a local-update during the "download" branch, we
@@ -581,7 +589,7 @@ class MagicFile(object):
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
-        self._call_later(self._download_matches, snapshot, staged_path)
+        self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state)
 
     @_machine.output()
     def _check_ancestor(self, snapshot, staged_path):
@@ -613,15 +621,23 @@ class MagicFile(object):
         return
 
     @_machine.output()
-    def _perform_remote_update(self, snapshot, staged_path):
+    def _perform_remote_update(self, snapshot, staged_path, local_pathstate):
         """
         Resolve a remote update locally
+
+        :param PathState local_pathstate: the PathState of the local
+            file as it existed _right_ before we concluded it was fine
+            (None if there was no local file before now)
         """
-        # there is a longer dance described in detail in
+        # between when we checked for a local conflict while in the
+        # _download_checking_local and when we _actually_ overwrite
+        # the file (inside .mark_overwrite) there is an additional
+        # window for last-second changes to happen .. we do the
+        # equivalent of the dance described in detail in
         # https://magic-folder.readthedocs.io/en/latest/proposed/magic-folder/remote-to-local-sync.html#earth-dragons-collisions-between-local-filesystem-operations-and-downloads
-        # which may do even better at reducing the window for local
-        # changes to get overwritten. Currently, that window is the 3
-        # python statements between here and ".mark_overwrite()"
+        # although that spec doesn't include when to remove the
+        # ".backup" files -- we use local_pathstate to double-check
+        # that.
 
         if snapshot.content_cap is None:
             self._factory._magic_fs.mark_delete(snapshot.relpath)
@@ -632,13 +648,33 @@ class MagicFile(object):
                     snapshot.relpath,
                     snapshot.metadata["modification_time"],
                     staged_path,
+                    local_pathstate,
                 )
             except OSError as e:
                 self._factory._folder_status.error_occurred(
                     "Failed to overwrite file '{}': {}".format(snapshot.relpath, str(e))
                 )
-                write_traceback()
+                with self._action.context():
+                    write_traceback()
                 self._call_later(self._fatal_error_download, snapshot)
+                return
+            except BackupRetainedError as e:
+                # this means that the mark_overwrite() code has
+                # noticed some mismatch to the replaced file or its
+                # .snaptmp version -- so this is a conflict, but we
+                # didn't detect it in the _download_check_local since
+                # it happened in the window _after_ that check.
+                self._factory._folder_status.error_occurred(
+                    "Unexpected content in '{}': {}".format(snapshot.relpath, str(e))
+                )
+                with self._action.context():
+                    write_traceback()
+                # mark as a conflict -- we use the retained tmpfile as
+                # the original "staged" path here, causing "our"
+                # emergency data to be in the conflict file .. maybe
+                # this should just be the original tmpfile and we
+                # shouldn't mess with it further?
+                self._call_later(self._download_mismatch, snapshot, e.path)
                 return
 
         # Note, if we crash here (after moving the file into place but
@@ -672,6 +708,9 @@ class MagicFile(object):
         # get us here.
 
         def error(f):
+            # XXX really need to "more visibly" log things like syntax
+            # errors etc...
+            write_failure(f)
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -682,7 +721,8 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, perform_update)
             delay.addErrback(error)
@@ -692,7 +732,7 @@ class MagicFile(object):
             d = maybeDeferred(
                 self._factory._write_participant.update_snapshot,
                 snapshot.relpath,
-                snapshot.capability.encode("ascii"),
+                snapshot.capability,
             )
             d.addCallback(updated_snapshot)
             d.addErrback(error)
@@ -724,6 +764,13 @@ class MagicFile(object):
         self._factory._folder_status.download_finished(self._relpath)
 
     @_machine.output()
+    def _cancel_queued_work(self):
+        for d in self._queue_local:
+            d.cancel()
+        for d in self._queue_remote:
+            d.cancel()
+
+    @_machine.output()
     def _create_local_snapshot(self):
         """
         Create a LocalSnapshot for this update
@@ -734,11 +781,10 @@ class MagicFile(object):
         # next thing in our queue (if any) as its parent (see assert below)
 
         def completed(snap):
-            if self._queue_local:
-                assert snap == self._queue_local[0], "Invalid queue; expected {} not {}".format(
-                    snap.identifier,
-                    self._queue_local[0].identifier,
-                )
+            # _queue_local contains Deferreds .. but ideally we'd
+            # check if "the thing those deferreds resolves to" is the
+            # right one .. namely, the _next_ thing in the queue
+            # should be (one of) "snap"'s parents
             self._call_later(self._snapshot_completed, snap)
             return snap
 
@@ -761,6 +807,7 @@ class MagicFile(object):
             retry_delay_sequence = _delay_sequence()
 
             def upload_error(f, snap):
+                write_failure(f)
                 if f.check(CancelledError):
                     self._factory._folder_status.error_occurred(
                         "Cancelled: {}".format(self._relpath)
@@ -783,13 +830,14 @@ class MagicFile(object):
                 )
                 delay_amt = next(retry_delay_sequence)
                 delay = self._delay_later(delay_amt, self._factory._uploader.upload_snapshot, snap)
+                delay.addCallback(got_remote)
                 delay.addErrback(upload_error, snap)
                 return delay
 
             def got_remote(remote):
                 # successfully uploaded
                 snapshot.remote_snapshot = remote
-                self._factory._remote_cache._cached_snapshots[remote.capability] = remote
+                self._factory._remote_cache._cached_snapshots[remote.capability.danger_real_capability_string()] = remote
                 self._call_later(self._upload_completed, snapshot)
 
             d.addCallback(got_remote)
@@ -817,6 +865,7 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def error(f):
+            write_failure(f)
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
                     "Cancelled: {}".format(self._relpath)
@@ -827,7 +876,8 @@ class MagicFile(object):
             self._factory._folder_status.error_occurred(
                 "Error updating personal DMD: {}".format(f.getErrorMessage())
             )
-            write_traceback(exc_info=(f.type, f.value, f.tb))
+            with self._action.context():
+                write_failure(f)
             delay_amt = next(retry_delay_sequence)
             delay = self._delay_later(delay_amt, update_personal_dmd)
             delay.addErrback(error)
@@ -852,11 +902,11 @@ class MagicFile(object):
             if snapshot.content_path is not None:
                 try:
                     # Remove the local snapshot content from the stash area.
-                    snapshot.content_path.asBytesMode("utf-8").remove()
+                    snapshot.content_path.remove()
                 except Exception as e:
                     self._factory._folder_status.error_occurred(
                         "Failed to remove cache file '{}': {}".format(
-                            snapshot.content_path.asTextMode("utf-8").path,
+                            snapshot.content_path.path,
                             str(e),
                         )
                     )
@@ -891,10 +941,14 @@ class MagicFile(object):
         # not to mess with our return-value
         ret_d = Deferred()
 
+        def failed(f):
+            # this still works for CancelledError right?
+            ret_d.errback(f)
+
         def got_snap(snap):
             ret_d.callback(snap)
             return snap
-        d.addCallback(got_snap)
+        d.addCallbacks(got_snap, failed)
         return ret_d
 
     @_machine.output()
@@ -1003,7 +1057,7 @@ class MagicFile(object):
     _downloading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1070,7 +1124,7 @@ class MagicFile(object):
     _uploading.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1085,9 +1139,11 @@ class MagicFile(object):
     _updating_personal_dmd_upload.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_upload_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_upload_finished, _done_working],
         collector=_last_one,
     )
+
+    # downloader updates
     _updating_personal_dmd_download.upon(
         _personal_dmd_updated,
         enter=_checking_for_local_work,
@@ -1097,13 +1153,23 @@ class MagicFile(object):
     _updating_personal_dmd_download.upon(
         _cancel,
         enter=_failed,
-        outputs=[_status_download_finished, _done_working],
+        outputs=[_cancel_queued_work, _status_download_finished, _done_working],
         collector=_last_one,
     )
     _updating_personal_dmd_download.upon(
         _fatal_error_download,
         enter=_failed,
         outputs=[_status_download_finished, _done_working],
+        collector=_last_one,
+    )
+    # this is the "last-minute" conflict window -- that is, when
+    # .mark_overwrite() determines something wrote to the tempfile (or
+    # wrote to the "real" file immediately after the state-machine
+    # check)
+    _updating_personal_dmd_download.upon(
+        _download_mismatch,
+        enter=_conflicted,
+        outputs=[_mark_download_conflict, _status_download_finished, _done_working],
         collector=_last_one,
     )
 
@@ -1119,6 +1185,12 @@ class MagicFile(object):
         outputs=[_check_for_remote_work],
         collector=_last_one,
     )
+    _checking_for_local_work.upon(
+        _remote_update,
+        enter=_checking_for_local_work,
+        outputs=[_queue_remote_update],
+        collector=_last_one,
+    )
 
     _checking_for_remote_work.upon(
         _queued_download,
@@ -1130,6 +1202,12 @@ class MagicFile(object):
         _no_download_work,
         enter=_up_to_date,
         outputs=[_done_working],
+        collector=_last_one,
+    )
+    _checking_for_remote_work.upon(
+        _local_update,
+        enter=_checking_for_remote_work,
+        outputs=[_queue_local_update],
         collector=_last_one,
     )
 

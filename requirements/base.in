@@ -2,17 +2,11 @@
 # zope.interface 3.6.3 and 3.6.4 are incompatible with Nevow (#1435).
 zope.interface >= 3.6.0, != 3.6.3, != 3.6.4
 
-# last release to support Python 2
 humanize >= 1.0.0
 
-six >= 1.10.0
+eliot
 
-# Eliot is contemplating dropping Python 2 support.  Stick to a version we
-# know works on Python 2.7.
-eliot ~= 1.7
-
-# A great way to define types of values. (The upper bound matches tahoe 1.15.1)
-attrs >= 19.1.0, < 20.0
+attrs
 
 # WebSocket library for twisted and asyncio
 autobahn >= 19.5.2
@@ -24,11 +18,15 @@ hyperlink
 # which extras to pull in.
 #
 # Additionally, pin Tahoe-LAFS to a specific version we know works.
-# Magic-Folder uses a lot of private Tahoe-LAFS Python APIs so there's
-# good reason to expect things to break from release to release.  Pin a
-# specific version so we can upgrade intentionally when we know it will
-# work.
-tahoe-lafs == 1.15.1
+# Magic-Folder still uses a couple private Tahoe-LAFS Python APIs so
+# there's good reason to expect things to break from release to
+# release.  Pin a specific version so we can upgrade intentionally
+# when we know it will work.
+#
+# This is "slightly open-ended" here to let e.g. NixOS's packager
+# install .postX development versions of Tahoe but will still get
+# an exact pin for magic-folders releases
+tahoe-lafs >= 1.17.1, < 1.18.0
 
 # twisted-based HTTP client
 treq
@@ -44,11 +42,12 @@ pyutil >= 3.3.0
 cryptography >= 2.6
 
 # last py2 release of klein
-klein==20.6.0
+klein>=20.6.0
 
 # Loading old magic-folders config for migration
 # Minimum version is the version packaged in the nix snapshot we use.
-PyYAML >= 5.1.1
+#PyYAML >= 5.1.1
 
-# Backported configparser for Python 2:
-configparser ; python_version < '3.0'
+# used for double-checking if a process is actually running when our
+# PID-file still exists
+psutil >= 5.8.0

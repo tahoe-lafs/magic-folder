@@ -2,26 +2,14 @@
 Tests for ``magic_folder.test.eliotutil``.
 """
 
-from __future__ import (
-    unicode_literals,
-    print_function,
-    absolute_import,
-    division,
-)
-
-from sys import stdout
 import logging
 
-from fixtures import (
-    TempDir,
-)
 from testtools import (
     TestCase,
 )
 from testtools.matchers import (
     Is,
     IsInstance,
-    MatchesStructure,
     Equals,
     AfterPreprocessing,
 )
@@ -32,7 +20,6 @@ from testtools.twistedsupport import (
 
 from eliot import (
     Message,
-    FileDestination,
 )
 from eliot.twisted import DeferredContext
 from eliot.testing import (
@@ -49,11 +36,9 @@ from twisted.internet import reactor
 from ..util.eliotutil import (
     log_call_deferred,
     log_inline_callbacks,
-    _parse_destination_description,
     _EliotLogging,
 )
 from .common import (
-    SyncTestCase,
     AsyncTestCase,
 )
 
@@ -74,46 +59,6 @@ class EliotLoggedTestTests(AsyncTestCase):
         d.addCallback(lambda ignored: Message.log(goodbye="world"))
         # We didn't start an action.  We're not finishing an action.
         return d.result
-
-
-
-class ParseDestinationDescriptionTests(SyncTestCase):
-    """
-    Tests for ``_parse_destination_description``.
-    """
-    def test_stdout(self):
-        """
-        A ``file:`` description with a path of ``-`` causes logs to be written to
-        stdout.
-        """
-        reactor = object()
-        self.assertThat(
-            _parse_destination_description("file:-")(reactor),
-            Equals(FileDestination(stdout)),
-        )
-
-
-    def test_regular_file(self):
-        """
-        A ``file:`` description with any path other than ``-`` causes logs to be
-        written to a file with that name.
-        """
-        tempdir = TempDir()
-        self.useFixture(tempdir)
-
-        reactor = object()
-        path = tempdir.join("regular_file")
-
-        self.assertThat(
-            _parse_destination_description("file:{}".format(path))(reactor),
-            MatchesStructure(
-                file=MatchesStructure(
-                    path=Equals(path),
-                    rotateLength=AfterPreprocessing(bool, Equals(True)),
-                    maxRotatedFiles=AfterPreprocessing(bool, Equals(True)),
-                ),
-            ),
-        )
 
 
 # Opt out of the great features of common.SyncTestCase because we're

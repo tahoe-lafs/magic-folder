@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from json import (
     dumps,
     loads,
@@ -19,7 +12,6 @@ from .matchers import (
 )
 from testtools.matchers import (
     AfterPreprocessing,
-    MatchesPredicate,
     MatchesListwise,
     ContainsDict,
     Always,
@@ -38,13 +30,18 @@ from hypothesis.strategies import (
     binary,
     lists,
 )
+
+from eliot.twisted import (
+    inline_callbacks,
+)
+
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.defer import (
     Deferred,
     DeferredList,
-    inlineCallbacks,
+    CancelledError,
 )
 from twisted.web.resource import (
     ErrorPage,
@@ -67,11 +64,6 @@ from ..tahoe_client import (
 from ..magicpath import (
     path2magic,
 )
-from ..util.capabilities import (
-    is_immutable_directory_cap,
-    to_verify_capability,
-    to_readonly_capability,
-)
 from ..util.file import (
     get_pathinfo,
 )
@@ -80,6 +72,9 @@ from ..util.wrap import (
 )
 from ..util.twisted import (
     cancelled,
+)
+from ..util.capabilities import (
+    random_immutable,
 )
 
 from .common import (
@@ -129,18 +124,17 @@ class UploadTests(SyncTestCase):
 
         # Make the upload dircap refer to a dirnode so the snapshot creator
         # can link files into it.
-        f.root._uri.data[upload_dircap] = dumps([
+        f.root._uri.data[upload_dircap.danger_real_capability_string()] = dumps([
             u"dirnode",
             {u"children": {}},
         ])
 
         # create a local snapshot
         local_path = f.config.magic_path.preauthChild(relpath)
-        local_path_bytes = local_path.asBytesMode("utf8")
-        if not local_path_bytes.parent().exists():
-            local_path_bytes.parent().makedirs()
-        with local_path_bytes.open("w") as local_file:
-            local_file.write("foo\n" * 20)
+        if not local_path.parent().exists():
+            local_path.parent().makedirs()
+        with local_path.open("w") as local_file:
+            local_file.write(b"foo\n" * 20)
         mf = f.magic_file_factory.magic_file_for(local_path)
         self.assertThat(
             mf.create_update(),
@@ -155,12 +149,12 @@ class UploadTests(SyncTestCase):
 
         # Verify that the new snapshot was linked in to our upload directory.
         self.assertThat(
-            loads(f.root._uri.data[upload_dircap])[1][u"children"],
+            loads(f.root._uri.data[upload_dircap.danger_real_capability_string()])[1][u"children"],
             Equals({
                 path2magic(relpath): [
                     u"dirnode", {
-                        u"ro_uri": remote_snapshot_cap.decode("utf-8"),
-                        u"verify_uri": to_verify_capability(remote_snapshot_cap),
+                        u"ro_uri": remote_snapshot_cap.danger_real_capability_string(),
+                        u"verify_uri": remote_snapshot_cap.to_verifier().danger_real_capability_string(),
                         u"mutable": False,
                         u"format": u"CHK",
                     },
@@ -170,11 +164,8 @@ class UploadTests(SyncTestCase):
 
         # test whether we got a capability
         self.assertThat(
-            remote_snapshot_cap,
-            MatchesPredicate(
-                is_immutable_directory_cap,
-                "%r is not a immuutable directory Tahoe-LAFS URI",
-            ),
+            remote_snapshot_cap.is_immutable_directory(),
+            Equals(True)
         )
 
         with ExpectedException(KeyError, escape(repr(relpath))):
@@ -217,7 +208,7 @@ class UploadTests(SyncTestCase):
         mf._delay_later = retry
 
         for content in contents:
-            with local_path.asBytesMode("utf8").open("w") as local_file:
+            with local_path.open("w") as local_file:
                 local_file.write(content)
             d = mf.create_update()
             d.addCallback(snapshots.append)
@@ -266,7 +257,7 @@ class MagicFileFactoryTests(SyncTestCase):
         config = f.config
 
         local = f.magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         snap = RemoteSnapshot(
@@ -274,13 +265,13 @@ class MagicFileFactoryTests(SyncTestCase):
             author,
             metadata={
                 "modification_time": int(
-                    local.asBytesMode("utf-8").getModificationTime()
+                    local.getModificationTime()
                 ),
             },
-            capability="URI:DIR2-CHK:",
+            capability=random_immutable(directory=True),
             parents_raw=[],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         config.store_downloaded_snapshot(
             relpath, snap, get_pathinfo(local).state
@@ -308,10 +299,10 @@ class MagicFileFactoryTests(SyncTestCase):
             metadata={
                 "modification_time": int(1234),
             },
-            capability="URI:DIR2-CHK:",
-            parents_raw=[snap.capability],
-            content_cap="URI:CHK:",
-            metadata_cap="URI:CHK:",
+            capability=random_immutable(directory=True),
+            parents_raw=[snap.capability.danger_real_capability_string()],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
         )
         mf.found_new_remote(child)
 
@@ -328,7 +319,7 @@ class AsyncMagicFileTests(AsyncTestCase):
     MagicFile tests requiring the reactor
     """
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_local_queue(self):
         """
         Queuing up two updates 'at once' causes two versions to be
@@ -378,7 +369,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         # things.
 
         # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
+        tahoe_root._uri.data[config.collective_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {
@@ -386,8 +377,8 @@ class AsyncMagicFileTests(AsyncTestCase):
                         "dirnode",
                         {
                             "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "ro_uri": config.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "verify_uri": config.upload_dircap.to_verifier().danger_real_capability_string(),
                             "format": "SDMF",
                         },
                     ],
@@ -396,7 +387,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         ])
 
         # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
+        tahoe_root._uri.data[config.upload_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {},
@@ -407,7 +398,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         service.startService()
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -438,17 +429,16 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(snap0.parents_local, Equals([]))
         self.assertThat(snap0.parents_remote, Equals([]))
 
-        self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability]))
+        self.assertThat(snap1.remote_snapshot.parents_raw, Equals([snap0.remote_snapshot.capability.danger_real_capability_string()]))
         self.assertThat(snap1.parents_local, Equals([]))
         self.assertThat(snap1.parents_remote, Equals([snap0.remote_snapshot.capability]))
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_fail_upload_dmd_update(self):
         """
         While uploading a local snapshot we fail to update our Personal
         DMD. A retry is attempted.
         """
-
         magic_path = FilePath(self.mktemp())
         magic_path.makedirs()
         relpath = "random_local_file"
@@ -493,7 +483,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         # things.
 
         # Collective DMD
-        tahoe_root._uri.data[config.collective_dircap] = dumps([
+        tahoe_root._uri.data[config.collective_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {
@@ -501,28 +491,28 @@ class AsyncMagicFileTests(AsyncTestCase):
                         "dirnode",
                         {
                             "mutable": True,
-                            "ro_uri": to_readonly_capability(config.upload_dircap),
-                            "verify_uri": to_verify_capability(config.upload_dircap),
+                            "ro_uri": config.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "verify_uri": config.upload_dircap.to_verifier().danger_real_capability_string(),
                             "format": "SDMF",
                         },
                     ],
                 }
             }
-        ])
+        ]).encode("utf8")
 
         # Personal DMD
-        tahoe_root._uri.data[config.upload_dircap] = dumps([
+        tahoe_root._uri.data[config.upload_dircap.danger_real_capability_string()] = dumps([
             "dirnode",
             {
                 "children": {},
             }
-        ])
+        ]).encode("utf8")
 
         # all data available, we can start services
         service.startService()
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -561,7 +551,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             ]),
         )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_upload(self):
         """
         While an upload is ongoing it is cancelled
@@ -596,7 +586,7 @@ class AsyncMagicFileTests(AsyncTestCase):
         service = alice.global_service.get_folder_service("default")
 
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         mf = service.file_factory.magic_file_for(local)
@@ -623,8 +613,14 @@ class AsyncMagicFileTests(AsyncTestCase):
                 }),
             })
         )
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(CancelledError),
+            MatchesListwise([
+                matches_flushed_traceback(CancelledError),
+            ]),
+        )
 
-    @inlineCallbacks
+    @inline_callbacks
     def test_cancel_dmd(self):
         """
         An attempt to update the Personal DMD after an upload is
@@ -655,7 +651,7 @@ class AsyncMagicFileTests(AsyncTestCase):
 
         service = alice.global_service.get_folder_service("default")
         local = magic_path.child(relpath)
-        with local.asBytesMode("utf8").open("w") as local_f:
+        with local.open("w") as local_f:
             local_f.write(b"dummy\n" * 50)
 
         # arrange to fail the personal-dmd update
@@ -688,4 +684,189 @@ class AsyncMagicFileTests(AsyncTestCase):
                     }),
                 }),
             })
+        )
+
+    @inline_callbacks
+    def test_update_dmd_fails_then_succeeds(self):
+        """
+        Some attempts to update the Personal DMD fail, then stop failing.
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "trouble"
+
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            start_folder_services=True,
+        )
+        self.addCleanup(alice.cleanup)
+
+        service = alice.global_service.get_folder_service("default")
+        local = magic_path.child(relpath)
+        with local.open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        # arrange for the "participant.update_snapshot" call to fail
+        # exactly twice and then succeed
+        bad_stuff = Exception("bad stuff")
+
+        def temporary_error(orig, count):
+            temporary_error.remain = count
+
+            def maybe_fail(*args, **kw):
+                temporary_error.remain -= 1
+                if temporary_error.remain >= 0:
+                    raise bad_stuff
+                return orig(*args, **kw)
+            return maybe_fail
+
+        service.file_factory._write_participant = wrap_frozen(
+            service.file_factory._write_participant,
+            update_snapshot=temporary_error(
+                service.file_factory._write_participant.update_snapshot,
+                2,
+            )
+        )
+
+        # simulate the update
+        mf = service.file_factory.magic_file_for(local)
+        yield mf.create_update()
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: [error["summary"] for error in errors],
+                                Equals([
+                                    "Error updating personal DMD: bad stuff",
+                                    "Error updating personal DMD: bad stuff",
+                                ]),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+        # ...as should the logger
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            AfterPreprocessing(
+                lambda errors: [err["reason"] for err in errors],
+                Equals([
+                    bad_stuff,
+                    bad_stuff,
+                ])
+            )
+        )
+
+    @inline_callbacks
+    def test_upload_fails_then_succeeds(self):
+        """
+        Some attempts to upload fail, then stop failing.
+        """
+
+        magic_path = FilePath(self.mktemp())
+        magic_path.makedirs()
+        relpath = "danger"
+
+        from twisted.internet import reactor
+
+        alice = MagicFolderNode.create(
+            reactor=reactor,
+            basedir=FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                }
+            },
+            start_folder_services=True,
+        )
+        self.addCleanup(alice.cleanup)
+
+        service = alice.global_service.get_folder_service("default")
+
+        # arrange for the "tahoe_client.create_immutable" call to fail
+        # exactly twice and then succeed
+        bad_stuff = Exception("bad stuff")
+
+        def temporary_error(orig, count):
+            temporary_error.remain = count
+
+            def maybe_fail(*args, **kw):
+                temporary_error.remain -= 1
+                if temporary_error.remain >= 0:
+                    d = Deferred()
+                    d.errback(bad_stuff)
+                    return d
+                return orig(*args, **kw)
+            return maybe_fail
+
+        service.file_factory._uploader = service.uploader_service = wrap_frozen(
+            service.uploader_service,
+            upload_snapshot=temporary_error(
+                service.uploader_service.upload_snapshot,
+                2,
+            )
+        )
+
+        local = magic_path.child(relpath)
+        with local.open("w") as local_f:
+            local_f.write(b"dummy\n" * 50)
+
+        # simulate the update
+        mf = service.file_factory.magic_file_for(local)
+        yield mf.create_update()
+        yield mf.when_idle()
+
+        # status system should report our error
+        self.assertThat(
+            loads(alice.global_service.status_service._marshal_state()),
+            ContainsDict({
+                "state": ContainsDict({
+                    "folders": ContainsDict({
+                        "default": ContainsDict({
+                            "errors": AfterPreprocessing(
+                                lambda errors: [error["summary"] for error in errors],
+                                Equals([
+                                    "Error uploading danger: bad stuff",
+                                    "Error uploading danger: bad stuff",
+                                ]),
+                            ),
+                        }),
+                    }),
+                }),
+            })
+        )
+        # ...as should the logger
+        # XXX why does this only return _one_ error -- should be two!
+        self.assertThat(
+            self.eliot_logger.flush_tracebacks(Exception),
+            AfterPreprocessing(
+                lambda errors: [err["reason"] for err in errors],
+                Equals([
+                    bad_stuff,
+                ])
+            )
         )

@@ -8,7 +8,7 @@ Magic Folder for Tahoe-LAFS is a Free and Open file synchronization system.
 It detects local changes to files and uploads those changes to a Tahoe-LAFS grid.
 It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 
-|readthedocs|  |circleci|  |codecov|
+|readthedocs|  |gha_linux|  |gha_macos|  |gha_windows|  |codecov|
 
 Installing
 ==========
@@ -18,15 +18,13 @@ for integrators
 
 When packaging magic-folder, please install using our pinned requirements,
 which are tested in CI. This should be done in a virtualenv, or other
-isolated python environment, so as to not interfere with system or user 
+isolated python environment, so as to not interfere with system or user
 python packages.
 
-```shell 
-git clone https://github.com/LeastAuthority/magic-folder
-cd magic-folder
-pip install --require-hashes -r requirements/base.txt
-pip install --no-deps .
-```
+    git clone https://github.com/LeastAuthority/magic-folder
+    cd magic-folder
+    pip install --require-hashes -r requirements/base.txt
+    pip install --no-deps .
 
 
 from source
@@ -123,8 +121,14 @@ slides.
     :alt: documentation status
     :target: http://magic-folder.readthedocs.io/en/latest/?badge=latest
 
-.. |circleci| image:: https://circleci.com/gh/LeastAuthority/magic-folder.svg?style=svg
-    :target: https://circleci.com/gh/LeastAuthority/magic-folder
+.. |gha_linux| image:: https://github.com/leastauthority/magic-folder/actions/workflows/linux.yml/badge.svg
+    :target: https://github.com/LeastAuthority/magic-folder/actions/workflows/linux.yml
+
+.. |gha_macos| image:: https://github.com/leastauthority/magic-folder/actions/workflows/macos.yaml/badge.svg
+    :target: https://github.com/LeastAuthority/magic-folder/actions/workflows/macos.yaml
+
+.. |gha_windows| image:: https://github.com/leastauthority/magic-folder/actions/workflows/windows.yml/badge.svg
+    :target: https://github.com/LeastAuthority/magic-folder/actions/workflows/windows.yml
 
 .. |codecov| image:: https://codecov.io/github/leastauthority/magic-folder/coverage.svg?branch=main
     :alt: test coverage percentage

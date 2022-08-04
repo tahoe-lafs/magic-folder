@@ -1,14 +1,10 @@
 include README.rst
-include COPYING.GPL COPYING.TGPPL.rst CREDITS Makefile NEWS.rst Tahoe.home
-include relnotes.txt
-include Dockerfile
-include tox.ini .appveyor.yml .travis.yml
+include COPYING.GPL COPYING.TGPPL.rst CREDITS Makefile NEWS.rst
+include tox.ini
 include .coveragerc
-recursive-include src *.xhtml *.js *.png *.css *.svg *.txt
 recursive-include requirements *.in *.txt
 graft docs
 graft misc
-graft static
 graft integration
 
 global-exclude *~ *.pyc

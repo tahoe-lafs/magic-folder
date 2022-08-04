@@ -1,0 +1,156 @@
+name: Linux Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  unit-tests:
+    strategy:
+      matrix:
+        os:
+          - runs-on: ubuntu-20.04
+#          - runs-on: ubuntu-18.04
+        python-version:
+          - "3.8"
+    runs-on: ${{ matrix.os.runs-on }}
+    steps:
+    - name: Check out source code
+      uses: actions/checkout@v2
+      with:
+        # Get enough history for the tags we get next to be meaningful.  0
+        # means all history.
+        fetch-depth: "0"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Use pip cache
+      uses: actions/cache@v2
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install wheel tox eliot-tree cuvner
+
+    - name: Test with tox
+      run: tox -e py38-coverage
+      env:
+        MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
+
+    - name: Coverage graph
+      shell: bash
+      run: cuv graph
+      continue-on-error: true
+
+    - name: Coverage report
+      shell: bash
+      run: |
+          git diff origin/main..HEAD > p
+          cuv report p
+      continue-on-error: true
+
+    - name: Coverage details
+      shell: bash
+      run: |
+          git diff origin/main..HEAD > p
+          cuv diff p
+      continue-on-error: true
+
+    - name: Generate eliot-tree.
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        if [[ -f eliot.log ]]; then
+            eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
+        fi
+
+    - name: Upload eliot.log in case of failure
+      uses: "actions/upload-artifact@v2"
+      with:
+        if-no-files-found: "warn"
+        name: "unit-test"
+        path: "eliot*"
+
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v2
+      with:
+        token: "322d708d-8283-4827-b605-ccf02bfecf70"
+        file: "./coverage.xml"
+
+
+
+  integration-tests:
+    strategy:
+      matrix:
+        os:
+          - runs-on: ubuntu-20.04
+#          - runs-on: ubuntu-18.04
+        python-version:
+          - "3.8"
+        tahoe-version:
+          - "1_17"
+          - "master"
+    runs-on: ${{ matrix.os.runs-on }}
+
+    steps:
+    - name: Check out source code
+      uses: actions/checkout@v2
+      with:
+        # Get enough history for the tags we get next to be meaningful.  0
+        # means all history.
+        fetch-depth: "0"
+    # Get tags not fetched by the checkout action, needed for auto-versioning.
+    - run: "git fetch origin +refs/tags/*:refs/tags/*"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Use pip cache
+      uses: actions/cache@v2
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install wheel tox eliot-tree
+
+    - name: Test with tox
+      run: tox -e integration-${{ matrix.tahoe-version }}
+
+    - name: Generate eliot-tree.
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        if [[ -f eliot.log ]]; then
+            eliot-tree --field-limit=0 eliot.log > eliot-tree.txt
+        fi
+
+    - name: Upload eliot.log in case of failure
+      uses: "actions/upload-artifact@v2"
+      if: ${{ always() }}
+      with:
+        if-no-files-found: "warn"
+        name: "integration"
+        path: "eliot*"
+
+    - uses: codecov/codecov-action@v2
+      with:
+        token: "322d708d-8283-4827-b605-ccf02bfecf70"
+        file: "./coverage.xml"
+        flags: "integration"

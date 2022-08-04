@@ -5,14 +5,12 @@
 Utilties for dealing with sqlite.
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import contextlib
 import inspect
 import sqlite3
 
 import attr
-from six import wraps
+from functools import wraps
 from twisted.python.compat import currentframe
 
 __all__ = [
@@ -23,7 +21,7 @@ __all__ = [
 ]
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class WithCursorGenerator(TypeError):
     """
     :py:`with_cursor` cannot be used on a generator.
@@ -43,13 +41,13 @@ class WithCursorGenerator(TypeError):
         )
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class _LockableDatabaseTransactionError(Exception):
     """
     An error from calling :py:`LockableDatabase.transaction`.
     """
 
-    message = attr.ib(validator=attr.validators.instance_of(unicode))
+    message = attr.ib(validator=attr.validators.instance_of(str))
     function = attr.ib(default=None)
     caller = attr.ib(default=None)
 
@@ -84,7 +82,7 @@ class _LockableDatabaseTransactionError(Exception):
         return message
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class ClosedDatabase(_LockableDatabaseTransactionError):
     """
     :py:`with_cursor` or :py:`LockableDatabase.transaction` was called on a
@@ -94,7 +92,7 @@ class ClosedDatabase(_LockableDatabaseTransactionError):
     message = attr.ib(init=False, default="Tried to operate on a closed database")
 
 
-@attr.s(auto_exc=True, frozen=True)
+@attr.s(auto_exc=True)
 class RecusiveTransaction(_LockableDatabaseTransactionError):
     """
     :py:`with_cursor` or :py:`LockableDatabase.transaction` was called while a
@@ -153,8 +151,6 @@ class LockableDatabase(object):
             self._in_transaction = False
 
 
-# XXX: with_cursor lacks unit tests, see:
-#      https://github.com/LeastAuthority/magic-folder/issues/173
 def with_cursor(f):
     """
     Decorate a method so it is automatically passed a cursor with an active

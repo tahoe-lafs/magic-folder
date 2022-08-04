@@ -1,20 +1,9 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 """
 Common fixtures to let the test suite focus on application logic.
 """
-
-from __future__ import (
-    absolute_import,
-)
 
 from errno import (
     ENOENT,
@@ -28,7 +17,8 @@ from ..util.encoding import (
     dump_yaml,
 )
 from ..util.capabilities import (
-    to_readonly_capability,
+    Capability,
+    random_dircap,
 )
 from ..util.wrap import (
     delayed_wrap_frozen,
@@ -43,7 +33,10 @@ from hyperlink import (
     DecodedURL,
 )
 from treq.client import HTTPClient
-from twisted.internet.task import Clock
+from twisted.internet.task import (
+    Clock,
+    Cooperator,
+)
 from twisted.internet.defer import (
     DeferredList,
 )
@@ -145,7 +138,7 @@ class NodeDirectory(Fixture):
             u"directory": directory.path,
             u"poll_interval": u"{}".format(poll_interval),
         }
-        self.magic_folder_yaml.setContent(dump_yaml(magic_folder_config))
+        self.magic_folder_yaml.setContent(dump_yaml(magic_folder_config).encode("utf8"))
 
     def _setUp(self):
         self.path.makedirs()
@@ -189,16 +182,16 @@ class MagicFileFactoryFixture(Fixture):
         )
 
     def _setUp(self):
-        self.magic_path = self.temp.child(b"magic")
+        self.magic_path = self.temp.child("magic")
         self.magic_path.makedirs()
 
-        self.stash_path = self.temp.child(b"stash")
+        self.stash_path = self.temp.child("stash")
         self.stash_path.makedirs()
 
         self.poll_interval = 1
         self.scan_interval = None
 
-        collective_dircap = u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra"
+        collective_dircap = random_dircap(readonly=True)
         participants = participants_from_collective(
             collective_dircap, self.upload_dircap, self.tahoe_client
         )
@@ -208,7 +201,7 @@ class MagicFileFactoryFixture(Fixture):
             SQLite3DatabaseLocation.memory(),
             self.author,
             self.stash_path,
-            u"URI:DIR2-RO:mjrgeytcmjrgeytcmjrgeytcmi:mjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjrgeytcmjra",
+            random_dircap(readonly=True),
             self.upload_dircap,
             self.magic_path,
             self.poll_interval,
@@ -218,11 +211,17 @@ class MagicFileFactoryFixture(Fixture):
         self.filesystem = InMemoryMagicFolderFilesystem()
 
         self._global_config = create_testing_configuration(
-            self.temp.child(b"config"),
-            self.temp.child(b"tahoe-node"),
+            self.temp.child("config"),
+            self.temp.child("tahoe-node"),
         )
         self.status = WebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
+
+        uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
+        self.addCleanup(uncooperator.stop)
 
         local_snapshot_service = LocalSnapshotService(
             self.config,
@@ -232,6 +231,7 @@ class MagicFileFactoryFixture(Fixture):
                 self.config.stash_path,
                 self.config.magic_path,
                 self.tahoe_client,
+                cooperator=uncooperator,
             ),
             status=folder_status,
         )
@@ -285,6 +285,7 @@ class MagicFolderNode(object):
     tahoe_client = attr.ib()
     global_service = attr.ib(validator=attr.validators.instance_of(MagicFolderService))
     global_config = attr.ib(validator=attr.validators.instance_of(GlobalConfigDatabase))
+    _cooperator = attr.ib()
 
     @classmethod
     def create(
@@ -305,7 +306,7 @@ class MagicFolderNode(object):
         :param FilePath basedir: A non-existant directory to create and populate
             with a new Magic Folder service configuration.
 
-        :param unicode auth_token: The authorization token accepted by the
+        :param bytes auth_token: The authorization token accepted by the
             service.
 
         :param folders: A mapping from Magic Folder names to their configurations.
@@ -331,6 +332,13 @@ class MagicFolderNode(object):
         if auth_token is None:
             auth_token = global_config.api_token
         maybe_wrapper = None
+
+        assert isinstance(auth_token, bytes), "token is bytes"
+
+        uncooperator = Cooperator(
+            terminationPredicateFactory=lambda: lambda: False,
+            scheduler=lambda f: f(),
+        )
 
         if tahoe_client is None or isinstance(tahoe_client, TahoeClientWrapper):
             # Setup a Tahoe client backed by a fake Tahoe instance Since we
@@ -363,14 +371,14 @@ class MagicFolderNode(object):
                         config[u"magic-path"],
                         create_local_author(config[u"author-name"]),
                         # collective DMD
-                        "URI:DIR2{}:{}:{}".format(
+                        Capability.from_string(u"URI:DIR2{}:{}:{}".format(
                             "" if config["admin"] else "-RO",
-                            b2a("\0" * 16),
-                            b2a("\1" * 32),
-                        ),
+                            b2a(("\0" * 16).encode("ascii")).decode("ascii"),
+                            b2a(("\1" * 32).encode("ascii")).decode("ascii"),
+                        )),
 
                         # personal DMD
-                        u"URI:DIR2:{}:{}".format(b2a("\2" * 16), b2a("\3" * 32)),
+                        Capability.from_string(u"URI:DIR2:{}:{}".format(b2a(("\2" * 16).encode("ascii")).decode("ascii"), b2a(("\3" * 32).encode("ascii")).decode("ascii"))),
                         config[u"poll-interval"],
                         config[u"scan-interval"],
                     )
@@ -387,6 +395,7 @@ class MagicFolderNode(object):
             # Tahoe-LAFS node URL in the non-existent directory we supplied above
             # in its efforts to create one itself.
             tahoe_client,
+            cooperator=uncooperator,
         )
 
         if folders and tahoe_root:
@@ -405,7 +414,7 @@ class MagicFolderNode(object):
                 )
                 if not config[u"admin"]:
                     folder_config = global_config.get_magic_folder(name)
-                    folder_config.collective_dircap = to_readonly_capability(folder_config.collective_dircap)
+                    folder_config.collective_dircap = folder_config.collective_dircap.to_readonly()
 
         # TODO: This should be in Fixture._setUp, along with a .addCleanup(stopService)
         # See https://github.com/LeastAuthority/magic-folder/issues/334
@@ -435,12 +444,14 @@ class MagicFolderNode(object):
             tahoe_client=tahoe_client,
             global_service=global_service,
             global_config=global_config,
+            cooperator=uncooperator,
         )
 
     def cleanup(self):
         """
         Stop the (selected) services we started
         """
+        self._cooperator.stop()
         return DeferredList([
             magic_folder.stopService()
             for magic_folder in self.global_service._iter_magic_folder_services()

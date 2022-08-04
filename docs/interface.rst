@@ -250,12 +250,23 @@ Upon connecting, a new client will immediately receive a "state" message::
                             "relpath": "foo"
                             "conflicted": false,
                             "modified": 1634431697,
-                            "last-updated": 1634431700,
+                            "last-updated": 1634431700
                         }
                     ]
                 }
             },
-            "synchronizing": false
+            "synchronizing": false,
+            "tahoe": {
+                "connected": 3,
+                "happy": true,
+                "desired": 2
+            },
+            "scanner": {
+                "last-scan": 1634431700.1234
+            },
+            "poller": {
+                "last-poll": null
+            }
         }
     }
 
@@ -268,18 +279,27 @@ The state for each folder consists of the following information:
 - ``"synchronizing"``: ``true`` or ``false``. When ``true`` the
   magic-folder daemon is uploading data to or downloading data from
   Tahoe-LAFS.
-- ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
-  Each ``dict`` in these lists contain:
-  - ``"relpath"``: the relative-path
-  - ``"queued-at"``: the Unix timestamp when this item was queued
-  - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
-    This key will not exist until we do start.
-- ``"recent"`` contains a list up to 30 of the most-recently updated files.
-  Each ``dict`` in this list contains:
-  - ``"relpath"``: the relative path of this item
-  - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
-  - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
-  - ``"conflicted"``: a boolean indicating if there is a conflict for this relative path
+- ``"tahoe"``: a dict containing status information about the Tahoe-LAFS connection
+  - ``"connected"``: the number of storage-servers the client is connected to
+  - ``"desired"``: the number of storage-servers we want to connect to
+  - ``"happy"``: ``true`` if ``"connected"`` is greater than the client's configured "happy"
+- ``"folders"`` contains keys mapping the folder name to:
+  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
+    Each ``dict`` in these lists contain:
+    - ``"relpath"``: the relative-path
+    - ``"queued-at"``: the Unix timestamp when this item was queued
+    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
+      This key will not exist until we do start.
+  - ``"recent"`` contains a list up to 30 of the most-recently updated files.
+    Each ``dict`` in this list contains:
+    - ``"relpath"``: the relative path of this item
+    - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
+    - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
+    - ``"conflicted"``: a boolean indicating if there is a conflict for this relative path
+  - ``"scanner"`` contains information about the local changes scanner
+    - ``"last-scan"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
+  - ``"poller"`` contains information about the remote changes poller
+    - ``"last-poll"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
 
 Clients should be tolerant of keys in the state they don't understand.
 Unknown state keys should be ignored.

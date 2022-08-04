@@ -1,10 +1,3 @@
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 from twisted.python.filepath import (
     FilePath,
 )
@@ -30,18 +23,16 @@ from . import util
 
 # see "conftest.py" for the fixtures (e.g. "magic_folder")
 
-# we need the eliot decorator too so that start_action works properly;
-# the pytest decorator actually only "marks" the function
 
 @inline_callbacks
-@pytest_twisted.inlineCallbacks
-def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+@pytest_twisted.ensureDeferred
+async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
     """
     the 'tahoe-objects' API works concurrently
     (see also ticket #570)
     """
 
-    yolandi = yield util.MagicFolderEnabledNode.create(
+    yolandi = await util.MagicFolderEnabledNode.create(
         reactor,
         tahoe_venv,
         request,
@@ -49,8 +40,8 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
         introducer_furl,
         flog_gatherer,
         name="yolandi",
-        tahoe_web_port="tcp:9982:interface=localhost",
-        magic_folder_web_port="tcp:19982:interface=localhost",
+        tahoe_web_port="tcp:9983:interface=localhost",
+        magic_folder_web_port="tcp:19983:interface=localhost",
         storage=True,
     )
     number_of_folders = 20
@@ -61,7 +52,7 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
         magic_dir = FilePath(base_dir).child(folder_name)
         magic_dir.makedirs()
 
-        yield yolandi.client.add_folder(
+        await yolandi.client.add_folder(
             folder_name,
             author_name="yolandi",
             local_path=magic_dir,
@@ -75,7 +66,7 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
     for folder_num, folder_name in enumerate(folder_names):
         magic_dir = FilePath(base_dir).child(folder_name)
         with magic_dir.child("a_file_name").open("w") as f:
-            f.write("data {:02d}\n".format(folder_num) * 100)
+            f.write("data {:02d}\n".format(folder_num).encode("utf8") * 100)
         files.append(
             yolandi.client.add_snapshot(
                 folder_name,
@@ -110,12 +101,12 @@ def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_f
         )
     )
 
-    # try for 10 seconds to get what we expect. we're waiting for each
+    # try for 15 seconds to get what we expect. we're waiting for each
     # of the magic-folders to upload their single "a_file_name" items
     # so that they each have one Snapshot in Tahoe-LAFS
-    for _ in range(10):
-        yield util.twisted_sleep(reactor, 1)
-        results = yield DeferredList([
+    for _ in range(15):
+        await util.twisted_sleep(reactor, 1)
+        results = await DeferredList([
             yolandi.client.tahoe_objects(folder_name)
             for folder_name in folder_names
         ])

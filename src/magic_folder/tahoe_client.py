@@ -1,17 +1,9 @@
 # Copyright 2020 Least Authority TFA GmbH
 # See COPYING for details.
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
-
 import json
 
 from twisted.internet.defer import (
-    inlineCallbacks,
     returnValue,
     DeferredLock,
 )
@@ -40,8 +32,7 @@ from eliot.twisted import (
 import attr
 
 from .util.capabilities import (
-    is_directory_cap,
-    is_file_cap,
+    Capability,
 )
 from .util.twisted import (
     exclusively,
@@ -67,7 +58,7 @@ def _request(http_client, method, url, **kwargs):
     )
 
 
-@attr.s(frozen=True)
+@attr.s(auto_exc=True)
 class TahoeAPIError(Exception):
     """
     A Tahoe-LAFS HTTP API returned a failure code.
@@ -85,7 +76,22 @@ class TahoeAPIError(Exception):
         return "Tahoe API error {}".format(self.code)
 
 
-@attr.s(frozen=True)
+@attr.s(auto_exc=True)
+class InsufficientStorageServers(Exception):
+    """
+    Not enough storage-servers are currently connected.
+    """
+    connected = attr.ib()
+    desired = attr.ib()
+
+    def __str__(self):
+        return "Wanted {} storage-servers but have {}".format(
+            self.desired,
+            self.connected,
+        )
+
+
+@attr.s(auto_exc=True)
 class CannotCreateDirectoryError(Exception):
     """
     Failed to create a (mutable) directory.
@@ -101,7 +107,7 @@ class CannotCreateDirectoryError(Exception):
         return repr(self)
 
 
-@attr.s(frozen=True, str=False)
+@attr.s(auto_exc=True, str=False)
 class CannotAddDirectoryEntryError(Exception):
     """
     Failed to add a sub-directory or file to a mutable directory.
@@ -116,7 +122,7 @@ class CannotAddDirectoryEntryError(Exception):
         )
 
 
-@inlineCallbacks
+@inline_callbacks
 def _get_content_check_code(acceptable_codes, res):
     """
     Check that the given response's code is acceptable and read the response
@@ -133,7 +139,7 @@ def _get_content_check_code(acceptable_codes, res):
     returnValue(body)
 
 
-@attr.s(frozen=True)
+@attr.s
 class TahoeClient(object):
     """
     An object that knows how to call a particular tahoe client's
@@ -155,7 +161,28 @@ class TahoeClient(object):
         validator=attr.validators.instance_of((HTTPClient, StubTreq)),
     )
 
-    @inlineCallbacks
+    # When available and running, usually a ConnectedTahoeService will
+    # update this based on the number of "connected" versus "desired"
+    # servers. If this is None, we will not perform any operations at
+    # all. If it is non-None we will raise the given error upon any
+    # "mutable" operation (including "create a mutable")
+    _error_on_mutable_operation = attr.ib(default=None)
+
+    def mutables_okay(self):
+        """
+        It has been determined that it is currently okay to perform
+        mutable operations.
+        """
+        self._error_on_mutable_operation = None
+
+    def mutables_bad(self, err):
+        """
+        It has been determined that mutable operations are problemmatic
+        :param Exception err: something suitable to 'raise'
+        """
+        self._error_on_mutable_operation = err
+
+    @inline_callbacks
     def get_welcome(self):
         """
         Fetch the JSON 'welcome page' from Tahoe
@@ -168,7 +195,7 @@ class TahoeClient(object):
         returnValue((yield resp.json()))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_immutable_directory(self, directory_data):
         """
         Creates a new immutable directory in Tahoe.
@@ -185,15 +212,15 @@ class TahoeClient(object):
         )
         res = yield _request(
             self.http_client,
-            b"POST",
+            u"POST",
             post_uri,
-            data=json.dumps(directory_data),
+            data=json.dumps(directory_data).encode("utf8"),
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
-        returnValue(capability_string)
+        returnValue(Capability.from_string(capability_string.decode("utf8")))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_immutable(self, producer):
         """
         Creates a new immutable in Tahoe.
@@ -209,15 +236,15 @@ class TahoeClient(object):
         put_uri = self.url.child(u"uri")
         res = yield _request(
             self.http_client,
-            b"PUT",
+            u"PUT",
             put_uri,
             data=producer,
         )
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
-        returnValue(capability_string)
+        returnValue(Capability.from_string(capability_string.decode("utf8")))
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def create_mutable_directory(self):
         """
         Create a new mutable directory in Tahoe.
@@ -225,12 +252,15 @@ class TahoeClient(object):
         :return Deferred[bytes]: The write capability string for the new
             directory.
         """
+        if self._error_on_mutable_operation is not None:
+            raise self._error_on_mutable_operation
+
         post_uri = self.url.child(u"uri").replace(
             query=[(u"t", u"mkdir")],
         )
         response = yield _request(
             self.http_client,
-            b"POST",
+            u"POST",
             post_uri,
         )
         # Response code should probably be CREATED but it seems to be OK
@@ -240,26 +270,25 @@ class TahoeClient(object):
             capability_string = yield _get_content_check_code({OK, CREATED}, response)
         except TahoeAPIError as e:
             raise CannotCreateDirectoryError(e)
-        returnValue(capability_string)
+        returnValue(Capability.from_string(capability_string.decode("utf8")))
 
     @inline_callbacks
     def list_directory(self, dir_cap):
         """
         List the contents of a read- or read/write- directory
 
-        :param bytes dir_cap: the capability-string of the directory.
+        :param Capability dir_cap: the capability-string of the directory.
         """
         api_uri = self.url.child(
             u"uri",
-            dir_cap.decode("ascii"),
+            dir_cap.danger_real_capability_string(),
         ).add(
             u"t",
             u"json",
         ).to_uri().to_text().encode("ascii")
         action = start_action(
             action_type=u"magic-folder:cli:list-dir",
-            # leaks secrets: dirnode_uri=dir_cap.decode("ascii"),
-            # leaks secrets: api_uri=api_uri,
+            # dirnode=dir_cap,
         )
         with action.context():
             response = yield self.http_client.get(
@@ -280,30 +309,30 @@ class TahoeClient(object):
 
         returnValue({
             name: (
-                json_metadata.get("rw_uri", json_metadata["ro_uri"]).encode("ascii"),
+                Capability.from_string(json_metadata.get("rw_uri", json_metadata["ro_uri"])),
                 json_metadata.get(u"metadata", {}),
             )
             for (name, (child_kind, json_metadata))
             in dirinfo[u"children"].items()
         })
 
-    @inlineCallbacks
+    @inline_callbacks
     def directory_data(self, dir_cap):
         """
         Get the 'raw' directory data for a directory-capability. If you
         just want to list the entries, `list_directory` is better.
 
-        :param bytes dir_cap: the capability-string of the directory.
+        :param Capability dir_cap: the capability-string of the directory.
 
         :returns dict: the JSON representing this directory
         """
-        if not is_directory_cap(dir_cap):
+        if not dir_cap.is_directory():
             raise ValueError(
                 "{} is not a directory-capability".format(dir_cap)
             )
         api_uri = self.url.child(
             u"uri",
-            dir_cap.decode("ascii"),
+            dir_cap.danger_real_capability_string(),
         ).add(
             u"t",
             u"json",
@@ -320,18 +349,17 @@ class TahoeClient(object):
         returnValue(dirinfo)
 
     @exclusively
-    @inlineCallbacks
+    @inline_callbacks
     def add_entry_to_mutable_directory(self, mutable_cap, path_name, entry_cap, replace=False):
         """
         Adds an entry to a mutable directory
 
-        :param bytes mutable_cap: the capability-string of a mutable
-            to add an entry into
+        :param Capability mutable_cap: a mutable to add an entry into
 
         :param unicode path_name: the name of the entry (i.e. the path
             segment)
 
-        :param bytes entry_cap: the capability of the entry (could be
+        :param Capability entry_cap: the capability of the entry (could be
             any sort of capability).
 
         :param boolean replace: if set to True and if the entry already
@@ -340,6 +368,9 @@ class TahoeClient(object):
         :return Deferred[None]: or exception on error
         """
 
+        if self._error_on_mutable_operation is not None:
+            raise self._error_on_mutable_operation
+
         if replace is True:
             replace_arg = u"true"
         elif replace is False:
@@ -347,7 +378,7 @@ class TahoeClient(object):
         else:
             raise TypeError("replace value should be a boolean")
 
-        post_uri = self.url.child(u"uri", mutable_cap.decode("utf8"), path_name).replace(
+        post_uri = self.url.child(u"uri", mutable_cap.danger_real_capability_string(), path_name).replace(
             query=[
                 (u"t", u"uri"),
                 (u"replace", replace_arg),
@@ -355,30 +386,31 @@ class TahoeClient(object):
         )
         response = yield _request(
             self.http_client,
-            b"PUT",
+            u"PUT",
             post_uri,
-            data=entry_cap,
+            data=entry_cap.danger_real_capability_string().encode("utf8"),
         )
+
         # Response code should probably be CREATED but it seems to be OK
         # instead.  Not sure if this is the real Tahoe-LAFS behavior or an
         # artifact of the test double.
         try:
-            capability_string = yield _get_content_check_code({OK, CREATED}, response)
+            yield _get_content_check_code({OK, CREATED}, response)
         except TahoeAPIError as e:
             raise CannotAddDirectoryEntryError(
                 entry_name=path_name,
                 tahoe_error=e,
             )
-        returnValue(capability_string)
+        return
 
-    @inlineCallbacks
+    @inline_callbacks
     def download_file(self, cap):
         """
         Retrieve the raw data for a capability from Tahoe. It is an error
         if the capability-string is a directory-capability, since the
         Tahoe `/uri` endpoint treats those specially.
 
-        :param cap: a capability-string
+        :param Capability cap: the content to download
 
         :returns: bytes
         """
@@ -392,28 +424,28 @@ class TahoeClient(object):
 
         # we further insist that this is "a file capability" because
         # the API says "_file" in it
-        if not is_file_cap(cap):
+        if not cap.is_file():
             raise ValueError(
                 "{} is not a file capability".format(cap)
             )
 
-        query_args = [(u"uri", cap.decode("ascii"))]
+        query_args = [(u"uri", cap.danger_real_capability_string())]
 
         get_uri = self.url.child(u"uri").replace(query=query_args)
         res = yield _request(
             self.http_client,
-            b"GET",
+            u"GET",
             get_uri,
         )
         data = yield _get_content_check_code({OK}, res)
         returnValue(data)
 
-    @inlineCallbacks
+    @inline_callbacks
     def stream_capability(self, cap, filelike):
         """
         Retrieve the raw data for a capability from Tahoe
 
-        :param cap: a capability-string
+        :param Capability cap: the content to stream
 
         :param filelike: a writable file object. `.write` will be
             called on it an arbitrary number of times, but no other
@@ -422,7 +454,7 @@ class TahoeClient(object):
         :returns: Deferred that fires with `None`
         """
         get_uri = self.url.child(u"uri").replace(
-            query=[(u"uri", cap.decode("ascii"))],
+            query=[(u"uri", cap.danger_real_capability_string())],
         )
         res = yield self.http_client.get(get_uri.to_text())
         if res.code != OK:
