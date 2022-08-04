@@ -4,6 +4,7 @@ Classes and services relating to the operation of the Downloader
 
 import os
 from collections import deque
+import hashlib
 
 import attr
 from attr.validators import (
@@ -47,6 +48,7 @@ from .snapshot import (
 )
 from .status import (
     IStatus,
+    PollerStatus,
 )
 from .util.file import (
     PathState,
@@ -270,7 +272,10 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         assert file_cap is not None, "must supply a file-cap"
-        staged_path = self.staging_path.child(file_cap.hex_digest())
+        relpath_hasher = hashlib.sha256()  # rather blake2b, but is it all-platform?
+        relpath_hasher.update(file_cap.danger_real_capability_string().encode("ascii"))
+        relpath_hasher.update(relpath.encode("utf8"))
+        staged_path = self.staging_path.child(relpath_hasher.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
@@ -499,6 +504,12 @@ class RemoteScannerService(service.MultiService):
     def _loop(self):
         try:
             yield self._poll_collective()
+            self._status.poll_status(
+                self._config.name,
+                PollerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
         except Exception:
             # in some cases, might want to surface elsewhere
             write_traceback()

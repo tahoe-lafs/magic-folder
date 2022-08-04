@@ -10,9 +10,8 @@ python-subunit==1.4.0 \
     --hash=sha256:042039928120fbf392e8c983d60f3d8ae1b88f90a9f8fd7188ddd9c26cad1e48 \
     --hash=sha256:40f34660c3da3e513cf2e59498a87ef04ebe2b5fe144fa25d476e1f888b19659
     # via subunitreporter
-subunitreporter==19.3.2 \
-    --hash=sha256:951e6c032dd4f90467a573c8ab04b01bff82f90af52272a224e674e3b4f59c15 \
-    --hash=sha256:d67ae28eaf4dbfe6f488158c9c76bfaaa506b1956e8d13ecb568580acbbdb56d
+subunitreporter==22.2.0 \
+    --hash=sha256:ef5f8c7d3d3bf2548a39d3e6994fd83a22737e619fae0584aedcc11bcf9e0023
     # via -r requirements/tox.in
 wheel==0.37.1 \
     --hash=sha256:4bdcd7d840138086126cd09254dc6195fb4fc6f01c050a1d7236f2630db1d22a \
@@ -20,7 +19,7 @@ wheel==0.37.1 \
     # via -r requirements/tox.in
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==22.0.3 \
-    --hash=sha256:c146f331f0805c77017c6bb9740cec4a49a0d4582d0c3cc8244b057f83eca359 \
-    --hash=sha256:f29d589df8c8ab99c060e68ad294c4a9ed896624f6368c5349d70aa581b333d0
+pip==22.2.2 \
+    --hash=sha256:3fd1929db052f056d7a998439176d3333fa1b3f6c1ad881de1885c0717608a4b \
+    --hash=sha256:b61a374b5bc40a6e982426aede40c9b5a08ff20e640f5b56977f4f91fed1e39a
     # via -r requirements/tox.in

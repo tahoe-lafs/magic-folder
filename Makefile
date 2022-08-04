@@ -20,7 +20,7 @@ release:
 	python3 setup.py check -r -s
 
 	@echo "Update NEWS"
-	python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
+	python3 -m towncrier build --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
 	git add -u
 	git commit -m "update NEWS for release"
 
@@ -34,21 +34,21 @@ release:
 
 	@echo "Build and sign source-dist"
 	python3 setup.py sdist
-	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic_folder-`git describe --abbrev=0`.tar.gz
+	gpg --pinentry=loopback -u meejah@meejah.ca --armor --detach-sign dist/magic-folder-`git describe --abbrev=0`.tar.gz
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
-	gpg --verify dist/magic_folder-`git describe --abbrev=0`.tar.gz.asc
+	gpg --verify dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
 	gpg --verify dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
 	virtualenv testmf_venv
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/magic-folder --version
 	testmf_venv/bin/magic-folder-api --version
 	testmf_venv/bin/pip uninstall -y magic_folder
-	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`.tar.gz
+	testmf_venv/bin/pip install dist/magic-folder-`git describe --abbrev=0`.tar.gz
 	testmf_venv/bin/magic-folder --version
 	testmf_venv/bin/magic-folder-api --version
 	rm -rf testmf_venv
 
 release-upload:
-	twine upload dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic_folder-`git describe --abbrev=0`.tar.gz dist/magic_folder-`git describe --abbrev=0`.tar.gz.asc
+	twine upload dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-folder-`git describe --abbrev=0`.tar.gz dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc

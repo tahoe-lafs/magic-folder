@@ -5,6 +5,101 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.8.0 (2022-08-04)
+''''''''''''''''''''''''''''''''
+
+No significant changes.
+
+
+Magic_Folder 22.8.0 (2022-08-04)
+''''''''''''''''''''''''''''''''
+
+Bug Fixes
+---------
+
+- Stashed file-paths are unique even with same capability (`#662 <https://github.com/LeastAuthority/magic-folder/issues/662>`_)
+
+
+Magic_Folder 22.5.0 (2022-05-13)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- A pid-file is now written
+
+  If a previous instance is running _and_ appears to be an actual
+  magic-folder process, it is killed. Otherwise, magic-folder will
+  refuse to start. (`#644 <https://github.com/LeastAuthority/magic-folder/issues/644>`_)
+
+
+Misc/Other
+----------
+
+- `#656 <https://github.com/LeastAuthority/magic-folder/issues/656>`_
+
+
+Magic_Folder 22.5.0 (2022-05-13)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- A pid-file is now written
+
+  If a previous instance is running _and_ appears to be an actual
+  magic-folder process, it is killed. Otherwise, magic-folder will
+  refuse to start. (`#644 <https://github.com/LeastAuthority/magic-folder/issues/644>`_)
+
+
+Misc/Other
+----------
+
+- `#656 <https://github.com/LeastAuthority/magic-folder/issues/656>`_
+
+
+Magic_Folder 22.2.1 (2022-02-23)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- The status API now shows last-scan and last-poll timestamps (`#646 <https://github.com/LeastAuthority/magic-folder/issues/646>`_)
+
+
+Misc/Other
+----------
+
+- `#642 <https://github.com/LeastAuthority/magic-folder/issues/642>`_
+
+
+Magic_Folder 22.2.0 (2022-02-14)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Check "connected enough" constantly, not just at startup.
+
+  Further, refuse to do "mutable" operations if our Tahoe-LAFS client is not
+  connected to a "happy" number of servers. (`#543 <https://github.com/LeastAuthority/magic-folder/issues/543>`_)
+
+
+Bug Fixes
+---------
+
+- Use Cooperator to copy (potentially large) files (`#196 <https://github.com/LeastAuthority/magic-folder/issues/196>`_)
+- Further avoid overwriting local changes (`#454 <https://github.com/LeastAuthority/magic-folder/issues/454>`_)
+- "magic-folder status" gives better error when service not running (`#616 <https://github.com/LeastAuthority/magic-folder/issues/616>`_)
+- Update several dependencies (`#636 <https://github.com/LeastAuthority/magic-folder/issues/636>`_)
+
+
+Misc/Other
+----------
+
+- `#173 <https://github.com/LeastAuthority/magic-folder/issues/173>`_, `#386 <https://github.com/LeastAuthority/magic-folder/issues/386>`_, `#466 <https://github.com/LeastAuthority/magic-folder/issues/466>`_, `#620 <https://github.com/LeastAuthority/magic-folder/issues/620>`_, `#623 <https://github.com/LeastAuthority/magic-folder/issues/623>`_
+
+
 Magic_Folder 22.1.0 (2022-01-28)
 ''''''''''''''''''''''''''''''''
 

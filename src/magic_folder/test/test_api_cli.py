@@ -66,6 +66,7 @@ from ..snapshot import (
 )
 from ..util.file import (
     PathState,
+    get_pathinfo,
 )
 from ..util.capabilities import (
     Capability,
@@ -562,7 +563,8 @@ class TestDumpState(AsyncTestCase):
                 config.magic_path.child("foo"),
                 parents_local=[],
                 parents_remote=[],
-            )
+            ),
+            get_pathinfo(config.magic_path.child("foo")).state,
         )
         config.store_downloaded_snapshot(
             "bar",
