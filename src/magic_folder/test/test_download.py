@@ -28,6 +28,7 @@ from testtools.matchers import (
     MatchesStructure,
     Always,
     Equals,
+    NotEquals,
     ContainsDict,
     AfterPreprocessing,
 )
@@ -1879,6 +1880,40 @@ class CancelTests(AsyncTestCase):
                 }),
             })
         )
+
+
+class AsyncFilesystemModificationTests(AsyncTestCase):
+    """
+    Tests for LocalMagicFolderFilesystem that are async
+    """
+
+    def setUp(self):
+        super(AsyncFilesystemModificationTests, self).setUp()
+        self.magic = FilePath(self.mktemp())
+        self.magic.makedirs()
+        self.staging = FilePath(self.mktemp())
+        self.staging.makedirs()
+        self.filesystem = LocalMagicFolderFilesystem(
+            self.magic,
+            self.staging,
+        )
+
+    @inline_callbacks
+    def test_same_cap_different_file(self):
+        """
+        The stashed names are different for different relative-path names
+        even if the capability is the same (because of convergent
+        encryption, the capability may match if the content matches).
+        """
+        cap = random_immutable()
+
+        class DummyClient:
+            def stream_capability(self, cap, f):
+                return succeed(None)
+
+        stash_a = yield self.filesystem.download_content_to_staging("rel/a", cap, DummyClient())
+        stash_b = yield self.filesystem.download_content_to_staging("rel/b", cap, DummyClient())
+        self.assertThat(stash_a, NotEquals(stash_b))
 
 
 class FilesystemModificationTests(SyncTestCase):
