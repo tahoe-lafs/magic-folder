@@ -8,6 +8,12 @@ User-Visible Changes in Magic Folder
 Magic_Folder 22.8.0 (2022-08-04)
 ''''''''''''''''''''''''''''''''
 
+No significant changes.
+
+
+Magic_Folder 22.8.0 (2022-08-04)
+''''''''''''''''''''''''''''''''
+
 Bug Fixes
 ---------
 
