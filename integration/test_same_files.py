@@ -3,7 +3,6 @@ Testing synchronizing files between participants
 """
 
 import json
-import random
 
 import pytest_twisted
 from eliot.twisted import (
@@ -93,4 +92,3 @@ async def test_identical_files(request, reactor, temp_filepath, alice, bob):
         if k not in {"@metadata"}
     }
     assert expected == names, "Data mismatch"
-
