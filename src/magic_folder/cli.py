@@ -15,6 +15,10 @@ from twisted.internet.task import (
 )
 from twisted.internet.protocol import (
     Factory,
+    Protocol,
+)
+from twisted.internet.stdio import (
+    StandardIO,
 )
 from twisted.logger import (
     globalLogBeginner,
@@ -553,6 +557,31 @@ def run(options):
     synchronization between local and remote folders.
     """
     from twisted.internet import reactor
+
+    # When our stdin closes then we exit. This helps support parent
+    # processes cleaning up properly, even when they exit without
+    # ability to run shutdown code
+
+    when_closed_d = defer.Deferred()
+
+    class WhenClosed(Protocol):
+        """
+        Notify a Deferred when our connection is lost .. as this is passed
+        to twisted'd StandardIO class, it is used to detect our parent
+        going away.
+        """
+
+        def connectionLost(self, reason):
+            when_closed_d.callback(None)
+
+    def exit_on_close(_):
+        try:
+            reactor.stop()
+        except:
+            pass
+
+    when_closed_d.addBoth(exit_on_close)
+    StandardIO(WhenClosed())
 
     # being logging to stdout
     def event_to_string(event):
