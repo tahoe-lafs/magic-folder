@@ -550,18 +550,10 @@ class RunOptions(usage.Options):
     ]
 
 
-@defer.inlineCallbacks
-def run(options):
+def on_stdin_close(reactor, fn):
     """
-    This is the long-running magic-folders function which performs
-    synchronization between local and remote folders.
+    Arrange for the function `fn` to run when our stdin closes
     """
-    from twisted.internet import reactor
-
-    # When our stdin closes then we exit. This helps support parent
-    # processes cleaning up properly, even when they exit without
-    # ability to run shutdown code
-
     when_closed_d = defer.Deferred()
 
     class WhenClosed(Protocol):
@@ -574,19 +566,41 @@ def run(options):
         def connectionLost(self, reason):
             when_closed_d.callback(None)
 
-    def exit_on_close(_):
+    def on_close(arg):
+        fn()
+        return arg
+
+    when_closed_d.addBoth(on_close)
+    # we don't need to do anything with this instance because it gets
+    # hooked into the reactor and thus remembered
+    StandardIO(
+        proto=WhenClosed(),
+        reactor=reactor,
+    )
+    return None
+
+
+@defer.inlineCallbacks
+def run(options):
+    """
+    This is the long-running magic-folders function which performs
+    synchronization between local and remote folders.
+    """
+    from twisted.internet import reactor
+
+    # When our stdin closes then we exit. This helps support parent
+    # processes cleaning up properly, even when they exit without
+    # ability to run shutdown code
+
+    def shutdown():
         try:
             reactor.stop()
         except Exception:
             # this will _mostly_ just be ReactorNotRunning but also if
             # anything at all goes wrong here, we don't care because
             # we're shutting down.
-            raise
-
-    when_closed_d.addBoth(exit_on_close)
-    # we don't need to do anything with this because it gets hooked
-    # into the reactor and thus remembered
-    StandardIO(WhenClosed())
+            pass
+    on_stdin_close(reactor, shutdown)
 
     # being logging to stdout
     def event_to_string(event):
