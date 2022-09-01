@@ -584,6 +584,8 @@ def run(options):
             raise
 
     when_closed_d.addBoth(exit_on_close)
+    # we don't need to do anything with this because it gets hooked
+    # into the reactor and thus remembered
     StandardIO(WhenClosed())
 
     # being logging to stdout
