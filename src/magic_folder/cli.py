@@ -567,7 +567,7 @@ def run(options):
     class WhenClosed(Protocol):
         """
         Notify a Deferred when our connection is lost .. as this is passed
-        to twisted'd StandardIO class, it is used to detect our parent
+        to twisted's StandardIO class, it is used to detect our parent
         going away.
         """
 
