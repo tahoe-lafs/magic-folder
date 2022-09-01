@@ -567,7 +567,14 @@ def on_stdin_close(reactor, fn):
             when_closed_d.callback(None)
 
     def on_close(arg):
-        fn()
+        try:
+            fn()
+        except Exception:
+            # for our "exit" use-case, this will _mostly_ just be
+            # ReactorNotRunning (because we're already shutting down
+            # when our stdin closes) but no matter what "bad thing"
+            # happens we just want to ignore it.
+            pass
         return arg
 
     when_closed_d.addBoth(on_close)
@@ -591,16 +598,7 @@ def run(options):
     # When our stdin closes then we exit. This helps support parent
     # processes cleaning up properly, even when they exit without
     # ability to run shutdown code
-
-    def shutdown():
-        try:
-            reactor.stop()
-        except Exception:
-            # this will _mostly_ just be ReactorNotRunning but also if
-            # anything at all goes wrong here, we don't care because
-            # we're shutting down.
-            pass
-    on_stdin_close(reactor, shutdown)
+    on_stdin_close(reactor, reactor.stop)
 
     # being logging to stdout
     def event_to_string(event):

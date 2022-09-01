@@ -6,6 +6,9 @@ from io import (
 from twisted.internet.interfaces import (
     IStreamServerEndpoint,
 )
+from twisted.internet.testing import (
+    MemoryReactorClock,
+)
 from twisted.internet.defer import (
     succeed,
 )
@@ -44,6 +47,7 @@ from ..endpoints import (
 )
 from ..cli import (
     BaseOptions,
+    on_stdin_close,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -276,3 +280,24 @@ class TestShowConfig(SyncTestCase):
                 u'magic_folders': Equals({}),
             })
         )
+
+
+class TestStdinClose(AsyncTestCase):
+    """
+    Confirm operation of on_stdin_close
+    """
+
+    def test_close_called(self):
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+        on_stdin_close(reactor, onclose)
+        self.assertEqual(called, [])
+
+        reader = list(reactor.readers)[0]
+        reader.loseConnection()
+        reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertEqual(called, [True])
