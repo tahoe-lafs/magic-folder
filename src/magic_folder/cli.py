@@ -577,8 +577,11 @@ def run(options):
     def exit_on_close(_):
         try:
             reactor.stop()
-        except:
-            pass
+        except Exception:
+            # this will _mostly_ just be ReactorNotRunning but also if
+            # anything at all goes wrong here, we don't care because
+            # we're shutting down.
+            raise
 
     when_closed_d.addBoth(exit_on_close)
     StandardIO(WhenClosed())
