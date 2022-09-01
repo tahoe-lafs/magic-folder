@@ -288,11 +288,33 @@ class TestStdinClose(AsyncTestCase):
     """
 
     def test_close_called(self):
+        """
+        our on-close method is called when stdin closes
+        """
         reactor = MemoryReactorClock()
         called = []
 
         def onclose():
             called.append(True)
+        on_stdin_close(reactor, onclose)
+        self.assertEqual(called, [])
+
+        reader = list(reactor.readers)[0]
+        reader.loseConnection()
+        reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertEqual(called, [True])
+
+    def test_exception_ignored(self):
+        """
+        an exception from or on-close function is ignored
+        """
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+            raise RuntimeError("unexpected error")
         on_stdin_close(reactor, onclose)
         self.assertEqual(called, [])
 
