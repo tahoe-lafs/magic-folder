@@ -332,8 +332,11 @@ class TestStdinClose(SyncTestCase):
         self.assertThat(called, Equals([]))
 
         if platform.isWindows():
-            # proto.proto is a Process; close stdin/out/etc
-            proto.proto.loseConnection()
+            # it seems we can't close stdin/stdout (from "inside"?) on
+            # Windows, so cheat. (See also comment/implementation in
+            # _pollingfile.py in Twisted)
+            proto.writeConnectionLost()
+            proto.readConnectionLost()
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
