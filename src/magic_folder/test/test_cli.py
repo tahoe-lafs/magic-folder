@@ -332,8 +332,8 @@ class TestStdinClose(SyncTestCase):
         self.assertThat(called, Equals([]))
 
         if platform.isWindows():
-            # proto.transport is a Process; close stdin/out/etc
-            proto.transport.loseConnection()
+            # proto.proto is a Process; close stdin/out/etc
+            proto.proto.loseConnection()
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
