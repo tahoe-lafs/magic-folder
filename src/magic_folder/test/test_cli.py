@@ -335,10 +335,8 @@ class TestStdinClose(SyncTestCase):
         self.assertThat(called, Equals([]))
 
         if platform.isWindows():
-            # it seems we can't close stdin/stdout (from "inside"?) on
-            # Windows, so cheat.
-            proto.writeConnectionLost()
-            proto.readConnectionLost()
+            # proto.transport is a Process; close stdin/out/etc
+            proto.transport.loseConnection()
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
