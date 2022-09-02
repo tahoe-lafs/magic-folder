@@ -14,7 +14,6 @@ from twisted.internet.task import (
 )
 from twisted.internet.defer import (
     succeed,
-    inlineCallbacks,
 )
 from twisted.python.failure import (
     Failure,
