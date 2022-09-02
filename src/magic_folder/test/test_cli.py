@@ -296,12 +296,15 @@ class TestStdinClose(AsyncTestCase):
 
         def onclose():
             called.append(True)
-        on_stdin_close(reactor, onclose)
+        proto = on_stdin_close(reactor, onclose)
         self.assertThat(called, Equals([]))
 
-        for reader in reactor.getReaders():
-            reader.loseConnection()
-        reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+        if platform.isWindows():
+            proto.loseConnection()
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
 
         self.assertThat(
             called,
@@ -318,12 +321,15 @@ class TestStdinClose(AsyncTestCase):
         def onclose():
             called.append(True)
             raise RuntimeError("unexpected error")
-        on_stdin_close(reactor, onclose)
+        proto = on_stdin_close(reactor, onclose)
         self.assertThat(called, Equals([]))
 
-        for reader in reactor.getReaders():
-            reader.loseConnection()
-        reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+        if platform.isWindows():
+            proto.loseConnection()
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
 
         self.assertThat(
             called,
