@@ -9,9 +9,6 @@ from twisted.internet.interfaces import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
-from twisted.internet.task import (
-    deferLater,
-)
 from twisted.internet.defer import (
     succeed,
 )
