@@ -289,12 +289,11 @@ class TestShowConfig(SyncTestCase):
         )
 
 
-class TestStdinClose(AsyncTestCase):
+class TestStdinClose(SyncTestCase):
     """
     Confirm operation of on_stdin_close
     """
 
-    @inlineCallbacks
     def test_close_called(self):
         """
         our on-close method is called when stdin closes
@@ -308,9 +307,11 @@ class TestStdinClose(AsyncTestCase):
         self.assertThat(called, Equals([]))
 
         if platform.isWindows():
-            proto.loseConnection()
-            while not proto.disconnected:
-                yield deferLater(reactor, .1, lambda: None)
+            # it seems we can't close stdin/stdout (from "inside"?) on
+            # Windows, so cheat. (See also comment/implementation in
+            # _pollingfile.py in Twisted)
+            proto.writeConnectionLost()
+            proto.readConnectionLost()
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
@@ -321,7 +322,6 @@ class TestStdinClose(AsyncTestCase):
             Equals([True])
         )
 
-    @inlineCallbacks
     def test_exception_ignored(self):
         """
         an exception from or on-close function is ignored
@@ -336,9 +336,10 @@ class TestStdinClose(AsyncTestCase):
         self.assertThat(called, Equals([]))
 
         if platform.isWindows():
-            proto.loseConnection()
-            while not proto.disconnected:
-                yield deferLater(reactor, .1, lambda: None)
+            # it seems we can't close stdin/stdout (from "inside"?) on
+            # Windows, so cheat.
+            proto.writeConnectionLost()
+            proto.readConnectionLost()
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
