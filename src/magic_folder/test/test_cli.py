@@ -9,8 +9,12 @@ from twisted.internet.interfaces import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
+from twisted.internet.task import (
+    deferLater,
+)
 from twisted.internet.defer import (
     succeed,
+    inlineCallbacks,
 )
 from twisted.python.failure import (
     Failure,
@@ -290,6 +294,7 @@ class TestStdinClose(AsyncTestCase):
     Confirm operation of on_stdin_close
     """
 
+    @inlineCallbacks
     def test_close_called(self):
         """
         our on-close method is called when stdin closes
@@ -304,6 +309,8 @@ class TestStdinClose(AsyncTestCase):
 
         if platform.isWindows():
             proto.loseConnection()
+            while not proto.disconnected:
+                yield deferLater(reactor, .1, lambda: None)
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
@@ -314,6 +321,7 @@ class TestStdinClose(AsyncTestCase):
             Equals([True])
         )
 
+    @inlineCallbacks
     def test_exception_ignored(self):
         """
         an exception from or on-close function is ignored
@@ -329,6 +337,8 @@ class TestStdinClose(AsyncTestCase):
 
         if platform.isWindows():
             proto.loseConnection()
+            while not proto.disconnected:
+                yield deferLater(reactor, .1, lambda: None)
         else:
             for reader in reactor.getReaders():
                 reader.loseConnection()
