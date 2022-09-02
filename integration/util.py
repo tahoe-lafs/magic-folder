@@ -591,7 +591,7 @@ def run_service(
             path=cwd,
             # Twisted on Windows doesn't support customizing FDs
             # _MagicTextProtocol will collect eliot logs from FD 3 and stderr.
-            childFDs={1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
+            childFDs={0: 'w', 1: 'r', 2: 'r', 3: 'r'} if sys.platform != "win32" else None,
             env=env,
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
