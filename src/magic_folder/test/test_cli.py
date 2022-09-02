@@ -321,7 +321,8 @@ class TestStdinClose(AsyncTestCase):
         on_stdin_close(reactor, onclose)
         self.assertThat(called, Equals([]))
 
-        reader = list(reactor.readers)[0]
+        self.assertThat(len(reactor.getReaders()), Equals(1))
+        reader = reactor.getReaders()[0]
         reader.loseConnection()
         reactor.advance(1)  # ProcessReader does a callLater(0, ..)
 
