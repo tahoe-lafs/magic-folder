@@ -18,6 +18,9 @@ from twisted.python.failure import (
 from twisted.python.filepath import (
     FilePath,
 )
+from twisted.python.runtime import (
+    platform,
+)
 from zope.interface import (
     implementer,
 )
