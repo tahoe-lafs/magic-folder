@@ -297,13 +297,16 @@ class TestStdinClose(AsyncTestCase):
         def onclose():
             called.append(True)
         on_stdin_close(reactor, onclose)
-        self.assertEqual(called, [])
+        self.assertThat(called, Equals([]))
 
         reader = list(reactor.readers)[0]
         reader.loseConnection()
         reactor.advance(1)  # ProcessReader does a callLater(0, ..)
 
-        self.assertEqual(called, [True])
+        self.assertThat(
+            called,
+            Equals([True])
+        )
 
     def test_exception_ignored(self):
         """
@@ -316,10 +319,13 @@ class TestStdinClose(AsyncTestCase):
             called.append(True)
             raise RuntimeError("unexpected error")
         on_stdin_close(reactor, onclose)
-        self.assertEqual(called, [])
+        self.assertThat(called, Equals([]))
 
         reader = list(reactor.readers)[0]
         reader.loseConnection()
         reactor.advance(1)  # ProcessReader does a callLater(0, ..)
 
-        self.assertEqual(called, [True])
+        self.assertThat(
+            called,
+            Equals([True])
+        )
