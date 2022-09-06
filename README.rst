@@ -10,6 +10,7 @@ It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
 
 |readthedocs|  |gha_linux|  |gha_macos|  |gha_windows|  |codecov|
 
+
 Installing
 ==========
 
