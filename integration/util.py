@@ -251,9 +251,9 @@ class MagicFolderEnabledNode(object):
             )
             self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
-            self.magic_folder = None
         except ProcessExitedAlready:
             pass
+        self.magic_folder = None
 
     @inline_callbacks
     def restart_magic_folder(self):
@@ -263,6 +263,7 @@ class MagicFolderEnabledNode(object):
     @inline_callbacks
     def start_magic_folder(self):
         if self.magic_folder is not None:
+            print("start_magic_folder: {} already running".format(self.name))
             return
         # We log a notice that we are starting the service in the context of the test
         # but the logs of the service are in the context of the fixture.
