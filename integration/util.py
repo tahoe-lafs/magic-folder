@@ -251,9 +251,9 @@ class MagicFolderEnabledNode(object):
             )
             self.magic_folder.signalProcess('TERM')
             yield self.magic_folder.proto.exited
-            self.magic_folder = None
         except ProcessExitedAlready:
             pass
+        self.magic_folder = None
 
     @inline_callbacks
     def restart_magic_folder(self):
