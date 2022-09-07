@@ -580,10 +580,6 @@ class MagicFile(object):
         if current_pathstate is None:
             if local_pathinfo.exists:
                 self._call_later(self._download_mismatch, snapshot, staged_path)
-                Message.log(
-                    message_type="download_mismatch",
-                    local_exists=local_pathinfo.exists,
-                )
                 return
         else:
             # we've seen this file before so its pathstate should
@@ -592,11 +588,6 @@ class MagicFile(object):
             if current_pathstate != local_pathinfo.state:
                 print("download mismatch: {} vs {}".format(current_pathstate, local_pathinfo.state))
                 self._call_later(self._download_mismatch, snapshot, staged_path)
-                Message.log(
-                    message_type="download_mismatch",
-                    current=current_pathstate,
-                    local=local_pathinfo.state,
-                )
                 return
 
         self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state)
@@ -685,10 +676,6 @@ class MagicFile(object):
                 # this should just be the original tmpfile and we
                 # shouldn't mess with it further?
                 self._call_later(self._download_mismatch, snapshot, e.path)
-                Message.log(
-                    message_type="download_mismatch",
-                    retained=e.path,
-                )
                 return
 
         # Note, if we crash here (after moving the file into place but
