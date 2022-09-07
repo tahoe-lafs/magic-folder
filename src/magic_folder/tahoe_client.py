@@ -246,7 +246,7 @@ class TahoeClient(object):
         if hasattr(producer, "_inputFile"):
             assert producer._inputFile.closed, "file should be closed by now"
         else:
-            print("weird producer")
+            print("weird producer", type(producer))
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(Capability.from_string(capability_string.decode("utf8")))
 
