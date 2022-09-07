@@ -586,6 +586,7 @@ class MagicFile(object):
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
+                print("download mismatch: {} vs {}".format(current_pathstate, local_pathinfo.state))
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
