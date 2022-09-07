@@ -579,6 +579,10 @@ class MagicFile(object):
         # now, determine if we've found a local update
         if current_pathstate is None:
             if local_pathinfo.exists:
+                Message.log(
+                    message_type="download_mismatch",
+                    local_exists=local_pathinfo.exists,
+                )
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
         else:
@@ -587,6 +591,11 @@ class MagicFile(object):
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
                 print("download mismatch: {} vs {}".format(current_pathstate, local_pathinfo.state))
+                Message.log(
+                    message_type="download_mismatch",
+                    current=current_pathstate,
+                    local=local_pathinfo.state,
+                )
                 self._call_later(self._download_mismatch, snapshot, staged_path)
                 return
 
@@ -675,6 +684,10 @@ class MagicFile(object):
                 # emergency data to be in the conflict file .. maybe
                 # this should just be the original tmpfile and we
                 # shouldn't mess with it further?
+                Message.log(
+                    message_type="download_mismatch",
+                    retained=e.path,
+                )
                 self._call_later(self._download_mismatch, snapshot, e.path)
                 return
 
