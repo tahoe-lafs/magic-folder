@@ -240,6 +240,10 @@ class TahoeClient(object):
             put_uri,
             data=producer,
         )
+        # treq will never call stopProducing .. which if this is a
+        # FileBodyProducer means close never gets called
+        #producer.stopProducing()
+        assert producer._inputFile.closed, "file should be closed by now"
         capability_string = yield _get_content_check_code({OK, CREATED}, res)
         returnValue(Capability.from_string(capability_string.decode("utf8")))
 
