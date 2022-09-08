@@ -6,6 +6,9 @@ from io import (
 from twisted.internet.interfaces import (
     IStreamServerEndpoint,
 )
+from twisted.internet.testing import (
+    MemoryReactorClock,
+)
 from twisted.internet.defer import (
     succeed,
 )
@@ -14,6 +17,9 @@ from twisted.python.failure import (
 )
 from twisted.python.filepath import (
     FilePath,
+)
+from twisted.python.runtime import (
+    platform,
 )
 from zope.interface import (
     implementer,
@@ -44,6 +50,7 @@ from ..endpoints import (
 )
 from ..cli import (
     BaseOptions,
+    on_stdin_close,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -275,4 +282,67 @@ class TestShowConfig(SyncTestCase):
                 u'tahoe_node_directory': Equals(self.node_dir.path.path),
                 u'magic_folders': Equals({}),
             })
+        )
+
+
+class TestStdinClose(SyncTestCase):
+    """
+    Confirm operation of on_stdin_close
+    """
+
+    def test_close_called(self):
+        """
+        our on-close method is called when stdin closes
+        """
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+        proto = on_stdin_close(reactor, onclose)
+        self.assertThat(called, Equals([]))
+
+        if platform.isWindows():
+            # it seems we can't close stdin/stdout (from "inside"?) on
+            # Windows, so cheat. (See also comment/implementation in
+            # _pollingfile.py in Twisted)
+            proto.writeConnectionLost()
+            proto.readConnectionLost()
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertThat(
+            called,
+            Equals([True])
+        )
+
+    def test_exception_ignored(self):
+        """
+        an exception from or on-close function is ignored
+        """
+        reactor = MemoryReactorClock()
+        called = []
+
+        def onclose():
+            called.append(True)
+            raise RuntimeError("unexpected error")
+        proto = on_stdin_close(reactor, onclose)
+        self.assertThat(called, Equals([]))
+
+        if platform.isWindows():
+            # it seems we can't close stdin/stdout (from "inside"?) on
+            # Windows, so cheat. (See also comment/implementation in
+            # _pollingfile.py in Twisted)
+            proto.writeConnectionLost()
+            proto.readConnectionLost()
+        else:
+            for reader in reactor.getReaders():
+                reader.loseConnection()
+            reactor.advance(1)  # ProcessReader does a callLater(0, ..)
+
+        self.assertThat(
+            called,
+            Equals([True])
         )
