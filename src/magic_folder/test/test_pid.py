@@ -38,8 +38,8 @@ class _FakeProcess:
     def __init__(self, pid):
         self.pid = pid
 
-    def cmdline(self):
-        return ["magic-folder"]
+    def create_time(self):
+        return 123.4
 
     def terminate(self):
         self.running = False
@@ -97,7 +97,7 @@ class TestPidObserver(SyncTestCase):
         a pid-file refers to a non-running process
         """
         pidfile = FilePath(self.mktemp())
-        pidfile.setContent(b"65537")  # "impossible" process-id .. right?
+        pidfile.setContent(b"65537 1234.5")  # "impossible" process-id .. right?
         obs = EventLoggingObserver()
         log = Logger()
         log.observer = obs
@@ -117,55 +117,16 @@ class TestPidObserver(SyncTestCase):
             )
         )
 
-    def test_kill(self):
+    def test_existing(self):
         """
-        a pid-file refers to a magic-folder process so it should be killed
+        a pid-file refers to a running process so we should exit
         """
         pidfile = FilePath(self.mktemp())
-        pidfile.setContent(b"0")
+        pidfile.setContent(b"0 0.0\n")
         obs = EventLoggingObserver()
         log = Logger()
         log.observer = obs
-
-        with check_pid_process(pidfile, log, find_process=_FakeProcess):
-            pass
-
-        events = list(obs)
-
-        # both logged events should have a "pidpath" kwarg
-        self.assertThat(events, HasLength(2))
-        self.assertThat(
-            events,
-            MatchesListwise([
-                ContainsDict({
-                    "pid": Equals(0),
-                }),
-                ContainsDict({
-                    "pidpath": Always(),
-                }),
-            ])
-        )
-
-    def test_kill_wrong_process(self):
-        """
-        a pid-file refers to a non-magic-folder process so it should not
-        be killed
-        """
-        pidfile = FilePath(self.mktemp())
-        pidfile.setContent(b"0")
-        obs = EventLoggingObserver()
-        log = Logger()
-        log.observer = obs
-
-        class _FakeNonMagicProcess(_FakeProcess):
-            def cmdline(self):
-                return ["init"]
 
         with self.assertRaises(Exception) as ctx:
-            with check_pid_process(pidfile, log, find_process=_FakeNonMagicProcess):
+            with check_pid_process(pidfile, log, find_process=_FakeProcess):
                 pass
-
-        self.assertThat(
-            str(ctx.exception),
-            Contains("not killing"),
-        )
