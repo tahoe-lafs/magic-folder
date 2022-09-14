@@ -5,6 +5,26 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.9.0 (2022-09-14)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Automatically exit when stdin is closed
+
+  This facilitates subprocess management, specifically cleanup. When
+  a parent process is running magic-folder and exits without time to
+  do "proper" cleanup at least the stdin descriptor will be closed.
+  magic-folder notices this and exits. (`#665 <https://github.com/LeastAuthority/magic-folder/issues/665>`_)
+
+
+Misc/Other
+----------
+
+- `#660 <https://github.com/LeastAuthority/magic-folder/issues/660>`_
+
+
 Magic_Folder 22.8.0 (2022-08-04)
 ''''''''''''''''''''''''''''''''
 
