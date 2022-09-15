@@ -12,8 +12,6 @@ from testtools.matchers import (
     Equals,
     Contains,
     ContainsDict,
-    MatchesListwise,
-    AfterPreprocessing,
     AllMatch,
     HasLength,
 )
@@ -64,32 +62,6 @@ class TestPidObserver(SyncTestCase):
         self.assertThat(
             pidfile.exists(),
             Equals(False),
-        )
-
-    def test_existing(self):
-        """
-        an existing pid-file is discovered and killed
-        """
-        pidfile = FilePath(self.mktemp())
-        log = Logger()
-        procs = []
-
-        def create_process(pid):
-            procs.append(_FakeProcess(pid))
-            return procs[-1]
-
-        with check_pid_process(pidfile, log, find_process=create_process):
-            with check_pid_process(pidfile, log, find_process=create_process):
-                pass
-
-        self.assertThat(
-            procs,
-            MatchesListwise([
-                AfterPreprocessing(
-                    lambda x: x.running,
-                    Equals(False)
-                ),
-            ])
         )
 
     def test_not_running(self):
