@@ -102,3 +102,7 @@ class TestPidObserver(SyncTestCase):
         with self.assertRaises(Exception) as ctx:
             with check_pid_process(pidfile, log, find_process=_FakeProcess):
                 pass
+        self.assertThat(
+            str(ctx.exception),
+            Contains("already running")
+        )
