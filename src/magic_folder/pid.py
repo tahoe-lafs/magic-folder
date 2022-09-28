@@ -86,7 +86,7 @@ def check_pid_process(pidfile, log, find_process=None):
                     # instance. Automated programs may use the start-time to
                     # help decide this (if the PID is merely recycled, the
                     # start-time won't match).
-                    proc = find_process(pid)
+                    find_process(pid)
                     raise Exception(
                         "A process is already running as PID {}".format(pid)
                     )
