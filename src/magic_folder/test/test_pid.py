@@ -1,6 +1,7 @@
 # Copyright 2022 Least Authority TFA GmbH
 # See COPYING for details.
 
+import re
 from twisted.logger import (
     Logger,
 )
@@ -18,12 +19,20 @@ from testtools.matchers import (
 from twisted.internet.testing import (
     EventLoggingObserver,
 )
+from hypothesis import (
+    given,
+    assume,
+)
+from hypothesis.strategies import (
+    text,
+)
 
 from .common import (
     SyncTestCase,
 )
 from ..pid import (
     check_pid_process,
+    InvalidPidFile,
 )
 
 
@@ -106,3 +115,19 @@ class TestPidObserver(SyncTestCase):
             str(ctx.exception),
             Contains("already running")
         )
+
+    good_file_content_re = re.compile(r"\w[0-9]*\w[0-9]*\w")
+
+    @given(text())
+    def test_invalid_pidfile(self, bad_content):
+        """
+        an invalid PID file produces and error
+        """
+        assume(not self.good_file_content_re.match(bad_content))
+        bad_content = b"not pids"
+        pidfile = FilePath("pidfile")
+        pidfile.setContent(bad_content)
+
+        with self.assertRaises(InvalidPidFile):
+            with check_pid_process(pidfile, Logger()):
+                pass
