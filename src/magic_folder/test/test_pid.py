@@ -2,6 +2,12 @@
 # See COPYING for details.
 
 import re
+import sys
+from subprocess import (
+    Popen,
+    PIPE,
+)
+
 from twisted.logger import (
     Logger,
 )
@@ -33,6 +39,8 @@ from .common import (
 from ..pid import (
     check_pid_process,
     InvalidPidFile,
+    ProcessInTheWay,
+    _pidfile_to_lockpath,
 )
 
 
@@ -131,3 +139,44 @@ class TestPidObserver(SyncTestCase):
         with self.assertRaises(InvalidPidFile):
             with check_pid_process(pidfile, Logger()):
                 pass
+
+
+class PidFileLocking(SyncTestCase):
+    """
+    The pidfile locking implementation prevents multiple processes
+    from opening the file at once
+    """
+
+    def test_locking(self):
+        """
+        Fail to create a pidfile if another process has the lock already.
+        """
+        # this can't just be "our" process because the locking library
+        # allows the same process to acquire a lock multiple times.
+        pidfile = FilePath(self.mktemp())
+        lockfile = _pidfile_to_lockpath(pidfile)
+
+        with open("other_lock.py", "w") as f:
+            f.write(
+                "\n".join([
+                    "import filelock, time, sys",
+                    "with filelock.FileLock(sys.argv[1], timeout=1):",
+                    "    sys.stdout.write('.\\n')",
+                    "    sys.stdout.flush()",
+                    "    time.sleep(10)",
+                ])
+            )
+        proc = Popen(
+            [sys.executable, "other_lock.py", lockfile.path],
+            stdout=PIPE,
+            stderr=PIPE,
+        )
+        # make sure our subprocess has had time to acquire the lock
+        # for sure (from the "." it prints)
+        proc.stdout.read(2)
+
+        # acquiring the same lock should fail; it is locked by the subprocess
+        with self.assertRaises(ProcessInTheWay):
+            with check_pid_process(pidfile, Logger()):
+                pass
+        proc.terminate()
