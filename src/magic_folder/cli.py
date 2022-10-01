@@ -617,7 +617,7 @@ def run(options):
     ])
 
     config = options.parent.config
-    pidfile = config.basedir.child("pid")
+    pidfile = config.basedir.child("running.process")
 
     # check our pidfile to see if another process is running (if not,
     # write our PID to it)

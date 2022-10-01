@@ -105,6 +105,12 @@ commands to work as they use the API.
 Remember that the Tahoe-LAFS node which the daemon uses to upload and
 download items from the Grid must also be running.
 
+When run, the configuration directory will be checked for a ``running.process`` file.
+This file contains the PID and start-time of the magic-folder process.
+The file is deleted on exit.
+Upon startup, if the file exists and the PID points to a running process a new process will refuse to start.
+This is because running two daemons on the same configuration is not supported and will lead to undefined behavior or corruption of the state.
+
 
 Creating Magic Folders
 ----------------------

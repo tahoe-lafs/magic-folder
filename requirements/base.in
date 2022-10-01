@@ -51,3 +51,4 @@ klein>=20.6.0
 # used for double-checking if a process is actually running when our
 # PID-file still exists
 psutil >= 5.8.0
+filelock >= 3.8.0
