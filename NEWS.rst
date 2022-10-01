@@ -5,6 +5,15 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.10.0 (2022-10-01)
+'''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- pidfile access is locked with "filelock" library (`#670 <https://github.com/LeastAuthority/magic-folder/issues/670>`_)
+
+
 Magic_Folder 22.9.0 (2022-09-14)
 ''''''''''''''''''''''''''''''''
 
