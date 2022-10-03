@@ -297,7 +297,9 @@ class MagicFolderService(MultiService):
         observe.addErrback(_stop_reactor)
         ds = [observe]
         for magic_folder in self._iter_magic_folder_services():
-            ds.append(magic_folder.ready())
+            d = magic_folder.ready()
+            d.addErrback(self.log.failure)
+            ds.append(d)
 
         # double-check that our api-endpoint exists properly in the "output" file
         self.config._write_api_client_endpoint()

@@ -1297,3 +1297,55 @@ class MagicFile(object):
         enter=_failed,
         outputs=[],  # should perhaps record (another) error?
     )
+
+
+@inline_callbacks
+def maybe_update_personal_dmd_to_local(reactor, log, config, read_participant, write_participant):
+    """
+    It is possible for us to crash or otherwise exit when updates have
+    been made to local databases but not yet to our Personal DMD.
+
+    For example, when downloading a new update, we may have downloaded
+    the file and updated the [current_snapshots] database but then
+    exit before successfully updating our Personal DMD.
+
+    This function examines all entries in [current_snapshots] and
+    ensure that our Personal DMD matches. If it doesn't, the Personal
+    DMD is updated (that is, local state is taken as the most
+    up-to-date).
+
+    We run this function once at startup. To avoid fully starting with
+    inconsistent state, we keep re-trying this and will only be
+    "ready" once we've confirmed our state.
+
+    :param MagicFolderConfig config: our configuration state
+    :param IParticipant read_participant: read-API for our participant
+    :param IWriteableParticipant write_participant: write-API for our participant
+    """
+
+    @inline_callbacks
+    def do_update():
+        files = yield read_participant.files()
+        for relpath, snap_cap in config.get_all_snapshot_paths_and_caps():
+            try:
+                current_cap = files[relpath].snapshot_cap
+            except KeyError:
+                log.info("- {}: no entry".format(relpath))
+                current_cap = None
+            if current_cap != snap_cap:
+                log.info("- {}: updating".format(relpath))
+                yield write_participant.update_snapshot(relpath, snap_cap)
+            else:
+                log.info("- {}: up-to-date".format(relpath))
+        else:
+            log.info("(no files)")
+
+    log.info("Confirming local state matches Personal DMD:")
+    while True:
+        try:
+            yield do_update()
+            break
+        except Exception as e:
+            log.error("Failed to confirm state: {e}", e=e)
+            log.info("Trying again in 5 seconds")
+            yield deferLater(reactor, 5, lambda: None)

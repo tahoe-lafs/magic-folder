@@ -3,6 +3,9 @@ from twisted.internet import defer
 from twisted.internet.defer import (
     Deferred,
 )
+from twisted.logger import (
+    Logger,
+)
 from twisted.application import service
 from twisted.web import http
 
@@ -34,6 +37,7 @@ from .downloader import (
 )
 from .magic_file import (
     MagicFileFactory,
+    maybe_update_personal_dmd_to_local,
 )
 from .participants import (
     IParticipant,
@@ -56,6 +60,8 @@ class MagicFolder(service.MultiService):
     :ivar LocalSnapshotService local_snapshot_service: A child service
         responsible for creating new local snapshots for files in this folder.
     """
+
+    log = Logger()
 
     @classmethod
     def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None):
@@ -180,12 +186,31 @@ class MagicFolder(service.MultiService):
         yield self.file_factory.cancel()
         yield super(MagicFolder, self).stopService()
 
+    @inline_callbacks
     def ready(self):
         """
         :returns: Deferred that fires with None when this magic-folder is
             ready to operate
         """
-        return defer.succeed(None)
+        print("doing ready shit")
+        self.log.info("ready?")
+        # XXX perform startup checks .. that is, that our local
+        # [snapshots] database state matches the Personal DMD. If
+        # there's a mismatch. See around line 702 in magic_file.py
+        participants = yield self.participants()
+        self_reader = [
+            participant
+            for participant in participants
+            if participant.is_self
+        ]
+        assert len(self_reader) == 1, "should be exactly one 'self' participant"
+        yield maybe_update_personal_dmd_to_local(
+            self._clock,
+            self.log,
+            self.config,
+            self_reader[0],
+            self._participants.writer,
+        )
 
     def scan_local(self):
         """
