@@ -16,7 +16,6 @@ author = "meejah <meejah@meejah.ca>"
 
 import sys
 import time
-import itertools
 from datetime import datetime
 
 from dulwich.repo import Repo
@@ -52,7 +51,9 @@ def create_new_version(git):
 async def main(reactor):
     git = Repo(".")
 
-    st = status(git)
+    # including untracked files can be very slow (if there are lots,
+    # like in virtualenvs) and we don't care anyway
+    st = status(git, untracked_files="no")
     if any(st.staged.values()) or st.unstaged:
         print("unclean checkout; aborting")
         raise SystemExit(1)
