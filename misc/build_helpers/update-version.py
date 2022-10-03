@@ -16,6 +16,7 @@ author = "meejah <meejah@meejah.ca>"
 
 import sys
 import time
+import itertools
 from datetime import datetime
 
 from dulwich.repo import Repo
