@@ -5,6 +5,15 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.10.1 (2022-10-03)
+'''''''''''''''''''''''''''''''''
+
+Misc/Other
+----------
+
+- `#672 <https://github.com/LeastAuthority/magic-folder/issues/672>`_, `#674 <https://github.com/LeastAuthority/magic-folder/issues/674>`_
+
+
 Magic_Folder 22.10.0 (2022-10-01)
 '''''''''''''''''''''''''''''''''
 
