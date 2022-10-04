@@ -3,9 +3,6 @@ from twisted.internet import defer
 from twisted.internet.defer import (
     Deferred,
 )
-from twisted.logger import (
-    Logger,
-)
 from twisted.application import service
 from twisted.web import http
 
