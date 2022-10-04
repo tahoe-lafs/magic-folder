@@ -161,6 +161,7 @@ class MagicFolderService(MultiService):
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
     log = Logger()
+    _skip_check_state = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -296,10 +297,16 @@ class MagicFolderService(MultiService):
         observe.addCallback(_set_api_endpoint)
         observe.addErrback(_stop_reactor)
         ds = [observe]
-        for magic_folder in self._iter_magic_folder_services():
-            d = magic_folder.ready()
-            d.addErrback(self.log.failure)
-            ds.append(d)
+
+        # the "ready()" check confirms that our local state matches
+        # remote state in Personal DMD .. but tests often don't want
+        # this to happen since it needs to do complex stuff with Tahoe
+        # and keeps re-trying
+        if not self._skip_check_state:
+            for magic_folder in self._iter_magic_folder_services():
+                d = magic_folder.check_local_state()
+                d.addErrback(self.log.failure)
+                ds.append(d)
 
         # double-check that our api-endpoint exists properly in the "output" file
         self.config._write_api_client_endpoint()
@@ -402,7 +409,8 @@ class MagicFolderService(MultiService):
         )
 
         mf = self._add_service_for_folder(name)
-        yield mf.ready()
+        # we do not need to call .ready() because this is a fresh
+        # folder, so its state must already match
         self.status_service._maybe_update_clients()
 
     @inline_callbacks

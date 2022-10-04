@@ -396,6 +396,7 @@ class MagicFolderNode(object):
             # in its efforts to create one itself.
             tahoe_client,
             cooperator=uncooperator,
+            skip_check_state=True,
         )
 
         if folders and tahoe_root:

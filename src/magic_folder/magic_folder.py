@@ -187,16 +187,12 @@ class MagicFolder(service.MultiService):
         yield super(MagicFolder, self).stopService()
 
     @inline_callbacks
-    def ready(self):
+    def check_local_state(self):
         """
-        :returns: Deferred that fires with None when this magic-folder is
-            ready to operate
+        :returns: Deferred that fires with None when this magic-folder has
+            successfully confirmed that its local state matches the
+            Personal DMD.
         """
-        print("doing ready shit")
-        self.log.info("ready?")
-        # XXX perform startup checks .. that is, that our local
-        # [snapshots] database state matches the Personal DMD. If
-        # there's a mismatch. See around line 702 in magic_file.py
         participants = yield self.participants()
         self_reader = [
             participant
