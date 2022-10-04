@@ -1300,7 +1300,52 @@ class MagicFile(object):
 
 
 @inline_callbacks
-def maybe_update_personal_dmd_to_local(reactor, log, config, read_participant, write_participant):
+def deferred_retry(reactor, function, should_retry, *args, **kw):
+    """
+    Run the possibly-async `function` (passing all `args` and `kw`)
+    and retry upon error if `should_retry(exc)` returns a positive
+    integer (which is the delay).
+    """
+    while True:
+        try:
+            d = maybeDeferred(function, *args, **kw)
+            result = yield d
+            return result
+
+        except Exception as e:
+            delay = should_retry(e)
+            if delay in (None, False):
+                return
+            yield deferLater(reactor, delay, lambda: None)
+
+
+@inline_callbacks
+def _attempt_personal_dmd_sync(reactor, action, config, read_participant, write_participant):
+    """
+    The core of `maybe_update_personal_dmd_to_local` (which controls
+    our retry behavior).
+    """
+    files = yield read_participant.files()
+    local_files = config.get_all_snapshot_paths_and_caps()
+
+    for relpath, snap_cap in local_files:
+        try:
+            current_cap = files[relpath].snapshot_cap
+        except KeyError:
+            action.log(message_type=relpath, status="no-entry")
+            current_cap = None
+        if current_cap != snap_cap:
+            action.log(message_type=relpath, status="updating", current=current_cap, updated=snap_cap)
+            yield write_participant.update_snapshot(relpath, snap_cap)
+            updates += 1
+        else:
+            action.log(message_type=relpath, status="good")
+    if not local_files:
+        action.log(message_type="no-files")
+
+
+@inline_callbacks
+def maybe_update_personal_dmd_to_local(reactor, config, read_participant, write_participant):
     """
     It is possible for us to crash or otherwise exit when updates have
     been made to local databases but not yet to our Personal DMD.
@@ -1323,29 +1368,18 @@ def maybe_update_personal_dmd_to_local(reactor, log, config, read_participant, w
     :param IWriteableParticipant write_participant: write-API for our participant
     """
 
-    @inline_callbacks
-    def do_update():
-        files = yield read_participant.files()
-        for relpath, snap_cap in config.get_all_snapshot_paths_and_caps():
-            try:
-                current_cap = files[relpath].snapshot_cap
-            except KeyError:
-                log.info("- {}: no entry".format(relpath))
-                current_cap = None
-            if current_cap != snap_cap:
-                log.info("- {}: updating".format(relpath))
-                yield write_participant.update_snapshot(relpath, snap_cap)
-            else:
-                log.info("- {}: up-to-date".format(relpath))
-        else:
-            log.info("(no files)")
+    with start_action(action_type="confirm-personal-dmd-state", folder=config.name) as action:
 
-    log.info("Confirming local state matches Personal DMD:")
-    while True:
-        try:
-            yield do_update()
-            break
-        except Exception as e:
-            log.error("Failed to confirm state: {e}", e=e)
-            log.info("Trying again in 5 seconds")
-            yield deferLater(reactor, 5, lambda: None)
+        def maybe_retry(exc):
+            """
+            Always retry in 5 seconds.
+            """
+            action.log(message_type="error", e=exc)
+            return 5
+
+        yield deferred_retry(
+            reactor,
+            _attempt_personal_dmd_sync,
+            maybe_retry,
+            reactor, action, config, read_participant, write_participant
+        )

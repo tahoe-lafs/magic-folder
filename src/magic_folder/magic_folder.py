@@ -61,8 +61,6 @@ class MagicFolder(service.MultiService):
         responsible for creating new local snapshots for files in this folder.
     """
 
-    log = Logger()
-
     @classmethod
     def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None):
         """
@@ -181,6 +179,16 @@ class MagicFolder(service.MultiService):
         uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
 
+    def startService(self):
+        # we don't start any of our "real" services until the
+        # local-state check has completed (unless we're skipping that,
+        # usually in tests)
+        if self.parent._skip_check_state:
+            d = succeed(None)
+        else:
+            d = self.check_local_state()
+        d.addCallback(lambda _: super(MagicFolder, self).startService())
+
     @inline_callbacks
     def stopService(self):
         yield self.file_factory.cancel()
@@ -202,7 +210,6 @@ class MagicFolder(service.MultiService):
         assert len(self_reader) == 1, "should be exactly one 'self' participant"
         yield maybe_update_personal_dmd_to_local(
             self._clock,
-            self.log,
             self.config,
             self_reader[0],
             self._participants.writer,

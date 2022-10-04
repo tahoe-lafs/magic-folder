@@ -298,16 +298,6 @@ class MagicFolderService(MultiService):
         observe.addErrback(_stop_reactor)
         ds = [observe]
 
-        # the "ready()" check confirms that our local state matches
-        # remote state in Personal DMD .. but tests often don't want
-        # this to happen since it needs to do complex stuff with Tahoe
-        # and keeps re-trying
-        if not self._skip_check_state:
-            for magic_folder in self._iter_magic_folder_services():
-                d = magic_folder.check_local_state()
-                d.addErrback(self.log.failure)
-                ds.append(d)
-
         # double-check that our api-endpoint exists properly in the "output" file
         self.config._write_api_client_endpoint()
 
