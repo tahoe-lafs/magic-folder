@@ -1335,9 +1335,8 @@ def _attempt_personal_dmd_sync(reactor, action, config, read_participant, write_
             action.log(message_type=relpath, status="no-entry")
             current_cap = None
         if current_cap != snap_cap:
-            action.log(message_type=relpath, status="updating", current=current_cap, updated=snap_cap)
+            action.log(message_type=relpath, status="updating")
             yield write_participant.update_snapshot(relpath, snap_cap)
-            updates += 1
         else:
             action.log(message_type=relpath, status="good")
     if not local_files:
@@ -1374,7 +1373,7 @@ def maybe_update_personal_dmd_to_local(reactor, config, read_participant, write_
             """
             Always retry in 5 seconds.
             """
-            action.log(message_type="error", e=exc)
+            action.log(message_type="error", e=str(exc))
             return 5
 
         yield deferred_retry(
