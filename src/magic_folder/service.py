@@ -408,9 +408,7 @@ class MagicFolderService(MultiService):
             scan_interval,
         )
 
-        mf = self._add_service_for_folder(name)
-        # we do not need to call .ready() because this is a fresh
-        # folder, so its state must already match
+        self._add_service_for_folder(name)
         self.status_service._maybe_update_clients()
 
     @inline_callbacks
