@@ -183,10 +183,11 @@ class MagicFolder(service.MultiService):
         # we don't start any of our "real" services until the
         # local-state check has completed (unless we're skipping that,
         # usually in tests)
-        if self.parent._skip_check_state:
-            d = succeed(None)
-        else:
+        do_check = self.parent and not self.parent._skip_check_state
+        if do_check:
             d = self.check_local_state()
+        else:
+            d = defer.succeed(None)
         d.addCallback(lambda _: super(MagicFolder, self).startService())
 
     @inline_callbacks
