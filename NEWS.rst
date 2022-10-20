@@ -5,6 +5,44 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 22.10.1 (2022-10-03)
+'''''''''''''''''''''''''''''''''
+
+Misc/Other
+----------
+
+- `#672 <https://github.com/LeastAuthority/magic-folder/issues/672>`_, `#674 <https://github.com/LeastAuthority/magic-folder/issues/674>`_
+
+
+Magic_Folder 22.10.0 (2022-10-01)
+'''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- pidfile access is locked with "filelock" library (`#670 <https://github.com/LeastAuthority/magic-folder/issues/670>`_)
+
+
+Magic_Folder 22.9.0 (2022-09-14)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Automatically exit when stdin is closed
+
+  This facilitates subprocess management, specifically cleanup. When
+  a parent process is running magic-folder and exits without time to
+  do "proper" cleanup at least the stdin descriptor will be closed.
+  magic-folder notices this and exits. (`#665 <https://github.com/LeastAuthority/magic-folder/issues/665>`_)
+
+
+Misc/Other
+----------
+
+- `#660 <https://github.com/LeastAuthority/magic-folder/issues/660>`_
+
+
 Magic_Folder 22.8.0 (2022-08-04)
 ''''''''''''''''''''''''''''''''
 

@@ -17,16 +17,14 @@ hyperlink
 # declaration serve, though.  Otherwise we have to be careful to agree on
 # which extras to pull in.
 #
-# Additionally, pin Tahoe-LAFS to a specific version we know works.
-# Magic-Folder still uses a couple private Tahoe-LAFS Python APIs so
-# there's good reason to expect things to break from release to
-# release.  Pin a specific version so we can upgrade intentionally
-# when we know it will work.
+# Although there are still some allmydata.* imports (so we depend on
+# tahoe-lafs) these are confied to allmydata.uri so this dependency is
+#  open-ended.
 #
-# This is "slightly open-ended" here to let e.g. NixOS's packager
-# install .postX development versions of Tahoe but will still get
-# an exact pin for magic-folders releases
-tahoe-lafs >= 1.17.1, < 1.18.0
+# See also https://github.com/LeastAuthority/magic-folder/issues/676 which covers
+# getting rid of these final imports
+
+tahoe-lafs >= 1.18.0
 
 # twisted-based HTTP client
 treq
@@ -51,3 +49,4 @@ klein>=20.6.0
 # used for double-checking if a process is actually running when our
 # PID-file still exists
 psutil >= 5.8.0
+filelock >= 3.8.0
