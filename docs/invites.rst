@@ -123,6 +123,7 @@ Once the wormhole is established Alice's magic-folder client sends a message via
 
     {
         "magic-folder-invite-version": 1,
+        "folder-name": "<free-form string>",
         "collective-dmd": "<read-capability of the Collective DMD>",
         "petname": "bob"
     }
