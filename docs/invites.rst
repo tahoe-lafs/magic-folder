@@ -1,5 +1,7 @@
 .. -*- coding: utf-8 -*-
 
+This document uses semantic newlines.
+
 .. _invites:
 
 How invites work
@@ -21,6 +23,8 @@ To begin we outline some definitions and assumptions:
 
 * The **collective** is the set of clients subscribed to a given Magic Folder
   We refer to the "Collective DMD" or just "Collective" as the Tahoe mutable containing the canonical list of participants.
+
+Note that although we anthropomorphize the participants here with "Alice" and "Bob", the true participants are devices not humans.
 
 
 Overview
