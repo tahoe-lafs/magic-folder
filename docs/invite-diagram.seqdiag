@@ -2,34 +2,34 @@
 // pip install seqdiag
 // seqdiag --no-transparency invite-diagram.seqdiag
 
-// Illustration of the flow between Alice and Bob devices via the
+// Illustration of the flow between Laptop and Desktop devices via the
 // magic-wormhole mailbox when doing an invitation.
 
 diagram {
-   alice  -> wormhole-mailbox [label="allocate"];
-   alice  <- wormhole-mailbox [label="1-code-words"];
+   laptop  -> wormhole-mailbox [label="allocate"];
+   laptop  <- wormhole-mailbox [label="1-code-words"];
 
-   alice --> bob [label="Out-of-Band communication of \"1-code-words\"", return="foo"];
+   laptop --> desktop [label="Out-of-Band communication of \"1-code-words\"", return="foo"];
 
-   bob    -> wormhole-mailbox [label="claim"];
-   bob    <- wormhole-mailbox [label="mailbox open"];
+   desktop    -> wormhole-mailbox [label="claim"];
+   desktop    <- wormhole-mailbox [label="mailbox open"];
 
-   alice  -> wormhole-mailbox [label="PUT: invite{collective-dmd: }"];
-   bob    <- wormhole-mailbox [label="GET: invite{collective-dmd: }"];
+   laptop  -> wormhole-mailbox [label="PUT: invite{collective-dmd: }"];
+   desktop    <- wormhole-mailbox [label="GET: invite{collective-dmd: }"];
 
-... Bob creates Personal DMD\n(one write, one read cap) ...
+... Desktop creates Personal DMD\n(one write, one read cap) ...
 
-   bob    -> wormhole-mailbox [label="PUT: accept{personal-dmd: }"];
-   alice  <- wormhole-mailbox [label="GET: accept{personal-dmd: }"];
+   desktop    -> wormhole-mailbox [label="PUT: accept{personal-dmd: }"];
+   laptop  <- wormhole-mailbox [label="GET: accept{personal-dmd: }"];
 
-... Alice adds Bob's read-only cap to Collective ...
+... Laptop adds Desktop's read-only cap to Collective ...
 
-   alice  -> wormhole-mailbox [label="PUT: success"];
-   bob    <- wormhole-mailbox [label="GET: success"];
+   laptop  -> wormhole-mailbox [label="PUT: success"];
+   desktop    <- wormhole-mailbox [label="GET: success"];
 
-... Bob has joined the Collective ...
+... Desktop has joined the Collective ...
 
-   bob -> wormhole-mailbox [label="close"];
-   alice <- wormhole-mailbox [label="close"];
+   desktop -> wormhole-mailbox [label="close"];
+   laptop <- wormhole-mailbox [label="close"];
 
 }
