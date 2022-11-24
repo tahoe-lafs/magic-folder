@@ -216,12 +216,19 @@ class Invite(object):
                         reason=reply_msg["reject-reason"],
                     )
 
-                personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
-                if not personal_dmd.is_readonly_directory():
-                    raise InvalidInviteReply(
-                        invite=self,
-                        reason="Personal DMD must be a read-only directory",
-                    )
+                # XXX support read-only clients
+                # (remove requirement for personal-dmd .. can just say "ok" somehow)
+                if "personal-dmd" in reply_msg:
+                    personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
+                    if not personal_dmd.is_readonly_directory():
+                        raise InvalidInviteReply(
+                            invite=self,
+                            reason="Personal DMD must be a read-only directory",
+                        )
+                else:
+                    print("no personal-dmd! trying some shit")
+                    # check for something more explicit, like "read-only: true"?
+                    personal_dmd = Capability.from_string("URI:LIT:")
 
                 # everything checks out; add the invitee to our Collective DMD
                 try:
