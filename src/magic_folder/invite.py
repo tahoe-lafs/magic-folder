@@ -189,6 +189,7 @@ class Invite(object):
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
                     "magic-folder-invite-version": 1,
+                    "folder-name": mf_config.name,
                     "collective-dmd": collective_readcap.danger_real_capability_string(),
                     "petname": self.petname,
                 }).encode("utf8")
