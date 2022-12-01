@@ -24,7 +24,7 @@ hyperlink
 # See also https://github.com/LeastAuthority/magic-folder/issues/676 which covers
 # getting rid of these final imports
 
-tahoe-lafs >= 1.18.0
+tahoe-lafs
 
 # twisted-based HTTP client
 treq
@@ -49,4 +49,4 @@ klein>=20.6.0
 # used for double-checking if a process is actually running when our
 # PID-file still exists
 psutil >= 5.8.0
-filelock >= 3.8.0
+filelock >= 3.7.1
