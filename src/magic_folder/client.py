@@ -45,8 +45,8 @@ from zope.interface import (
 import attr
 
 from .web import (
-    APIv1,
-    ApiExperimental,
+    _create_v1_resource,
+    _create_experimental_resource,
     magic_folder_resource,
 )
 from .testing.web import (
@@ -271,8 +271,8 @@ def create_testing_http_client(reactor, config, global_service, get_api_token, s
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service, status_service).app.resource()
-    exp_resource = ApiExperimental(config, global_service).app.resource()
+    v1_resource = _create_v1_resource(config, global_service, status_service)
+    exp_resource = _create_experimental_resource(config, global_service)
     root = magic_folder_resource(get_api_token, v1_resource, exp_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),

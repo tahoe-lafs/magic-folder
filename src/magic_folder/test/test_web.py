@@ -105,7 +105,7 @@ from ..config import (
 )
 from ..web import (
     magic_folder_resource,
-    APIv1,
+    _create_v1_resource,
 )
 from ..util.file import (
     PathState,
@@ -176,7 +176,7 @@ class AuthorizationTests(SyncTestCase):
         def get_auth_token():
             return good_token
 
-        root = magic_folder_resource(get_auth_token, Resource())
+        root = magic_folder_resource(get_auth_token, Resource(), Resource())
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url_to_bytes(url)
@@ -239,6 +239,7 @@ class AuthorizationTests(SyncTestCase):
         root = magic_folder_resource(
             get_auth_token,
             v1_resource=branch,
+            exp_resource=Resource(),
         )
 
         treq = StubTreq(root)
@@ -923,25 +924,6 @@ class RedirectTests(SyncTestCase):
                 ),
             ),
         )
-
-    def test_werkzeug_issue_2157_fix(self):
-        """
-        Ensure that the only redirects that werkzeug will generate are merging slashes.
-
-        This ensures that the workaround to
-        https://github.com/pallets/werkzeug/issues/2157 is correct.
-        """
-        self.assertThat(
-            APIv1.app.url_map.iter_rules(),
-            AllMatch(
-                MatchesPredicate(
-                    lambda rule: rule.is_leaf and not rule.alias,
-                    "Rule %r is not a leaf, has an alias, or has a redirect specified. "
-                    "This will break our fix for https://github.com/pallets/werkzeug/issues/2157"
-                )
-            ),
-        )
-
 
 
 class ScanFolderTests(SyncTestCase):

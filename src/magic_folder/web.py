@@ -207,34 +207,29 @@ def _add_klein_error_handlers(app):
         return json.dumps({"reason": "unexpected error processing request"}).encode("utf8")
 
 
-@attr.s
-class APIv1(object):
-    """
-    Implement the ``/v1`` HTTP API hierarchy.
-    """
 
-    _global_config = attr.ib()
-    _global_service = attr.ib()  # MagicFolderService instance
-    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
+def _create_v1_resource(global_config, global_service, status_service):
+    """
+    :returns: an IResource implementing the ``/v1`` HTTP API hierarchy.
+    """
 
     app = Klein()
-
     _add_klein_error_handlers(app)
 
     @app.route("/status")
-    def status(self, request):
-        return WebSocketResource(StatusFactory(self._status_service))
+    def status(request):
+        return WebSocketResource(StatusFactory(status_service))
 
     @app.route("/magic-folder", methods=["POST"])
     @inline_callbacks
-    def add_magic_folder(self, request):
+    def add_magic_folder(request):
         """
         Add a new magic folder.
         """
         body = request.content.read()
         data = _load_json(body)
 
-        yield self._global_service.create_folder(
+        yield global_service.create_folder(
             data['name'],
             data['author_name'],
             FilePath(data['local_path']),
@@ -247,14 +242,14 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>", methods=["DELETE"])
     @inline_callbacks
-    def leave_magic_folder(self, request, folder_name):
+    def leave_magic_folder(request, folder_name):
         """
         Leave a new magic folder.
         """
         body = request.content.read()
         data = _load_json(body)
 
-        yield self._global_service.leave_folder(
+        yield global_service.leave_folder(
             folder_name,
             really_delete_write_capability=data.get(
                 "really-delete-write-capability", False
@@ -266,11 +261,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inline_callbacks
-    def list_participants(self, request, folder_name):
+    def list_participants(request, folder_name):
         """
         List all participants of this folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         participants = yield folder_service.participants()
 
@@ -288,11 +283,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
     @inline_callbacks
-    def add_participant(self, request, folder_name):
+    def add_participant(request, folder_name):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -333,21 +328,21 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/snapshot", methods=['GET'])
-    def list_all_sanpshots(self, request):
+    def list_all_sanpshots(request):
         """
         Respond with all of the snapshots for all of the files in all of the
         folders.
         """
         _application_json(request)
-        return json.dumps(dict(_list_all_snapshots(self._global_config))).encode("utf8")
+        return json.dumps(dict(_list_all_snapshots(global_config))).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/scan-local", methods=['PUT'])
     @inline_callbacks
-    def scan_folder_local(self, request, folder_name):
+    def scan_folder_local(request, folder_name):
         """
         Request an immediate local scan on a particular folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         yield folder_service.scan_local()
 
@@ -356,11 +351,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/poll-remote", methods=['PUT'])
     @inline_callbacks
-    def poll_folder_remote(self, request, folder_name):
+    def poll_folder_remote(request, folder_name):
         """
         Request an immediate remote poll on a particular folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         yield folder_service.poll_remote()
 
@@ -369,11 +364,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
     @inline_callbacks
-    def add_snapshot(self, request, folder_name):
+    def add_snapshot(request, folder_name):
         """
         Create a new Snapshot
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         path = request.args[b"path"][0].decode("utf-8")
 
@@ -384,7 +379,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder", methods=["GET"])
-    def list_folders(self, request):
+    def list_folders(request):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
@@ -411,8 +406,8 @@ class APIv1(object):
             return info
 
         def all_folder_configs():
-            for name in sorted(self._global_config.list_magic_folders()):
-                yield (name, self._global_config.get_magic_folder(name))
+            for name in sorted(global_config.list_magic_folders()):
+                yield (name, global_config.get_magic_folder(name))
 
         return json.dumps({
             name: get_folder_info(name, config)
@@ -421,12 +416,12 @@ class APIv1(object):
         }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/file-status", methods=['GET'])
-    def folder_file_status(self, request, folder_name):
+    def folder_file_status(request, folder_name):
         """
         Render status information for every file in a given folder
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
 
         return json.dumps([
             {
@@ -441,12 +436,12 @@ class APIv1(object):
         ]).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
-    def list_conflicts(self, request, folder_name):
+    def list_conflicts(request, folder_name):
         """
         Render information about all known conflicts in a given folder
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
         return json.dumps({
             relpath: [
                 conflict.author_name
@@ -456,7 +451,7 @@ class APIv1(object):
         }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
-    def folder_tahoe_objects(self, request, folder_name):
+    def folder_tahoe_objects(request, folder_name):
         """
         Renders a list of all the object-sizes of all Tahoe objects a
         given magic-folder currently cares about. This is, for each
@@ -464,27 +459,26 @@ class APIv1(object):
         the content capability.
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
         sizes = folder_config.get_tahoe_object_sizes()
         return json.dumps(sizes).encode("utf8")
 
+    return app.resource()
 
-@attr.s
-class ApiExperimental(object):
-    """
-    Implement the ``/experimental`` HTTP API hierarchy.
-    """
 
-    _global_config = attr.ib()
-    _global_service = attr.ib()  # MagicFolderService instance
+def _create_experimental_resource(global_config, global_service):
+    """
+    :returns: an IResource implementing the ``/experimental`` HTTP API hierarchy.
+    """
 
     app = Klein()
-
     _add_klein_error_handlers(app)
 
     @app.route("/about", methods=["GET"])
-    def about(self, request):
+    def about(request):
         return b"All API methods in this tree may change with any version"
+
+    return app.resource()
 
 
 class _InputError(APIError):
@@ -621,8 +615,8 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service, status_service).app.resource()
-    exp_resource = ApiExperimental(global_config, global_service).app.resource()
+    v1_resource = _create_v1_resource(global_config, global_service, status_service)
+    exp_resource = _create_experimental_resource(global_config, global_service)
     root = magic_folder_resource(get_auth_token, v1_resource, exp_resource)
     return StreamServerEndpointService(
         web_endpoint,
