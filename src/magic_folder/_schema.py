@@ -109,8 +109,8 @@ class OptionalSchemaUpgrade(object):
         ``statements`` will be run again).
     """
     statements = attr.ib(validator=attr.validators.instance_of(list))
-    enabled_by = attr.ib(validator=attr.validators.instance_of(str)))
-    unstatements = attr.ib(validator=attr.validators.instance_of(list)))
+    enabled_by = attr.ib(validator=attr.validators.instance_of(str))
+    unstatements = attr.ib(validator=attr.validators.instance_of(list))
 
     def run(self, cursor, enabled_predicate):
         """
