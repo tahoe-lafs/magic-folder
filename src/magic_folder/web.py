@@ -477,7 +477,6 @@ class ApiExperimental(object):
 
     _global_config = attr.ib()
     _global_service = attr.ib()  # MagicFolderService instance
-    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
 
     app = Klein()
 
@@ -623,7 +622,7 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
     :returns: a StreamServerEndpointService instance
     """
     v1_resource = APIv1(global_config, global_service, status_service).app.resource()
-    exp_resource = ApiExperimental(global_config, global_service, status_service).app.resource()
+    exp_resource = ApiExperimental(global_config, global_service).app.resource()
     root = magic_folder_resource(get_auth_token, v1_resource, exp_resource)
     return StreamServerEndpointService(
         web_endpoint,

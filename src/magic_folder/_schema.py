@@ -84,62 +84,6 @@ class SchemaUpgrade(object):
         change_user_version(cursor, lambda old: old + 1)
 
 
-@attr.s(frozen=True)
-class OptionalSchemaUpgrade(object):
-    """
-    An upgrade from one schema version to the next that is optional --
-    that is, it pertains to a "feature" that the user may enabled (or
-    disable).
-
-    Note that ``run()`` is _always_ called, and we increment the
-    version no matter what. This is so that we have stable versions
-    even if there are several optional features. If this feature is
-    _not_ enabled, then we simple skip running all the
-    statements. Other machinery will arrange to call ``undo()`` in
-    case the user _disables_ a previously-enabled version.
-
-    :ivar list[unicode] statements: A list of statements to execute to
-        complete this upgrade.
-
-    :ivar str enabled_by: the _name_ of the feature.
-
-    :ivar list[unicode] unstatements: statements that "undo" the
-        database setup found in ``statements``. This will be run when
-        disabling a feature (so when it is enabled in the future,
-        ``statements`` will be run again).
-    """
-    statements = attr.ib(validator=attr.validators.instance_of(list))
-    enabled_by = attr.ib(validator=attr.validators.instance_of(str))
-    unstatements = attr.ib(validator=attr.validators.instance_of(list))
-
-    def run(self, cursor, enabled_predicate):
-        """
-        Execute this upgrade against the given cursor.
-
-        This method does no transaction management.  It uses the cursor in
-        whatever state it is in.
-
-        :param cursor: A DB-API cursor to use to run the SQL.
-        """
-        if enabled_predicate(self.enabled_by):
-            for statement in self.statements:
-                cursor.execute(statement)
-        # no matter what, we always upgrade the version
-        change_user_version(cursor, lambda old: old + 1)
-
-    def undo(self, cursor):
-        """
-        Execute the opposite of this upgrade against the given cursor.
-
-        This method does no transaction management.  It uses the cursor in
-        whatever state it is in.
-
-        :param cursor: A DB-API cursor to use to run the SQL.
-        """
-        for statement in self.unstatements:
-            cursor.execute(statement)
-
-
 @attr.s
 class Schema(object):
     """
@@ -203,7 +147,7 @@ class Schema(object):
         """
         return self.upgrades[from_version:]
 
-    def run_upgrades(self, cursor, enabled_predicate):
+    def run_upgrades(self, cursor):
         """
         Run all known, applicable upgrades (in increasing order) using the given
         cursor.
@@ -215,9 +159,6 @@ class Schema(object):
         whatever state it is in.
 
         :param cursor: A DB-API cursor to use to run the SQL.
-
-        :param enabled_predicate: A single-argument callable that
-            returns a bool indicating if the named feature is enabled.
         """
         database_version = self.get_version(cursor)
         if database_version > self.version:
@@ -228,21 +169,4 @@ class Schema(object):
 
         upgrades = self.get_upgrades(database_version)
         for upgrade in upgrades:
-            upgrade.run(cursor, enabled_predicate)
-
-    def disable_schema(self, cursor, name):
-        """
-        The user has disabled a previously-enabled feature called
-        ``name``; run the undo commands.
-
-        :param cursor: A DB-API cursor to use to run the SQL.
-
-        :param name: the name of the feature that has been disabled.
-        """
-        upgrades = [
-            upgrade
-            for upgrade in upgrades
-            if upgrade.name == name
-        ]
-        for upgrade in upgrades:
-            upgrade.undo(cursor)
+            upgrade.run(cursor)

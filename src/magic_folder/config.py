@@ -90,7 +90,6 @@ from .common import (
 )
 from ._schema import (
     SchemaUpgrade,
-    OptionalSchemaUpgrade,
     Schema,
 )
 

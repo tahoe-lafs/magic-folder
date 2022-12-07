@@ -31,7 +31,6 @@ from sqlite3 import (
 from .._schema import (
     MAXIMUM_UPGRADES,
     DatabaseSchemaTooNew,
-    OptionalSchemaUpgrade,
     SchemaUpgrade,
     Schema,
     change_user_version,
@@ -227,24 +226,6 @@ class SchemaTests(TestCase):
             schema.get_version(cursor),
             Equals(schema.version),
         )
-
-    def test_optional_upgrade(self):
-        """
-        An optional upgrade can be done and un-done
-        """
-        optional = OptionalSchemaUpgrade(
-            ["CREATE TABLE [foo_0] ( [a] INT )"],
-            "feature",
-            ["DELETE TABLE [foo_0]"],
-        )
-        db = connect(":memory:")
-        cursor = db.cursor()
-        schema = Schema([optional])
-
-        # doing the optional upgrade while it is disabled should
-        # upgrade the database version, but not add any tables
-        optional.run(cursor, lambda _: False)
-        self.assertThat(schema.get_version(cursor), Equals(1))
 
 
 def dummy_upgrades(count):

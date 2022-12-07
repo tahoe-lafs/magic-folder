@@ -46,6 +46,7 @@ import attr
 
 from .web import (
     APIv1,
+    ApiExperimental,
     magic_folder_resource,
 )
 from .testing.web import (
@@ -271,7 +272,8 @@ def create_testing_http_client(reactor, config, global_service, get_api_token, s
         service provided
     """
     v1_resource = APIv1(config, global_service, status_service).app.resource()
-    root = magic_folder_resource(get_api_token, v1_resource)
+    exp_resource = ApiExperimental(config, global_service).app.resource()
+    root = magic_folder_resource(get_api_token, v1_resource, exp_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),
         data_to_body_producer=_SynchronousProducer,
