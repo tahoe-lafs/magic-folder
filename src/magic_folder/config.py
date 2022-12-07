@@ -90,6 +90,7 @@ from .common import (
 )
 from ._schema import (
     SchemaUpgrade,
+    OptionalSchemaUpgrade,
     Schema,
 )
 
@@ -138,7 +139,16 @@ _global_config_schema = Schema([
             api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
         );
         """,
-    ])
+    ]),
+    SchemaUpgrade([
+        """
+        CREATE TABLE features
+        (
+            [name] TEXT,
+            [enabled] BOOL
+        );
+        """,
+    ]),
 ])
 
 _magicfolder_config_schema = Schema([
@@ -456,6 +466,42 @@ def load_global_configuration(basedir):
         raise ValueError(
             "'{}' doesn't exist.".format(db_fname.path),
         )
+
+    # okay, so we define "optional" SchemaUpgrades, but even if
+    # they're disabled we still increment the database version (so
+    # those are stable) but the statements are not run. They also must
+    # define an "undo" method.
+    #
+    # So when a feature is enabled we run the upgrade statements.
+    # ..and when a feature is _disabled_ we run the "undo" statements.
+    #
+    # The "undo" statements must put the database(s) back into the
+    # state they'd be in without having run them.
+
+
+    # XXX chicken vs. egg: we want to know which features are enabled
+    # (so that we can run their config schema-upgrades) ... but we
+    # need the global config database first.
+    #
+    # ...so, we could just get their upgrades and _then_ run the rest
+    # of the upgrades, _however_ that would potentially give unstable
+    # version numbers etc (e.g. what if we had version=1, then enabled
+    # invites for version=2, but then made a "real" release with some
+    # other upgrade?)
+    #
+    # ...so I think what we want is to put _all_ the schema stuff in
+    # the normal spot, but have some of them be "optional"? Can the
+    # "optional enable / disable" functions then just deal with this?
+    # they'd go through them and run the schema-upgrades for them
+    # ... and the "disable" would run some "undo" upgrade thing
+    # kind of seems fraught? maybe it's okay?
+    #
+    # or maybe we don't do all that complexity, and just let
+    # "optional" features stuff themselves into the schema..? kind of
+    # defeats the purpose of "optional" though -- and/but what if the
+    # _config_ data for an optional feature changes? what if we decide
+    # the feature isn't optional any more? (e.g. it goes away
+    # entirely, or becomes permanent)
 
     connection = _upgraded(
         _global_config_schema,
@@ -1790,6 +1836,48 @@ class GlobalConfigDatabase(object):
             node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
 
+    def feature_enabled(self, name):
+        """
+        :returns bool: True if the named feature is enabled
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT (name, enabled) FROM features")
+            for n, enabled in cursor.fetchall():
+                if n == name:
+                    return enabled
+        return False
+
+    def enable_feature(self, name):
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if len(rows) and rows[0][1]:
+                raise ValueError("Feature '{}' already enabled".format(name))
+            if len(rows):
+                cursor.execute(
+                    "UPDATE features "
+                    "SET enabled=? "
+                    "WHERE name=?",
+                    (True, name)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO features "
+                    "VALUES (?, ?)",
+                    (name, True)
+                )
+
     def list_magic_folders(self):
         """
         Return a generator that yields the names of all magic-folders
@@ -2027,3 +2115,26 @@ def _validate_connect_endpoint_str(ep_string):
     # since serverFromString is the only way to validate an
     # endpoint-string
     clientFromString(reactor, nativeString(ep_string))
+
+
+
+def _enable_feature_invites(config):
+    print("enable invites", config)
+
+
+def _disable_feature_invites(config):
+    print("disable invites", config)
+
+# available optional features, with functions to run when they are
+# enabled or disabled. The global config table "features" remembers
+# whether a particular feature is on or off currently.
+_features = {
+    "invites": {
+        "enable": _enable_feature_invites,
+        "disable": _disable_feature_invites,
+        "global-config": [],
+        "folder-config": [
+        ],
+    },
+}
+

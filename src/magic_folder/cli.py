@@ -163,6 +163,42 @@ def initialize(options):
     )
 
 
+class ConfigOptions(usage.Options):
+    """
+    Change configuration options in an existing Magic Folder daemon
+    directory.
+    """
+
+    optParameters = [
+        # should include these, probably "for completeness" but
+        # leaving out for now
+        # ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
+        # ("client-endpoint", "c", None,
+        #  "The Twisted client-string for our REST API (only required if auto-converting"
+        #  " from the --listen-endpoint fails)"),
+    ]
+
+    optFlags = [
+        ("enable-invites", None, "Enable experimental invite/join functionality"),
+    ]
+
+    description = (
+        "Change configuration options"
+    )
+
+
+@inline_callbacks
+def set_config(options):
+    """
+    Change configuration options
+    """
+    yield
+    if options["enable-invites"]:
+        print("enable")
+        options.parent.config.enable_feature("invites")
+    # yield options.parent.client.reload_config()
+
+
 class MigrateOptions(usage.Options):
     """
     Migrate a magic-folder configuration from an existing Tahoe-LAFS
@@ -256,7 +292,6 @@ class AddOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-
 
     def postOptions(self):
         super(AddOptions, self).postOptions()
@@ -623,6 +658,7 @@ def run(options):
     # write our PID to it)
     with check_pid_process(pidfile, Logger()):
         # start the daemon services
+        # XXX can we provide a hook somewhere to re-create this on reload? or, how to reload config?
         service = MagicFolderService.from_config(reactor, config)
         yield service.run()
 
@@ -722,6 +758,7 @@ class MagicFolderCommand(BaseOptions):
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
+        ["set-config", None, ConfigOptions, "Change configuration options."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
         ["add", None, AddOptions, "Add a new Magic Folder."],
@@ -781,6 +818,7 @@ subDispatch = {
     "init": initialize,
     "migrate": migrate,
     "show-config": show_config,
+    "set-config": set_config,
     "add": add,
     "invite": invite,
     "join": join,

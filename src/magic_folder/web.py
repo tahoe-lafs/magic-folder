@@ -64,7 +64,7 @@ from .util.file import (
 )
 
 
-def magic_folder_resource(get_auth_token, v1_resource):
+def magic_folder_resource(get_auth_token, v1_resource, exp_resource):
     """
     Create the root resource for the Magic Folder HTTP API.
 
@@ -74,6 +74,10 @@ def magic_folder_resource(get_auth_token, v1_resource):
         bearer-token authorization scheme at the `v1` child of the resulting
         resource.
 
+    :param IResource exp_resource: A resource which will be protected
+        by a bearer-token authorization scheme at the `experimental`
+        child of the resulting resource.
+
     :return IResource: The resource that is the root of the HTTP API.
     """
     root = Resource()
@@ -81,6 +85,13 @@ def magic_folder_resource(get_auth_token, v1_resource):
         b"v1",
         BearerTokenAuthorization(
             v1_resource,
+            get_auth_token,
+        ),
+    )
+    root.putChild(
+        b"experimental",
+        BearerTokenAuthorization(
+            exp_resource,
             get_auth_token,
         ),
     )
@@ -144,29 +155,23 @@ def _load_json(body):
     except ValueError as e:
         raise APIError.from_exception(http.BAD_REQUEST, e, prefix="Could not load JSON")
 
-@attr.s
-class APIv1(object):
-    """
-    Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
+def _add_klein_error_handlers(app):
     """
-    _global_config = attr.ib()
-    _global_service = attr.ib()  # MagicFolderService instance
-    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
-
-    app = Klein()
+    Adds common error-handlers to an API class -- we can't use a
+    subclassing approach anyway because of where the 'app' instance
+    comes from.
+    """
 
     @app.handle_errors(APIError)
-    def handle_api_error(self, request, failure):
+    def handle_api_error(request, failure):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps(exc.to_json()).encode("utf8")
 
     @app.handle_errors(HTTPException)
-    def handle_http_error(self, request, failure):
+    def handle_http_error(request, failure):
         """
         Convert a werkzeug py:`HTTPException` to a json response.
 
@@ -185,14 +190,14 @@ class APIv1(object):
         return json.dumps({"reason": exc.description}).encode("utf8")
 
     @app.handle_errors(InsufficientStorageServers)
-    def no_servers(self, request, failure):
+    def no_servers(request, failure):
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps({"reason": str(failure.value)}).encode("utf8")
 
     @app.handle_errors(Exception)
-    def fallback_error(self, request, failure):
+    def fallback_error(request, failure):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
@@ -200,6 +205,21 @@ class APIv1(object):
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps({"reason": "unexpected error processing request"}).encode("utf8")
+
+
+@attr.s
+class APIv1(object):
+    """
+    Implement the ``/v1`` HTTP API hierarchy.
+    """
+
+    _global_config = attr.ib()
+    _global_service = attr.ib()  # MagicFolderService instance
+    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
+
+    app = Klein()
+
+    _add_klein_error_handlers(app)
 
     @app.route("/status")
     def status(self, request):
@@ -449,6 +469,25 @@ class APIv1(object):
         return json.dumps(sizes).encode("utf8")
 
 
+@attr.s
+class ApiExperimental(object):
+    """
+    Implement the ``/experimental`` HTTP API hierarchy.
+    """
+
+    _global_config = attr.ib()
+    _global_service = attr.ib()  # MagicFolderService instance
+    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
+
+    app = Klein()
+
+    _add_klein_error_handlers(app)
+
+    @app.route("/about", methods=["GET"])
+    def about(self, request):
+        return b"All API methods in this tree may change with any version"
+
+
 class _InputError(APIError):
     """
     Local errors with our input validation to report back to HTTP
@@ -584,7 +623,8 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
     :returns: a StreamServerEndpointService instance
     """
     v1_resource = APIv1(global_config, global_service, status_service).app.resource()
-    root = magic_folder_resource(get_auth_token, v1_resource)
+    exp_resource = ApiExperimental(global_config, global_service, status_service).app.resource()
+    root = magic_folder_resource(get_auth_token, v1_resource, exp_resource)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),
