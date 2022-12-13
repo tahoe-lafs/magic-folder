@@ -1835,6 +1835,12 @@ class GlobalConfigDatabase(object):
             node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
 
+    def is_valid_feature(self, name):
+        """
+        :returns bool: True if the named feature exists
+        """
+        return name in _features
+
     def feature_enabled(self, name):
         """
         :returns bool: True if the named feature is enabled

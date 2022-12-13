@@ -191,8 +191,8 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
-    def reload_config(self):
-        api_url = self.base_url.child(u"v1", u"reload-config")
+    def enable_feature(self, feature):
+        api_url = self.base_url.child(u"v1", u"config", u"enable-feature", feature)
         return self._authorized_request("POST", api_url)
 
     @inline_callbacks

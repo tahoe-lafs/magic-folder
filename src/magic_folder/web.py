@@ -220,6 +220,31 @@ def _create_v1_resource(global_config, global_service, status_service):
     def status(request):
         return WebSocketResource(StatusFactory(status_service))
 
+    @app.route("/config/enable-feature/<string:feature_name>", methods=["POST"])
+    def enable_feature(request, feature_name):
+        """
+        Enable a feature
+        """
+        body = request.content.read()
+        if not global_config.is_valid_feature(feature_name):
+            raise _InputError("Unknown feature '{}'".format(feature_name))
+        try:
+            global_config.enable_feature(feature_name)
+        except ValueError as e:
+            raise _InputError(str(e))
+        return b"{}"
+
+    @app.route("/config/disable-feature/<string:feature_name>", methods=["POST"])
+    def disable_feature(request, feature_name):
+        """
+        Disable a feature
+        """
+        body = request.content.read()
+        if not global_config.is_valid_feature(feature_name):
+            raise _InputError("Unknown feature '{}'".format(feature_name))
+        global_config.disable_feature(feature_name)
+        return b"{}"
+
     @app.route("/magic-folder", methods=["POST"])
     @inline_callbacks
     def add_magic_folder(request):

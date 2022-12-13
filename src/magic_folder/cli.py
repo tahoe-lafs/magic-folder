@@ -195,8 +195,7 @@ def set_config(options):
     yield
     if options["enable-invites"]:
         print("enable")
-        options.parent.config.enable_feature("invites")
-    # yield options.parent.client.reload_config()
+        yield options.parent.client.enable_feature("invites")
 
 
 class MigrateOptions(usage.Options):
