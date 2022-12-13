@@ -192,9 +192,7 @@ def set_config(options):
     """
     Change configuration options
     """
-    yield
     if options["enable-invites"]:
-        print("enable")
         yield options.parent.client.enable_feature("invites")
 
 
