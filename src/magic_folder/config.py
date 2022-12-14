@@ -1854,6 +1854,9 @@ class GlobalConfigDatabase(object):
         return False
 
     def enable_feature(self, name):
+        """
+        XXX FIXME
+        """
         if name not in _features:
             raise ValueError(
                 "Unknown feature '{}'".format(name)
@@ -1882,6 +1885,32 @@ class GlobalConfigDatabase(object):
                     "VALUES (?, ?)",
                     (name, True)
                 )
+
+    def disable_feature(self, name):
+        """
+        XXX FIXME
+        """
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if not rows or not rows[0][1]:
+                raise ValueError("Feature '{}' not enabled".format(name))
+            cursor.execute(
+                "UPDATE features "
+                "SET enabled=? "
+                "WHERE name=?",
+                (False, name)
+            )
 
     def list_magic_folders(self):
         """

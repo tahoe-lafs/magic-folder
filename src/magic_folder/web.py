@@ -242,7 +242,10 @@ def _create_v1_resource(global_config, global_service, status_service):
         body = request.content.read()
         if not global_config.is_valid_feature(feature_name):
             raise _InputError("Unknown feature '{}'".format(feature_name))
-        global_config.disable_feature(feature_name)
+        try:
+            global_config.disable_feature(feature_name)
+        except ValueError as e:
+            raise _InputError(str(e))
         return b"{}"
 
     @app.route("/magic-folder", methods=["POST"])

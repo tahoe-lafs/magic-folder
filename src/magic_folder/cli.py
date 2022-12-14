@@ -180,6 +180,7 @@ class ConfigOptions(usage.Options):
 
     optFlags = [
         ("enable-invites", None, "Enable experimental invite/join functionality"),
+        ("disable-invites", None, "Disable experimental invite/join functionality"),
     ]
 
     description = (
@@ -194,6 +195,10 @@ def set_config(options):
     """
     if options["enable-invites"]:
         yield options.parent.client.enable_feature("invites")
+    elif options["disable-invites"]:
+        yield options.parent.client.disable_feature("invites")
+    else:
+        print(options)
 
 
 class MigrateOptions(usage.Options):

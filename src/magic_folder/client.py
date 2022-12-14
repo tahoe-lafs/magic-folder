@@ -192,7 +192,17 @@ class MagicFolderClient(object):
         )
 
     def enable_feature(self, feature):
+        """
+        XXX FIXME
+        """
         api_url = self.base_url.child(u"v1", u"config", u"enable-feature", feature)
+        return self._authorized_request("POST", api_url)
+
+    def disable_feature(self, feature):
+        """
+        XXX FIXME
+        """
+        api_url = self.base_url.child(u"v1", u"config", u"disable-feature", feature)
         return self._authorized_request("POST", api_url)
 
     @inline_callbacks
