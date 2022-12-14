@@ -2150,25 +2150,11 @@ def _validate_connect_endpoint_str(ep_string):
     # endpoint-string
     clientFromString(reactor, nativeString(ep_string))
 
+# XXX get rid of this, just flip the bool in the table
 
+# XXX shae: give developers some guidance on how best to add
+# "experimental" thing .. i.e. remind them they _might_ have to delete
+# it someday, i.e. remove config / tables / columns / etc
 
-def _enable_feature_invites(config):
-    print("enable invites", config)
-
-
-def _disable_feature_invites(config):
-    print("disable invites", config)
-
-# available optional features, with functions to run when they are
-# enabled or disabled. The global config table "features" remembers
-# whether a particular feature is on or off currently.
-_features = {
-    "invites": {
-        "enable": _enable_feature_invites,
-        "disable": _disable_feature_invites,
-        "global-config": [],
-        "folder-config": [
-        ],
-    },
-}
-
+# available optional features
+_features = {"invites"}
