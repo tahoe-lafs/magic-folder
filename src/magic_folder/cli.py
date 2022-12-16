@@ -79,6 +79,7 @@ from .migrate import (
 )
 from .config import (
     load_global_configuration,
+    describe_experimental_features,
 )
 from .join import (
     magic_folder_join
@@ -176,11 +177,12 @@ class ConfigOptions(usage.Options):
         # ("client-endpoint", "c", None,
         #  "The Twisted client-string for our REST API (only required if auto-converting"
         #  " from the --listen-endpoint fails)"),
+        ("enable", None, None, "Enable experimental feature"),
+        ("disable", None, None, "Disable experimental feature"),
     ]
 
     optFlags = [
-        ("enable-invites", None, "Enable experimental invite/join functionality"),
-        ("disable-invites", None, "Disable experimental invite/join functionality"),
+        ("features", None, "List available experimental features"),
     ]
 
     description = (
@@ -193,10 +195,14 @@ def set_config(options):
     """
     Change configuration options
     """
-    if options["enable-invites"]:
-        yield options.parent.client.enable_feature("invites")
-    elif options["disable-invites"]:
-        yield options.parent.client.disable_feature("invites")
+    if options["features"]:
+        print(describe_experimental_features())
+        return
+
+    if options["enable"]:
+        yield options.parent.client.enable_feature(options["enable"])
+    elif options["disable"]:
+        yield options.parent.client.disable_feature(options["disable"])
     else:
         print(options)
 

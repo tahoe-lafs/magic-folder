@@ -16,6 +16,7 @@ __all__ = [
 import re
 import hashlib
 import time
+import textwrap
 from collections import (
     deque,
 )
@@ -2150,11 +2151,43 @@ def _validate_connect_endpoint_str(ep_string):
     # endpoint-string
     clientFromString(reactor, nativeString(ep_string))
 
-# XXX get rid of this, just flip the bool in the table
 
-# XXX shae: give developers some guidance on how best to add
-# "experimental" thing .. i.e. remind them they _might_ have to delete
-# it someday, i.e. remove config / tables / columns / etc
+# Currently Available Experimental Features
+#
+# When making a new optional feature, remember that the lifecycle of
+# the experimental feature will be that it is introduced at some
+# revision and then in a future revision will either become a
+# permanent feature (i.e. HTTP URL moves to /v1 or so) OR it will be
+# deleted.
+#
+# If the feature is deleted, any changes to configuration tables
+# should be un-done (by a new SchemaVersion). Bear this in mind when
+# adding state to the global or magic-folder configurations.
 
-# available optional features
-_features = {"invites"}
+# map from "feature-name" to a description of that feature for users
+_features = {
+    "invites": (
+        'Use magic-wormhole to pair other devices to a folder.\n'
+        'This adds the "magic-folder pair" and "magic-folder join"\n'
+        'subcommands. Note that using either of these commands\n'
+        'will cause communication with a third-party "mailbox server"\n'
+        'which by default is relay.magic-wormhole.io'
+    ),
+}
+
+
+def describe_experimental_features():
+    """
+    :returns str: suitable output to show a user describing available
+        experimental features.
+    """
+    return "\n".join(
+        "{}:\n{}".format(
+            name,
+            "\n".join(
+                textwrap.wrap(desc, initial_indent="    ", subsequent_indent="    ")
+            ),
+        )
+        for name, desc in _features.items()
+    )
+
