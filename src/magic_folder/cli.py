@@ -199,12 +199,18 @@ def set_config(options):
         print(describe_experimental_features())
         return
 
-    if options["enable"]:
-        yield options.parent.client.enable_feature(options["enable"])
-    elif options["disable"]:
-        yield options.parent.client.disable_feature(options["disable"])
-    else:
-        print(options)
+    try:
+        if options["enable"]:
+            yield options.parent.client.enable_feature(options["enable"])
+        elif options["disable"]:
+            yield options.parent.client.disable_feature(options["disable"])
+        else:
+            print(options)
+    except MagicFolderApiError as err:
+        if err.code >= 400 and err.code < 500:
+            print("Error: {}".format(err.reason))
+        else:
+            raise
 
 
 class MigrateOptions(usage.Options):
