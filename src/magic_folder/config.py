@@ -2168,7 +2168,7 @@ def _validate_connect_endpoint_str(ep_string):
 _features = {
     "invites": (
         'Use magic-wormhole to pair other devices to a folder.\n'
-        'This adds the "magic-folder pair" and "magic-folder join"\n'
+        'This enables the "magic-folder pair" and "magic-folder join"\n'
         'subcommands. Note that using either of these commands\n'
         'will cause communication with a third-party "mailbox server"\n'
         'which by default is relay.magic-wormhole.io'
