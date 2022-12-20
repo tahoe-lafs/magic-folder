@@ -672,7 +672,6 @@ def run(options):
     # write our PID to it)
     with check_pid_process(pidfile, Logger()):
         # start the daemon services
-        # XXX can we provide a hook somewhere to re-create this on reload? or, how to reload config?
         service = MagicFolderService.from_config(reactor, config)
         yield service.run()
 
