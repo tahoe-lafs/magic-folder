@@ -467,42 +467,6 @@ def load_global_configuration(basedir):
             "'{}' doesn't exist.".format(db_fname.path),
         )
 
-    # okay, so we define "optional" SchemaUpgrades, but even if
-    # they're disabled we still increment the database version (so
-    # those are stable) but the statements are not run. They also must
-    # define an "undo" method.
-    #
-    # So when a feature is enabled we run the upgrade statements.
-    # ..and when a feature is _disabled_ we run the "undo" statements.
-    #
-    # The "undo" statements must put the database(s) back into the
-    # state they'd be in without having run them.
-
-
-    # XXX chicken vs. egg: we want to know which features are enabled
-    # (so that we can run their config schema-upgrades) ... but we
-    # need the global config database first.
-    #
-    # ...so, we could just get their upgrades and _then_ run the rest
-    # of the upgrades, _however_ that would potentially give unstable
-    # version numbers etc (e.g. what if we had version=1, then enabled
-    # invites for version=2, but then made a "real" release with some
-    # other upgrade?)
-    #
-    # ...so I think what we want is to put _all_ the schema stuff in
-    # the normal spot, but have some of them be "optional"? Can the
-    # "optional enable / disable" functions then just deal with this?
-    # they'd go through them and run the schema-upgrades for them
-    # ... and the "disable" would run some "undo" upgrade thing
-    # kind of seems fraught? maybe it's okay?
-    #
-    # or maybe we don't do all that complexity, and just let
-    # "optional" features stuff themselves into the schema..? kind of
-    # defeats the purpose of "optional" though -- and/but what if the
-    # _config_ data for an optional feature changes? what if we decide
-    # the feature isn't optional any more? (e.g. it goes away
-    # entirely, or becomes permanent)
-
     connection = _upgraded(
         _global_config_schema,
         sqlite3.connect(db_fname.path),
