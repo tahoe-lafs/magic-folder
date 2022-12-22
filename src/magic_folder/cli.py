@@ -196,7 +196,7 @@ def set_config(options):
     Change configuration options
     """
     if options["features"]:
-        print(describe_experimental_features())
+        print(describe_experimental_features(), file=options.stdout)
         return
 
     try:
@@ -205,10 +205,10 @@ def set_config(options):
         elif options["disable"]:
             yield options.parent.client.disable_feature(options["disable"])
         else:
-            print(options)
+            print(options, file=options.stdout)
     except MagicFolderApiError as err:
         if err.code >= 400 and err.code < 500:
-            print("Error: {}".format(err.reason))
+            print("Error: {}".format(err.reason), file=options.stderr)
         else:
             raise
 

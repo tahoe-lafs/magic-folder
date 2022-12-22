@@ -44,6 +44,7 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
+    describe_experimental_features,
 )
 from ..endpoints import (
     CannotConvertEndpointError,
@@ -51,6 +52,8 @@ from ..endpoints import (
 from ..cli import (
     BaseOptions,
     on_stdin_close,
+    MagicFolderCommand,
+    set_config,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -283,6 +286,41 @@ class TestShowConfig(SyncTestCase):
                 u'magic_folders': Equals({}),
             })
         )
+
+
+class TestSetConfig(SyncTestCase):
+    """
+    Confirm operation of 'magic-folder set-config' command
+    """
+
+    def setUp(self):
+        super(TestSetConfig, self).setUp()
+
+    def test_enable_feature(self):
+        """
+        enable an optional feature
+        """
+        options = MagicFolderCommand()
+        options.parseOptions(["set-config"])
+        set_config(options.subOptions)
+
+    def test_list_features(self):
+        """
+        list all feature with 'magic-folder set-config --features'
+        """
+        options = MagicFolderCommand()
+        options.parseOptions(["set-config", "--features"])
+
+        options.subOptions.stdout = StringIO()
+        set_config(options.subOptions)
+
+        self.assertThat(
+            options.subOptions.stdout.getvalue(),
+            Contains(
+                describe_experimental_features(),
+            )
+        )
+
 
 
 class TestStdinClose(SyncTestCase):
