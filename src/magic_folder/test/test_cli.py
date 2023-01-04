@@ -301,7 +301,9 @@ class TestSetConfig(SyncTestCase):
         enable an optional feature
         """
         options = MagicFolderCommand()
-        options.parseOptions(["set-config"])
+        options.parseOptions(["set-config", "--enable", "invites"])
+        options.stdout = options.subOptions.stdout = StringIO()
+
         set_config(options.subOptions)
 
     def test_list_features(self):
@@ -310,8 +312,8 @@ class TestSetConfig(SyncTestCase):
         """
         options = MagicFolderCommand()
         options.parseOptions(["set-config", "--features"])
+        options.stdout = options.subOptions.stdout = StringIO()
 
-        options.subOptions.stdout = StringIO()
         set_config(options.subOptions)
 
         self.assertThat(
