@@ -228,6 +228,9 @@ class Invite(object):
                 else:
                     print("no personal-dmd! trying some shit")
                     # check for something more explicit, like "read-only: true"?
+
+                    # XXX we agreed on an immutable, empty directory
+                    # here .. bonus if it can be LIT but who cares.
                     personal_dmd = Capability.from_string("URI:LIT:")
 
                 # everything checks out; add the invitee to our Collective DMD
