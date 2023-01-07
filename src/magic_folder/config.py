@@ -1820,7 +1820,12 @@ class GlobalConfigDatabase(object):
 
     def enable_feature(self, name):
         """
-        XXX FIXME
+        Turn an optional feature on.
+
+        :param str name: a valid name of an optional feature
+
+        :raises ValueError: if the feature name is invalid or if the
+            feature is already enabled
         """
         if name not in _features:
             raise ValueError(
@@ -1853,7 +1858,12 @@ class GlobalConfigDatabase(object):
 
     def disable_feature(self, name):
         """
-        XXX FIXME
+        Turn an optional feature off.
+
+        :param str name: a valid name for an optional feature.
+
+        :raises ValueError: if the feature name is invalid or if it is
+            not already on
         """
         if name not in _features:
             raise ValueError(
