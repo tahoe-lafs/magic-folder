@@ -21,37 +21,40 @@ To begin we outline some definitions and assumptions:
 * Every client has a **Personal mutable directory** that they hold the write-capability to.
   The corresponding read-capability appears in the **Collective**.
 
-Note that although we anthropomorphize the participants here with "Alice" and "Bob", the true participants are devices (not humans).
-
 
 Overview
 --------
 
-Alice has a magic-folder.
+Desktop has a magic-folder.
 She created this magic-folder, so she also has the **write** capability to the Collective; i.e. she is the admin.
-Alice wishes to add Bob as a member of the collective.
-She must send to Bob: a read-capability to the Collective and her chosen petname (as it will appear in the Collective).
-She must receive from Bob: a read-capability to a fresh "Personal" for Bob.
+Desktop wishes to add Laptop as a member of the folder.
+She must send to Laptop: a read-capability to the Collective.
+She must receive from Laptop: a read-capability to a fresh "Personal" directory for Laptop.
 
 It may be useful to exchange some other information; the above is a minimum.
+Desktop is the admin and thus decides what the Laptop device is called.
 
-We exchange messages between the Alice and Bob devices via a magic-wormhole.
-Besides the wormhole setup messages themselves, we exchange three messages.
-The JSON format of these is detailed later (they contain the information as above).
+We exchange messages between the Desktop and Laptop devices via a magic-wormhole.
+The built-in "app-versions" mechanism in magic-wormhole is used for protocol negotiation
+Besides the wormhole setup messages themselves, we exchange several message types.
+They are all JSON and the exact format of these is detailed later.
+
+It is **important to note** that only read-capabilities are ever exchanged.
+Write-capabilities must only ever exist on a single device.
 
 The flow is fairly straightforward:
 
-* on the Alice device, a wormhole invite-code is created
+* on the Desktop device, a wormhole invite-code is created
 
-* (out-of-band the code is securely communicated to the Bob device)
+* (out-of-band the code is securely communicated to the Laptop device)
 
-* on the Bob device, the wormhole code is presented to the wormhole server completing the wormhole
+* on the Laptop device, the wormhole code is presented to the wormhole server completing the wormhole
 
-* upon a successful wormhole, Alice posts her message and Bob posts his after creating his Personal.
+* upon a successful wormhole, Desktop posts her message and Laptop posts his after creating his Personal.
 
-* Alice creates the Collective entry and posts a final message. Bob closes the wormhole.
+* Desktop creates the Collective entry and posts a final message. Laptop closes the wormhole.
 
-* (If Alice failed to do this for some reason, an error message is posted instead).
+* (If Desktop failed to do this for some reason, an error message is posted instead).
 
 An illustration of the process:
 
@@ -61,23 +64,23 @@ An illustration of the process:
 Detailed Process
 ----------------
 
-Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory ``~/.magic-folder`` on both the Alice and Bob devices.
+Command-line examples assume that we have a correctly set-up and currently running magic-folder with configuration directory ``~/.magic-folder`` on both the Desktop and Laptop devices.
 
 
 Creating the Folder
 ~~~~~~~~~~~~~~~~~~~
 
-Alice creates a new magic-folder (called "funny-photos")::
+Desktop creates a new magic-folder (called "funny-photos")::
 
-    % magic-folder --config ~/.magic-folder add --name funny-photos --author alice ~/Documents/funny-photos
+    % magic-folder --config ~/.magic-folder add --name funny-photos --author desktop ~/Documents/funny-photos
 
 We can see that it was created::
 
     % magic-folder --config ~/.magic-folder list
     funny-photos:
-        location: /home/alice/Documents/funny-photos
-       stash-dir: /home/alice/.magic-folder/funny-photos/stash
-          author: Alice (public_key: ...)
+        location: /home/desktop/Documents/funny-photos
+       stash-dir: /home/desktop/.magic-folder/funny-photos/stash
+          author: Desktop (public_key: ...)
          updates: every 60s
            admin: True
 
@@ -85,51 +88,51 @@ Her magic-folder software will now have:
 
 - a write-capability to the "Collective" for "funny-photos".
 
-    - the "Collective" will contain a single entry "alice" pointing to the read-capability of Alice's "Personal"
+    - the "Collective" will contain a single entry "desktop" pointing to the read-capability of Desktop's "Personal"
 
     - we know we have a write-capability because ``admin: True``
 
-- the write-capability for Alice's "Personal"
+- the write-capability for Desktop's "Personal"
 
 Users don't usually need to see or care about the read- or write- capabilities; these are used with our Tahoe-LAFS client to do operations.
 However, if you do need them you can pass ``--include-secret-information`` to the ``magic-folder list`` command.
 
 
-Inviting Bob
+Inviting Laptop
 ~~~~~~~~~~~~
 
-To invite a new participant, Alice needs to send a piece of information and receive a piece of information.
+To invite a new participant, Desktop needs to send a piece of information and receive a piece of information.
 This is accomplished by communicating to the other device by means of `Magic Wormhole <http://magic-wormhole.io>`_.
 Since the pieces of information that we exchange are small, we do not need a "bulk transfer" connection and can send the data via the Magic Wormhole "mailbox" server .. so both deviecs don't strictly need to be online at the same time.
 Note that mailbox allocations "time out" so at least one side has to contact the mailbox server within this timeout window.
 
-The piece of information we need to send to Bob is the read-capablity for the "Collective".
-The piece of information we need to get from Bob is the read-capability for his "Personal".
+The piece of information we need to send to Laptop is the read-capablity for the "Collective".
+The piece of information we need to get from Laptop is the read-capability for his "Personal".
 
-Note that Alice never shares her write-capability to the Collective (nor to her own Personal) and Bob never shares his write-capability for his Personal.
+Note that Desktop never shares her write-capability to the Collective (nor to her own Personal) and Laptop never shares his write-capability for his Personal.
 
 .. note::
 
-   In tahoe-lafs 1.14.0 and earlier magic-folder the above features were not present; Alice could impersonate anyone.
+   In tahoe-lafs 1.14.0 and earlier magic-folder the above features were not present; Desktop could impersonate anyone.
    A passive observer of the invite-code could impersonate the invitee indefinitely.
 
-To start the invitation process, Alice runs ``magic-folder invite``.
-This process will tell Alice a code that looks like ``5-secret-words`` or similar.
-She must securely communicate this code to the invitee, Bob.
-Once the wormhole is established Alice's magic-folder client sends a message via the wormhole server as JSON::
+To start the invitation process, Desktop runs ``magic-folder invite``.
+This process will tell Desktop a code that looks like ``5-secret-words`` or similar.
+She must securely communicate this code to the invitee, Laptop.
+Once the wormhole is established Desktop's magic-folder client sends a message via the wormhole server as JSON::
 
     {
         "magic-folder-invite-version": 1,
         "folder-name": "<free-form string>",
         "collective-dmd": "<read-capability of the Collective>",
-        "petname": "bob"
+        "petname": "laptop"
     }
 
-Alice may start this process with the command-line::
+Desktop may start this process with the command-line::
 
-    % magic-folder --config ~/.magic-folder invite --name funny-photos bob
+    % magic-folder --config ~/.magic-folder invite --name funny-photos laptop
     Invite code: 5-secret-words
-      waiting for bob to accept...
+      waiting for laptop to accept...
 
 The CLI command accomplishes this using two HTTP APIs: one to start the invite and one to await its completion.
 The CLI will now block until the wormhole is completed.
@@ -140,24 +143,24 @@ See the HTTP API below for more details.
 Accepting the Invitation
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once Bob has received a magic-wormhole code from Alice (for example, "``5-secret-words``") he will use the ``magic-folder join`` command to complete the wormhole.
+Once Laptop has received a magic-wormhole code from Desktop (for example, "``5-secret-words``") he will use the ``magic-folder join`` command to complete the wormhole.
 
-This means that Bob's client contacts the magic-wormhole server and uses the code-phrase to complete the SPAKE2 transaction.
-At this point, Alice and Bob have a shared secret key and a "mailbox" allocated on the server.
-Alice will have sent the first message; Bob retrieves this and creates a mutable directory for his "Personal".
-Bob creates a message to send back to Alice encrypted using the shared secret (as JSON)::
+This means that Laptop's client contacts the magic-wormhole server and uses the code-phrase to complete the SPAKE2 transaction.
+At this point, Desktop and Laptop have a shared secret key and a "mailbox" allocated on the server.
+Desktop will have sent the first message; Laptop retrieves this and creates a mutable directory for his "Personal".
+Laptop creates a message to send back to Desktop encrypted using the shared secret (as JSON)::
 
     {
         "magic-folder-invite-version": 1,
-        "personal-dmd": "<read-capability of Bob's Personal>",
+        "personal-dmd": "<read-capability of Laptop's Personal>",
     }
 
-Bob will not close the wormhole; that will be done by Alice.
-Bob may accept the invite with the command-line::
+Laptop will not close the wormhole; that will be done by Desktop.
+Laptop may accept the invite with the command-line::
 
-    % magic-folder --config ~/.magic-folder join --author bobby --name hilarious-pics 5-secret-words ~/Documents/alice-fun-pix
+    % magic-folder --config ~/.magic-folder join --author laptopby --name hilarious-pics 5-secret-words ~/Documents/desktop-fun-pix
 
-If Bob wishes to reject the connection, a reject message is sent back (not implemented)::
+If Laptop wishes to reject the connection, a reject message is sent back (not implemented)::
 
     {
         "magic-folder-invite-version": 1,
@@ -170,15 +173,15 @@ If Bob wishes to reject the connection, a reject message is sent back (not imple
 Finalizing the Invite
 ~~~~~~~~~~~~~~~~~~~~~
 
-Once Alice receives Bob's reply message Alice adds Bob to the Collective.
+Once Desktop receives Laptop's reply message Desktop adds Laptop to the Collective.
 
-Alice writes a new entry into the "Collective" pointing to Bob's provided Personal read-capability.
-In this case, ``bob -> <Bob's Personal>``.
+Desktop writes a new entry into the "Collective" pointing to Laptop's provided Personal read-capability.
+In this case, ``laptop -> <Laptop's Personal>``.
 
-Alice sends a final message to Bob, either ``{"success": true, "petname": "bob"}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
+Desktop sends a final message to Laptop, either ``{"success": true, "petname": "laptop"}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
 
 This concludes the invitation process.
-All other participants will discover Bob when they next poll the Collective via the read-capabilitiy they were given.
+All other participants will discover Laptop when they next poll the Collective via the read-capabilitiy they were given.
 
 
 Exchanged Messages
@@ -186,16 +189,16 @@ Exchanged Messages
 
 Looking at the whole process from the magic-wormhole perspective, this is what happens:
 
-- Alice: allocates a wormhole code, sends the first invite message ``{"collective-dmd": "..."}``
-- Alice (the human): securely communicates the wormhole code to Bob (the human)
-- Bob: uses the wormhole code to complete the SPAKE2 handshake.
-- Bob: retrieves the first invite message.
-- Bob: creates Personal
-- Bob: sends the invite reply ``{"personal-dmd": "...", }``
-- Alice: retrieves the invite reply.
-- Alice: writes a new entry in the Collective (pointing at Bob's Personal read-capability)
-- Alice: sends confirmation message ``{"success": true, "petname": "...", }``
-- Alice: closes the wormhole.
+- Desktop: allocates a wormhole code, sends the first invite message ``{"collective-dmd": "..."}``
+- Desktop (the human): securely communicates the wormhole code to Laptop (the human)
+- Laptop: uses the wormhole code to complete the SPAKE2 handshake.
+- Laptop: retrieves the first invite message.
+- Laptop: creates Personal
+- Laptop: sends the invite reply ``{"personal-dmd": "...", }``
+- Desktop: retrieves the invite reply.
+- Desktop: writes a new entry in the Collective (pointing at Laptop's Personal read-capability)
+- Desktop: sends confirmation message ``{"success": true, "petname": "...", }``
+- Desktop: closes the wormhole.
 
 
 Invite HTTP API
