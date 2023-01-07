@@ -60,7 +60,7 @@ class IInviteCollection(Interface):
         :returns IInvite: an invite with the given ID (or KeyError)
         """
 
-    def create_invite(self, petname, folder_config, wormhole):
+    def create_invite(self, reactor, participant_name, mode, wormhole):
         """
         Create a brand new IInvite and add it to our collection
 
@@ -75,7 +75,8 @@ class IInvite(Interface):
 
     # folder is a MagicFolder instance I guess?
     folder = Attribute("The folder this Invite pertains to")
-    petname = Attribute("Our petname for this participant")
+    participant_name = Attribute("Our name for this participant")
+    participant_mode = Attribute("read-only or read-write")
     wormhole_code = Attribute("The wormhole code for this invite (or None)")
 
 
@@ -196,7 +197,7 @@ class Invite(object):
                     "kind": "join-folder",
                     "protocol": "invite-v1",
                     "folder-name": mf_config.name,
-                    "collective-dmd": collective_readcap.danger_real_capability_string(),
+                    "collective": collective_readcap.danger_real_capability_string(),
                     "participant-name": self.participant_name,
                     "mode": self.participant_mode,
                 }).encode("utf8")
@@ -224,12 +225,12 @@ class Invite(object):
                     )
 
                 elif kind == "join-folder-accept":
-                    if "personal-dmd" in reply_msg:
+                    if "personal" in reply_msg:
                         if self.participant_mode == "read-only":
                             raise ValueError(
                                 "Read-only peer sent a Personal capability"
                             )
-                        personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
+                        personal_dmd = Capability.from_string(reply_msg["personal"])
                         if not personal_dmd.is_readonly_directory():
                             raise InvalidInviteReply(
                                 invite=self,
@@ -347,10 +348,10 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     This does the opposite side of the invite to Invite.perform_invite()
     above. That is:
 
-    - create a fresh Personal DMD
-    - extract the read-capability to the Personal DMD
-    - send back our preferred petname and read-cap
-    - (await seeing our name added to the Collective DMD?)
+    - create a fresh Personal directory
+    - extract the read-capability to the Personal directory
+    - send back our read-cap (unless read-only)
+    - await final ack message
 
     :param str wormhole_code: an unused Magic Wormhole code
 
@@ -403,14 +404,14 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
             )
 
         # extract the Collective DMD
-        if "collective-dmd" not in invite_msg:
+        if "collective" not in invite_msg:
             raise ValueError(
-                "No 'collective-dmd' in invite"
+                "No 'collective' in invite"
             )
-        collective_dmd = Capability.from_string(invite_msg["collective-dmd"])
+        collective_dmd = Capability.from_string(invite_msg["collective"])
         if not collective_dmd.is_readonly_directory():
             raise ValueError(
-                "The 'collective-dmd' must be read-only"
+                "The 'collective' must be read-only"
             )
 
         # create a new Personal DMD for our new magic-folder
@@ -450,7 +451,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         reply = {
             "kind": "join-folder-accept",
             "protocol": "invite-v1",
-            "personal-dmd": personal_readonly_cap.danger_real_capability_string(),
+            "personal": personal_readonly_cap.danger_real_capability_string(),
         }
         yield wh.send_message(json.dumps(reply).encode("utf8"))
 
@@ -504,8 +505,8 @@ class InMemoryInviteManager(service.Service):
 
         :param IReactor reactor:
 
-        :param str petname: None or a user-defined petname
-            for the invited participant.
+        :param str participant_name: A user-defined name for the
+            invited participant.
 
         :param str mode: read-only or read-write
 
