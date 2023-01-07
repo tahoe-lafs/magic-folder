@@ -842,7 +842,7 @@ subDispatch = {
 }
 
 
-def dispatch_magic_folder_command(args):
+def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
     """
     Run a magic-folder command with the given args
 
@@ -850,6 +850,13 @@ def dispatch_magic_folder_command(args):
         magic-folder (sub)command.
     """
     options = MagicFolderCommand()
+    if stdout is not None:
+        options.stdout = stdout
+    if stderr is not None:
+        options.stderr = stderr
+    if client is not None:
+        options._client = client
+
     try:
         options.parseOptions(args)
     except usage.UsageError as e:

@@ -9,8 +9,12 @@ from twisted.internet.interfaces import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
+from twisted.internet.task import (
+    Clock,
+)
 from twisted.internet.defer import (
     succeed,
+    inlineCallbacks,
 )
 from twisted.python.failure import (
     Failure,
@@ -24,6 +28,9 @@ from twisted.python.runtime import (
 from zope.interface import (
     implementer,
 )
+from hyperlink import (
+    DecodedURL,
+)
 
 import attr
 
@@ -35,6 +42,11 @@ from testtools.matchers import (
     ContainsDict,
     Contains,
 )
+from treq.testing import (
+    RequestSequence,
+    StringStubbingResource,
+    StubTreq,
+)
 from .common import (
     AsyncTestCase,
     SyncTestCase,
@@ -44,7 +56,7 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
-    create_global_configuration,
+    create_testing_configuration,
     describe_experimental_features,
 )
 from ..endpoints import (
@@ -55,6 +67,10 @@ from ..cli import (
     on_stdin_close,
     MagicFolderCommand,
     set_config,
+    dispatch_magic_folder_command,
+)
+from ..client import (
+    create_magic_folder_client,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -289,47 +305,65 @@ class TestShowConfig(SyncTestCase):
         )
 
 
-class TestSetConfig(SyncTestCase):
+class TestSetConfig(AsyncTestCase):
     """
     Confirm operation of 'magic-folder set-config' command
     """
+    url = DecodedURL.from_text(u"http://invalid./v1/")
 
     def setUp(self):
         super(TestSetConfig, self).setUp()
-        self._base = self.mktemp()
-        self._config = create_global_configuration(
-            FilePath(self._base), "tcp:1", FilePath("/dev/null"), "tcp:localhost:1"
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
         )
 
+    @inlineCallbacks
     def test_enable_feature(self):
         """
         enable an optional feature
         """
-        options = MagicFolderCommand()
-        options._config = self._config
-        options.parseOptions(["set-config", "--enable", "invites"])
-        options.stdout = options.subOptions.stdout = StringIO()
+        stdout = StringIO()
+        stderr = StringIO()
 
-        set_config(options.subOptions)
-
-    def test_list_features(self):
-        """
-        list all feature with 'magic-folder set-config --features'
-        """
-        options = MagicFolderCommand()
-        options._config = self._config
-        options.parseOptions(["set-config", "--features"])
-        options.stdout = options.subOptions.stdout = StringIO()
-
-        set_config(options.subOptions)
-
-        self.assertThat(
-            options.subOptions.stdout.getvalue(),
-            Contains(
-                describe_experimental_features(),
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                (b"post",
+                 self.url.child("config", "enable-feature", "invites").to_text(),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Content-Length': [b'0'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 b""),
+                (200, {}, b"{}")
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
             )
         )
-
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_command(
+                ["--config", self.magic_config.path, "set-config",
+                 "--enable", "invites",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
 
 
 class TestStdinClose(SyncTestCase):
