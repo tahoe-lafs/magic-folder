@@ -112,7 +112,8 @@ class Invite(object):
     Create new invites using IInviteManager.create
     """
     uuid = attr.ib()  # unique ID
-    petname = attr.ib()
+    participant_name = attr.ib()
+    participant_mode = attr.ib(attr.validators.in_(["read-only", "read-write"]))
     _collection = attr.ib()  # IInviteCollection instance
     _wormhole = attr.ib()  # wormhole.IDeferredWormhole instance
     _code = None  # if non-None, our wormhole code
@@ -169,9 +170,9 @@ class Invite(object):
             existing_devices = yield participants.list()
             collective_readcap = mf_config.collective_dircap.to_readonly()
 
-            if self.petname in (dev.name for dev in existing_devices):
+            if self.participant_name in (dev.name for dev in existing_devices):
                 raise ValueError(
-                    "Already have participant '{}'".format(self.petname)
+                    "Already have participant '{}'".format(self.participant_name)
                 )
 
             with start_action(action_type="invite:welcome"):
@@ -188,10 +189,12 @@ class Invite(object):
 
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
-                    "magic-folder-invite-version": 1,
+                    "kind": "join-folder",
+                    "protocol": "invite-v1",
                     "folder-name": mf_config.name,
                     "collective-dmd": collective_readcap.danger_real_capability_string(),
-                    "petname": self.petname,
+                    "participant-name": self.participant_name,
+                    "mode": self.participant_mode,
                 }).encode("utf8")
                 self._wormhole.send_message(invite_message)
 
@@ -199,39 +202,49 @@ class Invite(object):
                 reply_data = yield self._wormhole.get_message()
                 reply_msg = json.loads(reply_data.decode("utf8"))
 
-            version = reply_msg.get("magic-folder-invite-version", None)
             self._code = None  # done with code, it's consumed
             self._consumed = True
 
             try:
-                if version != 1:
+                if reply_msg.get("protocol", None) != "invite-v1":
                     raise ValueError(
-                        "Invalid invite reply version: {}".format(version)
+                        "Invalid invite reply protocol"
                     )
-                if "reject-reason" in reply_msg:
+                kind = reply_msg.get("kind", None)
+                if kind not in ["join-folder-okay", "join-folder-reject"]:
+                    raise ValueError(
+                        "Invalid reply kind '{}'".format(kind)
+                    )
+                if kind == "join-folder-reject":
                     self._success = False
-                    self._reject_reason = reply_msg["reject-reason"]
+                    self._reject_reason = reply_msg.get("reject-reason", "No reason given")
                     raise InviteRejected(
                         invite=self,
-                        reason=reply_msg["reject-reason"],
+                        reason=self._reject_reason,
                     )
 
-                # XXX support read-only clients
-                # (remove requirement for personal-dmd .. can just say "ok" somehow)
-                if "personal-dmd" in reply_msg:
-                    personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
-                    if not personal_dmd.is_readonly_directory():
-                        raise InvalidInviteReply(
-                            invite=self,
-                            reason="Personal DMD must be a read-only directory",
-                        )
-                else:
-                    print("no personal-dmd! trying some shit")
-                    # check for something more explicit, like "read-only: true"?
-
-                    # XXX we agreed on an immutable, empty directory
-                    # here .. bonus if it can be LIT but who cares.
-                    personal_dmd = Capability.from_string("URI:LIT:")
+                if kind == "join-folder-okay":
+                    if "personal-dmd" in reply_msg:
+                        if self.participant_mode == "read-only":
+                            raise ValueError(
+                                "Read-only peer sent a Personal capability"
+                            )
+                        personal_dmd = Capability.from_string(reply_msg["personal-dmd"])
+                        if not personal_dmd.is_readonly_directory():
+                            raise InvalidInviteReply(
+                                invite=self,
+                                reason="Personal DMD must be a read-only directory",
+                            )
+                    else:
+                        if self.participant_mode != "read-only":
+                            raise ValueError(
+                                "Peer with mode '{}' did not send a Personal capability".format(
+                                    self.participant_mode,
+                                )
+                            )
+                        # to mark a read-only participant, we use an
+                        # empty immutable directory
+                        personal_dmd = yield tahoe_client.create_immutable_directory({})
 
                 # everything checks out; add the invitee to our Collective DMD
                 try:
@@ -337,10 +350,24 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
     welcome = yield wh.get_welcome()
     if 'motd' in welcome:
-        # XXX probably shouldn't print() in a "utility" method, but
+        # XXX almost certainly shouldn't print() in a "utility" method, but
         # also should surface the MotD somewhere..
         print(welcome['motd'])
     wh.set_code(wormhole_code)
+
+    versions = yield wh.get_versions()
+    print("VERSIONS", versions)
+    mf = versions.get('magic-folder', None)
+    if not mf:
+        raise ValueError(
+            "Other side doesn't support 'magic-folder' protocol"
+        )
+    supported_messages = mf.get('supported-messages', [])
+    if "invite-v1" not in supported_messages:
+        raise ValueError(
+            "Other side doesn't support 'invite-v1' message type"
+        )
+
     with start_action(action_type="join:get_invite") as action_code:
         invite_data = yield wh.get_message()
         invite_msg = json.loads(invite_data.decode("utf8"))
@@ -348,9 +375,13 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
     version = invite_msg.get("magic-folder-invite-version", None)
     try:
-        if version != 1:
+        if invite_msg.get("kind", None) != "join-folder":
             raise ValueError(
-                "Invalid invite-msg version: {}".format(version)
+                "Expected a 'join-folder' message"
+            )
+        if invite_msg.get("protocol", None) != "invite-v1":
+            raise ValueError(
+                "Invalid protocol: {}".format(version)
             )
 
         # extract the Collective DMD

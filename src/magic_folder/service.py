@@ -427,7 +427,17 @@ class MagicFolderService(MultiService):
             self.reactor,
             author_name,
             self._wormhole_factory(
-                appid=u"tahoe-lafs.org/magic-folder/invite",
+                appid=u"private.storage/magic-folder/invites",
+                # XXX this should probably be supplied from invite.py
+                # somewhere/how. And the appid above. Or wrapped into
+                # _wormhole_factory()?
+                versions={
+                    "magic-folder": {
+                        "supported-messages": [
+                            "join-v1",
+                        ],
+                    },
+                },
                 relay_url=self.config.wormhole_uri,
                 reactor=self.reactor,
             ),
