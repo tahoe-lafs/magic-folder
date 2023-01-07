@@ -199,6 +199,7 @@ class APIv1(object):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
+        print(failure)
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
@@ -443,19 +444,20 @@ class APIv1(object):
         The body of the request must be a JSON dict that has the
         following keys:
 
-        - "petname": arbitrary, valid author name
+        - "participant-name": arbitrary, valid author name
+        - "mode": "read-write" or "read-only"
         """
         body = _load_json(request.content.read())
-        if set(body.keys()) != {u"petname"}:
+        if set(body.keys()) != {u"participant-name", u"mode"}:
             raise _InputError(
-                u'Body must be {"petname": "..."}'
+                u'Body must be {"participant-name": "...", "mode": "read-write"}'
             )
-        author_name = body[u"petname"]
 
         try:
             invite = yield self._global_service.invite_to_folder(
                 folder_name,
-                author_name,
+                body[u"participant-name"],
+                body[u"mode"]
             )
         except ValueError as e:
             raise _InputError(str(e))

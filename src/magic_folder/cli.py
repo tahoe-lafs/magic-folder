@@ -397,11 +397,12 @@ def list_(options):
 
 
 class InviteOptions(usage.Options):
-    petname = None
-    synopsis = "PETNAME\n\nProduce an invite code for a new device called PETNAME"
+    participant_name = None
+    synopsis = "NAME\n\nProduce an invite code for a new device called NAME"
     stdin = StringIO(u"")
     optParameters = [
         ("folder", "n", None, "Name of an existing magic-folder"),
+        ("mode", "m", "read-write", "Mode of the invited device: read-write or read-only"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -409,11 +410,16 @@ class InviteOptions(usage.Options):
         "transmitted securely to the invitee."
     )
 
-    def parseArgs(self, petname):
+    def parseArgs(self, name):
         super(InviteOptions, self).parseArgs()
-        self.petname = petname
+        self.participant_name = name
 
     def postOptions(self):
+        valid_modes = ["read-write", "read-only"]
+        if self["mode"] not in valid_modes:
+            raise usage.UsageError(
+                "Mode must be one of: {}".format(", ".join(valid_modes))
+            )
         if self["folder"] is None:
             raise usage.UsageError(
                 "Must specify the --folder option"
@@ -425,15 +431,15 @@ def invite(options):
     client = options.parent.client
 
     # do HTTP request to the API
-    data = yield client.invite(options["folder"], options.petname)
+    data = yield client.invite(options["folder"], options.participant_name, options["mode"])
     print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
-    print(u"  waiting for {} to accept...".format(data["petname"]), file=options.stdout)
+    print(u"  waiting for {} to accept...".format(data["participant-name"]), file=options.stdout)
     options.stdout.flush()
 
     try:
         # second HTTP request to the API
         res = yield client.invite_wait(options["folder"], data["id"])
-        print("Successfully added as '{}'".format(res["petname"]), file=options.stdout)
+        print("Successfully added as '{}'".format(res["participant-name"]), file=options.stdout)
     except MagicFolderApiError as e:
         print("Error: {}".format(e.reason), file=options.stderr)
 
@@ -503,7 +509,7 @@ def join(options):
         None if options['disable-scanning'] else int(options["scan-interval"]),
     )
     if ans["success"]:
-        print("Successfully joined as '{}'".format(ans["petname"]))
+        print("Successfully joined as '{}'".format(ans["participant-name"]))
     else:
         print("Error joining: {}".format(ans["error"]))
 

@@ -61,15 +61,16 @@ def list_invites(options):
 class CreateInviteOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to add invite to"),
-        ("petname", "p", None, "Name to use for the invitee"),
+        ("participant-name", "p", None, "Name to use for the invitee"),
+        ("mode", "m", "read-write", "Mode for the invitee"),
     ]
 
     def postOptions(self):
         # required args
         if self['folder'] is None:
             raise usage.UsageError("--folder / -n is required")
-        if self['petname'] is None:
-            raise usage.UsageError("--petname / -p is required")
+        if self['participant-name'] is None:
+            raise usage.UsageError("--participant-name / -p is required")
 
 
 @inlineCallbacks
@@ -79,7 +80,8 @@ def create_invite(options):
     """
     res = yield options.parent.client.invite(
         options['folder'],
-        options['petname'],
+        options['participant-name'],
+        options['mode'],
     )
     print(json.dumps(res, indent=4), file=options.stdout)
 

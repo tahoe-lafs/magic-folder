@@ -410,7 +410,7 @@ class MagicFolderService(MultiService):
         self.status_service._maybe_update_clients()
 
     @inline_callbacks
-    def invite_to_folder(self, folder_name, author_name):
+    def invite_to_folder(self, folder_name, author_name, mode):
         """
         Create a new invite for a folder. This fires once the invite is
         created at the Magic Wormhole mailbox server; use
@@ -426,6 +426,7 @@ class MagicFolderService(MultiService):
         invite = yield folder_service.invite_manager.create_invite(
             self.reactor,
             author_name,
+            mode,
             self._wormhole_factory(
                 appid=u"private.storage/magic-folder/invites",
                 # XXX this should probably be supplied from invite.py
@@ -434,7 +435,7 @@ class MagicFolderService(MultiService):
                 versions={
                     "magic-folder": {
                         "supported-messages": [
-                            "join-v1",
+                            "invite-v1",
                         ],
                     },
                 },
@@ -479,9 +480,19 @@ class MagicFolderService(MultiService):
             scan_interval,
             self.tahoe_client,
             self._wormhole_factory(
-                appid=u"tahoe-lafs.org/magic-folder/invite",
+                appid=u"private.storage/magic-folder/invites",
                 relay_url=self.config.wormhole_uri,
                 reactor=self.reactor,
+                # XXX this should probably be supplied from invite.py
+                # somewhere/how. And the appid above. Or wrapped into
+                # _wormhole_factory()?
+                versions={
+                    "magic-folder": {
+                        "supported-messages": [
+                            "invite-v1",
+                        ],
+                    },
+                },
             ),
         )
         returnValue(inv)

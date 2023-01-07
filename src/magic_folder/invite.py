@@ -113,7 +113,7 @@ class Invite(object):
     """
     uuid = attr.ib()  # unique ID
     participant_name = attr.ib()
-    participant_mode = attr.ib(attr.validators.in_(["read-only", "read-write"]))
+    participant_mode = attr.ib(validator=attr.validators.in_(["read-only", "read-write"]))
     _collection = attr.ib()  # IInviteCollection instance
     _wormhole = attr.ib()  # wormhole.IDeferredWormhole instance
     _code = None  # if non-None, our wormhole code
@@ -184,8 +184,12 @@ class Invite(object):
                 self._wormhole.allocate_code(2)
                 self._code = yield self._wormhole.get_code()
                 action_code.add_success_fields(code=self._code)
-                for d in self._awaiting_code:
+                while self._awaiting_code:
+                    d = self._awaiting_code.pop()
                     d.callback(None)
+
+            versions = yield self._wormhole.get_versions()
+            _validate_versions(versions)
 
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
@@ -211,10 +215,6 @@ class Invite(object):
                         "Invalid invite reply protocol"
                     )
                 kind = reply_msg.get("kind", None)
-                if kind not in ["join-folder-okay", "join-folder-reject"]:
-                    raise ValueError(
-                        "Invalid reply kind '{}'".format(kind)
-                    )
                 if kind == "join-folder-reject":
                     self._success = False
                     self._reject_reason = reply_msg.get("reject-reason", "No reason given")
@@ -223,7 +223,7 @@ class Invite(object):
                         reason=self._reject_reason,
                     )
 
-                if kind == "join-folder-okay":
+                elif kind == "join-folder-accept":
                     if "personal-dmd" in reply_msg:
                         if self.participant_mode == "read-only":
                             raise ValueError(
@@ -246,29 +246,39 @@ class Invite(object):
                         # empty immutable directory
                         personal_dmd = yield tahoe_client.create_immutable_directory({})
 
+                else:  # unhandled "kind"
+                    raise ValueError(
+                        "Invalid reply kind '{}'".format(kind)
+                    )
+
+
                 # everything checks out; add the invitee to our Collective DMD
                 try:
                     yield tahoe_client.add_entry_to_mutable_directory(
                         mutable_cap=mf_config.collective_dircap,
-                        path_name=self.petname,
+                        path_name=self.participant_name,
                         entry_cap=personal_dmd,
                     )
                 except CannotAddDirectoryEntryError as e:
                     self._success = False
                     self._reject_reason = "Failed to add '{}' to collective: {}".format(
-                        self.petname,
+                        self.participant_name,
                         e,
                     )
                     final_message = {
-                        "success": False,
+                        "kind": "join-folder-ack",
+                        "protocol": "invite-v1",
                         "error": self._reject_reason,
+                        "success": False,
                     }
                 else:
-                    final_message = {
-                        "success": True,
-                        "petname": self.petname,
-                    }
                     self._success = True
+                    final_message = {
+                        "kind": "join-folder-ack",
+                        "protocol": "invite-v1",
+                        "participant-name": self.participant_name,
+                        "success": True,
+                    }
 
                 yield self._wormhole.send_message(
                     json.dumps(final_message).encode("utf8")
@@ -279,7 +289,8 @@ class Invite(object):
                 # with the wormhole
                 yield self._wormhole.close()
 
-                for d in self._awaiting_done:
+                while self._awaiting_done:
+                    d = self._awaiting_done.pop(0)
                     d.callback(None)
 
     @property
@@ -304,12 +315,30 @@ class Invite(object):
         """
         return {
             "id": self.uuid,
-            "petname": self.petname,
+            "participant-name": self.participant_name,
             "consumed": True if self._consumed else False,
             "success": True if self._success else False,
             # None on the invitee side, str on inviter side
             "wormhole-code": self.wormhole_code,
         }
+
+
+def _validate_versions(versions):
+    """
+    Confirm that the app-versions message contains semantically valid and correct information from the peer
+
+    :raises ValueError: upon any problems
+    """
+    mf = versions.get('magic-folder', None)
+    if not mf:
+        raise ValueError(
+            "Other side doesn't support 'magic-folder' protocol"
+        )
+    supported_messages = mf.get('supported-messages', [])
+    if "invite-v1" not in supported_messages:
+        raise ValueError(
+            "Other side doesn't support 'invite-v1' messages"
+        )
 
 
 @inline_callbacks
@@ -356,24 +385,13 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     wh.set_code(wormhole_code)
 
     versions = yield wh.get_versions()
-    print("VERSIONS", versions)
-    mf = versions.get('magic-folder', None)
-    if not mf:
-        raise ValueError(
-            "Other side doesn't support 'magic-folder' protocol"
-        )
-    supported_messages = mf.get('supported-messages', [])
-    if "invite-v1" not in supported_messages:
-        raise ValueError(
-            "Other side doesn't support 'invite-v1' message type"
-        )
+    _validate_versions(versions)
 
     with start_action(action_type="join:get_invite") as action_code:
         invite_data = yield wh.get_message()
         invite_msg = json.loads(invite_data.decode("utf8"))
         action_code.add_success_fields(invite=list(invite_msg.keys()))
 
-    version = invite_msg.get("magic-folder-invite-version", None)
     try:
         if invite_msg.get("kind", None) != "join-folder":
             raise ValueError(
@@ -381,7 +399,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
             )
         if invite_msg.get("protocol", None) != "invite-v1":
             raise ValueError(
-                "Invalid protocol: {}".format(version)
+                "Invalid protocol"
             )
 
         # extract the Collective DMD
@@ -421,7 +439,8 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
                 )
             except Exception:
                 reply = {
-                    "magic-folder-invite-version": 1,
+                    "kind": "join-folder-reject",
+                    "protocol": "invite-v1",
                     "reject-reason": "Failed to create folder locally"
                 }
                 yield wh.send_message(json.dumps(reply).encode("utf8"))
@@ -429,7 +448,8 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
         # send back our invite-reply
         reply = {
-            "magic-folder-invite-version": 1,
+            "kind": "join-folder-accept",
+            "protocol": "invite-v1",
             "personal-dmd": personal_readonly_cap.danger_real_capability_string(),
         }
         yield wh.send_message(json.dumps(reply).encode("utf8"))
@@ -478,7 +498,7 @@ class InMemoryInviteManager(service.Service):
         """
         return self._invites[id_]
 
-    def create_invite(self, reactor, petname, wh):
+    def create_invite(self, reactor, participant_name, mode, wh):
         """
         Create a fresh invite and add it to ourselves.
 
@@ -487,11 +507,14 @@ class InMemoryInviteManager(service.Service):
         :param str petname: None or a user-defined petname
             for the invited participant.
 
+        :param str mode: read-only or read-write
+
         :param IDeferredWormhole wh: the Magic Wormhole object to use
         """
         invite = Invite(
             uuid=str(uuid4()),
-            petname=petname,
+            participant_name=participant_name,
+            participant_mode=mode,
             collection=self,
             wormhole=wh,
         )
@@ -525,7 +548,7 @@ class InMemoryInviteManager(service.Service):
             pass
         self.folder_status.error_occurred(
             "Invite of '{}' failed: {}".format(
-                invite.petname,
+                invite.participant_name,
                 invite._reject_reason if invite._reject_reason is not None else str(fail.value),
             )
         )
