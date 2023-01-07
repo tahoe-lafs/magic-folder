@@ -14,13 +14,13 @@ diagram {
    desktop    -> wormhole-mailbox [label="claim"];
    desktop    <- wormhole-mailbox [label="mailbox open"];
 
-   laptop  -> wormhole-mailbox [label="PUT: invite{collective readcap: }"];
-   desktop    <- wormhole-mailbox [label="GET: invite{collective readcap: }"];
+   laptop  -> wormhole-mailbox [label="PUT: invite{collective: readcap }"];
+   desktop    <- wormhole-mailbox [label="GET: invite{collective: readcap }"];
 
 ... Desktop creates Personal directory\n(one write, one read cap) ...
 
-   desktop    -> wormhole-mailbox [label="PUT: accept{personal readcap: }"];
-   laptop  <- wormhole-mailbox [label="GET: accept{personal readcap: }"];
+   desktop    -> wormhole-mailbox [label="PUT: accept{personal: readcap }"];
+   laptop  <- wormhole-mailbox [label="GET: accept{personal: readcap }"];
 
 ... Laptop adds Desktop's read-only cap to Collective ...
 
