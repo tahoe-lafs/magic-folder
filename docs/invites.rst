@@ -11,30 +11,27 @@ Audience: fellow developers of Magic-Folder
 
 To begin we outline some definitions and assumptions:
 
-* **DMD**, abbrevition for Distributed Mutable Directory, is an actual Tahoe-LAFS mutable directory.
-  Tahoe demands that we co-ordinate multiple writes, effectively meaning that only a single device may hold the write-capability for any given DMD.
+* **mutable directory**, is a Tahoe-LAFS mutable directory.
+  Tahoe demands that we co-ordinate multiple writes, effectively meaning that only a single device may hold the write-capability for any given mutable.
 
-* One client ("the admin") holds a write-capability to a **Collective DMD** and thus has the ability to add new devices to that collection.
+* One client ("the admin") holds a write-capability to a **Collective mutable directory** and thus has the ability to add new devices to that collection.
   All other clients have a read-capability to the Collective so they may discover new devices.
-  Each entry in the Collective DMD points to a read-capability for the DMD of that participant device.
+  Each entry in the Collective points to a read-capability for the Personal mutable directory of that participant device.
 
-* Every client has a **Personal DMD** that they hold the write-capability to.
-  The corresponding read-capability appears in the **Collective DMD**.
+* Every client has a **Personal mutable directory** that they hold the write-capability to.
+  The corresponding read-capability appears in the **Collective**.
 
-* The **collective** is the set of clients subscribed to a given Magic Folder
-  We refer to the "Collective DMD" or just "Collective" as the Tahoe mutable containing the canonical list of participants.
-
-Note that although we anthropomorphize the participants here with "Alice" and "Bob", the true participants are devices not humans.
+Note that although we anthropomorphize the participants here with "Alice" and "Bob", the true participants are devices (not humans).
 
 
 Overview
 --------
 
 Alice has a magic-folder.
-She created this magic-folder, so she also has the **write** capability to the Collective DMD; i.e. she is the admin.
+She created this magic-folder, so she also has the **write** capability to the Collective; i.e. she is the admin.
 Alice wishes to add Bob as a member of the collective.
-She must send to Bob: a read-capability to the Collective DMD and her chosen petname (as it will appear in the Collective).
-She must receive from Bob: a read-capability to a fresh "Personal DMD" for Bob.
+She must send to Bob: a read-capability to the Collective and her chosen petname (as it will appear in the Collective).
+She must receive from Bob: a read-capability to a fresh "Personal" for Bob.
 
 It may be useful to exchange some other information; the above is a minimum.
 
@@ -50,7 +47,7 @@ The flow is fairly straightforward:
 
 * on the Bob device, the wormhole code is presented to the wormhole server completing the wormhole
 
-* upon a successful wormhole, Alice posts her message and Bob posts his after creating his Personal DMD.
+* upon a successful wormhole, Alice posts her message and Bob posts his after creating his Personal.
 
 * Alice creates the Collective entry and posts a final message. Bob closes the wormhole.
 
@@ -86,13 +83,13 @@ We can see that it was created::
 
 Her magic-folder software will now have:
 
-- a write-capability to the "Collective DMD" for "funny-photos".
+- a write-capability to the "Collective" for "funny-photos".
 
-    - the "Collective DMD" will contain a single entry "alice" pointing to the read-capability of Alice's "Personal DMD"
+    - the "Collective" will contain a single entry "alice" pointing to the read-capability of Alice's "Personal"
 
     - we know we have a write-capability because ``admin: True``
 
-- the write-capability for Alice's "Personal DMD"
+- the write-capability for Alice's "Personal"
 
 Users don't usually need to see or care about the read- or write- capabilities; these are used with our Tahoe-LAFS client to do operations.
 However, if you do need them you can pass ``--include-secret-information`` to the ``magic-folder list`` command.
@@ -106,10 +103,10 @@ This is accomplished by communicating to the other device by means of `Magic Wor
 Since the pieces of information that we exchange are small, we do not need a "bulk transfer" connection and can send the data via the Magic Wormhole "mailbox" server .. so both deviecs don't strictly need to be online at the same time.
 Note that mailbox allocations "time out" so at least one side has to contact the mailbox server within this timeout window.
 
-The piece of information we need to send to Bob is the read-capablity for the "Collective DMD".
-The piece of information we need to get from Bob is the read-capability for his "Personal DMD".
+The piece of information we need to send to Bob is the read-capablity for the "Collective".
+The piece of information we need to get from Bob is the read-capability for his "Personal".
 
-Note that Alice never shares her write-capability to the Collective DMD (nor to her own Personal DMD) and Bob never shares his write-capability for his Personal DMD.
+Note that Alice never shares her write-capability to the Collective (nor to her own Personal) and Bob never shares his write-capability for his Personal.
 
 .. note::
 
@@ -124,7 +121,7 @@ Once the wormhole is established Alice's magic-folder client sends a message via
     {
         "magic-folder-invite-version": 1,
         "folder-name": "<free-form string>",
-        "collective-dmd": "<read-capability of the Collective DMD>",
+        "collective-dmd": "<read-capability of the Collective>",
         "petname": "bob"
     }
 
@@ -147,12 +144,12 @@ Once Bob has received a magic-wormhole code from Alice (for example, "``5-secret
 
 This means that Bob's client contacts the magic-wormhole server and uses the code-phrase to complete the SPAKE2 transaction.
 At this point, Alice and Bob have a shared secret key and a "mailbox" allocated on the server.
-Alice will have sent the first message; Bob retrieves this and creates a mutable directory for his "Personal DMD".
+Alice will have sent the first message; Bob retrieves this and creates a mutable directory for his "Personal".
 Bob creates a message to send back to Alice encrypted using the shared secret (as JSON)::
 
     {
         "magic-folder-invite-version": 1,
-        "personal-dmd": "<read-capability of Bob's Personal DMD>",
+        "personal-dmd": "<read-capability of Bob's Personal>",
     }
 
 Bob will not close the wormhole; that will be done by Alice.
@@ -173,15 +170,15 @@ If Bob wishes to reject the connection, a reject message is sent back (not imple
 Finalizing the Invite
 ~~~~~~~~~~~~~~~~~~~~~
 
-Once Alice receives Bob's reply message Alice adds Bob to the Collective DMD.
+Once Alice receives Bob's reply message Alice adds Bob to the Collective.
 
-Alice writes a new entry into the "Collective DMD" pointing to Bob's provided Personal DMD read-capability.
-In this case, ``bob -> <Bob's Personal DMD>``.
+Alice writes a new entry into the "Collective" pointing to Bob's provided Personal read-capability.
+In this case, ``bob -> <Bob's Personal>``.
 
 Alice sends a final message to Bob, either ``{"success": true, "petname": "bob"}`` or ``{"success": false, "error": "the reason"}`` before closing the wormhole.
 
 This concludes the invitation process.
-All other participants will discover Bob when they next poll the Collective DMD via the read-capabilitiy they were given.
+All other participants will discover Bob when they next poll the Collective via the read-capabilitiy they were given.
 
 
 Exchanged Messages
@@ -193,10 +190,10 @@ Looking at the whole process from the magic-wormhole perspective, this is what h
 - Alice (the human): securely communicates the wormhole code to Bob (the human)
 - Bob: uses the wormhole code to complete the SPAKE2 handshake.
 - Bob: retrieves the first invite message.
-- Bob: creates Personal DMD
+- Bob: creates Personal
 - Bob: sends the invite reply ``{"personal-dmd": "...", }``
 - Alice: retrieves the invite reply.
-- Alice: writes a new entry in the Collective DMD (pointing at Bob's Personal DMD read-capability)
+- Alice: writes a new entry in the Collective (pointing at Bob's Personal read-capability)
 - Alice: sends confirmation message ``{"success": true, "petname": "...", }``
 - Alice: closes the wormhole.
 
