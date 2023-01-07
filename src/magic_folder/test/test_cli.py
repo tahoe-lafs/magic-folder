@@ -44,6 +44,7 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
+    create_global_configuration,
     describe_experimental_features,
 )
 from ..endpoints import (
@@ -295,12 +296,17 @@ class TestSetConfig(SyncTestCase):
 
     def setUp(self):
         super(TestSetConfig, self).setUp()
+        self._base = self.mktemp()
+        self._config = create_global_configuration(
+            FilePath(self._base), "tcp:1", FilePath("/dev/null"), "tcp:localhost:1"
+        )
 
     def test_enable_feature(self):
         """
         enable an optional feature
         """
         options = MagicFolderCommand()
+        options._config = self._config
         options.parseOptions(["set-config", "--enable", "invites"])
         options.stdout = options.subOptions.stdout = StringIO()
 
@@ -311,6 +317,7 @@ class TestSetConfig(SyncTestCase):
         list all feature with 'magic-folder set-config --features'
         """
         options = MagicFolderCommand()
+        options._config = self._config
         options.parseOptions(["set-config", "--features"])
         options.stdout = options.subOptions.stdout = StringIO()
 
