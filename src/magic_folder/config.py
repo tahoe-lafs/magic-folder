@@ -16,6 +16,7 @@ __all__ = [
 import re
 import hashlib
 import time
+import textwrap
 from collections import (
     deque,
 )
@@ -140,6 +141,15 @@ _global_config_schema = Schema([
             api_endpoint TEXT,                -- Twisted server-string for our HTTP API
             tahoe_node_directory TEXT,        -- path to our Tahoe-LAFS client state
             api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
+        );
+        """,
+    ]),
+    SchemaUpgrade([
+        """
+        CREATE TABLE features
+        (
+            [name] TEXT,
+            [enabled] BOOL
         );
         """,
     ]),
@@ -1831,6 +1841,93 @@ class GlobalConfigDatabase(object):
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET wormhole_uri=?", (url, ))
 
+    def is_valid_feature(self, name):
+        """
+        :returns bool: True if the named feature exists
+        """
+        return name in _features
+
+    def feature_enabled(self, name):
+        """
+        :returns bool: True if the named feature is enabled
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT name, enabled FROM features")
+            for n, enabled in cursor.fetchall():
+                if n == name:
+                    return enabled
+        return False
+
+    def enable_feature(self, name):
+        """
+        Turn an optional feature on.
+
+        :param str name: a valid name of an optional feature
+
+        :raises ValueError: if the feature name is invalid or if the
+            feature is already enabled
+        """
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if len(rows) and rows[0][1]:
+                raise ValueError("Feature '{}' already enabled".format(name))
+            if len(rows):
+                cursor.execute(
+                    "UPDATE features "
+                    "SET enabled=? "
+                    "WHERE name=?",
+                    (True, name)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO features "
+                    "VALUES (?, ?)",
+                    (name, True)
+                )
+
+    def disable_feature(self, name):
+        """
+        Turn an optional feature off.
+
+        :param str name: a valid name for an optional feature.
+
+        :raises ValueError: if the feature name is invalid or if it is
+            not already on
+        """
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if not rows or not rows[0][1]:
+                raise ValueError("Feature '{}' not enabled".format(name))
+            cursor.execute(
+                "UPDATE features "
+                "SET enabled=? "
+                "WHERE name=?",
+                (False, name)
+            )
+
     def list_magic_folders(self):
         """
         Return a generator that yields the names of all magic-folders
@@ -2068,3 +2165,43 @@ def _validate_connect_endpoint_str(ep_string):
     # since serverFromString is the only way to validate an
     # endpoint-string
     clientFromString(reactor, nativeString(ep_string))
+
+
+# Currently Available Experimental Features
+#
+# When making a new optional feature, remember that the lifecycle of
+# the experimental feature will be that it is introduced at some
+# revision and then in a future revision will either become a
+# permanent feature (i.e. HTTP URL moves to /v1 or so) OR it will be
+# deleted.
+#
+# If the feature is deleted, any changes to configuration tables
+# should be un-done (by a new SchemaVersion). Bear this in mind when
+# adding state to the global or magic-folder configurations.
+
+# map from "feature-name" to a description of that feature for users
+_features = {
+    "invites": (
+        'Use magic-wormhole to pair other devices to a folder.\n'
+        'This enables the "magic-folder pair" and "magic-folder join"\n'
+        'subcommands. Note that using either of these commands\n'
+        'will cause communication with a third-party "mailbox server"\n'
+        'which by default is relay.magic-wormhole.io'
+    ),
+}
+
+
+def describe_experimental_features():
+    """
+    :returns str: suitable output to show a user describing available
+        experimental features.
+    """
+    return "\n".join(
+        "{}:\n{}".format(
+            name,
+            "\n".join(
+                textwrap.wrap(desc, initial_indent="    ", subsequent_indent="    ")
+            ),
+        )
+        for name, desc in _features.items()
+    )

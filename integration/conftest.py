@@ -168,7 +168,7 @@ def tahoe_venv(request, reactor):
     parser = ConfigParser(strict=False)
     parser.read_string(output.decode("utf-8"))
 
-    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
+    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'env_dir')
 
     return VirtualEnv(FilePath(venv_dir))
 
