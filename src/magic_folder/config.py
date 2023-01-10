@@ -1812,7 +1812,7 @@ class GlobalConfigDatabase(object):
         """
         with self.database:
             cursor = self.database.cursor()
-            cursor.execute("SELECT (name, enabled) FROM features")
+            cursor.execute("SELECT name, enabled FROM features")
             for n, enabled in cursor.fetchall():
                 if n == name:
                     return enabled
