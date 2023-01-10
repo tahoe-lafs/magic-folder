@@ -9,8 +9,12 @@ from twisted.internet.interfaces import (
 from twisted.internet.testing import (
     MemoryReactorClock,
 )
+from twisted.internet.task import (
+    Clock,
+)
 from twisted.internet.defer import (
     succeed,
+    inlineCallbacks,
 )
 from twisted.python.failure import (
     Failure,
@@ -24,6 +28,9 @@ from twisted.python.runtime import (
 from zope.interface import (
     implementer,
 )
+from hyperlink import (
+    DecodedURL,
+)
 
 import attr
 
@@ -35,6 +42,11 @@ from testtools.matchers import (
     ContainsDict,
     Contains,
 )
+from treq.testing import (
+    RequestSequence,
+    StringStubbingResource,
+    StubTreq,
+)
 from .common import (
     AsyncTestCase,
     SyncTestCase,
@@ -44,6 +56,8 @@ from .fixtures import (
 )
 from ..config import (
     load_global_configuration,
+    create_testing_configuration,
+    describe_experimental_features,
 )
 from ..endpoints import (
     CannotConvertEndpointError,
@@ -51,6 +65,10 @@ from ..endpoints import (
 from ..cli import (
     BaseOptions,
     on_stdin_close,
+    dispatch_magic_folder_command,
+)
+from ..client import (
+    create_magic_folder_client,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -282,6 +300,183 @@ class TestShowConfig(SyncTestCase):
                 u'tahoe_node_directory': Equals(self.node_dir.path.path),
                 u'magic_folders': Equals({}),
             })
+        )
+
+
+class TestSetConfig(AsyncTestCase):
+    """
+    Confirm operation of 'magic-folder set-config' command
+    """
+    url = DecodedURL.from_text(u"http://invalid./v1/")
+
+    def setUp(self):
+        super(TestSetConfig, self).setUp()
+        self.magic_config = FilePath(self.mktemp())
+        self.global_config = create_testing_configuration(
+            self.magic_config,
+            FilePath(u"/no/tahoe/node-directory"),
+        )
+
+    @inlineCallbacks
+    def test_enable_feature(self):
+        """
+        enable an optional feature
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                (b"post",
+                 self.url.child("config", "enable-feature", "invites").to_text(),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Content-Length': [b'0'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 b""),
+                (200, {}, b"{}")
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
+            )
+        )
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_command(
+                ["--config", self.magic_config.path, "set-config",
+                 "--enable", "invites",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
+
+    @inlineCallbacks
+    def test_disable_feature_already_disabled(self):
+        """
+        try to disable an already disabled feature
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                (b"post",
+                 self.url.child("config", "disable-feature", "invites").to_text(),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Content-Length': [b'0'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 b""),
+                (400, {}, b'{"reason": "some kind of error"}')
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
+            )
+        )
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_command(
+                ["--config", self.magic_config.path, "set-config",
+                 "--disable", "invites",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
+        self.assertThat(
+            stderr.getvalue(),
+            Contains("some kind of error")
+        )
+
+    @inlineCallbacks
+    def test_disable_feature(self):
+        """
+        disable an optional feature
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        # 2-tuples of "expected request" and the corresponding reply
+        request_sequence = RequestSequence([
+            # ((method, url, params, headers, data), (code, headers, body)),
+            (
+                (b"post",
+                 self.url.child("config", "disable-feature", "invites").to_text(),
+                 {},
+                 {
+                     b'Host': [b'invalid.'],
+                     b'Content-Length': [b'0'],
+                     b'Connection': [b'close'],
+                     b'Authorization': [b'Bearer ' + self.global_config.api_token],
+                     b'Accept-Encoding': [b'gzip']
+                 },
+                 b""),
+                (200, {}, b"{}")
+            ),
+        ])
+        http_client = StubTreq(
+            StringStubbingResource(
+                request_sequence,
+            )
+        )
+        client = create_magic_folder_client(
+            Clock(),
+            self.global_config,
+            http_client,
+        )
+        with request_sequence.consume(self.fail):
+            yield dispatch_magic_folder_command(
+                ["--config", self.magic_config.path, "set-config",
+                 "--disable", "invites",
+                ],
+                stdout=stdout,
+                stderr=stderr,
+                client=client,
+            )
+
+    @inlineCallbacks
+    def test_list_features(self):
+        """
+        list optional features
+        """
+        stdout = StringIO()
+        stderr = StringIO()
+
+        yield dispatch_magic_folder_command(
+            ["--config", self.magic_config.path, "set-config",
+             "--features",
+            ],
+            stdout=stdout,
+            stderr=stderr,
+        )
+        self.assertThat(
+            stdout.getvalue(),
+            Contains(describe_experimental_features())
         )
 
 

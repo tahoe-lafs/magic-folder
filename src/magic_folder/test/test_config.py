@@ -87,6 +87,7 @@ from ..config import (
     MagicFolderConfig,
     endpoint_description_to_http_api_root,
     create_global_configuration,
+    create_testing_configuration,
     load_global_configuration,
 )
 from ..snapshot import (
@@ -649,7 +650,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.db.delete_all_local_snapshots_for(snapshot.relpath)
         with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
             self.db.get_local_snapshot(snapshot.relpath)
-
 
 
 class DeleteLocalSnapshotTests(SyncTestCase):
@@ -1381,3 +1381,63 @@ class ConflictTests(SyncTestCase):
             self.db.is_conflict_marker(conflict_path),
             Equals(True)
         )
+
+
+class OptionalFeatureTests(SyncTestCase):
+    """
+    Test optional features
+    """
+    def setUp(self):
+        super(OptionalFeatureTests, self).setUp()
+        self._basedir = FilePath(self.mktemp())
+        self._nodedir = FilePath(self.mktemp())
+        self.config = create_testing_configuration(self._basedir, self._nodedir)
+
+    def test_invalid_feature(self):
+        self.assertThat(
+            self.config.is_valid_feature("not-a-valid-feature"),
+            Equals(False)
+        )
+
+    def test_enable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.enable_feature("not-a-valid-feature")
+
+    def test_disable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.disable_feature("not-a-valid-feature")
+
+    def test_disable_but_wasnt(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            with self.assertRaises(ValueError):
+                self.config.disable_feature(valid_feature)
+
+    def test_enable_disable_feature(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )
+
+            with self.assertRaises(ValueError):
+                self.config.enable_feature(valid_feature)
+
+            self.config.disable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )

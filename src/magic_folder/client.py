@@ -45,7 +45,8 @@ from zope.interface import (
 import attr
 
 from .web import (
-    APIv1,
+    _create_v1_resource,
+    _create_experimental_resource,
     magic_folder_resource,
 )
 from .testing.web import (
@@ -190,6 +191,22 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
+    def enable_feature(self, feature):
+        """
+        Call the HTTP API to mark a given feature on. Error if it is
+        already on.
+        """
+        api_url = self.base_url.child(u"v1", u"config", u"enable-feature", feature)
+        return self._authorized_request("POST", api_url)
+
+    def disable_feature(self, feature):
+        """
+        Call the HTTP API to mark a given feature off. Error if it is
+        already off.
+        """
+        api_url = self.base_url.child(u"v1", u"config", u"disable-feature", feature)
+        return self._authorized_request("POST", api_url)
+
     @inline_callbacks
     def _authorized_request(self, method, url, body=b""):
         """
@@ -266,8 +283,9 @@ def create_testing_http_client(reactor, config, global_service, get_api_token, s
         in-memory objects. These objects obtain their data from the
         service provided
     """
-    v1_resource = APIv1(config, global_service, status_service).app.resource()
-    root = magic_folder_resource(get_api_token, v1_resource)
+    v1_resource = _create_v1_resource(config, global_service, status_service)
+    exp_resource = _create_experimental_resource(config, global_service)
+    root = magic_folder_resource(get_api_token, v1_resource, exp_resource)
     client = HTTPClient(
         agent=RequestTraversalAgent(root),
         data_to_body_producer=_SynchronousProducer,

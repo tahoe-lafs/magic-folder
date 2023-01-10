@@ -79,6 +79,7 @@ from .migrate import (
 )
 from .config import (
     load_global_configuration,
+    describe_experimental_features,
 )
 from .join import (
     magic_folder_join
@@ -161,6 +162,55 @@ def initialize(options):
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
         file=options.stdout,
     )
+
+
+class ConfigOptions(usage.Options):
+    """
+    Change configuration options in an existing Magic Folder daemon
+    directory.
+    """
+
+    optParameters = [
+        # should include these, probably "for completeness" but
+        # leaving out for now
+        # ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
+        # ("client-endpoint", "c", None,
+        #  "The Twisted client-string for our REST API (only required if auto-converting"
+        #  " from the --listen-endpoint fails)"),
+        ("enable", None, None, "Enable experimental feature"),
+        ("disable", None, None, "Disable experimental feature"),
+    ]
+
+    optFlags = [
+        ("features", None, "List available experimental features"),
+    ]
+
+    description = (
+        "Change configuration options"
+    )
+
+
+@inline_callbacks
+def set_config(options):
+    """
+    Change configuration options
+    """
+    if options["features"]:
+        print(describe_experimental_features(), file=options.stdout)
+        return
+
+    try:
+        if options["enable"]:
+            yield options.parent.client.enable_feature(options["enable"])
+        elif options["disable"]:
+            yield options.parent.client.disable_feature(options["disable"])
+        else:
+            print(options, file=options.stdout)
+    except MagicFolderApiError as err:
+        if err.code >= 400 and err.code < 500:
+            print("Error: {}".format(err.reason), file=options.stderr)
+        else:
+            raise
 
 
 class MigrateOptions(usage.Options):
@@ -256,7 +306,6 @@ class AddOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-
 
     def postOptions(self):
         super(AddOptions, self).postOptions()
@@ -722,6 +771,7 @@ class MagicFolderCommand(BaseOptions):
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
+        ["set-config", None, ConfigOptions, "Change configuration options."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
         ["add", None, AddOptions, "Add a new Magic Folder."],
@@ -781,6 +831,7 @@ subDispatch = {
     "init": initialize,
     "migrate": migrate,
     "show-config": show_config,
+    "set-config": set_config,
     "add": add,
     "invite": invite,
     "join": join,
@@ -791,7 +842,7 @@ subDispatch = {
 }
 
 
-def dispatch_magic_folder_command(args):
+def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
     """
     Run a magic-folder command with the given args
 
@@ -799,6 +850,13 @@ def dispatch_magic_folder_command(args):
         magic-folder (sub)command.
     """
     options = MagicFolderCommand()
+    if stdout is not None:
+        options.stdout = stdout
+    if stderr is not None:
+        options.stderr = stderr
+    if client is not None:
+        options._client = client
+
     try:
         options.parseOptions(args)
     except usage.UsageError as e:
