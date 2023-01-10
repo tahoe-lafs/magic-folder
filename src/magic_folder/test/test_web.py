@@ -31,7 +31,6 @@ from hypothesis.strategies import (
 
 from testtools.matchers import (
     AfterPreprocessing,
-    AllMatch,
     ContainsDict,
     Equals,
     Contains,
@@ -39,7 +38,6 @@ from testtools.matchers import (
     MatchesAny,
     MatchesDict,
     MatchesListwise,
-    MatchesPredicate,
     StartsWith,
 )
 from testtools.twistedsupport import (
@@ -105,7 +103,6 @@ from ..config import (
 )
 from ..web import (
     magic_folder_resource,
-    _create_v1_resource,
 )
 from ..util.file import (
     PathState,

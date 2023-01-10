@@ -65,8 +65,6 @@ from ..endpoints import (
 from ..cli import (
     BaseOptions,
     on_stdin_close,
-    MagicFolderCommand,
-    set_config,
     dispatch_magic_folder_command,
 )
 from ..client import (
