@@ -74,6 +74,7 @@ from .migrate import (
 from .config import (
     load_global_configuration,
     describe_experimental_features,
+    is_valid_experimental_feature,
 )
 from .service import (
     MagicFolderService,
@@ -445,6 +446,40 @@ def list_(options):
     )
 
 
+def experimental(name):
+    """
+    A class-decorator that marks an Options as related to an
+    experimental feature.
+
+    This makes the usage information display the experimental status
+    and how to turn it on.
+    """
+
+    if not is_valid_experimental_feature(name):
+        raise ValueError("{} is not an experimental feature".format(name))
+
+    def decorator(klass):
+        orig_usage = klass.getUsage
+
+        def usage_wrapper(self, *args, **kw):
+            usage = orig_usage(self, *args, **kw)
+            enabled = self.parent.config.feature_enabled(name)
+            return usage + (
+                "\nThis is an experimental feature. Turn it {} with:"
+                "\n    magic-folder --config {} set-config --{} {}".format(
+                    "off" if enabled else "on",
+                    self.parent["config"],
+                    "disable" if enabled else "enable",
+                    name,
+                )
+            )
+            return usage
+        klass.getUsage = usage_wrapper
+        return klass
+    return decorator
+
+
+@experimental("invites")
 class InviteOptions(usage.Options):
     participant_name = None
     synopsis = "NAME\n\nProduce an invite code for a new device called NAME"
@@ -493,6 +528,7 @@ def invite(options):
         print("Error: {}".format(e.reason), file=options.stderr)
 
 
+@experimental("invites")
 class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"
     dmd_write_cap = ""
@@ -795,8 +831,8 @@ class MagicFolderCommand(BaseOptions):
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
         ["add", None, AddOptions, "Add a new Magic Folder."],
-        ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
-        ["join", None, JoinOptions, "Join a Magic Folder."],
+        ["invite", None, InviteOptions, "Invite someone to a Magic Folder. (Experimental)"],
+        ["join", None, JoinOptions, "Join a Magic Folder. (Experimental)"],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders daemon process."],

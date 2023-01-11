@@ -46,6 +46,9 @@ from klein import Klein
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
+from .config import (
+    is_valid_experimental_feature,
+)
 from .invite import (
     InviteError,
 )
@@ -229,7 +232,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         Enable a feature
         """
         request.content.read()
-        if not global_config.is_valid_feature(feature_name):
+        if not is_valid_experimental_feature(feature_name):
             raise _InputError("Unknown feature '{}'".format(feature_name))
         try:
             global_config.enable_feature(feature_name)
@@ -243,7 +246,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         Disable a feature
         """
         request.content.read()
-        if not global_config.is_valid_feature(feature_name):
+        if not is_valid_experimental_feature(feature_name):
             raise _InputError("Unknown feature '{}'".format(feature_name))
         try:
             global_config.disable_feature(feature_name)

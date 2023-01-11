@@ -1724,6 +1724,13 @@ class MemoryTokenProvider(object):
         return self._api_token
 
 
+def is_valid_experimental_feature(name):
+    """
+    :returns bool: True if the named feature exists
+    """
+    return name in _features
+
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
@@ -1840,12 +1847,6 @@ class GlobalConfigDatabase(object):
         with self.database:
             cursor = self.database.cursor()
             cursor.execute("UPDATE config SET wormhole_uri=?", (url, ))
-
-    def is_valid_feature(self, name):
-        """
-        :returns bool: True if the named feature exists
-        """
-        return name in _features
 
     def feature_enabled(self, name):
         """

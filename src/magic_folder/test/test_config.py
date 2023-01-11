@@ -89,6 +89,7 @@ from ..config import (
     create_global_configuration,
     create_testing_configuration,
     load_global_configuration,
+    is_valid_experimental_feature,
 )
 from ..snapshot import (
     create_local_author,
@@ -1420,7 +1421,7 @@ class OptionalFeatureTests(SyncTestCase):
 
     def test_invalid_feature(self):
         self.assertThat(
-            self.config.is_valid_feature("not-a-valid-feature"),
+            is_valid_experimental_feature("not-a-valid-feature"),
             Equals(False)
         )
 
