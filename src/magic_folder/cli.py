@@ -879,6 +879,7 @@ def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
 
     try:
         options.parseOptions(args)
+        maybe_fail_experimental_command(options)
     except usage.UsageError as e:
         print("Error: {}".format(e))
         # if a user just typed "magic-folder" don't make them re-run
@@ -889,6 +890,37 @@ def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
         raise SystemExit(1)
 
     return run_magic_folder_options(options)
+
+
+# maps str -> str
+# "subcommand" -> "experimental feature"
+# where the experimental feature must exist in
+# magic_folder.config._features
+_subcommand_to_experimental_features = {
+    "invite": "invites",
+    "join": "invites",
+}
+
+def maybe_fail_experimental_command(options):
+    """
+    Attempt to produce an error early if the user used an experimental
+    feature that is not enabled. We could fail to find a configuration
+    at all, which means we don't know what commands are enabled or
+    not, so we let it through in that case.
+    """
+    exp_sub = _subcommand_to_experimental_features.get(options.subCommand, None)
+    print("maybe fail", exp_sub)
+    if exp_sub:
+        if not options.config.feature_enabled(exp_sub):
+            raise usage.UsageError(
+                '"magic-folder {}" depends on experimental feature "{}"'
+                ' which is not enabled. Use "magic-folder set-config'
+                ' --enable {}" to enable it.'.format(
+                    options.subCommand,
+                    exp_sub,
+                    options.subCommand,
+                )
+            )
 
 
 # If `--eliot-task-fields` is passed, then `maybe_enable_eliot_logging` will
