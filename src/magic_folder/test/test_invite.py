@@ -163,11 +163,11 @@ class FakeWormhole:
         raise NotImplementedError()
 
     def get_versions(self):
-        return {
+        return succeed({
             "magic-folder": {
                 "supported-messages": ["invite-v1"]
             }
-        }
+        })
 
     def derive_key(self, purpose, length):
         raise NotImplementedError()
@@ -561,7 +561,7 @@ class TestService(AsyncTestCase):
         )
 
         def create_wormhole(*args, **kw):
-            return FakeWormhole()
+            return self.wormhole
         self.service._wormhole_factory=create_wormhole
 
         return super(TestService, self).setUp()
@@ -570,5 +570,12 @@ class TestService(AsyncTestCase):
         """
         Create an invite for a particular folder
         """
+        self.wormhole = FakeWormhole([
+            json.dumps({
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+                "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+        ])
         d = self.service.invite_to_folder("foldername", "Elizabeth Feinler", "read-write")
         return d

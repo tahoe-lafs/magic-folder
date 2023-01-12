@@ -207,7 +207,11 @@ class Invite(object):
                 reply_data = yield self._wormhole.get_message()
                 reply_msg = json.loads(reply_data.decode("utf8"))
 
-            self._code = None  # done with code, it's consumed
+            # we are done with the code, but keep it in self._code
+            # because (especially in testing) it's possible to have
+            # run this whole method -- because all results are
+            # synchronously available -- before .await_code() gets
+            # called.
             self._consumed = True
 
             try:

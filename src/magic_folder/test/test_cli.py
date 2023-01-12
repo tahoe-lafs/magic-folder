@@ -19,6 +19,9 @@ from twisted.internet.defer import (
 from twisted.python.failure import (
     Failure,
 )
+from twisted.python.usage import (
+    UsageError,
+)
 from twisted.python.filepath import (
     FilePath,
 )
@@ -66,6 +69,7 @@ from ..cli import (
     BaseOptions,
     on_stdin_close,
     dispatch_magic_folder_command,
+    maybe_fail_experimental_command,
 )
 from ..client import (
     create_magic_folder_client,
@@ -166,6 +170,27 @@ class TestBaseOptions(SyncTestCase):
             str(ctx.exception),
             Contains("Incorrect token data")
         )
+
+class TestExperimental(SyncTestCase):
+    """
+    Tests relating to experimental commands
+    """
+
+    def setUp(self):
+        super(TestExperimental, self).setUp()
+        self.basedir = self.mktemp()
+        self.tahoedir = self.mktemp()
+        self.config = create_testing_configuration(FilePath(self.basedir), FilePath(self.tahoedir))
+        self.options = BaseOptions()
+        self.options._config = self.config
+
+    def test_fail_unenabled(self):
+        """
+        trying to run un-enabled experimental commands fails
+        """
+        self.options.subCommand = "invite"
+        with self.assertRaises(UsageError):
+            maybe_fail_experimental_command(self.options)
 
 
 class TestInitialize(SyncTestCase):
