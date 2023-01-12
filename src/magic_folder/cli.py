@@ -454,9 +454,7 @@ def experimental(name):
     This makes the usage information display the experimental status
     and how to turn it on.
     """
-
-    if not is_valid_experimental_feature(name):
-        raise ValueError("{} is not an experimental feature".format(name))
+    assert is_valid_experimental_feature(name)
 
     def decorator(klass):
         orig_usage = klass.getUsage

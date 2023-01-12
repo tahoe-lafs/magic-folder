@@ -206,7 +206,6 @@ def _add_klein_error_handlers(app):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
-        print(failure)
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)

@@ -163,7 +163,11 @@ class FakeWormhole:
         raise NotImplementedError()
 
     def get_versions(self):
-        raise NotImplementedError()
+        return {
+            "magic-folder": {
+                "supported-messages": ["invite-v1"]
+            }
+        }
 
     def derive_key(self, purpose, length):
         raise NotImplementedError()
@@ -256,8 +260,9 @@ class TestInviteManager(SyncTestCase):
         # we seed the wormhole with all the messages from the other side
         self.wormhole = FakeWormhole([
             json.dumps({
-                "magic-folder-invite-version": 1,
-                "personal-dmd": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+                "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
             }).encode("utf8"),
 
             json.dumps({
@@ -274,6 +279,7 @@ class TestInviteManager(SyncTestCase):
         inv = self.manager.create_invite(
             self.reactor,
             "Adele Goldberg",
+            "read-write",
             self.wormhole,
         )
 
@@ -282,9 +288,11 @@ class TestInviteManager(SyncTestCase):
             self.wormhole.get_sent_messages(),
             MatchesListwise([
                 ContainsDict({
-                    "magic-folder-invite-version": Equals(1),
-                    "collective-dmd": Equals(self.collective_dircap.danger_real_capability_string()),
-                    "petname": Equals("Adele Goldberg"),
+                    "kind": Equals("join-folder"),
+                    "protocol": Equals("invite-v1"),
+                    "collective": Equals(self.collective_dircap.danger_real_capability_string()),
+                    "participant-name": Equals("Adele Goldberg"),
+                    "mode": Equals("read-write"),
                 }),
                 ContainsDict({
                     "success": Equals(True),
@@ -313,7 +321,7 @@ class TestInviteManager(SyncTestCase):
             inv.marshal(),
             ContainsDict({
                 "id": Always(), # '48c773ff-ad0f-46a9-9ae0-69b2ed5aeb86',
-                "petname": Equals("Adele Goldberg"),
+                "participant-name": Equals("Adele Goldberg"),
                 "consumed": Equals(True),
                 "success": Equals(True),
                 "wormhole-code": Equals(None),
@@ -330,6 +338,7 @@ class TestInviteManager(SyncTestCase):
         inv = self.manager.create_invite(
             self.reactor,
             "Adele Goldberg",
+            "read-write",
             self.wormhole,
         )
 
@@ -349,7 +358,7 @@ class TestInviteManager(SyncTestCase):
             inv.marshal(),
             ContainsDict({
                 "id": Always(), # '48c773ff-ad0f-46a9-9ae0-69b2ed5aeb86',
-                "petname": Equals("Adele Goldberg"),
+                "participant-name": Equals("Adele Goldberg"),
                 "consumed": Equals(False),
                 "success": Equals(False),
                 "wormhole-code": Equals(None),
@@ -362,7 +371,8 @@ class TestInviteManager(SyncTestCase):
         """
         self.wormhole._will_receive = [
             json.dumps({
-                "magic-folder-invite-version": 1,
+                "kind": "join-folder-reject",
+                "protocol": "invite-v1",
                 "reject-reason": "not feeling it",
             }).encode("utf8"),
         ]
@@ -370,6 +380,7 @@ class TestInviteManager(SyncTestCase):
         inv = self.manager.create_invite(
             self.reactor,
             "Mary Keller",
+            "read-write",
             self.wormhole,
         )
 
@@ -389,7 +400,7 @@ class TestInviteManager(SyncTestCase):
             inv.marshal(),
             ContainsDict({
                 "id": Always(), # '48c773ff-ad0f-46a9-9ae0-69b2ed5aeb86',
-                "petname": Equals("Mary Keller"),
+                "participant-name": Equals("Mary Keller"),
                 "consumed": Equals(True),
                 "success": Equals(False),
                 "wormhole-code": Equals(None),
@@ -402,7 +413,8 @@ class TestInviteManager(SyncTestCase):
         """
         self.wormhole._will_receive = [
             json.dumps({
-                "magic-folder-invite-version": 0,
+                "kind": "join-folder-reject",
+                "protocol": "not-an-invite-protocol",
                 "reject-reason": "won't even matter",
             }).encode("utf8"),
         ]
@@ -410,6 +422,7 @@ class TestInviteManager(SyncTestCase):
         inv = self.manager.create_invite(
             self.reactor,
             "Jean Bartik",
+            "read-write",
             self.wormhole,
         )
 
@@ -418,7 +431,7 @@ class TestInviteManager(SyncTestCase):
             self.status.errors,
             MatchesListwise([
                 MatchesAll(
-                    Contains("Invalid invite reply version"),
+                    Contains("Invite of 'Jean Bartik' failed"),
                 )
             ])
         )
@@ -429,14 +442,16 @@ class TestInviteManager(SyncTestCase):
         """
         self.wormhole._will_receive = [
             json.dumps({
-                "magic-folder-invite-version": 1,
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
                 # not read-only -- other invalid ones could be immutable, ...?
-                "personal-dmd": self.invitee_dircap.danger_real_capability_string(),
+                "personal": self.invitee_dircap.danger_real_capability_string(),
             }).encode("utf8"),
         ]
         inv = self.manager.create_invite(
             self.reactor,
             "Frances Holder",
+            "read-write",
             self.wormhole,
         )
 
@@ -523,8 +538,9 @@ class TestService(AsyncTestCase):
         # we seed the wormhole with all the messages from the other side
         self.wormhole = FakeWormhole([
             json.dumps({
-                "magic-folder-invite-version": 1,
-                "personal-dmd": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+                "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
             }).encode("utf8"),
 
             json.dumps({
@@ -545,7 +561,6 @@ class TestService(AsyncTestCase):
         )
 
         def create_wormhole(*args, **kw):
-            print("ding", args, kw)
             return FakeWormhole()
         self.service._wormhole_factory=create_wormhole
 
@@ -555,7 +570,5 @@ class TestService(AsyncTestCase):
         """
         Create an invite for a particular folder
         """
-        d = self.service.invite_to_folder("foldername", "Elizabeth Feinler")
-        print(id(self.service._wormhole_factory))
-        print(id(self.manager._invites))
+        d = self.service.invite_to_folder("foldername", "Elizabeth Feinler", "read-write")
         return d
