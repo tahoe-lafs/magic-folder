@@ -102,12 +102,12 @@ class MagicFolderClientTests(SyncTestCase):
         """
         return self._client_method_request(
             "invite",
-            ("folder_name", "petname"),
+            ("folder_name", "petname", "read-write"),
             b"POST",
             "http://invalid./v1/magic-folder/folder_name/invite",
-            b'{"petname": "petname"}',
+            b'{"participant-name": "petname", "mode": "read-write"}',
             {
-                b"Content-Length": [b"22"],
+                b"Content-Length": [b"53"],
             },
         )
 
