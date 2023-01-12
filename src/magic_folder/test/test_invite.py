@@ -48,6 +48,7 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     succeed,
     Deferred,
+    inlineCallbacks,
 )
 
 from .common import (
@@ -579,3 +580,24 @@ class TestService(AsyncTestCase):
         ])
         d = self.service.invite_to_folder("foldername", "Elizabeth Feinler", "read-write")
         return d
+
+    @inlineCallbacks
+    def test_folder_invite_duplicate_participant(self):
+        """
+        Create an invite for a particular folder (but already have that
+        participant)
+        """
+        self.wormhole = FakeWormhole([
+            json.dumps({
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+                "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+        ])
+        yield self.service.invite_to_folder("foldername", "Kay McNulty", "read-write")
+
+        # new wormhole for the new invite
+
+        self.wormhole = FakeWormhole([])
+        with self.assertRaises(ValueError) as ctx:
+            yield self.service.invite_to_folder("foldername", "Kay McNulty", "read-write")

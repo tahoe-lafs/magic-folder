@@ -123,6 +123,7 @@ class Invite(object):
     _reject_reason = None  # if _success is False, this will say why
     _awaiting_code = attr.ib(default=attr.Factory(list))
     _awaiting_done = attr.ib(default=attr.Factory(list))
+    _had_error = attr.ib(default=None)  # if this invite ever failed, this is the failure
 
     def await_code(self):
         """
@@ -130,6 +131,8 @@ class Invite(object):
         """
         if self._code is not None:
             return succeed(None)
+        if self._had_error is not None:
+            return self._had_error
         d = Deferred()
         self._awaiting_code.append(d)
         return d
@@ -142,6 +145,8 @@ class Invite(object):
         """
         if self._consumed and self._success is not None:
             return succeed(None)
+        if self._had_error is not None:
+            return self._had_error
         d = Deferred()
         self._awaiting_done.append(d)
         return d
@@ -557,6 +562,7 @@ class InMemoryInviteManager(service.Service):
                 invite._reject_reason if invite._reject_reason is not None else str(fail.value),
             )
         )
+        invite._had_error = fail
         for x in invite._awaiting_code:
             x.errback(fail)
         for x in invite._awaiting_done:
