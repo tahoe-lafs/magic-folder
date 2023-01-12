@@ -195,7 +195,7 @@ class Invite(object):
                     d.callback(None)
 
             versions = yield self._wormhole.get_versions()
-            _validate_versions(versions)
+            validate_versions(versions)
 
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
@@ -333,7 +333,7 @@ class Invite(object):
         }
 
 
-def _validate_versions(versions):
+def validate_versions(versions):
     """
     Confirm that the app-versions message contains semantically valid and correct information from the peer
 
@@ -395,7 +395,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     wh.set_code(wormhole_code)
 
     versions = yield wh.get_versions()
-    _validate_versions(versions)
+    validate_versions(versions)
 
     with start_action(action_type="join:get_invite") as action_code:
         invite_data = yield wh.get_message()

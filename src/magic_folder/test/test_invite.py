@@ -73,6 +73,7 @@ from ..testing.web import (
 )
 from ..invite import (
     InMemoryInviteManager,
+    validate_versions,
 )
 from ..service import (
     MagicFolderService,
@@ -466,6 +467,52 @@ class TestInviteManager(SyncTestCase):
                 )
             ])
         )
+
+
+class TestVersionParser(SyncTestCase):
+    """
+    Tests related to the app-versions validation
+    """
+
+    def test_happy(self):
+        """
+        the only correct versions dict works
+        """
+        self.assertThat(
+            validate_versions({
+                "magic-folder": {
+                    "supported-messages": ["invite-v1"]
+                }
+            }),
+            Equals(None)
+        )
+
+    def test_no_magic_folders(self):
+        """
+        error if there's no magic-folders key at all
+        """
+        with self.assertRaises(ValueError):
+            validate_versions({})
+
+    def test_no_supported_messages(self):
+        """
+        error if there's no supported messages
+        """
+        with self.assertRaises(ValueError):
+            validate_versions({
+                "magic-folder": {}
+            })
+
+    def test_no_invite_v1(self):
+        """
+        error if there's no "invite-v1" in supported
+        """
+        with self.assertRaises(ValueError):
+            validate_versions({
+                "magic-folder": {
+                    "supported-messages": [],
+                }
+            })
 
 
 class TestService(AsyncTestCase):
