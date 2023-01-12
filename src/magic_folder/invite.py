@@ -303,7 +303,7 @@ class Invite(object):
         """
         Our wormhole code. ``None`` if we haven't allocated it yet.
         """
-        return self._code
+        return self._code if not self._consumed else None
 
     def is_accepted(self):
         """
