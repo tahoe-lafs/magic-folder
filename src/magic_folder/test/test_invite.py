@@ -621,3 +621,22 @@ class TestService(AsyncTestCase):
             str(ctx.exception),
             Equals("Read-only peer sent a Personal capability"),
         )
+
+    @inlineCallbacks
+    def test_folder_invite_capability_mismatch_write(self):
+        """
+        Invite someone read-write and they don't send a capability back
+        """
+        self.wormhole = FakeWormhole([
+            json.dumps({
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+            }).encode("utf8"),
+        ])
+        with self.assertRaises(ValueError) as ctx:
+            invite = yield self.service.invite_to_folder("foldername", "Betty Snyder", "read-write")
+            yield invite.await_done()
+        self.assertThat(
+            str(ctx.exception),
+            Contains("did not send a Personal capability")
+        )
