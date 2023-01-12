@@ -567,6 +567,7 @@ class TestService(AsyncTestCase):
 
         return super(TestService, self).setUp()
 
+    @inlineCallbacks
     def test_folder_invite(self):
         """
         Create an invite for a particular folder
@@ -578,8 +579,11 @@ class TestService(AsyncTestCase):
                 "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
             }).encode("utf8"),
         ])
-        d = self.service.invite_to_folder("foldername", "Elizabeth Feinler", "read-write")
-        return d
+        invite = yield self.service.invite_to_folder("foldername", "Elizabeth Feinler", "read-write")
+        self.assertThat(
+            invite.is_accepted(),
+            Equals(True)
+        )
 
     @inlineCallbacks
     def test_folder_invite_duplicate_participant(self):
@@ -639,4 +643,8 @@ class TestService(AsyncTestCase):
         self.assertThat(
             str(ctx.exception),
             Contains("did not send a Personal capability")
+        )
+        self.assertThat(
+            invite.is_accepted(),
+            Equals(False)
         )
