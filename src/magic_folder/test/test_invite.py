@@ -97,6 +97,8 @@ from magic_folder.snapshot import (
 )
 from magic_folder.tahoe_client import (
     create_tahoe_client,
+    CannotAddDirectoryEntryError,
+    TahoeAPIError,
 )
 from wormhole._interfaces import (
     IDeferredWormhole,
@@ -905,4 +907,97 @@ class TestAcceptInvite(AsyncTestCase):
         self.assertThat(
             str(ctx.exception),
             Contains("Expected a 'join-folder' message")
+        )
+
+    @inlineCallbacks
+    def test_error_wrong_protocol(self):
+        """
+        wrong sort of first message
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "join-folder",
+                "protocol": "not-invite-v1",
+                "collective": self.invitee_dircap.danger_real_capability_string(),
+            }).encode("utf8"),
+        ]
+
+        with self.assertRaises(ValueError) as ctx:
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Kathleen Booth",
+                self.folder_dir, 30, 30,
+                self.tahoe_client,
+                self.wormhole
+            )
+        self.assertThat(
+            str(ctx.exception),
+            Contains("Invalid protocol")
+        )
+
+    @inlineCallbacks
+    def test_error_no_collective(self):
+        """
+        must have a collective
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "join-folder",
+                "protocol": "invite-v1",
+            }).encode("utf8"),
+        ]
+
+        with self.assertRaises(ValueError) as ctx:
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Kathleen Booth",
+                self.folder_dir, 30, 30,
+                self.tahoe_client,
+                self.wormhole
+            )
+        self.assertThat(
+            str(ctx.exception),
+            Contains("No 'collective'")
+        )
+
+    @inlineCallbacks
+    def test_error_cannot_edit_mutable(self):
+        """
+        Tahoe can't create the directory entry
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "join-folder",
+                "protocol": "invite-v1",
+                "collective": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+
+            json.dumps({
+                "success": True,
+            }).encode("utf8"),
+        ]
+
+        # arrange for some tahoe error to happen
+        self.tahoe_client.mutables_bad(
+            CannotAddDirectoryEntryError(
+                "foo",
+                TahoeAPIError(500, "some tahoe error"),
+            )
+        )
+        with self.assertRaises(Exception) as ctx:
+            answer = yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Kathleen Booth",
+                self.folder_dir, 30, 30,
+                self.tahoe_client,
+                self.wormhole
+            )
+
+        # error is passed back
+        self.assertThat(
+            str(ctx.exception),
+            Contains("Couldn't add foo to directory")
         )
