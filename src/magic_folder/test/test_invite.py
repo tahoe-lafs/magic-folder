@@ -264,7 +264,7 @@ class TestInviteManager(SyncTestCase):
         # we seed the wormhole with all the messages from the other side
         self.wormhole = FakeWormhole([
             json.dumps({
-                "kind": "join-folder",
+                "kind": "join-folder-accept",
                 "protocol": "invite-v1",
                 "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
             }).encode("utf8"),
