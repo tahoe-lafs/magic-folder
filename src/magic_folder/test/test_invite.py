@@ -815,3 +815,94 @@ class TestAcceptInvite(AsyncTestCase):
             result,
             Equals({"success": True})
         )
+
+    @inlineCallbacks
+    def test_error_poll_interval(self):
+        """
+        poll interval must be positive
+        """
+        with self.assertRaises(ValueError):
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Fran Bilas", self.folder_dir,
+                -1,
+                30,
+                self.tahoe_client,
+                self.wormhole
+            )
+
+    @inlineCallbacks
+    def test_error_local_dir_exist(self):
+        """
+        local_dir must exist
+        """
+        with self.assertRaises(ValueError) as ctx:
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Fran Bilas",
+                FilePath("/dev/null"),
+                30,
+                30,
+                self.tahoe_client,
+                self.wormhole
+            )
+        self.assertThat(
+            str(ctx.exception),
+            Contains("must be an existing directory")
+        )
+
+    @inlineCallbacks
+    def test_error_writable_cap(self):
+        """
+        collective must be read-only
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "join-folder",
+                "protocol": "invite-v1",
+                "collective": self.invitee_dircap.danger_real_capability_string(),
+            }).encode("utf8"),
+        ]
+
+        with self.assertRaises(ValueError) as ctx:
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Gloria Ruth Gordon",
+                self.folder_dir, 30, 30,
+                self.tahoe_client,
+                self.wormhole
+            )
+        self.assertThat(
+            str(ctx.exception),
+            Contains("must be read-only")
+        )
+
+    @inlineCallbacks
+    def test_error_wrong_kind(self):
+        """
+        wrong sort of first message
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "not-join-folder",
+                "protocol": "invite-v1",
+                "collective": self.invitee_dircap.danger_real_capability_string(),
+            }).encode("utf8"),
+        ]
+
+        with self.assertRaises(ValueError) as ctx:
+            yield accept_invite(
+                self.reactor,
+                self.global_config,
+                "1-foo-bar", "manilla", "Ruth Lichterman",
+                self.folder_dir, 30, 30,
+                self.tahoe_client,
+                self.wormhole
+            )
+        self.assertThat(
+            str(ctx.exception),
+            Contains("Expected a 'join-folder' message")
+        )

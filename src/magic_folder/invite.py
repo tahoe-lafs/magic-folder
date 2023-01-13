@@ -380,7 +380,7 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         raise ValueError(
             "'poll-interval' must be a positive integer"
         )
-    if not local_dir.exists() and local_dir.isdir():
+    if not local_dir.exists() or not local_dir.isdir():
         raise ValueError(
             "Local path '{}' must be an existing directory".format(
                 local_dir.path,
