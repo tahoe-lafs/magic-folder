@@ -74,6 +74,7 @@ from ..testing.web import (
 from ..invite import (
     InMemoryInviteManager,
     validate_versions,
+    accept_invite,
 )
 from ..service import (
     MagicFolderService,
@@ -153,7 +154,8 @@ class FakeWormhole:
         return d
 
     def set_code(self, code):
-        raise NotImplementedError()
+        self._code = code
+        # XXX
 
     def input_code(self):
         raise NotImplementedError()
@@ -262,7 +264,7 @@ class TestInviteManager(SyncTestCase):
         # we seed the wormhole with all the messages from the other side
         self.wormhole = FakeWormhole([
             json.dumps({
-                "kind": "join-folder-accept",
+                "kind": "join-folder",
                 "protocol": "invite-v1",
                 "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
             }).encode("utf8"),
@@ -694,4 +696,122 @@ class TestService(AsyncTestCase):
         self.assertThat(
             invite.is_accepted(),
             Equals(False)
+        )
+
+
+class TestAcceptInvite(AsyncTestCase):
+    """
+    Tests relating to the accepting side of an invite via
+    accept_invite()
+    """
+
+    def setUp(self):
+        self.basedir = FilePath(self.mktemp())
+        self.nodedir = FilePath(self.mktemp())
+        self.folder_dir = FilePath(self.mktemp())
+
+        self.basedir.makedirs()
+        self.folder_dir.makedirs()
+
+        self.reactor = Clock()
+
+        self.root = create_fake_tahoe_root()
+        self.tahoe_client = create_tahoe_client(
+            DecodedURL.from_text(u"http://invalid./"),
+            create_tahoe_treq_client(self.root),
+        )
+
+        class FakeStatus:
+            def __init__(self):
+                self.errors = []
+
+            def error_occurred(self, err):
+                self.errors.append(err)
+        self.status = FakeStatus()
+
+        self.global_config = create_testing_configuration(self.basedir, self.nodedir)
+
+        self.magic_path = FilePath(self.mktemp())
+        self.magic_path.makedirs()
+        self.upload_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2:", b"")[1]
+        )
+        self.invitee_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2:", b"")[1]
+        )
+        dirdata = [
+            "dirnode",
+            {
+                "children": {
+                    u"Margaret Hamilton": [
+                        "filenode", {
+                            "mutable": False,
+                            "ro_uri": self.upload_dircap.to_readonly().danger_real_capability_string(),
+                            "format": "SDMF",
+                        }
+                    ],
+                }
+            }
+        ]
+        self.collective_dircap = Capability.from_string(
+            self.root.add_mutable_data(u"URI:DIR2-RO:", json.dumps(dirdata).encode("utf8"))[1]
+        )
+        self.config = self.global_config.create_magic_folder(
+            u"foldername",
+            self.magic_path,
+            create_local_author(u"Margaret Hamilton"),
+            self.collective_dircap,
+            self.upload_dircap,
+            60,
+            None,
+        )
+
+        self.manager = InMemoryInviteManager(
+            self.tahoe_client,
+            self.status,
+            self.config,
+        )
+        # we seed the wormhole with all the messages from the other side
+        self.wormhole = FakeWormhole([
+            json.dumps({
+                "kind": "join-folder",
+                "protocol": "invite-v1",
+                "collective": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+
+            json.dumps({
+                "success": True,
+            }).encode("utf8"),
+        ])
+
+        self.global_status = WebSocketStatusService(
+            self.reactor,
+            self.global_config,
+        )
+
+        self.service = MagicFolderService(
+            self.reactor,
+            self.global_config,
+            self.global_status,
+            self.tahoe_client,
+        )
+
+        def create_wormhole(*args, **kw):
+            return self.wormhole
+        self.service._wormhole_factory=create_wormhole
+
+        return super(TestAcceptInvite, self).setUp()
+
+    @inlineCallbacks
+    def test_accept(self):
+        result = yield accept_invite(
+            self.reactor,
+            self.global_config,
+            "1-foo-bar", "manilla", "Marlyn Meltzer",
+            self.folder_dir, 30, 30,
+            self.tahoe_client, self.wormhole
+        )
+        self.assertThat(
+            result,
+            Equals({"success": True})
         )
