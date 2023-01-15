@@ -487,7 +487,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         ]).encode("utf8")
 
     @app.handle_errors(InviteError)
-    def handle_invite_error(self, request, failure):
+    def handle_invite_error(request, failure):
         exc = failure.value
         request.setResponseCode(exc.code or http.NOT_ACCEPTABLE)
         _application_json(request)
@@ -495,7 +495,7 @@ def _create_v1_resource(global_config, global_service, status_service):
 
     @app.route("/magic-folder/<string:folder_name>/invite", methods=['POST'])
     @inline_callbacks
-    def create_invite(self, request, folder_name):
+    def create_invite(request, folder_name):
         """
         Create a new invite for a given folder.
 
@@ -512,7 +512,7 @@ def _create_v1_resource(global_config, global_service, status_service):
             )
 
         try:
-            invite = yield self._global_service.invite_to_folder(
+            invite = yield global_service.invite_to_folder(
                 folder_name,
                 body[u"participant-name"],
                 body[u"mode"]
@@ -523,7 +523,7 @@ def _create_v1_resource(global_config, global_service, status_service):
 
     @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
     @inline_callbacks
-    def await_invite(self, request, folder_name):
+    def await_invite(request, folder_name):
         """
         Await acceptance of a given invite.
 
@@ -537,7 +537,7 @@ def _create_v1_resource(global_config, global_service, status_service):
             raise _InputError(
                 u'Body must be {"id": "..."}'
             )
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
         invite = folder_service.invite_manager.get_invite(body[u"id"])
         yield invite.await_done()
         if invite.is_accepted():
@@ -552,7 +552,7 @@ def _create_v1_resource(global_config, global_service, status_service):
 
     @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
     @inline_callbacks
-    def accept_invite(self, request, folder_name):
+    def accept_invite(request, folder_name):
         """
         Accept an invite and create a new folder.
 
@@ -595,7 +595,7 @@ def _create_v1_resource(global_config, global_service, status_service):
 
         # create a folder via wormhole
         try:
-            reply = yield self._global_service.join_folder(
+            reply = yield global_service.join_folder(
                 wormhole_code=body["invite-code"],
                 folder_name=folder_name,
                 author_name=body["author"],
@@ -608,7 +608,7 @@ def _create_v1_resource(global_config, global_service, status_service):
             raise _InputError(str(e))
 
         # start the services for this folder
-        mf = self._global_service._add_service_for_folder(folder_name)
+        mf = global_service._add_service_for_folder(folder_name)
         yield mf.ready()
 
         request.setResponseCode(http.CREATED)
@@ -616,12 +616,12 @@ def _create_v1_resource(global_config, global_service, status_service):
         request.finish()
 
     @app.route("/magic-folder/<string:folder_name>/invites", methods=['GET'])
-    def list_invites(self, request, folder_name):
+    def list_invites(request, folder_name):
         """
         List pending invites.
         """
         _application_json(request)
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
         request.setResponseCode(http.CREATED)
         request.write(
             json.dumps(
