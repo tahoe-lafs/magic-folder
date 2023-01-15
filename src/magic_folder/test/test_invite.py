@@ -637,6 +637,34 @@ class TestService(AsyncTestCase):
         )
 
     @inlineCallbacks
+    def test_error_cannot_edit_mutable(self):
+        """
+        Tahoe can't create the directory entry
+        """
+        self.wormhole._will_receive = [
+            json.dumps({
+                "kind": "join-folder-accept",
+                "protocol": "invite-v1",
+                "personal": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+            }).encode("utf8"),
+        ]
+
+        # arrange for some tahoe error to happen
+        self.tahoe_client.mutables_bad(
+            CannotAddDirectoryEntryError(
+                "foo",
+                TahoeAPIError(500, "some tahoe error"),
+            )
+        )
+        with self.assertRaises(Exception) as ctx:
+            answer = yield self.service.invite_to_folder(
+                "foldername",
+                "Kathleen Booth",
+                "read-write"
+            )
+            yield answer.await_done()
+
+    @inlineCallbacks
     def test_folder_invite_duplicate_participant(self):
         """
         Create an invite for a particular folder (but already have that
@@ -960,44 +988,4 @@ class TestAcceptInvite(AsyncTestCase):
         self.assertThat(
             str(ctx.exception),
             Contains("No 'collective'")
-        )
-
-    @inlineCallbacks
-    def test_error_cannot_edit_mutable(self):
-        """
-        Tahoe can't create the directory entry
-        """
-        self.wormhole._will_receive = [
-            json.dumps({
-                "kind": "join-folder",
-                "protocol": "invite-v1",
-                "collective": self.invitee_dircap.to_readonly().danger_real_capability_string(),
-            }).encode("utf8"),
-
-            json.dumps({
-                "success": True,
-            }).encode("utf8"),
-        ]
-
-        # arrange for some tahoe error to happen
-        self.tahoe_client.mutables_bad(
-            CannotAddDirectoryEntryError(
-                "foo",
-                TahoeAPIError(500, "some tahoe error"),
-            )
-        )
-        with self.assertRaises(Exception) as ctx:
-            answer = yield accept_invite(
-                self.reactor,
-                self.global_config,
-                "1-foo-bar", "manilla", "Kathleen Booth",
-                self.folder_dir, 30, 30,
-                self.tahoe_client,
-                self.wormhole
-            )
-
-        # error is passed back
-        self.assertThat(
-            str(ctx.exception),
-            Contains("Couldn't add foo to directory")
         )

@@ -22,6 +22,9 @@ from twisted.internet.defer import (
     returnValue,
     succeed,
 )
+from twisted.python.failure import (
+    Failure,
+)
 
 import attr
 from eliot import (
@@ -143,7 +146,7 @@ class Invite(object):
             (this could mean an error or that the other side accepted the
             invite).
         """
-        if self._consumed and self._success is not None:
+        if self._consumed and self._success:
             return succeed(None)
         if self._had_error is not None:
             return self._had_error
@@ -271,6 +274,7 @@ class Invite(object):
                     )
                 except CannotAddDirectoryEntryError as e:
                     self._success = False
+                    self._had_error = Failure()
                     self._reject_reason = "Failed to add '{}' to collective: {}".format(
                         self.participant_name,
                         e,
@@ -281,6 +285,9 @@ class Invite(object):
                         "error": self._reject_reason,
                         "success": False,
                     }
+                except Exception:
+                    self._had_error = Failure()
+                    raise
                 else:
                     self._success = True
                     final_message = {
