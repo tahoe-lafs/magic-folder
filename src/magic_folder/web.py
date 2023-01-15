@@ -14,6 +14,9 @@ from nacl.encoding import (
 from autobahn.twisted.resource import (
     WebSocketResource,
 )
+from wormhole.errors import (
+    WormholeError,
+)
 
 from eliot import (
     write_failure,
@@ -174,6 +177,17 @@ def _add_klein_error_handlers(app):
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps(exc.to_json()).encode("utf8")
+
+    @app.handle_errors(WormholeError)
+    def handle_wormhole_error(request, failure):
+        exc = failure.value
+        request.setResponseCode(http.BAD_GATEWAY)
+        _application_json(request)
+        return json.dumps({
+            "reason": "Failed to establish Magic Wormhole: {}".format(
+                str(exc)
+            )
+        })
 
     @app.handle_errors(HTTPException)
     def handle_http_error(request, failure):
