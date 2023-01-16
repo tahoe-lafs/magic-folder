@@ -27,19 +27,19 @@ To begin we outline some definitions and assumptions:
 Overview
 --------
 
-Desktop has a magic-folder.
-She created this magic-folder, so she also has the **write** capability to the Collective; i.e. she is the admin.
+A "Desktop" device has a magic-folder.
+Since it created this magic-folder it also has the **write** capability to the Collective; i.e. the human controlling this device is the admin.
 Desktop wishes to add Laptop as a member of the folder.
-She must send to Laptop: a read-capability to the Collective.
-She must receive from Laptop: a read-capability to a fresh "Personal" directory for Laptop.
+Desktop must send to Laptop: a read-capability to the Collective.
+Deskopt must receive from Laptop: a read-capability to a fresh "Personal" directory for Laptop.
 
-(If the Laptop was a read-only participant, there's no Personal readcap to send back).
+(If the Laptop is invited as a read-only participant, there's no Personal readcap to send back).
 
 It may be useful to exchange some other information; the above is a minimum.
 Desktop is the admin and thus decides what the Laptop device is called.
 
 We exchange messages between the Desktop and Laptop devices via a magic-wormhole.
-The built-in "app-versions" mechanism in magic-wormhole is used for protocol negotiation
+The built-in "app-versions" mechanism in magic-wormhole is used for protocol negotiation.
 Besides the wormhole setup messages themselves, we exchange several message types.
 They are all JSON and the exact format of these is detailed later.
 
@@ -52,9 +52,9 @@ The flow is fairly straightforward:
 
 * (out-of-band the code is securely communicated to the Laptop device)
 
-* on the Laptop device, the wormhole code is presented to the wormhole server completing the wormhole
+* on the Laptop device, the wormhole code is presented to the wormhole server, completing the wormhole and allowing secure communication between the devices.
 
-* upon a successful wormhole, Desktop posts her message and Laptop posts his after creating his Personal.
+* upon a successful wormhole, Desktop posts its message and Laptop posts its (after creating his Personal directory and extracting the read-capability).
 
 * Desktop creates the Collective entry and posts a final message. Laptop closes the wormhole.
 
@@ -92,7 +92,7 @@ Desktop's magic-folder software will now have:
 
 - a write-capability to the "Collective" for "funny-photos".
 
-    - the "Collective" will contain a single entry "desktop" pointing to the read-capability of Desktop's "Personal" directory
+    - the "Collective" will contain a single entry (``"desktop"``) pointing to the read-capability of Desktop's "Personal" directory
 
     - we know we have a write-capability because ``admin: True``
 
@@ -107,11 +107,11 @@ Inviting Laptop
 
 To invite a new (read-write) participant, Desktop needs to send a piece of information and receive a piece of information.
 This is accomplished by communicating to the other device by means of `Magic Wormhole <http://magic-wormhole.io>`_.
-Since the pieces of information that we exchange are small, we do not need a "bulk transfer" connection and can send the data via the Magic Wormhole "mailbox" server alone .. so both deviecs don't strictly need to be online at the same time.
+Since the pieces of information that we exchange are small, we do not need a "bulk transfer" (aka Transit) connection and can send the data via the Magic Wormhole "mailbox" server alone .. so both devices don't strictly need to be online at the same time.
 Note that mailbox allocations "time out" so at least one side has to be connected to the mailbox server within this timeout window.
 
 The piece of information we need to send to Laptop is the read-capablity for the "Collective" directory.
-The piece of information we need to get from Laptop is the read-capability for the "Personal" directory (unless it is a read-only participant).
+The piece of information we need to get from Laptop is the read-capability for its "Personal" directory (unless it is a read-only participant).
 
 Note that Desktop never shares the write-capability to the Collective (nor to the Personal directory) and Laptop never shares the write-capability for the Personal directory.
 
@@ -121,7 +121,7 @@ Note that Desktop never shares the write-capability to the Collective (nor to th
    A passive observer of the invite-code could impersonate the invitee indefinitely.
 
 To start the invitation process, Desktop runs ``magic-folder invite``.
-This process will tell Desktop a code that looks like ``5-secret-words`` or similar.
+This process will tell the human running Desktop a code that looks like ``5-secret-words`` or similar.
 The human using Desktop must securely communicate this code to the human who runs Laptop.
 
 All magic-wormholes include a "versions" message through which applications can include arbitrary JSON information (intended for protocol versions and similar).
@@ -137,11 +137,11 @@ We use this mechanism for protocol negotiation, including this as the `app_versi
 
 This tells the other side that: we support magic-folder operations, and support the `invite-v1` messages.
 More message may be added in the future.
-Communictions MUST stop if `invite-v1` is not supported (close the mailbox).
+Communictions MUST stop if ``"invite-v1"`` is not supported (that is, close the mailbox).
 
-All actual messages include a `"kind"` and `"protocol"` key.
-The `"protocol"` MUST refer to one of the `"supported-messages"` that peer supports; in this case it will always be `"invite-v1"` for the protocol described in this document.
-We use `"kind"` to distinguish the sort of message this is.
+All actual messages include a ``"kind"`` and ``"protocol"`` key.
+The ``"protocol"`` MUST refer to one of the ``"supported-messages"`` that the peer supports; in this case it will always be ``"invite-v1"`` for the protocol described in this document.
+We use ``"kind"`` to distinguish the sort of message this is (within that protocol).
 
 Once the wormhole is established Desktop's magic-folder client sends a message via the wormhole server as JSON::
 
@@ -154,7 +154,7 @@ Once the wormhole is established Desktop's magic-folder client sends a message v
         "mode": "read-write",
     }
 
-The `"mode"` may be `"read-write"` or `"read-only"`.
+The ``"mode"`` may be ``"read-write"`` or ``"read-only"``.
 
 Desktop may start this process with the command-line::
 
@@ -174,9 +174,9 @@ Accepting the Invitation
 Once the human running Laptop has received a magic-wormhole code from the human running Desktop (for example, "``5-secret-words``") the ``magic-folder join`` command is used on the Latop device to complete the wormhole.
 
 This means that Laptop's client contacts the magic-wormhole server and uses the code-phrase to complete the SPAKE2 transaction.
-At this point, Desktop and Laptop have a shared secret key and a "mailbox" allocated on the server.
-Desktop will have sent the first message; Laptop retrieves this and creates the "Personal" mutable directory.
-Laptop sends back a message to Desktop (as with all wormhole messages these are encrypted using the shared secret)::
+At this point, Desktop and Laptop have a shared secret key and a "mailbox" allocated on the server -- that is, a secure communication path.
+Desktop will have sent the first message; Laptop retrieves this and creates the "Personal" mutable directory (unless it is read-only).
+Laptop sends back a message to Desktop (as with all wormhole messages these will be encrypted by the Wormhole library using the shared secret)::
 
     {
         "protocol": "invite-v1",
@@ -185,16 +185,16 @@ Laptop sends back a message to Desktop (as with all wormhole messages these are 
     }
 
 Laptop will not close the wormhole; that will be done by Desktop.
-Note that the `"personal"` key MUST be absent for read-only participants.
+Note that the ``"personal"`` key MUST be absent for read-only participants.
 Laptop may accept the invite with the command-line::
 
     % magic-folder --config ~/.magic-folder join --author laptop --name hilarious-pics 5-secret-words ~/Documents/desktop-fun-pix
 
-If Laptop wishes to reject the connection, a reject message is sent back (not implemented)::
+If Laptop wishes to reject the connection, a reject message is sent back::
 
     {
         "protocol": "invite-v1",
-        "kind": "join-folder-accept",
+        "kind": "join-folder-reject",
         "reject-reason": "free-form string explaining why"
     }
 
@@ -207,7 +207,7 @@ Finalizing the Invite
 Once Desktop receives Laptop's reply message Desktop adds Laptop to the Collective.
 
 Desktop writes a new entry into the "Collective" pointing to Laptop's provided Personal read-capability.
-When Laptop is a read-only particpapnt an empty immutable directory is added instead.
+In case Laptop is a read-only particpapnt an empty immutable directory is added instead.
 In this case, ``laptop -> <Laptop's Personal readcap>``.
 
 Desktop sends a final acknowledgement message to Laptop::
@@ -231,7 +231,7 @@ If there was a problem adding the participant, and error may be sent instead::
 After one of the above two messages are sent, the wormhole is closed (by Desktop, the inviter).
 
 This concludes the invitation process.
-All other participants will discover Laptop when they next poll the Collective via the read-capabilitiy they were given.
+Any other participants will discover Laptop when they next poll the Collective via the read-capabilitiy they were given.
 
 
 Exchanged Messages

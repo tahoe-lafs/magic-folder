@@ -233,15 +233,16 @@ POST `/v1/magic-folder/<folder-name>/invite`
 
 Create a new invite.
 The body of the invite is a JSON object containing the keys:
-* `petname`: maps to a string describing what to call the invitee when they join
+* `participant-name`: maps to a string describing what to call the invitee when they join
+* `mode`: `"read-write"` or `"read-only"` indicating what access the new participant has
 
 This will initiate the invite and returns the serialized invite.
-To await the end of the invite process, see the `.../invite-wait` endpoing.
+To await the end of the invite process, see the `.../invite-wait` endpoint.
 
 A serialized invite is a JSON object that has keys:
 
 * `id`: A UUID, like `92148d89-85ae-4677-8629-8ef6de54417d`
-* `petname`: the name to call the invitee in the Collective DMD
+* `participant-name`: the name to call the invitee in the Collective DMD
 * `consumed`: True if the wormhole code has been used up
 * `success`: True if the invite has completed successfully
 * `wormhole-code`: None or the text wormhole code
