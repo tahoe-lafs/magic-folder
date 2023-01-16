@@ -228,18 +228,19 @@ class MagicFolderEnabledNode(object):
                 name,
             )
 
-        returnValue(
-            cls(
-                reactor,
-                request,
-                base_dir,
-                name,
-                action,
-                tahoe,
-                magic_folder,
-                magic_folder_web_port,
-            )
+        mfnode = cls(
+            reactor,
+            request,
+            base_dir,
+            name,
+            action,
+            tahoe,
+            magic_folder,
+            magic_folder_web_port,
         )
+        yield mfnode.enable("invites")
+
+        returnValue(mfnode)
 
     @inline_callbacks
     def stop_magic_folder(self):
@@ -290,6 +291,19 @@ class MagicFolderEnabledNode(object):
         self.tahoe.resume()
 
     # magic-folder CLI API helpers
+
+    @inline_callbacks
+    def enable(self, exp_feature_name):
+        """
+        Enable an experimental feature
+        """
+        args = [
+            "--config", self.magic_config_directory,
+            "set-config",
+            "--enable", exp_feature_name,
+        ]
+        yield _magic_folder_runner(self.reactor, self.request, self.name, args)
+
 
     def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None):
         """
@@ -349,7 +363,7 @@ class MagicFolderEnabledNode(object):
         )
 
     @inline_callbacks
-    def invite(self, folder_name, invitee_petname):
+    def invite(self, folder_name, invitee_name, readwrite=True):
         """
         magic-folder invite
         """
@@ -358,13 +372,13 @@ class MagicFolderEnabledNode(object):
                 "--config", self.magic_config_directory,
                 "invite",
                 "--folder", folder_name,
-                invitee_petname,
+                "--mode", "read-write" if readwrite else "read-only",
+                invitee_name,
             ]
             proto = _MagicTextProtocol(
-                "waiting for {} to accept".format(invitee_petname),
+                "waiting for {} to accept".format(invitee_name),
                 print_logs=True,
             )
-            print("ZZZ", proto)
             package = "magic_folder"
             if self.request.config.getoption('coverage'):
                 prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
