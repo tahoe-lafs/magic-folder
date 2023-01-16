@@ -1,37 +1,12 @@
-import io
 import json
-from tempfile import mktemp
 
 from testtools.matchers import (
     Equals,
     Contains,
     ContainsDict,
     MatchesListwise,
-    MatchesStructure,
     MatchesAll,
-    AfterPreprocessing,
     Always,
-    HasLength,
-)
-from testtools.twistedsupport import (
-    succeeded,
-    failed,
-)
-from testtools import (
-    ExpectedException,
-)
-
-from hypothesis import (
-    assume,
-    given,
-    note,
-)
-from hypothesis.strategies import (
-    binary,
-    text,
-    just,
-    one_of,
-    integers,
 )
 
 from hyperlink import (
@@ -42,7 +17,6 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.internet.task import (
-    Cooperator,
     Clock,
 )
 from twisted.internet.defer import (
@@ -54,12 +28,6 @@ from twisted.internet.defer import (
 from .common import (
     SyncTestCase,
     AsyncTestCase,
-    success_result_of,
-)
-from .strategies import (
-    magic_folder_filenames,
-    remote_authors,
-    author_names,
 )
 from ..util.capabilities import (
     Capability,
@@ -85,15 +53,6 @@ from ..status import (
 
 from magic_folder.snapshot import (
     create_local_author,
-    create_author_from_json,
-    create_author,
-    create_snapshot,
-    create_snapshot_from_capability,
-    write_snapshot_to_tahoe,
-    LocalSnapshot,
-    UnknownPropertyError,
-    MissingPropertyError,
-    format_filenode,
 )
 from magic_folder.tahoe_client import (
     create_tahoe_client,
@@ -138,7 +97,7 @@ class FakeWormhole:
         if not self._code:
             self._code = "1-cranky-woodlark"
         if self._want_codes:
-            recievers = self._want_codes
+            receivers = self._want_codes
             self._want_codes = []
             for recv in receivers:
                 recv.callback(self._code)
@@ -425,7 +384,7 @@ class TestInviteManager(SyncTestCase):
             }).encode("utf8"),
         ]
 
-        inv = self.manager.create_invite(
+        self.manager.create_invite(
             self.reactor,
             "Jean Bartik",
             "read-write",
@@ -454,7 +413,7 @@ class TestInviteManager(SyncTestCase):
                 "personal": self.invitee_dircap.danger_real_capability_string(),
             }).encode("utf8"),
         ]
-        inv = self.manager.create_invite(
+        self.manager.create_invite(
             self.reactor,
             "Frances Holder",
             "read-write",
@@ -614,7 +573,7 @@ class TestService(AsyncTestCase):
 
         def create_wormhole(*args, **kw):
             return self.wormhole
-        self.service._wormhole_factory=create_wormhole
+        self.service._wormhole_factory = create_wormhole
 
         return super(TestService, self).setUp()
 
@@ -656,7 +615,7 @@ class TestService(AsyncTestCase):
                 TahoeAPIError(500, "some tahoe error"),
             )
         )
-        with self.assertRaises(Exception) as ctx:
+        with self.assertRaises(Exception):
             answer = yield self.service.invite_to_folder(
                 "foldername",
                 "Kathleen Booth",
@@ -682,7 +641,7 @@ class TestService(AsyncTestCase):
         # new wormhole for the new invite
 
         self.wormhole = FakeWormhole([])
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(ValueError):
             yield self.service.invite_to_folder("foldername", "Kay McNulty", "read-write")
 
     @inlineCallbacks
@@ -828,7 +787,7 @@ class TestAcceptInvite(AsyncTestCase):
 
         def create_wormhole(*args, **kw):
             return self.wormhole
-        self.service._wormhole_factory=create_wormhole
+        self.service._wormhole_factory = create_wormhole
 
         return super(TestAcceptInvite, self).setUp()
 

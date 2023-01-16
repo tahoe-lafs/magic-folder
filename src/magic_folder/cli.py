@@ -33,9 +33,6 @@ from twisted.web import http
 from twisted.logger import (
     Logger,
 )
-from treq.client import (
-    HTTPClient,
-)
 from wormhole.cli.public_relay import (
     RENDEZVOUS_RELAY,
 )
