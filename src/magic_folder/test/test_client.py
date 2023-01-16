@@ -143,13 +143,13 @@ class MagicFolderClientTests(SyncTestCase):
         """
         return self._client_method_request(
             "join",
-            ("folder_name", "2-suspicious-penguin", FilePath("/dev/null"), "amy", 123, 321),
+            ("folder_name", "2-suspicious-penguin", FilePath("."), "amy", 123, 321),
             b"POST",
             "http://invalid./v1/magic-folder/folder_name/join",
             json.dumps(
                 {
                     "invite-code": "2-suspicious-penguin",
-                    "local-directory": "/dev/null",
+                    "local-directory": ".",
                     "author": "amy",
                     "poll-interval": 123,
                     "scan-interval": 321,
