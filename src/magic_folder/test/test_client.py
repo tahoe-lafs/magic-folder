@@ -142,21 +142,23 @@ class MagicFolderClientTests(SyncTestCase):
         The /join API works
         """
         folder_dir = FilePath(self.mktemp()).asTextMode()
+        body = json.dumps(
+            {
+                "invite-code": "2-suspicious-penguin",
+                "local-directory": folder_dir.path,
+                "author": "amy",
+                "poll-interval": 123,
+                "scan-interval": 321,
+            }
+        ).encode("utf-8")
+
         return self._client_method_request(
             "join",
             ("folder_name", "2-suspicious-penguin", folder_dir, "amy", 123, 321),
             b"POST",
             "http://invalid./v1/magic-folder/folder_name/join",
-            json.dumps(
-                {
-                    "invite-code": "2-suspicious-penguin",
-                    "local-directory": folder_dir.path,
-                    "author": "amy",
-                    "poll-interval": 123,
-                    "scan-interval": 321,
-                }
-            ).encode("utf-8"),
+            body,
             {
-                b"Content-Length": ["{}".format(123 + len(folder_dir.path)).encode("utf8")],
+                b"Content-Length": ["{}".format(len(body)).encode("utf8")],
             },
         )
