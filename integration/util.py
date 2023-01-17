@@ -159,6 +159,7 @@ class MagicFolderEnabledNode(object):
             name,
             tahoe_web_port,
             magic_folder_web_port,
+            wormhole_url,
             storage,
     ):
         """
@@ -170,17 +171,18 @@ class MagicFolderEnabledNode(object):
         :param reactor: The reactor to use to launch the processes.
         :param tahoe_venv: Directory where our virtualenv is located.
         :param request: The pytest request object to use for cleanup.
-        :param bytes base_dir: A directory beneath which to place the
+        :param str base_dir: A directory beneath which to place the
             Tahoe-LAFS node.
-        :param bytes introducer_furl: The introducer fURL to configure the new
+        :param str introducer_furl: The introducer fURL to configure the new
             Tahoe-LAFS node with.
-        :param bytes flog_gatherer: The flog gatherer fURL to configure the
+        :param str flog_gatherer: The flog gatherer fURL to configure the
             new Tahoe-LAFS node with.
-        :param bytes name: A nickname to assign the new Tahoe-LAFS node.
-        :param bytes tahoe_web_port: An endpoint description of the web port
+        :param str name: A nickname to assign the new Tahoe-LAFS node.
+        :param str tahoe_web_port: An endpoint description of the web port
             for the new Tahoe-LAFS node to listen on.
-        :param bytes magic_folder_web_port: An endpoint description of the web
+        :param str magic_folder_web_port: An endpoint description of the web
             port for the new magic-folder process to listen on.
+        :param str wormhole_url: How to contact the Magic Folder mailbox
         :param bool storage: True if the node should offer storage, False
             otherwise.
         """
@@ -215,6 +217,7 @@ class MagicFolderEnabledNode(object):
                 base_dir,
                 name,
                 magic_folder_web_port,
+                wormhole_url,
             )
 
             # Run the magic-folder daemon
@@ -225,18 +228,19 @@ class MagicFolderEnabledNode(object):
                 name,
             )
 
-        returnValue(
-            cls(
-                reactor,
-                request,
-                base_dir,
-                name,
-                action,
-                tahoe,
-                magic_folder,
-                magic_folder_web_port,
-            )
+        mfnode = cls(
+            reactor,
+            request,
+            base_dir,
+            name,
+            action,
+            tahoe,
+            magic_folder,
+            magic_folder_web_port,
         )
+        yield mfnode.enable("invites")
+
+        returnValue(mfnode)
 
     @inline_callbacks
     def stop_magic_folder(self):
@@ -287,6 +291,19 @@ class MagicFolderEnabledNode(object):
         self.tahoe.resume()
 
     # magic-folder CLI API helpers
+
+    @inline_callbacks
+    def enable(self, exp_feature_name):
+        """
+        Enable an experimental feature
+        """
+        args = [
+            "--config", self.magic_config_directory,
+            "set-config",
+            "--enable", exp_feature_name,
+        ]
+        yield _magic_folder_runner(self.reactor, self.request, self.name, args)
+
 
     def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None):
         """
@@ -343,6 +360,75 @@ class MagicFolderEnabledNode(object):
                 "--name", folder_name,
                 "--really-delete-write-capability",
             ],
+        )
+
+    @inline_callbacks
+    def invite(self, folder_name, invitee_name, readwrite=True):
+        """
+        magic-folder invite
+        """
+        with self.action.context():
+            other_args = [
+                "--config", self.magic_config_directory,
+                "invite",
+                "--folder", folder_name,
+                "--mode", "read-write" if readwrite else "read-only",
+                invitee_name,
+            ]
+            proto = _MagicTextProtocol(
+                "waiting for {} to accept".format(invitee_name),
+                print_logs=True,
+            )
+            package = "magic_folder"
+            if self.request.config.getoption('coverage'):
+                prelude = [sys.executable, "-m", "coverage", "run", "-m", package]
+            else:
+                prelude = [sys.executable, "-m", package]
+
+            transport = self.reactor.spawnProcess(
+                proto,
+                sys.executable,
+                prelude + other_args,
+            )
+            yield proto.magic_seen
+
+            # extract the secret code
+            code = None
+            for line in proto._output.getvalue().split("\n"):
+                if line.startswith("Secret invite code:"):
+                    code = line.split(":")[1].strip()
+            if code is None:
+                raise Exception("Couldn't find invite code")
+            returnValue((code, proto, transport))
+
+    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5):
+        """
+        magic-folder join
+        """
+        args = [
+            "--config",
+            self.magic_config_directory,
+            "join",
+            "--name", folder_name,
+            "--author", author,
+            "--poll-interval", str(poll_interval),
+        ]
+        if scan_interval is None:
+            args += ["--disable-scanning"]
+        else:
+            args += [
+                "--scan-interval",
+                str(scan_interval),
+            ]
+        args += [
+            invite_code,
+            magic_directory,
+        ]
+        return _magic_folder_runner(
+            self.reactor,
+            self.request,
+            self.name,
+            args,
         )
 
     def show_config(self):
@@ -456,6 +542,52 @@ class MagicFolderEnabledNode(object):
         )
 
 
+@attr.s
+class WormholeMailboxServer:
+    """
+    A locally-running Magic Wormhole mailbox server
+    """
+    reactor = attr.ib()
+    process_transport = attr.ib()
+    url = attr.ib()
+
+    @classmethod
+    @inline_callbacks
+    def create(cls, reactor, request):
+        action = start_task(
+            action_type=u"integration:wormhole-mailbox",
+        )
+        with action.context():
+            args = [
+                sys.executable,
+                "-m",
+                "twisted",
+                "wormhole-mailbox",
+                # note, this tied to "url" below
+                "--port", "tcp:4000:interface=localhost",
+            ]
+            transport = yield run_service(
+                reactor,
+                request,
+                action_fields={
+                    "action_type": "integration:wormhole-mailbox",
+                },
+                magic_text="Starting reactor...",
+                executable=sys.executable,
+                args=args,
+                print_logs=False,  # they're Twisted struct-log JSON stuff
+            )
+            # XXX some sort of cleanup
+            #request.addfinalizer(partial(_cleanup_service_process, transport, protocol.exited, ctx))
+            returnValue(
+                cls(
+                    reactor,
+                    transport,
+                    url="ws://localhost:4000/v1",
+                )
+            )
+
+
 class _ProcessExitedProtocol(ProcessProtocol):
     """
     Internal helper that .callback()s on self.done when the process
@@ -558,7 +690,8 @@ def run_service(
     magic_text,
     executable,
     args,
-    cwd=None
+    cwd=None,
+    print_logs=True,
 ):
     """
     Start a service, and capture the output from the service in an eliot
@@ -581,7 +714,7 @@ def run_service(
     :return Deferred[IProcessTransport]: The started process.
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
-        protocol = _MagicTextProtocol(magic_text)
+        protocol = _MagicTextProtocol(magic_text, print_logs=print_logs)
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -597,6 +730,7 @@ def run_service(
         )
         request.addfinalizer(partial(_cleanup_service_process, process, protocol.exited, ctx))
         return protocol.magic_seen.addCallback(lambda ignored: process)
+
 
 def run_tahoe_service(
     reactor,
@@ -645,7 +779,7 @@ class _MagicTextProtocol(ProcessProtocol):
     Also capture eliot logs from file descriptor 3, and logs them.
     """
 
-    def __init__(self, magic_text):
+    def __init__(self, magic_text, print_logs=True):
         self.magic_seen = Deferred()
         self.exited = Deferred()
         self._magic_text = magic_text
@@ -653,6 +787,7 @@ class _MagicTextProtocol(ProcessProtocol):
         self._eliot_stream = EliotLogStream(fallback=self.eliot_garbage_received)
         self._eliot_stderr = EliotLogStream(fallback=self.err_received)
         self._action = current_action()
+        self._print_logs = print_logs
         assert self._action is not None
 
     def processEnded(self, reason):
@@ -679,7 +814,8 @@ class _MagicTextProtocol(ProcessProtocol):
         """
         with self._action.context():
             log_message(message_type=u"out-received", data=data.decode("utf8"))
-            sys.stdout.write(data.decode("utf8"))
+            if self._print_logs:
+                sys.stdout.write(data.decode("utf8"))
             self._output.write(data.decode("utf8"))
         if self.magic_seen is not None and self._magic_text in self._output.getvalue():
             print("Saw '{}' in the logs".format(self._magic_text))
@@ -1172,7 +1308,7 @@ def await_client_ready(reactor, tahoe, timeout=10, liveness=60*2):
     )
 
 
-def _init_magic_folder(reactor, request, base_dir, name, web_port):
+def _init_magic_folder(reactor, request, base_dir, name, web_port, wormhole_url):
     """
     Create a new magic-folder-daemon configuration
 
@@ -1191,6 +1327,7 @@ def _init_magic_folder(reactor, request, base_dir, name, web_port):
         "init",
         "--node-directory", node_dir,
         "--listen-endpoint", web_port,
+        "--mailbox", wormhole_url,
     ]
     return _magic_folder_runner(reactor, request, name, args)
 
@@ -1253,59 +1390,6 @@ def _run_magic_folder(reactor, request, base_dir, name):
         sys.executable,
         args,
     )
-
-
-@inline_callbacks
-def _pair_magic_folder(reactor, alice_invite, alice, bob):
-    print("Joining bob to magic-folder")
-    yield _command(
-        "--node-directory", bob.node_directory,
-        "join",
-        "--author", "bob",
-        "--poll-interval", "1",
-        alice_invite,
-        bob.magic_directory,
-    )
-
-    # before magic-folder works, we have to stop and restart (this is
-    # crappy for the tests -- can we fix it in magic-folder?)
-    yield bob.restart_magic_folder()
-
-    returnValue((alice.magic_directory, bob.magic_directory))
-
-
-@inline_callbacks
-def _generate_invite(reactor, inviter, invitee_name):
-    """
-    Create a new magic-folder invite.
-
-    :param MagicFolderEnabledNode inviter: the node who will generate the invite
-
-    :param str invitee: the name of the node who will be invited
-    """
-    action_prefix = u"integration:{}:magic_folder".format(inviter.name)
-    with start_action(action_type=u"{}:create".format(action_prefix)):
-        print("Creating magic-folder for {}".format(inviter.node_directory))
-        yield _command(
-            "--node-directory", inviter.node_directory,
-            "create",
-            "--poll-interval", "2", "magik:", inviter.name, inviter.magic_directory,
-        )
-
-    with start_action(action_type=u"{}:invite".format(action_prefix)) as a:
-        print("Inviting '{}' to magic-folder for {}".format(invitee_name, inviter.node_directory))
-        invite = yield _command(
-            "--node-directory", inviter.node_directory,
-            "invite",
-            "magik:", invitee_name,
-        )
-        a.add_success_fields(invite=invite)
-
-    with start_action(action_type=u"{}:restart".format(action_prefix)):
-        # before magic-folder works, we have to stop and restart (this is
-        # crappy for the tests -- can we fix it in magic-folder?)
-        yield inviter.restart_magic_folder()
-    returnValue(invite)
 
 
 @inline_callbacks

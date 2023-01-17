@@ -191,6 +191,60 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
+    def invite(self, magic_folder, participant_name, mode):
+        # type: (str, str) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "participant-name": participant_name,
+                    "mode": mode,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def invite_wait(self, magic_folder, invite_id):
+        # type: (str, str) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invite-wait")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "id": invite_id,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def join(self, magic_folder, invite_code, local_dir, author, poll_interval, scan_interval):
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"join")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "invite-code": invite_code,
+                    "local-directory": local_dir.asTextMode().path,
+                    "author": author,
+                    "poll-interval": poll_interval,
+                    "scan-interval": scan_interval,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
+    def list_invites(self, magic_folder):
+        # type: (str, ) -> dict
+        api_url = self.base_url.child(u"v1").child(u"magic-folder").child(magic_folder).child(u"invites")
+        return self._authorized_request(
+            "GET",
+            api_url,
+        )
+
     def enable_feature(self, feature):
         """
         Call the HTTP API to mark a given feature on. Error if it is

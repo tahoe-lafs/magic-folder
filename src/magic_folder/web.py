@@ -14,6 +14,9 @@ from nacl.encoding import (
 from autobahn.twisted.resource import (
     WebSocketResource,
 )
+from wormhole.errors import (
+    WormholeError,
+)
 
 from eliot import (
     write_failure,
@@ -46,6 +49,12 @@ from klein import Klein
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
+from .config import (
+    is_valid_experimental_feature,
+)
+from .invite import (
+    InviteError,
+)
 from .status import (
     StatusFactory,
 )
@@ -169,6 +178,17 @@ def _add_klein_error_handlers(app):
         _application_json(request)
         return json.dumps(exc.to_json()).encode("utf8")
 
+    @app.handle_errors(WormholeError)
+    def handle_wormhole_error(request, failure):
+        exc = failure.value
+        request.setResponseCode(http.BAD_GATEWAY)
+        _application_json(request)
+        return json.dumps({
+            "reason": "Failed to establish Magic Wormhole: {}".format(
+                str(exc)
+            )
+        })
+
     @app.handle_errors(HTTPException)
     def handle_http_error(request, failure):
         """
@@ -225,7 +245,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         Enable a feature
         """
         request.content.read()
-        if not global_config.is_valid_feature(feature_name):
+        if not is_valid_experimental_feature(feature_name):
             raise _InputError("Unknown feature '{}'".format(feature_name))
         try:
             global_config.enable_feature(feature_name)
@@ -239,7 +259,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         Disable a feature
         """
         request.content.read()
-        if not global_config.is_valid_feature(feature_name):
+        if not is_valid_experimental_feature(feature_name):
             raise _InputError("Unknown feature '{}'".format(feature_name))
         try:
             global_config.disable_feature(feature_name)
@@ -348,7 +368,11 @@ def _create_v1_resource(global_config, global_service, status_service):
         if not personal_dmd_cap.is_readonly_directory():
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
-        yield folder_service.add_participant(author, personal_dmd_cap)
+        try:
+            yield folder_service.add_participant(author, personal_dmd_cap)
+        except ValueError as e:
+            # return a nicer message than "500"
+            raise _InputError(str(e))
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
@@ -462,6 +486,150 @@ def _create_v1_resource(global_config, global_service, status_service):
             in folder_config.get_all_current_snapshot_pathstates()
         ]).encode("utf8")
 
+    @app.handle_errors(InviteError)
+    def handle_invite_error(request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code or http.NOT_ACCEPTABLE)
+        _application_json(request)
+        return json.dumps(exc.to_json())
+
+    @app.route("/magic-folder/<string:folder_name>/invite", methods=['POST'])
+    @inline_callbacks
+    def create_invite(request, folder_name):
+        """
+        Create a new invite for a given folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "participant-name": arbitrary, valid author name
+        - "mode": "read-write" or "read-only"
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"participant-name", u"mode"}:
+            raise _InputError(
+                u'Body must be {"participant-name": "...", "mode": "read-write"}'
+            )
+
+        try:
+            invite = yield global_service.invite_to_folder(
+                folder_name,
+                body[u"participant-name"],
+                body[u"mode"]
+            )
+        except ValueError as e:
+            raise _InputError(str(e))
+        returnValue(json.dumps(invite.marshal()).encode("utf8"))
+
+    @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
+    @inline_callbacks
+    def await_invite(request, folder_name):
+        """
+        Await acceptance of a given invite.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "id": the ID of an existing invite
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"id"}:
+            raise _InputError(
+                u'Body must be {"id": "..."}'
+            )
+        folder_service = global_service.get_folder_service(folder_name)
+        invite = folder_service.invite_manager.get_invite(body[u"id"])
+        yield invite.await_done()
+        if invite.is_accepted():
+            request.setResponseCode(http.OK)
+            request.write(json.dumps(invite.marshal()).encode("utf8"))
+            return
+        else:
+            reject_msg = "Wormhole failed or other side declined"
+            if invite._reject_reason is not None:
+                reject_msg = "{}: {}".format(reject_msg, invite._reject_reason)
+            raise APIError(code=400, reason=reject_msg)
+
+    @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
+    @inline_callbacks
+    def accept_invite(request, folder_name):
+        """
+        Accept an invite and create a new folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "invite-code": wormhole code
+        - "local-directory": absolute path of an existing local directory to synchronize files in
+        - "author": arbitrary, valid author name
+        - "poll-interval": seconds between remote update checks
+        - "scan-interval": seconds between local update checks
+
+        The "name" for the folder comes from the URI.
+        """
+        body = _load_json(request.content.read())
+        required_keys = {
+            u"invite-code",
+            u"local-directory",
+            u"author",
+            u"poll-interval",
+            u"scan-interval",
+        }
+        if required_keys != set(body.keys()):
+            missing = required_keys - set(body.keys())
+            if missing:
+                raise _InputError(
+                    "Missing keys: {}".format(" ".join(missing))
+                )
+            raise _InputError(
+                "Extra keys: {}".format(" ".join(missing))
+            )
+
+        local_dir = FilePath(body["local-directory"])
+        if not local_dir.exists() or not local_dir.isdir():
+            raise _InputError(
+                "No directory '{}'".format(local_dir.path)
+            )
+
+        _application_json(request)
+
+        # create a folder via wormhole
+        try:
+            reply = yield global_service.join_folder(
+                wormhole_code=body["invite-code"],
+                folder_name=folder_name,
+                author_name=body["author"],
+                local_dir=local_dir,
+                poll_interval=int(body["poll-interval"]),
+                scan_interval=int(body["scan-interval"]),
+            )
+        except ValueError as e:
+            # e.g. from int() calls above
+            raise _InputError(str(e))
+
+        # start the services for this folder
+        mf = global_service._add_service_for_folder(folder_name)
+        yield mf.ready()
+
+        request.setResponseCode(http.CREATED)
+        request.write(json.dumps(reply).encode("utf8"))
+        request.finish()
+
+    @app.route("/magic-folder/<string:folder_name>/invites", methods=['GET'])
+    def list_invites(request, folder_name):
+        """
+        List pending invites.
+        """
+        _application_json(request)
+        folder_service = global_service.get_folder_service(folder_name)
+        request.setResponseCode(http.CREATED)
+        request.write(
+            json.dumps(
+                folder_service.invite_manager.list_invites()
+            ).encode("utf-8")
+        )
+        request.finish()
+
     @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
     def list_conflicts(request, folder_name):
         """
@@ -515,6 +683,7 @@ class _InputError(APIError):
     """
     def __init__(self, reason):
         super(_InputError, self).__init__(code=http.BAD_REQUEST, reason=reason)
+
 
 def _application_json(request):
     request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])

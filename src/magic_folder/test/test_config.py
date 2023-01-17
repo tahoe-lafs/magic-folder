@@ -89,6 +89,7 @@ from ..config import (
     create_global_configuration,
     create_testing_configuration,
     load_global_configuration,
+    is_valid_experimental_feature,
 )
 from ..snapshot import (
     create_local_author,
@@ -201,6 +202,31 @@ class TestGlobalConfig(SyncTestCase):
         self.assertThat(
             config2.api_endpoint,
             Equals("tcp:42")
+        )
+
+    def test_change_websocket_url(self):
+        """
+        An assignment that changes the value of
+        ``GlobalConfigDatabase.wormhole_uri`` results in the new value
+        being available when the database is loaded again with
+        ``load_global_configuration``.
+        """
+        config = create_global_configuration(
+            self.temp,
+            u"tcp:1234",
+            self.node_dir,
+            u"tcp:localhost:1234",
+            u"ws://localhost:4444/",
+        )
+        config.wormhole_uri = "ws://example.invalid./"
+        config2 = load_global_configuration(self.temp)
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals(config.wormhole_uri)
+        )
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals("ws://example.invalid./")
         )
 
 
@@ -1395,7 +1421,7 @@ class OptionalFeatureTests(SyncTestCase):
 
     def test_invalid_feature(self):
         self.assertThat(
-            self.config.is_valid_feature("not-a-valid-feature"),
+            is_valid_experimental_feature("not-a-valid-feature"),
             Equals(False)
         )
 

@@ -6,6 +6,7 @@ from configparser import (
     ConfigParser,
 )
 
+import wormhole
 import attr
 from eliot import start_action
 from eliot.twisted import inline_callbacks
@@ -41,6 +42,9 @@ from .util.twisted import (
     PeriodicService,
 )
 from .web import magic_folder_web_service
+from .invite import (
+    accept_invite,
+)
 
 
 def read_tahoe_config(node_directory):
@@ -160,6 +164,8 @@ class MagicFolderService(MultiService):
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
+    _wormhole_factory = attr.ib(default=wormhole.create)
+
     log = Logger()
 
     def __attrs_post_init__(self):
@@ -402,6 +408,93 @@ class MagicFolderService(MultiService):
         mf = self._add_service_for_folder(name)
         yield mf.ready()
         self.status_service._maybe_update_clients()
+
+    @inline_callbacks
+    def invite_to_folder(self, folder_name, author_name, mode):
+        """
+        Create a new invite for a folder. This fires once the invite is
+        created at the Magic Wormhole mailbox server; use
+        invite.await_done() to wait for the invitee to accept (or
+        reject) the invite.
+
+        :returns Invite: the prepared invite
+        :raises ValueError: on input problems
+        """
+        folder_service = self.get_folder_service(folder_name)
+
+        invite = yield folder_service.invite_manager.create_invite(
+            self.reactor,
+            author_name,
+            mode,
+            self._wormhole_factory(
+                appid=u"private.storage/magic-folder/invites",
+                # XXX this should probably be supplied from invite.py
+                # somewhere/how. And the appid above. Or wrapped into
+                # _wormhole_factory()?
+                versions={
+                    "magic-folder": {
+                        "supported-messages": [
+                            "invite-v1",
+                        ],
+                    },
+                },
+                relay_url=self.config.wormhole_uri,
+                reactor=self.reactor,
+            ),
+        )
+        yield invite.await_code()  # may raise ValueError
+        returnValue(invite)
+
+    @inline_callbacks
+    def join_folder(self, wormhole_code, folder_name, author_name,
+                    local_dir, poll_interval, scan_interval):
+        """
+        Join a folder via invite code
+
+        :param str wormhole_code: An invite code (like 6-sociable-reindeer)
+
+        :param str folder_name: The name of the magic-folder.
+
+        :param str author_name: The name for our author
+
+        :param FilePath local_dir: The directory on the filesystem that the user wants
+            to sync between different computers.
+
+        :param integer poll_interval: Periodic time interval after which the
+            client polls for updates.
+
+        :param integer scan_interval: Every 'scan_interval' seconds the
+            local directory will be scanned for changes.
+
+        :return Deferred: ``None`` or an appropriate exception is raised.
+        """
+        inv = yield accept_invite(
+            self.reactor,
+            self.config,
+            wormhole_code,
+            folder_name,
+            author_name,
+            local_dir,
+            poll_interval,
+            scan_interval,
+            self.tahoe_client,
+            self._wormhole_factory(
+                appid=u"private.storage/magic-folder/invites",
+                relay_url=self.config.wormhole_uri,
+                reactor=self.reactor,
+                # XXX this should probably be supplied from invite.py
+                # somewhere/how. And the appid above. Or wrapped into
+                # _wormhole_factory()?
+                versions={
+                    "magic-folder": {
+                        "supported-messages": [
+                            "invite-v1",
+                        ],
+                    },
+                },
+            ),
+        )
+        returnValue(inv)
 
     @inline_callbacks
     def leave_folder(self, name, really_delete_write_capability):

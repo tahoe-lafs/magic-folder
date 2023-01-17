@@ -74,6 +74,10 @@ from twisted.web import (
     http,
 )
 
+from wormhole.cli.public_relay import (
+    RENDEZVOUS_RELAY,
+)
+
 from zope.interface import (
     implementer,
     Interface,
@@ -148,6 +152,15 @@ _global_config_schema = Schema([
             [enabled] BOOL
         );
         """,
+    ]),
+    SchemaUpgrade([
+        """
+        ALTER TABLE config
+            ADD COLUMN wormhole_uri TEXT;     -- WebSocket URI of the Magic Wormhole server
+        """,
+        """
+        UPDATE [config] SET wormhole_uri='{}';
+        """.format(RENDEZVOUS_RELAY),
     ]),
 ])
 
@@ -325,35 +338,37 @@ class RemoteSnapshotWithoutPathState(Exception):
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
-                                api_client_endpoint_str):
+                                api_client_endpoint_str, mailbox_uri=None):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
     :param FilePath basedir: a non-existant directory
 
-    :param unicode api_endpoint_str: the Twisted server endpoint string
+    :param str api_endpoint_str: the Twisted server endpoint string
         where we will listen for API requests.
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
 
-    :param unicode api_client_endpoint_str: the Twisted client endpoint
+    :param str api_client_endpoint_str: the Twisted client endpoint
         string where our API can be contacted.
+
+    :param str mailbox_uri: the Magic Wormhole mailbox server API
+        endpoint (or None for the default)
 
     :returns: a GlobalConfigDatabase instance
     """
 
-    # our APIs insist on endpoint-strings being unicode, but Twisted
-    # only accepts "str" .. so we have to convert on py2. When we
-    # support python3 this check only needs to happen on py2
     if not isinstance(api_endpoint_str, str):
         raise ValueError(
-            "'api_endpoint_str' must be unicode"
+            "'api_endpoint_str' must be str"
         )
     if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, str):
         raise ValueError(
-            "'api_client_endpoint_str' must be unicode"
+            "'api_client_endpoint_str' must be str"
         )
+    if mailbox_uri is None:
+        mailbox_uri = RENDEZVOUS_RELAY
     # check that the endpoints are valid (will raise exception if not)
     api_endpoint_str = nativeString(api_endpoint_str)
     _validate_listen_endpoint_str(api_endpoint_str)
@@ -388,8 +403,18 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            """
+            INSERT INTO
+                config (api_endpoint, tahoe_node_directory, api_client_endpoint, wormhole_uri)
+            VALUES
+                (?, ?, ?, ?)
+            """,
+            (
+                api_endpoint_str,
+                tahoe_node_directory.path,
+                api_client_endpoint_str,
+                mailbox_uri
+            )
         )
 
     config = GlobalConfigDatabase(
@@ -427,8 +452,8 @@ def create_testing_configuration(basedir, tahoe_node_directory):
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint, wormhole_uri) VALUES (?, ?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str, "ws://ws.example.com/")
         )
 
     tokens = MemoryTokenProvider()
@@ -1699,6 +1724,13 @@ class MemoryTokenProvider(object):
         return self._api_token
 
 
+def is_valid_experimental_feature(name):
+    """
+    :returns bool: True if the named feature exists
+    """
+    return name in _features
+
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
@@ -1800,11 +1832,21 @@ class GlobalConfigDatabase(object):
             node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
 
-    def is_valid_feature(self, name):
+    @property
+    def wormhole_uri(self):
         """
-        :returns bool: True if the named feature exists
+        A WebSocket URL to the magic-wormhole mailbox server to use
         """
-        return name in _features
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT wormhole_uri FROM config")
+            return cursor.fetchone()[0]
+
+    @wormhole_uri.setter
+    def wormhole_uri(self, url):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("UPDATE config SET wormhole_uri=?", (url, ))
 
     def feature_enabled(self, name):
         """
