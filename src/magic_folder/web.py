@@ -486,6 +486,49 @@ def _create_v1_resource(global_config, global_service, status_service):
             in folder_config.get_all_current_snapshot_pathstates()
         ]).encode("utf8")
 
+    @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
+    def list_conflicts(request, folder_name):
+        """
+        Render information about all known conflicts in a given folder
+        """
+        _application_json(request)  # set reply headers
+        folder_config = global_config.get_magic_folder(folder_name)
+        return json.dumps({
+            relpath: [
+                conflict.author_name
+                for conflict in conflicts
+            ]
+            for relpath, conflicts in folder_config.list_conflicts().items()
+        }).encode("utf8")
+
+    @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
+    def folder_tahoe_objects(request, folder_name):
+        """
+        Renders a list of all the object-sizes of all Tahoe objects a
+        given magic-folder currently cares about. This is, for each
+        Snapshot: the Snapshot capability, the metadata capability and
+        the content capability.
+        """
+        _application_json(request)  # set reply headers
+        folder_config = global_config.get_magic_folder(folder_name)
+        sizes = folder_config.get_tahoe_object_sizes()
+        return json.dumps(sizes).encode("utf8")
+
+    return app.resource()
+
+
+def _create_experimental_resource(global_config, global_service):
+    """
+    :returns: an IResource implementing the ``/experimental`` HTTP API hierarchy.
+    """
+
+    app = Klein()
+    _add_klein_error_handlers(app)
+
+    @app.route("/about", methods=["GET"])
+    def about(request):
+        return b"All API methods in this tree may change with any version"
+
     @app.handle_errors(InviteError)
     def handle_invite_error(request, failure):
         exc = failure.value
@@ -629,49 +672,6 @@ def _create_v1_resource(global_config, global_service, status_service):
             ).encode("utf-8")
         )
         request.finish()
-
-    @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
-    def list_conflicts(request, folder_name):
-        """
-        Render information about all known conflicts in a given folder
-        """
-        _application_json(request)  # set reply headers
-        folder_config = global_config.get_magic_folder(folder_name)
-        return json.dumps({
-            relpath: [
-                conflict.author_name
-                for conflict in conflicts
-            ]
-            for relpath, conflicts in folder_config.list_conflicts().items()
-        }).encode("utf8")
-
-    @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
-    def folder_tahoe_objects(request, folder_name):
-        """
-        Renders a list of all the object-sizes of all Tahoe objects a
-        given magic-folder currently cares about. This is, for each
-        Snapshot: the Snapshot capability, the metadata capability and
-        the content capability.
-        """
-        _application_json(request)  # set reply headers
-        folder_config = global_config.get_magic_folder(folder_name)
-        sizes = folder_config.get_tahoe_object_sizes()
-        return json.dumps(sizes).encode("utf8")
-
-    return app.resource()
-
-
-def _create_experimental_resource(global_config, global_service):
-    """
-    :returns: an IResource implementing the ``/experimental`` HTTP API hierarchy.
-    """
-
-    app = Klein()
-    _add_klein_error_handlers(app)
-
-    @app.route("/about", methods=["GET"])
-    def about(request):
-        return b"All API methods in this tree may change with any version"
 
     return app.resource()
 
