@@ -948,7 +948,7 @@ def maybe_fail_experimental_command(options):
                 maybe_config_option = ""
             raise usage.UsageError(
                 '"magic-folder {}" depends on experimental feature "{}"'
-                ' which is not enabled.\nUse "magic-folder set-config'
+                ' which is not enabled.\nUse "magic-folder {} set-config'
                 ' --enable {}" to enable it.'.format(
                     options.subCommand,
                     exp_sub,
