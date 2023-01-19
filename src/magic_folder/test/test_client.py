@@ -104,7 +104,7 @@ class MagicFolderClientTests(SyncTestCase):
             "invite",
             ("folder_name", "petname", "read-write"),
             b"POST",
-            "http://invalid./v1/magic-folder/folder_name/invite",
+            "http://invalid./experimental/magic-folder/folder_name/invite",
             b'{"participant-name": "petname", "mode": "read-write"}',
             {
                 b"Content-Length": [b"53"],
@@ -119,7 +119,7 @@ class MagicFolderClientTests(SyncTestCase):
             "invite_wait",
             ("folder_name", "an-id"),
             b"POST",
-            "http://invalid./v1/magic-folder/folder_name/invite-wait",
+            "http://invalid./experimental/magic-folder/folder_name/invite-wait",
             b'{"id": "an-id"}',
             {
                 b"Content-Length": [b"15"],
@@ -134,7 +134,7 @@ class MagicFolderClientTests(SyncTestCase):
             "list_invites",
             ("folder_name", ),
             b"GET",
-            "http://invalid./v1/magic-folder/folder_name/invites",
+            "http://invalid./experimental/magic-folder/folder_name/invites",
         )
 
     def test_join(self):
@@ -156,7 +156,7 @@ class MagicFolderClientTests(SyncTestCase):
             "join",
             ("folder_name", "2-suspicious-penguin", folder_dir, "amy", 123, 321),
             b"POST",
-            "http://invalid./v1/magic-folder/folder_name/join",
+            "http://invalid./experimental/magic-folder/folder_name/join",
             body,
             {
                 b"Content-Length": ["{}".format(len(body)).encode("utf8")],
