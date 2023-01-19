@@ -283,6 +283,8 @@ List all invites.
 Invites are stored in memory only, so this is any active or completed invites since the prorgam started.
 
 
+.. _status-api:
+
 Status API
 ----------
 
