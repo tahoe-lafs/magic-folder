@@ -28,6 +28,18 @@ The token value is periodically rotated so clients must be prepared to receive a
 In this case,
 the client should re-read the token from the filesystem to determine if the value held in memory has become stale.
 
+
+Versioning
+~~~~~~~~~~
+
+The HTTP API has a global version, indicated in the path: `/v1/` for example is Version 1.
+
+Whenever a new version is added (or changed), this section will be updatd and the relevant API(s) will indicate what version adds which features.
+A mechanism to add deprecation of APIs will be added in a future release.
+
+ - **Version 1 (`/v1`)**: initial version of the API
+
+
 .. _`daemon configuration`: :ref:`config`
 
 ``GET /v1/magic-folder``
