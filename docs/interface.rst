@@ -36,7 +36,7 @@ This API is **not considered stable** yet (as of January 2023).
 
 The HTTP API has a global version, indicated in the path: `/v1/` for example is Version 1.
 
-APIs put in this hierarchy shall be considered stable (but not yet, see above caveat).
+APIs put in this hierarchy shall be considered stable (but not yet complete backwards compatilibty, see above caveat).
 
 There is also an `/experimental` hierarchy to allow for experimentation, even when Version 1 is considered stable.
 APIs in the `/experimental/` tree may change in any revision.
@@ -44,7 +44,7 @@ APIs in the `/experimental/` tree may change in any revision.
 Whenever a new version is added (or changed), this section will be updatd and the relevant API(s) will indicate what version adds which features.
 A mechanism to add deprecation of APIs will be added in a future release.
 
- - **Version 1 (`/v1`)**: initial version of the API (not yet stable).
+ - **Version 1 (`/v1`)**: initial version of the API (not yet considered 100% stable).
 
 
 .. _`daemon configuration`: :ref:`config`
