@@ -176,28 +176,23 @@ Internet. The code may only be used once, for a single invitee.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo invite --name example
+   $ magic-folder --config ./foo invite --folder example device-name
 
-An invitation code is created using an existing magic folder (``--name
+An invitation code is created using an existing magic folder (``--folder
 example`` above). The magic-folder identified must have been created on
-this device.
+this device (that is, this device is the admin).
+
+You may invite a ``--mode read-only`` or ``--mode read-write`` device, which controls whether it can include new versions of files or not.
 
 Once the invitee runs ``magic-folder join`` (see below) the two
 devices will connect and exchange some information; this will complete
 the invitation. The "invite" command won't exit until the invitee has
-actually completed and will print out some details. If you pass
-``--no-wait`` then the command will exit immediately (although the
-invite will still be valid).
-
-XXX DECIDE: should the default be to wait, or to not? Developers are
-split on this; maybe some UX research or discussion can solve it? No
-matter what, the HTTP API will have to be two-part ("start invite ->
-X" and "status of invite X" or "wait for invite X")
+actually completed and will print out some details.
 
 Invites are valid until the magic-folder daemon stops running or until
-the default number of minutes pass (whichever is sooner). See the
-``--timeout`` options for the default (or you can pass a different
-number of mintues if you prefer).
+the default number of minutes pass (whichever is sooner).
+
+More details about the invite protocol are in :ref:`invites`.
 
 
 Joining a Magic Folder
@@ -213,7 +208,8 @@ join`` command:
 The first argument required is an invitation code, as described in
 `Inviting Participant Devices`_.  The second argument
 required is the path to a local directory.  This is the directory to
-which content will be downloaded and from which it will be uploaded.
+which content will be downloaded (and from which it will be uploaded
+if this is a read-write invitation).
 
 You must choose a name to identify content from this device with
 ``--author``. The device which has invited you must also be connected
@@ -222,6 +218,7 @@ established, the two devices exchange some information and the invite
 is complete.
 
 Further options are documented in ``magic-folder join --help``.
+More details about the invite protocol are in :ref:`invites`.
 
 
 Leaving a Magic Folder
