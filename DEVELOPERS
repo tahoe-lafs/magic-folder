@@ -239,6 +239,8 @@ Creating a Release
    - git diff --cached
    - git commit -m "update NEWS"
 - Update the version:
+   - (if there is a better way to tell GnuPG to cache the key, please reach out)
+   - convince GnuPG to unlock a key: gpg --pinentry=loopback --decrypt ~/something.asc
    - python3 misc/build_helpers/update-version.py
 - Build the release:
    - python3 setup.py bdist_wheel
