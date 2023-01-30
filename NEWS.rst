@@ -5,6 +5,27 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 23.1.0 (2023-01-30)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Support for "inviting" another participant to a folder (experimental).
+
+  There is now a specification and implementation for "inviting" another
+  participant who may "join" a given folder. The two computers communicate
+  via the "magic-wormhole" protocol, allowing for secure communication
+  setup with a short, human-pronouncable short password. (`#232 <https://github.com/LeastAuthority/magic-folder/issues/232>`_)
+- Allow for experimental features (`#680 <https://github.com/LeastAuthority/magic-folder/issues/680>`_)
+
+
+Misc/Other
+----------
+
+- `#683 <https://github.com/LeastAuthority/magic-folder/issues/683>`_, `#685 <https://github.com/LeastAuthority/magic-folder/issues/685>`_
+
+
 Magic_Folder 22.10.1 (2022-10-03)
 '''''''''''''''''''''''''''''''''
 
