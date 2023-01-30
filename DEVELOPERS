@@ -235,7 +235,7 @@ Creating a Release
 - Install the tools required:
    - python3 -m pip install --editable .[build]
 - Update the NEWS:
-   - python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
+   - python3 -m towncrier build --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
    - git add -u
    - git commit -m "update NEWS"
 - Update the version:
