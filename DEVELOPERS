@@ -230,15 +230,17 @@ Creating a Release
 
 - Use a fresh virtualenv with the version of Python you want. For example:
    - pyenv shell 3.9.2
-   - pyenv virtualenv buildvenv
+   - python -m venv buildvenv
    - source ./buildvenv/bin/activate
 - Install the tools required:
    - python3 -m pip install --editable .[build]
 - Update the NEWS:
-   - python3 -m towncrier --yes --version `python3 misc/build_helpers/update-version.py --no-tag`
-   - git add -u
+   - VERSION=$(python3 misc/build_helpers/update-version.py --no-tag) python3 -m towncrier build --yes --version ${VERSION}
+   - git diff --cached
    - git commit -m "update NEWS"
 - Update the version:
+   - (if there is a better way to tell GnuPG to cache the key, please reach out)
+   - convince GnuPG to unlock a key: gpg --pinentry=loopback --decrypt ~/something.asc
    - python3 misc/build_helpers/update-version.py
 - Build the release:
    - python3 setup.py bdist_wheel
