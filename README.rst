@@ -34,7 +34,7 @@ pre-release code), you should create a virtualenv and install into that:
 
 * ``git clone https://github.com/LeastAuthority/magic-folder.git``
 * ``cd magic-folder``
-* ``virtualenv --python=python2.7 venv``
+* ``virtualenv venv``
 * ``venv/bin/pip install --upgrade setuptools``
 * ``venv/bin/pip install --editable .``
 * ``venv/bin/magic-folder --version``
