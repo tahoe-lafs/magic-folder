@@ -28,6 +28,25 @@ The token value is periodically rotated so clients must be prepared to receive a
 In this case,
 the client should re-read the token from the filesystem to determine if the value held in memory has become stale.
 
+
+Versioning and Stability
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+This API is **not considered stable** yet (as of January 2023).
+
+The HTTP API has a global version, indicated in the path: `/v1/` for example is Version 1.
+
+APIs put in this hierarchy shall be considered stable (but not yet complete backwards compatilibty, see above caveat).
+
+There is also an `/experimental` hierarchy to allow for experimentation, even when Version 1 is considered stable.
+APIs in the `/experimental/` tree may change in any revision.
+
+Whenever a new version is added (or changed), this section will be updatd and the relevant API(s) will indicate what version adds which features.
+A mechanism to add deprecation of APIs will be added in a future release.
+
+ - **Version 1 (`/v1`)**: initial version of the API (not yet considered 100% stable).
+
+
 .. _`daemon configuration`: :ref:`config`
 
 ``GET /v1/magic-folder``
@@ -228,6 +247,62 @@ Request an immediate scan of the Collective DMD and remote participants of the g
 Returns an empty `dict` after the scan is complete.
 
 
+POST `/experimental/magic-folder/<folder-name>/invite`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create a new invite.
+The body of the invite is a JSON object containing the keys:
+* `participant-name`: maps to a string describing what to call the invitee when they join
+* `mode`: `"read-write"` or `"read-only"` indicating what access the new participant has
+
+This will initiate the invite and returns the serialized invite.
+To await the end of the invite process, see the `.../invite-wait` endpoint.
+
+A serialized invite is a JSON object that has keys:
+
+* `id`: A UUID, like `92148d89-85ae-4677-8629-8ef6de54417d`
+* `participant-name`: the name to call the invitee in the Collective DMD
+* `consumed`: True if the wormhole code has been used up
+* `success`: True if the invite has completed successfully
+* `wormhole-code`: None or the text wormhole code
+
+
+POST `/experimental/magic-folder/<folder-name>/invite-wait`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Wait for an invite to complete (either successfully or not).
+
+The body of the invite is a JSON object with keys:
+* `id`: the UUID of the invite to await
+
+This endpoint returns 200 OK with the serialized Invite (see above) if the invite concluded successfully.
+Otherwise, the endpoint returns a 400 error describing the error.
+
+
+POST `/experimental/magic-folder/<folder-name>/join`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Join a magic-folder by accepting an invite.
+The body of the request is a JSON object with keys:
+
+* `invite-code`: the wormhole code
+* `local-directory`: absolute path of an existing local directory to synchronize files in
+* `author`: arbitrary, valid author name
+* `poll-interval`: seconds between remote update checks
+* `scan-interval`: seconds between local update checks
+
+The endpoint returns 201 Created once the folder is created and joined.
+Otherwise, a 400 error is returned describing the error.
+
+
+POST `/experimental/magic-folder/<folder-name>/invites`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List all invites.
+Invites are stored in memory only, so this is any active or completed invites since the prorgam started.
+
+
+.. _status-api:
 
 Status API
 ----------

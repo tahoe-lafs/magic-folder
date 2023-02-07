@@ -14,6 +14,9 @@ from nacl.encoding import (
 from autobahn.twisted.resource import (
     WebSocketResource,
 )
+from wormhole.errors import (
+    WormholeError,
+)
 
 from eliot import (
     write_failure,
@@ -46,9 +49,14 @@ from klein import Klein
 from cryptography.hazmat.primitives.constant_time import bytes_eq as timing_safe_compare
 
 from .common import APIError
+from .config import (
+    is_valid_experimental_feature,
+)
+from .invite import (
+    InviteError,
+)
 from .status import (
     StatusFactory,
-    IStatus,
 )
 from .tahoe_client import (
     InsufficientStorageServers,
@@ -64,7 +72,7 @@ from .util.file import (
 )
 
 
-def magic_folder_resource(get_auth_token, v1_resource):
+def magic_folder_resource(get_auth_token, v1_resource, exp_resource):
     """
     Create the root resource for the Magic Folder HTTP API.
 
@@ -74,6 +82,10 @@ def magic_folder_resource(get_auth_token, v1_resource):
         bearer-token authorization scheme at the `v1` child of the resulting
         resource.
 
+    :param IResource exp_resource: A resource which will be protected
+        by a bearer-token authorization scheme at the `experimental`
+        child of the resulting resource.
+
     :return IResource: The resource that is the root of the HTTP API.
     """
     root = Resource()
@@ -81,6 +93,13 @@ def magic_folder_resource(get_auth_token, v1_resource):
         b"v1",
         BearerTokenAuthorization(
             v1_resource,
+            get_auth_token,
+        ),
+    )
+    root.putChild(
+        b"experimental",
+        BearerTokenAuthorization(
+            exp_resource,
             get_auth_token,
         ),
     )
@@ -144,29 +163,34 @@ def _load_json(body):
     except ValueError as e:
         raise APIError.from_exception(http.BAD_REQUEST, e, prefix="Could not load JSON")
 
-@attr.s
-class APIv1(object):
-    """
-    Implement the ``/v1`` HTTP API hierarchy.
 
-    :ivar GlobalConfigDatabase _global_config: The global configuration for
-        this Magic Folder service.
+def _add_klein_error_handlers(app):
     """
-    _global_config = attr.ib()
-    _global_service = attr.ib()  # MagicFolderService instance
-    _status_service = attr.ib(validator=attr.validators.provides(IStatus))
-
-    app = Klein()
+    Adds common error-handlers to an API class -- we can't use a
+    subclassing approach anyway because of where the 'app' instance
+    comes from.
+    """
 
     @app.handle_errors(APIError)
-    def handle_api_error(self, request, failure):
+    def handle_api_error(request, failure):
         exc = failure.value
         request.setResponseCode(exc.code or http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps(exc.to_json()).encode("utf8")
 
+    @app.handle_errors(WormholeError)
+    def handle_wormhole_error(request, failure):
+        exc = failure.value
+        request.setResponseCode(http.BAD_GATEWAY)
+        _application_json(request)
+        return json.dumps({
+            "reason": "Failed to establish Magic Wormhole: {}".format(
+                str(exc)
+            )
+        })
+
     @app.handle_errors(HTTPException)
-    def handle_http_error(self, request, failure):
+    def handle_http_error(request, failure):
         """
         Convert a werkzeug py:`HTTPException` to a json response.
 
@@ -185,14 +209,14 @@ class APIv1(object):
         return json.dumps({"reason": exc.description}).encode("utf8")
 
     @app.handle_errors(InsufficientStorageServers)
-    def no_servers(self, request, failure):
+    def no_servers(request, failure):
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps({"reason": str(failure.value)}).encode("utf8")
 
     @app.handle_errors(Exception)
-    def fallback_error(self, request, failure):
+    def fallback_error(request, failure):
         """
         Turn unknown exceptions into 500 errors, and log the failure.
         """
@@ -201,20 +225,58 @@ class APIv1(object):
         _application_json(request)
         return json.dumps({"reason": "unexpected error processing request"}).encode("utf8")
 
+
+
+def _create_v1_resource(global_config, global_service, status_service):
+    """
+    :returns: an IResource implementing the ``/v1`` HTTP API hierarchy.
+    """
+
+    app = Klein()
+    _add_klein_error_handlers(app)
+
     @app.route("/status")
-    def status(self, request):
-        return WebSocketResource(StatusFactory(self._status_service))
+    def status(request):
+        return WebSocketResource(StatusFactory(status_service))
+
+    @app.route("/config/enable-feature/<string:feature_name>", methods=["POST"])
+    def enable_feature(request, feature_name):
+        """
+        Enable a feature
+        """
+        request.content.read()
+        if not is_valid_experimental_feature(feature_name):
+            raise _InputError("Unknown feature '{}'".format(feature_name))
+        try:
+            global_config.enable_feature(feature_name)
+        except ValueError as e:
+            raise _InputError(str(e))
+        return b"{}"
+
+    @app.route("/config/disable-feature/<string:feature_name>", methods=["POST"])
+    def disable_feature(request, feature_name):
+        """
+        Disable a feature
+        """
+        request.content.read()
+        if not is_valid_experimental_feature(feature_name):
+            raise _InputError("Unknown feature '{}'".format(feature_name))
+        try:
+            global_config.disable_feature(feature_name)
+        except ValueError as e:
+            raise _InputError(str(e))
+        return b"{}"
 
     @app.route("/magic-folder", methods=["POST"])
     @inline_callbacks
-    def add_magic_folder(self, request):
+    def add_magic_folder(request):
         """
         Add a new magic folder.
         """
         body = request.content.read()
         data = _load_json(body)
 
-        yield self._global_service.create_folder(
+        yield global_service.create_folder(
             data['name'],
             data['author_name'],
             FilePath(data['local_path']),
@@ -227,14 +289,14 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>", methods=["DELETE"])
     @inline_callbacks
-    def leave_magic_folder(self, request, folder_name):
+    def leave_magic_folder(request, folder_name):
         """
         Leave a new magic folder.
         """
         body = request.content.read()
         data = _load_json(body)
 
-        yield self._global_service.leave_folder(
+        yield global_service.leave_folder(
             folder_name,
             really_delete_write_capability=data.get(
                 "really-delete-write-capability", False
@@ -246,11 +308,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['GET'])
     @inline_callbacks
-    def list_participants(self, request, folder_name):
+    def list_participants(request, folder_name):
         """
         List all participants of this folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         participants = yield folder_service.participants()
 
@@ -268,11 +330,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/participants", methods=['POST'])
     @inline_callbacks
-    def add_participant(self, request, folder_name):
+    def add_participant(request, folder_name):
         """
         Add a new participant to this folder with details from the JSON-encoded body.
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         body = request.content.read()
         participant = _load_json(body)
@@ -306,28 +368,32 @@ class APIv1(object):
         if not personal_dmd_cap.is_readonly_directory():
             raise _InputError("personal_dmd must be a read-only directory capability.")
 
-        yield folder_service.add_participant(author, personal_dmd_cap)
+        try:
+            yield folder_service.add_participant(author, personal_dmd_cap)
+        except ValueError as e:
+            # return a nicer message than "500"
+            raise _InputError(str(e))
 
         request.setResponseCode(http.CREATED)
         _application_json(request)
         returnValue(b"{}")
 
     @app.route("/snapshot", methods=['GET'])
-    def list_all_sanpshots(self, request):
+    def list_all_sanpshots(request):
         """
         Respond with all of the snapshots for all of the files in all of the
         folders.
         """
         _application_json(request)
-        return json.dumps(dict(_list_all_snapshots(self._global_config))).encode("utf8")
+        return json.dumps(dict(_list_all_snapshots(global_config))).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/scan-local", methods=['PUT'])
     @inline_callbacks
-    def scan_folder_local(self, request, folder_name):
+    def scan_folder_local(request, folder_name):
         """
         Request an immediate local scan on a particular folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         yield folder_service.scan_local()
 
@@ -336,11 +402,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/poll-remote", methods=['PUT'])
     @inline_callbacks
-    def poll_folder_remote(self, request, folder_name):
+    def poll_folder_remote(request, folder_name):
         """
         Request an immediate remote poll on a particular folder
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         yield folder_service.poll_remote()
 
@@ -349,11 +415,11 @@ class APIv1(object):
 
     @app.route("/magic-folder/<string:folder_name>/snapshot", methods=['POST'])
     @inline_callbacks
-    def add_snapshot(self, request, folder_name):
+    def add_snapshot(request, folder_name):
         """
         Create a new Snapshot
         """
-        folder_service = self._global_service.get_folder_service(folder_name)
+        folder_service = global_service.get_folder_service(folder_name)
 
         path = request.args[b"path"][0].decode("utf-8")
 
@@ -364,7 +430,7 @@ class APIv1(object):
         returnValue(b"{}")
 
     @app.route("/magic-folder", methods=["GET"])
-    def list_folders(self, request):
+    def list_folders(request):
         """
         Render a list of Magic Folders and some of their details, encoded as JSON.
         """
@@ -391,8 +457,8 @@ class APIv1(object):
             return info
 
         def all_folder_configs():
-            for name in sorted(self._global_config.list_magic_folders()):
-                yield (name, self._global_config.get_magic_folder(name))
+            for name in sorted(global_config.list_magic_folders()):
+                yield (name, global_config.get_magic_folder(name))
 
         return json.dumps({
             name: get_folder_info(name, config)
@@ -401,12 +467,12 @@ class APIv1(object):
         }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/file-status", methods=['GET'])
-    def folder_file_status(self, request, folder_name):
+    def folder_file_status(request, folder_name):
         """
         Render status information for every file in a given folder
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
 
         return json.dumps([
             {
@@ -421,12 +487,12 @@ class APIv1(object):
         ]).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/conflicts", methods=['GET'])
-    def list_conflicts(self, request, folder_name):
+    def list_conflicts(request, folder_name):
         """
         Render information about all known conflicts in a given folder
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
         return json.dumps({
             relpath: [
                 conflict.author_name
@@ -436,7 +502,7 @@ class APIv1(object):
         }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
-    def folder_tahoe_objects(self, request, folder_name):
+    def folder_tahoe_objects(request, folder_name):
         """
         Renders a list of all the object-sizes of all Tahoe objects a
         given magic-folder currently cares about. This is, for each
@@ -444,9 +510,170 @@ class APIv1(object):
         the content capability.
         """
         _application_json(request)  # set reply headers
-        folder_config = self._global_config.get_magic_folder(folder_name)
+        folder_config = global_config.get_magic_folder(folder_name)
         sizes = folder_config.get_tahoe_object_sizes()
         return json.dumps(sizes).encode("utf8")
+
+    return app.resource()
+
+
+def _create_experimental_resource(global_config, global_service):
+    """
+    :returns: an IResource implementing the ``/experimental`` HTTP API hierarchy.
+    """
+
+    app = Klein()
+    _add_klein_error_handlers(app)
+
+    @app.route("/about", methods=["GET"])
+    def about(request):
+        return b"All API methods in this tree may change with any version"
+
+    @app.handle_errors(InviteError)
+    def handle_invite_error(request, failure):
+        exc = failure.value
+        request.setResponseCode(exc.code or http.NOT_ACCEPTABLE)
+        _application_json(request)
+        return json.dumps(exc.to_json())
+
+    @app.route("/magic-folder/<string:folder_name>/invite", methods=['POST'])
+    @inline_callbacks
+    def create_invite(request, folder_name):
+        """
+        Create a new invite for a given folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "participant-name": arbitrary, valid author name
+        - "mode": "read-write" or "read-only"
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"participant-name", u"mode"}:
+            raise _InputError(
+                u'Body must be {"participant-name": "...", "mode": "read-write"}'
+            )
+
+        try:
+            invite = yield global_service.invite_to_folder(
+                folder_name,
+                body[u"participant-name"],
+                body[u"mode"]
+            )
+        except ValueError as e:
+            raise _InputError(str(e))
+        returnValue(json.dumps(invite.marshal()).encode("utf8"))
+
+    @app.route("/magic-folder/<string:folder_name>/invite-wait", methods=['POST'])
+    @inline_callbacks
+    def await_invite(request, folder_name):
+        """
+        Await acceptance of a given invite.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "id": the ID of an existing invite
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"id"}:
+            raise _InputError(
+                u'Body must be {"id": "..."}'
+            )
+        folder_service = global_service.get_folder_service(folder_name)
+        invite = folder_service.invite_manager.get_invite(body[u"id"])
+        yield invite.await_done()
+        if invite.is_accepted():
+            request.setResponseCode(http.OK)
+            request.write(json.dumps(invite.marshal()).encode("utf8"))
+            return
+        else:
+            reject_msg = "Wormhole failed or other side declined"
+            if invite._reject_reason is not None:
+                reject_msg = "{}: {}".format(reject_msg, invite._reject_reason)
+            raise APIError(code=400, reason=reject_msg)
+
+    @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
+    @inline_callbacks
+    def accept_invite(request, folder_name):
+        """
+        Accept an invite and create a new folder.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "invite-code": wormhole code
+        - "local-directory": absolute path of an existing local directory to synchronize files in
+        - "author": arbitrary, valid author name
+        - "poll-interval": seconds between remote update checks
+        - "scan-interval": seconds between local update checks
+
+        The "name" for the folder comes from the URI.
+        """
+        body = _load_json(request.content.read())
+        required_keys = {
+            u"invite-code",
+            u"local-directory",
+            u"author",
+            u"poll-interval",
+            u"scan-interval",
+        }
+        if required_keys != set(body.keys()):
+            missing = required_keys - set(body.keys())
+            if missing:
+                raise _InputError(
+                    "Missing keys: {}".format(" ".join(missing))
+                )
+            raise _InputError(
+                "Extra keys: {}".format(" ".join(missing))
+            )
+
+        local_dir = FilePath(body["local-directory"])
+        if not local_dir.exists() or not local_dir.isdir():
+            raise _InputError(
+                "No directory '{}'".format(local_dir.path)
+            )
+
+        _application_json(request)
+
+        # create a folder via wormhole
+        try:
+            reply = yield global_service.join_folder(
+                wormhole_code=body["invite-code"],
+                folder_name=folder_name,
+                author_name=body["author"],
+                local_dir=local_dir,
+                poll_interval=int(body["poll-interval"]),
+                scan_interval=int(body["scan-interval"]),
+            )
+        except ValueError as e:
+            # e.g. from int() calls above
+            raise _InputError(str(e))
+
+        # start the services for this folder
+        mf = global_service._add_service_for_folder(folder_name)
+        yield mf.ready()
+
+        request.setResponseCode(http.CREATED)
+        request.write(json.dumps(reply).encode("utf8"))
+        request.finish()
+
+    @app.route("/magic-folder/<string:folder_name>/invites", methods=['GET'])
+    def list_invites(request, folder_name):
+        """
+        List pending invites.
+        """
+        _application_json(request)
+        folder_service = global_service.get_folder_service(folder_name)
+        request.setResponseCode(http.CREATED)
+        request.write(
+            json.dumps(
+                folder_service.invite_manager.list_invites()
+            ).encode("utf-8")
+        )
+        request.finish()
+
+    return app.resource()
 
 
 class _InputError(APIError):
@@ -456,6 +683,7 @@ class _InputError(APIError):
     """
     def __init__(self, reason):
         super(_InputError, self).__init__(code=http.BAD_REQUEST, reason=reason)
+
 
 def _application_json(request):
     request.responseHeaders.setRawHeaders(u"content-type", [u"application/json"])
@@ -583,8 +811,9 @@ def magic_folder_web_service(web_endpoint, global_config, global_service, get_au
 
     :returns: a StreamServerEndpointService instance
     """
-    v1_resource = APIv1(global_config, global_service, status_service).app.resource()
-    root = magic_folder_resource(get_auth_token, v1_resource)
+    v1_resource = _create_v1_resource(global_config, global_service, status_service)
+    exp_resource = _create_experimental_resource(global_config, global_service)
+    root = magic_folder_resource(get_auth_token, v1_resource, exp_resource)
     return StreamServerEndpointService(
         web_endpoint,
         Site(root),

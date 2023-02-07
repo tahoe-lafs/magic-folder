@@ -26,7 +26,8 @@ from . import util
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
-async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introducer_furl,
+                                  flog_gatherer, wormhole):
     """
     the 'tahoe-objects' API works concurrently
     (see also ticket #570)
@@ -42,6 +43,7 @@ async def test_list_tahoe_objects(request, reactor, tahoe_venv, base_dir, introd
         name="yolandi",
         tahoe_web_port="tcp:9983:interface=localhost",
         magic_folder_web_port="tcp:19983:interface=localhost",
+        wormhole_url=wormhole.url,
         storage=True,
     )
     number_of_folders = 20

@@ -16,6 +16,7 @@ __all__ = [
 import re
 import hashlib
 import time
+import textwrap
 from collections import (
     deque,
 )
@@ -71,6 +72,10 @@ from twisted.python.compat import (
 )
 from twisted.web import (
     http,
+)
+
+from wormhole.cli.public_relay import (
+    RENDEZVOUS_RELAY,
 )
 
 from zope.interface import (
@@ -138,7 +143,25 @@ _global_config_schema = Schema([
             api_client_endpoint TEXT          -- Twisted client-string for our HTTP API
         );
         """,
-    ])
+    ]),
+    SchemaUpgrade([
+        """
+        CREATE TABLE features
+        (
+            [name] TEXT,
+            [enabled] BOOL
+        );
+        """,
+    ]),
+    SchemaUpgrade([
+        """
+        ALTER TABLE config
+            ADD COLUMN wormhole_uri TEXT;     -- WebSocket URI of the Magic Wormhole server
+        """,
+        """
+        UPDATE [config] SET wormhole_uri='{}';
+        """.format(RENDEZVOUS_RELAY),
+    ]),
 ])
 
 _magicfolder_config_schema = Schema([
@@ -315,35 +338,37 @@ class RemoteSnapshotWithoutPathState(Exception):
 
 
 def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
-                                api_client_endpoint_str):
+                                api_client_endpoint_str, mailbox_uri=None):
     """
     Create a new global configuration in `basedir` (which must not yet exist).
 
     :param FilePath basedir: a non-existant directory
 
-    :param unicode api_endpoint_str: the Twisted server endpoint string
+    :param str api_endpoint_str: the Twisted server endpoint string
         where we will listen for API requests.
 
     :param FilePath tahoe_node_directory: the directory our Tahoe LAFS
         client uses.
 
-    :param unicode api_client_endpoint_str: the Twisted client endpoint
+    :param str api_client_endpoint_str: the Twisted client endpoint
         string where our API can be contacted.
+
+    :param str mailbox_uri: the Magic Wormhole mailbox server API
+        endpoint (or None for the default)
 
     :returns: a GlobalConfigDatabase instance
     """
 
-    # our APIs insist on endpoint-strings being unicode, but Twisted
-    # only accepts "str" .. so we have to convert on py2. When we
-    # support python3 this check only needs to happen on py2
     if not isinstance(api_endpoint_str, str):
         raise ValueError(
-            "'api_endpoint_str' must be unicode"
+            "'api_endpoint_str' must be str"
         )
     if api_client_endpoint_str is not None and not isinstance(api_client_endpoint_str, str):
         raise ValueError(
-            "'api_client_endpoint_str' must be unicode"
+            "'api_client_endpoint_str' must be str"
         )
+    if mailbox_uri is None:
+        mailbox_uri = RENDEZVOUS_RELAY
     # check that the endpoints are valid (will raise exception if not)
     api_endpoint_str = nativeString(api_endpoint_str)
     _validate_listen_endpoint_str(api_endpoint_str)
@@ -378,8 +403,18 @@ def create_global_configuration(basedir, api_endpoint_str, tahoe_node_directory,
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            """
+            INSERT INTO
+                config (api_endpoint, tahoe_node_directory, api_client_endpoint, wormhole_uri)
+            VALUES
+                (?, ?, ?, ?)
+            """,
+            (
+                api_endpoint_str,
+                tahoe_node_directory.path,
+                api_client_endpoint_str,
+                mailbox_uri
+            )
         )
 
     config = GlobalConfigDatabase(
@@ -417,8 +452,8 @@ def create_testing_configuration(basedir, tahoe_node_directory):
     with connection:
         cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint) VALUES (?, ?, ?)",
-            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str)
+            "INSERT INTO config (api_endpoint, tahoe_node_directory, api_client_endpoint, wormhole_uri) VALUES (?, ?, ?, ?)",
+            (api_endpoint_str, tahoe_node_directory.path, api_client_endpoint_str, "ws://ws.example.com/")
         )
 
     tokens = MemoryTokenProvider()
@@ -1703,6 +1738,13 @@ class MemoryTokenProvider(object):
         return self._api_token
 
 
+def is_valid_experimental_feature(name):
+    """
+    :returns bool: True if the named feature exists
+    """
+    return name in _features
+
+
 @attr.s
 class GlobalConfigDatabase(object):
     """
@@ -1803,6 +1845,103 @@ class GlobalConfigDatabase(object):
             cursor.execute("SELECT tahoe_node_directory FROM config")
             node_dir = FilePath(cursor.fetchone()[0]).asTextMode()
         return node_dir
+
+    @property
+    def wormhole_uri(self):
+        """
+        A WebSocket URL to the magic-wormhole mailbox server to use
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT wormhole_uri FROM config")
+            return cursor.fetchone()[0]
+
+    @wormhole_uri.setter
+    def wormhole_uri(self, url):
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("UPDATE config SET wormhole_uri=?", (url, ))
+
+    def feature_enabled(self, name):
+        """
+        :returns bool: True if the named feature is enabled
+        """
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute("SELECT name, enabled FROM features")
+            for n, enabled in cursor.fetchall():
+                if n == name:
+                    return enabled
+        return False
+
+    def enable_feature(self, name):
+        """
+        Turn an optional feature on.
+
+        :param str name: a valid name of an optional feature
+
+        :raises ValueError: if the feature name is invalid or if the
+            feature is already enabled
+        """
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if len(rows) and rows[0][1]:
+                raise ValueError("Feature '{}' already enabled".format(name))
+            if len(rows):
+                cursor.execute(
+                    "UPDATE features "
+                    "SET enabled=? "
+                    "WHERE name=?",
+                    (True, name)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO features "
+                    "VALUES (?, ?)",
+                    (name, True)
+                )
+
+    def disable_feature(self, name):
+        """
+        Turn an optional feature off.
+
+        :param str name: a valid name for an optional feature.
+
+        :raises ValueError: if the feature name is invalid or if it is
+            not already on
+        """
+        if name not in _features:
+            raise ValueError(
+                "Unknown feature '{}'".format(name)
+            )
+        with self.database:
+            cursor = self.database.cursor()
+            cursor.execute(
+                "SELECT name, enabled "
+                "FROM features "
+                "WHERE name=?",
+                (name,)
+            )
+            rows = cursor.fetchall()
+            if not rows or not rows[0][1]:
+                raise ValueError("Feature '{}' not enabled".format(name))
+            cursor.execute(
+                "UPDATE features "
+                "SET enabled=? "
+                "WHERE name=?",
+                (False, name)
+            )
 
     def list_magic_folders(self):
         """
@@ -2041,3 +2180,43 @@ def _validate_connect_endpoint_str(ep_string):
     # since serverFromString is the only way to validate an
     # endpoint-string
     clientFromString(reactor, nativeString(ep_string))
+
+
+# Currently Available Experimental Features
+#
+# When making a new optional feature, remember that the lifecycle of
+# the experimental feature will be that it is introduced at some
+# revision and then in a future revision will either become a
+# permanent feature (i.e. HTTP URL moves to /v1 or so) OR it will be
+# deleted.
+#
+# If the feature is deleted, any changes to configuration tables
+# should be un-done (by a new SchemaVersion). Bear this in mind when
+# adding state to the global or magic-folder configurations.
+
+# map from "feature-name" to a description of that feature for users
+_features = {
+    "invites": (
+        'Use magic-wormhole to pair other devices to a folder.\n'
+        'This enables the "magic-folder pair" and "magic-folder join"\n'
+        'subcommands. Note that using either of these commands\n'
+        'will cause communication with a third-party "mailbox server"\n'
+        'which by default is relay.magic-wormhole.io'
+    ),
+}
+
+
+def describe_experimental_features():
+    """
+    :returns str: suitable output to show a user describing available
+        experimental features.
+    """
+    return "\n".join(
+        "{}:\n{}".format(
+            name,
+            "\n".join(
+                textwrap.wrap(desc, initial_indent="    ", subsequent_indent="    ")
+            ),
+        )
+        for name, desc in _features.items()
+    )

@@ -43,7 +43,12 @@ from .participants import (
 from .scanner import (
     ScannerService,
 )
-from .status import FolderStatus
+from .invite import (
+    InMemoryInviteManager,
+)
+from .status import (
+    FolderStatus,
+)
 
 
 # Mask off all non-owner permissions for magic-folders files by default.
@@ -133,6 +138,7 @@ class MagicFolder(service.MultiService):
             client=tahoe_client,
             config=mf_config,
             name=name,
+            invite_manager=InMemoryInviteManager(tahoe_client, folder_status, mf_config),
             local_snapshot_service=local_snapshot_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=RemoteScannerService.from_config(
@@ -157,7 +163,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
+    def __init__(self, client, config, name, invite_manager, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -169,12 +175,14 @@ class MagicFolder(service.MultiService):
         self.uploader_service = uploader
         self.folder_status = folder_status
         self.scanner_service = scanner_service
+        self.invite_manager = invite_manager
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
         downloader.setServiceParent(self)
         uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
+        invite_manager.setServiceParent(self)
 
     def startService(self):
         # we don't start any of our "real" services until the

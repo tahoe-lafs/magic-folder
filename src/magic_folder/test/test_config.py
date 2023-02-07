@@ -87,7 +87,9 @@ from ..config import (
     MagicFolderConfig,
     endpoint_description_to_http_api_root,
     create_global_configuration,
+    create_testing_configuration,
     load_global_configuration,
+    is_valid_experimental_feature,
 )
 from ..snapshot import (
     create_local_author,
@@ -200,6 +202,31 @@ class TestGlobalConfig(SyncTestCase):
         self.assertThat(
             config2.api_endpoint,
             Equals("tcp:42")
+        )
+
+    def test_change_websocket_url(self):
+        """
+        An assignment that changes the value of
+        ``GlobalConfigDatabase.wormhole_uri`` results in the new value
+        being available when the database is loaded again with
+        ``load_global_configuration``.
+        """
+        config = create_global_configuration(
+            self.temp,
+            u"tcp:1234",
+            self.node_dir,
+            u"tcp:localhost:1234",
+            u"ws://localhost:4444/",
+        )
+        config.wormhole_uri = "ws://example.invalid./"
+        config2 = load_global_configuration(self.temp)
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals(config.wormhole_uri)
+        )
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals("ws://example.invalid./")
         )
 
 
@@ -649,7 +676,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.db.delete_all_local_snapshots_for(snapshot.relpath)
         with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
             self.db.get_local_snapshot(snapshot.relpath)
-
 
 
 class DeleteLocalSnapshotTests(SyncTestCase):
@@ -1381,3 +1407,63 @@ class ConflictTests(SyncTestCase):
             self.db.is_conflict_marker(conflict_path),
             Equals(True)
         )
+
+
+class OptionalFeatureTests(SyncTestCase):
+    """
+    Test optional features
+    """
+    def setUp(self):
+        super(OptionalFeatureTests, self).setUp()
+        self._basedir = FilePath(self.mktemp())
+        self._nodedir = FilePath(self.mktemp())
+        self.config = create_testing_configuration(self._basedir, self._nodedir)
+
+    def test_invalid_feature(self):
+        self.assertThat(
+            is_valid_experimental_feature("not-a-valid-feature"),
+            Equals(False)
+        )
+
+    def test_enable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.enable_feature("not-a-valid-feature")
+
+    def test_disable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.disable_feature("not-a-valid-feature")
+
+    def test_disable_but_wasnt(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            with self.assertRaises(ValueError):
+                self.config.disable_feature(valid_feature)
+
+    def test_enable_disable_feature(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )
+
+            with self.assertRaises(ValueError):
+                self.config.enable_feature(valid_feature)
+
+            self.config.disable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )

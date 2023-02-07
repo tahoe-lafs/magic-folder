@@ -25,21 +25,16 @@ from twisted.logger import (
     FileLogObserver,
     eventAsText,
 )
-
-from twisted.web.client import (
-    Agent,
-)
 from twisted.python.filepath import (
     FilePath,
 )
 from twisted.python import usage
 from twisted.web import http
-
 from twisted.logger import (
     Logger,
 )
-from treq.client import (
-    HTTPClient,
+from wormhole.cli.public_relay import (
+    RENDEZVOUS_RELAY,
 )
 
 from eliot.twisted import (
@@ -60,10 +55,6 @@ from .client import (
     create_http_client,
 )
 
-from .invite import (
-    magic_folder_invite
-)
-
 from .list import (
     magic_folder_list
 )
@@ -79,9 +70,8 @@ from .migrate import (
 )
 from .config import (
     load_global_configuration,
-)
-from .join import (
-    magic_folder_join
+    describe_experimental_features,
+    is_valid_experimental_feature,
 )
 from .service import (
     MagicFolderService,
@@ -126,6 +116,8 @@ class InitializeOptions(usage.Options):
         ("client-endpoint", "c", None,
          "(Optional) the Twisted client-string for our REST API (only required "
          "if auto-converting from the --listen-endpoint fails)"),
+        ("mailbox", "m", RENDEZVOUS_RELAY,
+         "The URL upon which to contact the Magic Wormhole mailbox service"),
     ]
 
     description = (
@@ -156,11 +148,61 @@ def initialize(options):
         options['listen-endpoint'],
         FilePath(options['node-directory']),
         options['client-endpoint'],
+        options['mailbox'],
     )
     print(
         "Created Magic Folder daemon configuration in:\n     {}".format(options.parent._config_path.path),
         file=options.stdout,
     )
+
+
+class ConfigOptions(usage.Options):
+    """
+    Change configuration options in an existing Magic Folder daemon
+    directory.
+    """
+
+    optParameters = [
+        # should include these, probably "for completeness" but
+        # leaving out for now
+        # ("listen-endpoint", "l", None, "A Twisted server string for our REST API (e.g. \"tcp:4321\")"),
+        # ("client-endpoint", "c", None,
+        #  "The Twisted client-string for our REST API (only required if auto-converting"
+        #  " from the --listen-endpoint fails)"),
+        ("enable", None, None, "Enable experimental feature"),
+        ("disable", None, None, "Disable experimental feature"),
+    ]
+
+    optFlags = [
+        ("features", None, "List available experimental features"),
+    ]
+
+    description = (
+        "Change configuration options"
+    )
+
+
+@inline_callbacks
+def set_config(options):
+    """
+    Change configuration options
+    """
+    if options["features"]:
+        print(describe_experimental_features(), file=options.stdout)
+        return
+
+    try:
+        if options["enable"]:
+            yield options.parent.client.enable_feature(options["enable"])
+        elif options["disable"]:
+            yield options.parent.client.disable_feature(options["disable"])
+        else:
+            print(options, file=options.stdout)
+    except MagicFolderApiError as err:
+        if err.code >= 400 and err.code < 500:
+            print("Error: {}".format(err.reason), file=options.stderr)
+        else:
+            raise
 
 
 class MigrateOptions(usage.Options):
@@ -256,7 +298,6 @@ class AddOptions(usage.Options):
             raise usage.UsageError(
                 "'{}' isn't a directory".format(local_dir)
             )
-
 
     def postOptions(self):
         super(AddOptions, self).postOptions()
@@ -402,12 +443,45 @@ def list_(options):
     )
 
 
+def experimental(name):
+    """
+    A class-decorator that marks an Options as related to an
+    experimental feature.
+
+    This makes the usage information display the experimental status
+    and how to turn it on.
+    """
+    assert is_valid_experimental_feature(name)
+
+    def decorator(klass):
+        orig_usage = klass.getUsage
+
+        def usage_wrapper(self, *args, **kw):
+            usage = orig_usage(self, *args, **kw)
+            enabled = self.parent.config.feature_enabled(name)
+            return usage + (
+                "\nThis is an experimental feature. Turn it {} with:"
+                "\n    magic-folder --config {} set-config --{} {}".format(
+                    "off" if enabled else "on",
+                    self.parent["config"],
+                    "disable" if enabled else "enable",
+                    name,
+                )
+            )
+            return usage
+        klass.getUsage = usage_wrapper
+        return klass
+    return decorator
+
+
+@experimental("invites")
 class InviteOptions(usage.Options):
-    nickname = None
-    synopsis = "NICKNAME\n\nProduce an invite code for a new device called NICKNAME"
+    participant_name = None
+    synopsis = "NAME\n\nProduce an invite code for a new device called NAME"
     stdin = StringIO(u"")
     optParameters = [
-        ("name", "n", None, "Name of an existing magic-folder"),
+        ("folder", "n", None, "Name of an existing magic-folder"),
+        ("mode", "m", "read-write", "Mode of the invited device: read-write or read-only"),
     ]
     description = (
         "Invite a new participant to a given magic-folder. The resulting "
@@ -415,39 +489,53 @@ class InviteOptions(usage.Options):
         "transmitted securely to the invitee."
     )
 
-    def parseArgs(self, nickname):
+    def parseArgs(self, name):
         super(InviteOptions, self).parseArgs()
-        self.nickname = nickname
+        self.participant_name = name
 
     def postOptions(self):
-        if self["name"] is None:
+        valid_modes = ["read-write", "read-only"]
+        if self["mode"] not in valid_modes:
             raise usage.UsageError(
-                "Must specify the --name option"
+                "Mode must be one of: {}".format(", ".join(valid_modes))
+            )
+        if self["folder"] is None:
+            raise usage.UsageError(
+                "Must specify the --folder option"
             )
 
 
 @inline_callbacks
 def invite(options):
-    from twisted.internet import reactor
-    treq = HTTPClient(Agent(reactor))
+    client = options.parent.client
 
-    invite_code = yield magic_folder_invite(
-        options.parent.config,
-        options['name'],
-        options.nickname,
-        treq,
-    )
-    print(u"{}".format(invite_code), file=options.stdout)
+    # do HTTP request to the API
+    data = yield client.invite(options["folder"], options.participant_name, options["mode"])
+    print(u"Secret invite code: {}".format(data["wormhole-code"]), file=options.stdout)
+    print(u"  waiting for {} to accept...".format(data["participant-name"]), file=options.stdout)
+    options.stdout.flush()
+
+    try:
+        # second HTTP request to the API
+        res = yield client.invite_wait(options["folder"], data["id"])
+        print("Successfully added as '{}'".format(res["participant-name"]), file=options.stdout)
+    except MagicFolderApiError as e:
+        print("Error: {}".format(e.reason), file=options.stderr)
 
 
+@experimental("invites")
 class JoinOptions(usage.Options):
     synopsis = "INVITE_CODE LOCAL_DIR"
     dmd_write_cap = ""
     magic_readonly_cap = ""
     optParameters = [
-        ("poll-interval", "p", "60", "How often to ask for updates"),
+        ("poll-interval", "p", "60", "How often to look for remote updates"),
+        ("scan-interval", "s", "60", "How often to detect local changes"),
         ("name", "n", None, "Name for the new magic-folder"),
         ("author", "A", None, "Author name for Snapshots in this magic-folder"),
+    ]
+    optFlags = [
+        ["disable-scanning", None, "Disable scanning for local changes."],
     ]
 
     def parseArgs(self, invite_code, local_dir):
@@ -459,6 +547,13 @@ class JoinOptions(usage.Options):
         except ValueError:
             raise usage.UsageError(
                 "--poll-interval must be a positive integer"
+            )
+        try:
+            if int(self['scan-interval']) <= 0:
+                raise ValueError("should be positive")
+        except ValueError:
+            raise usage.UsageError(
+                "--scan-interval must be a positive integer"
             )
         self.local_dir = FilePath(local_dir)
         if not self.local_dir.exists():
@@ -480,18 +575,23 @@ class JoinOptions(usage.Options):
             )
 
 
+@inline_callbacks
 def join(options):
     """
     ``magic-folder join`` entrypoint.
     """
-    return magic_folder_join(
-        options.parent.config,
+    ans = yield options.parent.client.join(
+        options["name"],
         options.invite_code,
         options.local_dir,
-        options["name"],
-        options["poll-interval"],
         options["author"],
+        int(options["poll-interval"]),
+        None if options['disable-scanning'] else int(options["scan-interval"]),
     )
+    if ans["success"]:
+        print("Successfully joined as '{}'".format(ans["participant-name"]))
+    else:
+        print("Error joining: {}".format(ans["error"]))
 
 
 def _fill_author_from_environment(options):
@@ -722,11 +822,12 @@ class MagicFolderCommand(BaseOptions):
 
     subCommands = [
         ["init", None, InitializeOptions, "Initialize a Magic Folder daemon."],
+        ["set-config", None, ConfigOptions, "Change configuration options."],
         ["migrate", None, MigrateOptions, "Migrate a Magic Folder from Tahoe-LAFS 1.14.0 or earlier"],
         ["show-config", None, ShowConfigOptions, "Dump configuration as JSON"],
         ["add", None, AddOptions, "Add a new Magic Folder."],
-        ["invite", None, InviteOptions, "Invite someone to a Magic Folder."],
-        ["join", None, JoinOptions, "Join a Magic Folder."],
+        ["invite", None, InviteOptions, "Invite someone to a Magic Folder. (Experimental)"],
+        ["join", None, JoinOptions, "Join a Magic Folder. (Experimental)"],
         ["leave", None, LeaveOptions, "Leave a Magic Folder."],
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders daemon process."],
@@ -781,6 +882,7 @@ subDispatch = {
     "init": initialize,
     "migrate": migrate,
     "show-config": show_config,
+    "set-config": set_config,
     "add": add,
     "invite": invite,
     "join": join,
@@ -791,7 +893,7 @@ subDispatch = {
 }
 
 
-def dispatch_magic_folder_command(args):
+def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
     """
     Run a magic-folder command with the given args
 
@@ -799,8 +901,16 @@ def dispatch_magic_folder_command(args):
         magic-folder (sub)command.
     """
     options = MagicFolderCommand()
+    if stdout is not None:
+        options.stdout = stdout
+    if stderr is not None:
+        options.stderr = stderr
+    if client is not None:
+        options._client = client
+
     try:
         options.parseOptions(args)
+        maybe_fail_experimental_command(options)
     except usage.UsageError as e:
         print("Error: {}".format(e))
         # if a user just typed "magic-folder" don't make them re-run
@@ -811,6 +921,41 @@ def dispatch_magic_folder_command(args):
         raise SystemExit(1)
 
     return run_magic_folder_options(options)
+
+
+# maps str -> str
+# "subcommand" -> "experimental feature"
+# where the experimental feature must exist in
+# magic_folder.config._features
+_subcommand_to_experimental_features = {
+    "invite": "invites",
+    "join": "invites",
+}
+
+def maybe_fail_experimental_command(options):
+    """
+    Attempt to produce an error early if the user used an experimental
+    feature that is not enabled. We could fail to find a configuration
+    at all, which means we don't know what commands are enabled or
+    not, so we let it through in that case.
+    """
+    exp_sub = _subcommand_to_experimental_features.get(options.subCommand, None)
+    if exp_sub:
+        if not options.config.feature_enabled(exp_sub):
+            try:
+                maybe_config_option = " --config {}".format(options.parent._config_path.path)
+            except AttributeError:
+                maybe_config_option = ""
+            raise usage.UsageError(
+                '"magic-folder {}" depends on experimental feature "{}"'
+                ' which is not enabled.\nUse "magic-folder {} set-config'
+                ' --enable {}" to enable it.'.format(
+                    options.subCommand,
+                    exp_sub,
+                    maybe_config_option,
+                    exp_sub,
+                )
+            )
 
 
 # If `--eliot-task-fields` is passed, then `maybe_enable_eliot_logging` will

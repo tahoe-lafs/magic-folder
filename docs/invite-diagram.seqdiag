@@ -1,0 +1,35 @@
+// to build me:
+// pip install seqdiag
+// seqdiag --no-transparency invite-diagram.seqdiag
+
+// Illustration of the flow between Laptop and Desktop devices via the
+// magic-wormhole mailbox when doing an invitation.
+
+diagram {
+   laptop  -> wormhole-mailbox [label="allocate"];
+   laptop  <- wormhole-mailbox [label="1-code-words"];
+
+   laptop --> desktop [label="Out-of-Band communication of \"1-code-words\"", return="foo"];
+
+   desktop    -> wormhole-mailbox [label="claim"];
+   desktop    <- wormhole-mailbox [label="mailbox open"];
+
+   laptop  -> wormhole-mailbox [label="PUT: invite{collective: readcap }"];
+   desktop    <- wormhole-mailbox [label="GET: invite{collective: readcap }"];
+
+... Desktop creates Personal directory\n(one write, one read cap) ...
+
+   desktop    -> wormhole-mailbox [label="PUT: accept{personal: readcap }"];
+   laptop  <- wormhole-mailbox [label="GET: accept{personal: readcap }"];
+
+... Laptop adds Desktop's read-only cap to Collective ...
+
+   laptop  -> wormhole-mailbox [label="PUT: success"];
+   desktop    <- wormhole-mailbox [label="GET: success"];
+
+... Desktop has joined the Collective ...
+
+   desktop -> wormhole-mailbox [label="close"];
+   laptop <- wormhole-mailbox [label="close"];
+
+}

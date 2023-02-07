@@ -1,0 +1,34 @@
+// to build me:
+// pip install seqdiag
+// seqdiag --no-transparency invite-diagram.seqdiag
+
+// Illustration of the flow between Laptop and Phone devices via the
+// magic-wormhole mailbox when doing an invitation where the "Phone"
+// device will be read-only (that is, not ever be able to write new
+// snapshots to the magic-folder)
+
+diagram {
+   laptop  -> wormhole-mailbox [label="allocate"];
+   laptop  <- wormhole-mailbox [label="1-code-words"];
+
+   laptop --> phone [label="Out-of-Band communication of \"1-code-words\"", return="foo"];
+
+   phone    -> wormhole-mailbox [label="claim"];
+   phone    <- wormhole-mailbox [label="mailbox open"];
+
+   laptop  -> wormhole-mailbox [label="PUT: invite{collective: readcap }"];
+   phone    <- wormhole-mailbox [label="GET: invite{collective: readcap }"];
+
+   phone    -> wormhole-mailbox [label="PUT: accept{ }"];
+   laptop  <- wormhole-mailbox [label="GET: accept{ }"];
+
+... Laptop adds Phone Collective with an empty immutable dir...
+
+   laptop  -> wormhole-mailbox [label="PUT: success"];
+   phone    <- wormhole-mailbox [label="GET: success"];
+
+... Phone has joined the Collective ...
+
+   phone -> wormhole-mailbox [label="close"];
+   laptop <- wormhole-mailbox [label="close"];
+}

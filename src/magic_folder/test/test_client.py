@@ -5,11 +5,15 @@
 Tests for ``magic_folder.client``.
 """
 
+import json
 from testtools.matchers import (
     Equals,
     Always,
 )
 
+from twisted.python.filepath import (
+    FilePath,
+)
 from testtools.twistedsupport import (
     succeeded,
 )
@@ -51,27 +55,110 @@ class MagicFolderClientTests(SyncTestCase):
         super(MagicFolderClientTests, self).setUp()
         self.setup_client()
 
+    def _client_method_request(self, method, args, req_kind, req_url,
+                               body=b"", extra_headers={}):
+        """
+        Test that calling a given `method` results in the client making a
+        request to the given `req_url` (with HTTP verb `req_kind`).
+        """
+        self.assertThat(
+            getattr(self.client, method)(*args),
+            succeeded(Always()),
+        )
+        headers = {
+            b'Accept-Encoding': [b'gzip'],
+            b'Authorization': [b'Bearer fake token'],
+            b'Connection': [b'close'],
+            b'Host': [b'invalid.'],
+        }
+        headers.update(extra_headers)
+
+        self.assertThat(
+            self.api_calls,
+            Equals([
+                (req_kind,
+                 req_url,
+                 {},
+                 headers,
+                 body,
+                ),
+            ])
+        )
+
     def test_tahoe_objects(self):
         """
         The /tahoe-objects API works
         """
-        self.assertThat(
-            self.client.tahoe_objects("a_magic_folder"),
-            succeeded(Always()),
+        return self._client_method_request(
+            "tahoe_objects",
+            ("a_magic_folder", ),
+            b"GET",
+            "http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects",
         )
-        self.assertThat(
-            self.api_calls,
-            Equals([
-                (b'GET',
-                 'http://invalid./v1/magic-folder/a_magic_folder/tahoe-objects',
-                 {},
-                 {
-                     b'Accept-Encoding': [b'gzip'],
-                     b'Authorization': [b'Bearer fake token'],
-                     b'Connection': [b'close'],
-                     b'Host': [b'invalid.'],
-                 },
-                 b'',
-                ),
-            ])
+
+    def test_create_invite(self):
+        """
+        The /create-invite API works
+        """
+        return self._client_method_request(
+            "invite",
+            ("folder_name", "petname", "read-write"),
+            b"POST",
+            "http://invalid./experimental/magic-folder/folder_name/invite",
+            b'{"participant-name": "petname", "mode": "read-write"}',
+            {
+                b"Content-Length": [b"53"],
+            },
+        )
+
+    def test_invite_wait(self):
+        """
+        The /invite-wait API works
+        """
+        return self._client_method_request(
+            "invite_wait",
+            ("folder_name", "an-id"),
+            b"POST",
+            "http://invalid./experimental/magic-folder/folder_name/invite-wait",
+            b'{"id": "an-id"}',
+            {
+                b"Content-Length": [b"15"],
+            },
+        )
+
+    def test_list_invites(self):
+        """
+        The /list-invites API works
+        """
+        return self._client_method_request(
+            "list_invites",
+            ("folder_name", ),
+            b"GET",
+            "http://invalid./experimental/magic-folder/folder_name/invites",
+        )
+
+    def test_join(self):
+        """
+        The /join API works
+        """
+        folder_dir = FilePath(self.mktemp()).asTextMode()
+        body = json.dumps(
+            {
+                "invite-code": "2-suspicious-penguin",
+                "local-directory": folder_dir.path,
+                "author": "amy",
+                "poll-interval": 123,
+                "scan-interval": 321,
+            }
+        ).encode("utf-8")
+
+        return self._client_method_request(
+            "join",
+            ("folder_name", "2-suspicious-penguin", folder_dir, "amy", 123, 321),
+            b"POST",
+            "http://invalid./experimental/magic-folder/folder_name/join",
+            body,
+            {
+                b"Content-Length": ["{}".format(len(body)).encode("utf8")],
+            },
         )

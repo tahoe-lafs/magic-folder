@@ -219,6 +219,12 @@ class _CollectiveDirnodeParticipants(object):
                 "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
             )
 
+        # _can_ we add this, even?
+        if self._collective_cap.is_readonly_directory():
+            raise ValueError(
+                "Collective DMD is read-only"
+            )
+
         # NB: we could check here if there is already a participant
         # for this name .. however, there's a race between that check
         # succeeding and adding the participant so we just try to add
