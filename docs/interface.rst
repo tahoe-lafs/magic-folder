@@ -247,7 +247,7 @@ Request an immediate scan of the Collective DMD and remote participants of the g
 Returns an empty `dict` after the scan is complete.
 
 
-POST `/v1/magic-folder/<folder-name>/invite`
+POST `/experimental/magic-folder/<folder-name>/invite`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new invite.
@@ -267,7 +267,7 @@ A serialized invite is a JSON object that has keys:
 * `wormhole-code`: None or the text wormhole code
 
 
-POST `/v1/magic-folder/<folder-name>/invite-wait`
+POST `/experimental/magic-folder/<folder-name>/invite-wait`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wait for an invite to complete (either successfully or not).
@@ -279,7 +279,7 @@ This endpoint returns 200 OK with the serialized Invite (see above) if the invit
 Otherwise, the endpoint returns a 400 error describing the error.
 
 
-POST `/v1/magic-folder/<folder-name>/join`
+POST `/experimental/magic-folder/<folder-name>/join`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Join a magic-folder by accepting an invite.
@@ -295,7 +295,7 @@ The endpoint returns 201 Created once the folder is created and joined.
 Otherwise, a 400 error is returned describing the error.
 
 
-POST `/v1/magic-folder/<folder-name>/invites`
+POST `/experimental/magic-folder/<folder-name>/invites`
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 List all invites.
