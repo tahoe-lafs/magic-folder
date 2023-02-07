@@ -428,6 +428,8 @@ class MagicFolderService(MultiService):
             mode,
             self._wormhole_factory(
                 appid=u"private.storage/magic-folder/invites",
+                relay_url=self.config.wormhole_uri,
+                reactor=self.reactor,
                 # XXX this should probably be supplied from invite.py
                 # somewhere/how. And the appid above. Or wrapped into
                 # _wormhole_factory()?
@@ -438,8 +440,6 @@ class MagicFolderService(MultiService):
                         ],
                     },
                 },
-                relay_url=self.config.wormhole_uri,
-                reactor=self.reactor,
             ),
         )
         yield invite.await_code()  # may raise ValueError
