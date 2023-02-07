@@ -255,7 +255,7 @@ Invite HTTP API
 ---------------
 
 All Invite functionality is available via HTTP APIs scoped to a particluar magic-folder.
-That is, the root URI is ``/v1/magic-folder/<magic-folder-name>/``.
+That is, the root URI is ``/experimental/magic-folder/<magic-folder-name>/``.
 We describe endpoints below this.
 
 

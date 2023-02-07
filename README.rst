@@ -34,7 +34,7 @@ pre-release code), you should create a virtualenv and install into that:
 
 * ``git clone https://github.com/LeastAuthority/magic-folder.git``
 * ``cd magic-folder``
-* ``virtualenv --python=python2.7 venv``
+* ``virtualenv venv``
 * ``venv/bin/pip install --upgrade setuptools``
 * ``venv/bin/pip install --editable .``
 * ``venv/bin/magic-folder --version``
@@ -67,7 +67,6 @@ All other interactions are via the HTTP API which listens on a local endpoint ac
 Other ``magic-folder`` subcommands are typically just thin CLI wrappers around a particular HTTP endpoint.
 
 
-
 Testing
 =======
 
@@ -80,6 +79,7 @@ example, you can run the test suite on multiple cores to speed it up:
 
 * ``MAGIC_FOLDER_TRIAL_ARGS="-j4" tox``
 
+
 Documentation
 =============
 
@@ -90,6 +90,7 @@ generate HTML version of Magic Folder documents, do:
 * ``cd docs; make html``
 
 Resulting HTML files will be under ``docs/_build/html/``.
+
 
 License
 =======
