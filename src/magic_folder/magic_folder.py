@@ -213,7 +213,7 @@ class MagicFolder(service.MultiService):
             for participant in participants
             if participant.is_self
         ]
-        assert len(self_reader) == 1, "should be exactly one 'self' participant"
+        assert len(self_reader) == 1, f"should be exactly one 'self' participant: {participants}"
         yield maybe_update_personal_dmd_to_local(
             self._clock,
             self.config,

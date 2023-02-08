@@ -164,6 +164,7 @@ class Capability:
 
         :returns str: a Tahoe-LAFS URI string
         """
+        assert self._uri is not None, "Must have a valid capability"
         return self._uri
 
     def __hash__(self):

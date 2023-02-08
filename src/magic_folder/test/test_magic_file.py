@@ -53,9 +53,13 @@ from .common import (
 @attr.s
 class _FakeParticipant(object):
     our_files = attr.ib()
+    _is_self = attr.ib(default=False)
 
     def files(self):
         return self.our_files
+
+    def is_self(self):
+        return self._is_self
 
 
 @implementer(IWriteableParticipant)

@@ -6,6 +6,7 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
+import attr
 from twisted.python.filepath import (
     FilePath,
 )
@@ -28,6 +29,9 @@ from testtools.matchers import (
 from testtools.twistedsupport import (
     succeeded,
 )
+from zope.interface import (
+    implementer,
+)
 from ..magic_folder import (
     MagicFolder,
     LocalSnapshotService,
@@ -44,17 +48,26 @@ from ..status import (
 )
 from ..snapshot import (
     create_local_author,
+    LocalSnapshot,
 )
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
+)
+from ..participants import (
+    IParticipants,
+    SnapshotEntry,
 )
 from ..util.capabilities import (
     random_immutable,
     random_dircap,
 )
+from ..util.file import (
+    PathState,
+)
 
 from .common import (
     SyncTestCase,
+    success_result_of,
 )
 from .strategies import (
     relative_paths,
@@ -194,3 +207,102 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_creator.processed,
             Equals([target_path]),
         )
+
+
+from .test_magic_file import (
+    _FakeParticipant,
+    _FakeWriteableParticipant,
+)
+
+@implementer(IParticipants)
+@attr.s
+class _FakeParticipants:
+    writer = attr.ib()
+    our_participants = attr.ib()
+
+    def list(self):
+        return self.our_participants
+
+
+class LocalStateTests(SyncTestCase):
+    """
+    Tests for ``MagicFolder.check_local_state``
+    """
+
+    def test_update_personal_dmd(self):
+        """
+        ``check_local_state`` find a local mismatch
+        """
+        local_snapshot_service = Service()
+        tahoe_client = object()
+        reactor = task.Clock()
+        name = u"local-snapshot-service-test"
+        basedir = FilePath(self.mktemp())
+        basedir.makedirs()
+        tahoedir = FilePath(self.mktemp())
+        tahoedir.makedirs()
+        magicdir = FilePath(self.mktemp())
+        magicdir.makedirs()
+        collective_cap = random_dircap()
+        upload_cap = random_dircap()
+
+        global_config = create_testing_configuration(basedir, tahoedir)
+        author = create_local_author(u"Ida Rhodes")
+        config = global_config.create_magic_folder(
+            "a folder",
+            magicdir,
+            author,
+            collective_cap,
+            upload_cap,
+            5,
+            5,
+        )
+        snap = LocalSnapshot(
+            "foo",
+            author,
+            dict(),
+            content_path=FilePath("snap content"),
+            parents_local=[],
+            parents_remote=[],
+        )
+        config.store_local_snapshot(snap, PathState(size=1234,mtime_ns=555,ctime_ns=555))
+
+        participants = _FakeParticipants(
+            _FakeWriteableParticipant(),
+            [
+                _FakeParticipant({
+                    "foo": SnapshotEntry(
+                        random_immutable(),
+                        {"version": 1}
+                    ),
+                }, is_self=True),
+            ],
+        )
+        uploader = Service()
+        status_service = WebSocketStatusService(reactor, None)
+        folder_status = FolderStatus(name, status_service)
+        magic_folder = MagicFolder(
+            client=tahoe_client,
+            config=config,
+            name=name,
+            invite_manager=Service(),
+            local_snapshot_service=local_snapshot_service,
+            folder_status=folder_status,
+            remote_snapshot_cache=Service(),
+            downloader=MultiService(),
+            uploader=uploader,
+            participants=participants,
+            scanner_service=Service(),
+            clock=reactor,
+            magic_file_factory=MagicFileFactory(
+                config,
+                tahoe_client,
+                folder_status,
+                local_snapshot_service,
+                uploader,
+                Service(),
+                Service(),
+                InMemoryMagicFolderFilesystem(),
+            ),
+        )
+        success_result_of(magic_folder.check_local_state())
