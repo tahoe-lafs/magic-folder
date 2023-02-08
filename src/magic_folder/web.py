@@ -652,7 +652,6 @@ def _create_experimental_resource(global_config, global_service):
 
         # start the services for this folder
         mf = global_service._add_service_for_folder(folder_name)
-        yield mf.ready()
 
         request.setResponseCode(http.CREATED)
         request.write(json.dumps(reply).encode("utf8"))
