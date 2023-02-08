@@ -265,7 +265,7 @@ class LocalStateTests(SyncTestCase):
             parents_local=[],
             parents_remote=[],
         )
-        config.store_local_snapshot(snap, PathState(size=1234,mtime_ns=555,ctime_ns=555))
+        config.store_local_snapshot(snap, PathState(size=1234, mtime_ns=555, ctime_ns=555))
 
         participants = _FakeParticipants(
             _FakeWriteableParticipant(),
