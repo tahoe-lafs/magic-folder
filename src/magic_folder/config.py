@@ -1308,8 +1308,11 @@ class MagicFolderConfig(object):
         along with the associated snapshot capability.
         """
         cursor.execute("SELECT relpath, snapshot_cap FROM [current_snapshots]")
+        # note: a file that has never been upload nor downloaded --
+        # i.e. there is _only_ a LocalSnapshot for it -- will not have
+        # a capability in the database yet (hence the None) check
         return [
-            (relpath, Capability.from_string(cap))
+            (relpath, Capability.from_string(cap) if cap is not None else None)
             for relpath, cap in cursor.fetchall()
         ]
 
