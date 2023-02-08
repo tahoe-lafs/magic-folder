@@ -651,7 +651,7 @@ def _create_experimental_resource(global_config, global_service):
             raise _InputError(str(e))
 
         # start the services for this folder
-        mf = global_service._add_service_for_folder(folder_name)
+        global_service._add_service_for_folder(folder_name)
 
         request.setResponseCode(http.CREATED)
         request.write(json.dumps(reply).encode("utf8"))
