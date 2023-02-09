@@ -34,6 +34,7 @@ from .downloader import (
 )
 from .magic_file import (
     MagicFileFactory,
+    maybe_update_personal_dmd_to_local,
 )
 from .participants import (
     IParticipant,
@@ -183,17 +184,42 @@ class MagicFolder(service.MultiService):
         scanner_service.setServiceParent(self)
         invite_manager.setServiceParent(self)
 
+    def startService(self):
+        # we don't start any of our "real" services until the
+        # local-state check has completed (unless we're skipping that,
+        # usually in tests)
+        do_check = self.parent and not self.parent._skip_check_state
+        if do_check:
+            d = self.check_local_state()
+        else:
+            d = defer.succeed(None)
+        d.addCallback(lambda _: super(MagicFolder, self).startService())
+
     @inline_callbacks
     def stopService(self):
         yield self.file_factory.cancel()
         yield super(MagicFolder, self).stopService()
 
-    def ready(self):
+    @inline_callbacks
+    def check_local_state(self):
         """
-        :returns: Deferred that fires with None when this magic-folder is
-            ready to operate
+        :returns: Deferred that fires with None when this magic-folder has
+            successfully confirmed that its local state matches the
+            Personal DMD.
         """
-        return defer.succeed(None)
+        participants = yield self.participants()
+        self_reader = [
+            participant
+            for participant in participants
+            if participant.is_self
+        ]
+        assert len(self_reader) == 1, f"should be exactly one 'self' participant: {participants}"
+        yield maybe_update_personal_dmd_to_local(
+            self._clock,
+            self.config,
+            self_reader[0],
+            self._participants.writer,
+        )
 
     def scan_local(self):
         """

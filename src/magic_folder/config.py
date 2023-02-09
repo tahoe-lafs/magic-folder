@@ -1300,6 +1300,23 @@ class MagicFolderConfig(object):
         return set(r[0] for r in rows)
 
     @with_cursor
+    def get_all_snapshot_paths_and_caps(self, cursor):
+        """
+        A generator that iteratates a sequences of 2-tuples of all
+        relpaths of files that have had an entry in magic folder db
+        (i.e. that have been downloaded or uploaded at least once)
+        along with the associated snapshot capability.
+        """
+        cursor.execute("SELECT relpath, snapshot_cap FROM [current_snapshots]")
+        # note: a file that has never been upload nor downloaded --
+        # i.e. there is _only_ a LocalSnapshot for it -- will not have
+        # a capability in the database yet (hence the None) check
+        return [
+            (relpath, Capability.from_string(cap) if cap is not None else None)
+            for relpath, cap in cursor.fetchall()
+        ]
+
+    @with_cursor
     def get_tahoe_object_sizes(self, cursor):
         """
         :returns: list of triples containing the sizes of the snapshot,

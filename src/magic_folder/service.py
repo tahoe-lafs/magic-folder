@@ -167,6 +167,7 @@ class MagicFolderService(MultiService):
     _wormhole_factory = attr.ib(default=wormhole.create)
 
     log = Logger()
+    _skip_check_state = attr.ib(default=None)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -302,8 +303,6 @@ class MagicFolderService(MultiService):
         observe.addCallback(_set_api_endpoint)
         observe.addErrback(_stop_reactor)
         ds = [observe]
-        for magic_folder in self._iter_magic_folder_services():
-            ds.append(magic_folder.ready())
 
         # double-check that our api-endpoint exists properly in the "output" file
         self.config._write_api_client_endpoint()
@@ -405,8 +404,7 @@ class MagicFolderService(MultiService):
             scan_interval,
         )
 
-        mf = self._add_service_for_folder(name)
-        yield mf.ready()
+        self._add_service_for_folder(name)
         self.status_service._maybe_update_clients()
 
     @inline_callbacks
