@@ -12,6 +12,16 @@ from errno import (
 from allmydata.util.base32 import (
     b2a,
 )
+from wormhole.wormhole import (
+    IDeferredWormhole,
+)
+from zope.interface import (
+    implementer,
+)
+from twisted.internet.defer import (
+    succeed,
+)
+
 from ..util.encoding import (
     load_yaml,
     dump_yaml,
@@ -459,3 +469,27 @@ class MagicFolderNode(object):
             magic_folder.stopService()
             for magic_folder in self.global_service._iter_magic_folder_services()
         ])
+
+
+@implementer(IDeferredWormhole)
+class FakeWormhole:
+    """
+    Enough of a DeferredWormhole fake to do the unit-test
+    """
+
+    def __init__(self, code="1-foo-bar", on_closed=None):
+        self._code = code
+        self._on_closed = on_closed
+
+    def get_welcome(self):
+        return succeed({})
+
+    def allocate_code(self, size):
+        return succeed(self._code)
+
+    def get_code(self):
+        return succeed(self._code)
+
+    def close(self):
+        self._on_closed()
+        return succeed(None)

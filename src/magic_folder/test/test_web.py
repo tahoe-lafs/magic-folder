@@ -84,7 +84,10 @@ from .common import (
     SyncTestCase,
     success_result_of,
 )
-from .fixtures import MagicFolderNode
+from .fixtures import (
+    MagicFolderNode,
+    FakeWormhole,
+)
 from .matchers import (
     matches_response,
     header_contains,
@@ -2122,34 +2125,15 @@ class InviteTests(SyncTestCase):
         )
 
         self.wormhole = None
-
-        # XXX goes in fixture.py?
-        from wormhole.wormhole import IDeferredWormhole
-        from zope.interface import implementer
-        from twisted.internet.defer import succeed
-
-        @implementer(IDeferredWormhole)
-        class FakeWormhole:
-            _close_called = False
-
-            def get_welcome(self):
-                return succeed({})
-
-            def allocate_code(self, size):
-                return succeed("1-foo-bar")
-
-            def get_code(self):
-                return succeed("1-foo-bar")
-
-            def close(self):
-                self._close_called = True
-                return succeed(None)
+        self.wormhole_was_closed = False
 
         def create_wormhole(*args, **kw):
             assert self.wormhole is None, "Double wormhole"
-            self.wormhole = FakeWormhole()
+            self.wormhole = FakeWormhole(
+                "1-foo-bar",
+                self.wormhole_closed,
+            )
             return self.wormhole
-
 
         self.wormhole_factory = create_wormhole
         self.treq = treq_for_folders(
@@ -2163,6 +2147,9 @@ class InviteTests(SyncTestCase):
             wormhole_factory=self.wormhole_factory,
         )
         super().setUp()
+
+    def wormhole_closed(self):
+        self.wormhole_was_closed = True
 
     def tearDown(self):
         self.wormhole = None
@@ -2255,7 +2242,7 @@ class InviteTests(SyncTestCase):
             )
         )
         self.assertThat(
-            self.wormhole._close_called,
+            self.wormhole_was_closed,
             Equals(True)
         )
 
