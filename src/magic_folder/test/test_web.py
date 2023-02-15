@@ -82,6 +82,7 @@ from treq.testing import (
 from .common import (
     skipIf,
     SyncTestCase,
+    success_result_of,
 )
 from .fixtures import MagicFolderNode
 from .matchers import (
@@ -2120,6 +2121,8 @@ class InviteTests(SyncTestCase):
             self.local_path,
         )
 
+        self.wormhole = None
+
         # XXX goes in fixture.py?
         from wormhole.wormhole import IDeferredWormhole
         from zope.interface import implementer
@@ -2127,6 +2130,8 @@ class InviteTests(SyncTestCase):
 
         @implementer(IDeferredWormhole)
         class FakeWormhole:
+            _close_called = False
+
             def get_welcome(self):
                 return succeed({})
 
@@ -2136,8 +2141,14 @@ class InviteTests(SyncTestCase):
             def get_code(self):
                 return succeed("1-foo-bar")
 
+            def close(self):
+                self._close_called = True
+                return succeed(None)
+
         def create_wormhole(*args, **kw):
-            return FakeWormhole()
+            assert self.wormhole is None, "Double wormhole"
+            self.wormhole = FakeWormhole()
+            return self.wormhole
 
 
         self.wormhole_factory = create_wormhole
@@ -2152,6 +2163,10 @@ class InviteTests(SyncTestCase):
             wormhole_factory=self.wormhole_factory,
         )
         super().setUp()
+
+    def tearDown(self):
+        self.wormhole = None
+        super().tearDown()
 
     def test_create_invite(self):
         """
@@ -2185,6 +2200,63 @@ class InviteTests(SyncTestCase):
                     )
                 ),
             )
+        )
+
+    def test_create_invite_then_delete(self):
+        """
+        Cancel an invite
+        """
+
+        # create the invite (we already tested this part above)
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            invite,
+            MatchesDict({
+                "id": Always(),
+                "participant-name": Equals("francesca"),
+                "wormhole-code": Equals("1-foo-bar"),
+                "consumed": Equals(False),
+                "success": Equals(False),
+            })
+        )
+
+        # delete the invite
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({})
+                    )
+                )
+            )
+        )
+        self.assertThat(
+            self.wormhole._close_called,
+            Equals(True)
         )
 
 
