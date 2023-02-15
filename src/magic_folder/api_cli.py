@@ -36,6 +36,30 @@ from .util.file import (
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
 
 
+class CancelInviteOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder in which the invite exists"),
+        ("invite", "i", None, "ID of the invite to delete"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def cancel_invite(options):
+    """
+    Cancel a pending invite in a folder
+    """
+    res = yield options.parent.client.cancel_invite(
+        options['folder'],
+        options['invite'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
 class ListInvitesOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to list invites for"),
@@ -410,6 +434,7 @@ class MagicFolderApiCommand(BaseOptions):
         ["create-invite", None, CreateInviteOptions, "Create an invite in a magic-folder."],
         ["await-invite", None, AwaitInviteOptions, "Wait for an invite to be resolved."],
         ["accept-invite", None, AcceptInviteOptions, "Accept an invite (creating a magic-folder)."],
+        ["cancel-invite", None, CancelInviteOptions, "Cancel a pending invite."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -528,6 +553,7 @@ def run_magic_folder_api_options(options):
         "create-invite": create_invite,
         "await-invite": await_invite,
         "accept-invite": accept_invite,
+        "cancel-invite": cancel_invite,
     }[options.subCommand]
 
     maybe_enable_eliot_logging(options)

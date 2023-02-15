@@ -431,6 +431,45 @@ class MagicFolderEnabledNode(object):
             args,
         )
 
+    @inline_callbacks
+    def list_invites(self, folder_name):
+        """
+        magic-folder-api list-invites
+        """
+        args = [
+            "--config",
+            self.magic_config_directory,
+            "list-invites",
+            "--folder", folder_name
+        ]
+        data = yield _magic_folder_api_runner(
+            self.reactor,
+            self.request,
+            self.name,
+            args,
+        )
+        returnValue(json.loads(data))
+
+    @inline_callbacks
+    def cancel_invite(self, folder_name, invite_id):
+        """
+        magic-folder-api cancel-invites
+        """
+        args = [
+            "--config",
+            self.magic_config_directory,
+            "cancel-invite",
+            "--folder", folder_name,
+            "--invite", invite_id,
+        ]
+        data = yield _magic_folder_api_runner(
+            self.reactor,
+            self.request,
+            self.name,
+            args,
+        )
+        returnValue(json.loads(data))
+
     def show_config(self):
         """
         magic-folder show-config

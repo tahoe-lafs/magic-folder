@@ -223,6 +223,7 @@ def _add_klein_error_handlers(app):
         write_failure(failure)
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
+        print(failure)
         return json.dumps({"reason": "unexpected error processing request"}).encode("utf8")
 
 
@@ -592,6 +593,31 @@ def _create_experimental_resource(global_config, global_service):
             if invite._reject_reason is not None:
                 reject_msg = "{}: {}".format(reject_msg, invite._reject_reason)
             raise APIError(code=400, reason=reject_msg)
+
+
+    @app.route("/magic-folder/<string:folder_name>/invite-cancel", methods=['POST'])
+    @inline_callbacks
+    def cancel_invite(request, folder_name):
+        """
+        Cancel an invite. It is an error if this invite is not currently
+        active.
+
+        The body of the request must be a JSON dict that has the
+        following keys:
+
+        - "id": the ID of an existing invite
+        """
+        body = _load_json(request.content.read())
+        if set(body.keys()) != {u"id"}:
+            raise _InputError(
+                u'Body must be {"id": "..."}'
+            )
+        folder_service = global_service.get_folder_service(folder_name)
+
+        # this may raise ValueError if the id doesn't exist etc
+        yield folder_service.invite_manager.cancel_invite(body[u"id"])
+        request.setResponseCode(http.OK)
+        request.write(b"{}")
 
     @app.route("/magic-folder/<string:folder_name>/join", methods=['POST'])
     @inline_callbacks

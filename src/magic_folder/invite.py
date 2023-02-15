@@ -33,6 +33,9 @@ from eliot import (
 from eliot.twisted import (
     inline_callbacks,
 )
+from wormhole.errors import (
+    WormholeError,
+)
 
 from .participants import (
     participants_from_collective,
@@ -326,6 +329,15 @@ class Invite(object):
             return True
         return False
 
+    def is_consumed(self):
+        """
+        :returns: True if this invite has been consumed (successfully or
+            not)
+        """
+        if self._consumed:
+            return True
+        return False
+
     def marshal(self):
         """
         :returns: JSON-able dict representing this Invite
@@ -543,6 +555,27 @@ class InMemoryInviteManager(service.Service):
         self._in_progress.append(d)
 
         return invite
+
+    @inline_callbacks
+    def cancel_invite(self, invite_id):
+        """
+        Cancel an invite (and delete it), closing the associated wormhole.
+        """
+        try:
+            invite = self._invites[invite_id]
+        except KeyError:
+            raise ValueError(
+                "Invite '{}' doesn't exist".format(invite_id)
+            )
+        if invite._consumed:
+            raise ValueError(
+                "Invite '{}' cannot be canceled".format(invite_id)
+            )
+        try:
+            yield invite._wormhole.close()
+        except WormholeError:
+            pass
+        del self._invites[invite_id]
 
     def stopService(self):
         for d in self._in_progress:
