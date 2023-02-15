@@ -39,6 +39,7 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     StartsWith,
+    Always,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -264,7 +265,8 @@ class AuthorizationTests(SyncTestCase):
 
 
 def treq_for_folders(
-    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
+    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None,
+    wormhole_factory=None,
 ):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
@@ -275,7 +277,7 @@ def treq_for_folders(
     :return: An object like the ``treq`` module.
     """
     return MagicFolderNode.create(
-        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
+        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client, wormhole_factory,
     ).http_client
 
 
@@ -2096,6 +2098,89 @@ class ConflictStatusTests(SyncTestCase):
                         loads,
                         Equals({
                             "foo": ["nelli"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+
+class InviteTests(SyncTestCase):
+    """
+    Tests relating to invites
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./experimental/magic-folder")
+
+    def setUp(self):
+        self.local_path = FilePath(self.mktemp())
+        self.local_path.makedirs()
+
+        self.folder_config = magic_folder_config(
+            "lixia",
+            self.local_path,
+        )
+
+        # XXX goes in fixture.py?
+        from wormhole.wormhole import IDeferredWormhole
+        from zope.interface import implementer
+        from twisted.internet.defer import succeed
+
+        @implementer(IDeferredWormhole)
+        class FakeWormhole:
+            def get_welcome(self):
+                return succeed({})
+
+            def allocate_code(self, size):
+                return succeed("1-foo-bar")
+
+            def get_code(self):
+                return succeed("1-foo-bar")
+
+        def create_wormhole(*args, **kw):
+            return FakeWormhole()
+
+
+        self.wormhole_factory = create_wormhole
+        self.treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": self.folder_config,
+            },
+            start_folder_services=False,
+            wormhole_factory=self.wormhole_factory,
+        )
+        super().setUp()
+
+    def test_create_invite(self):
+        """
+        Create a fresh invite for a folder
+        """
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "id": Always(),
+                            "participant-name": Equals("francesca"),
+                            "wormhole-code": Equals("1-foo-bar"),
+                            "consumed": Equals(False),
+                            "success": Equals(False),
                         }),
                     )
                 ),

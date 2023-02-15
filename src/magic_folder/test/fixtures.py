@@ -296,6 +296,7 @@ class MagicFolderNode(object):
         folders=None,
         start_folder_services=False,
         tahoe_client=None,
+        wormhole_factory=None,
     ):
         """
         Create a :py:`MagicFolderService` and a treq client which is hooked up to it.
@@ -397,6 +398,7 @@ class MagicFolderNode(object):
             tahoe_client,
             cooperator=uncooperator,
             skip_check_state=True,
+            wormhole_factory=wormhole_factory,
         )
 
         if folders and tahoe_root:
