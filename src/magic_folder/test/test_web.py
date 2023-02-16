@@ -2191,7 +2191,7 @@ class InviteTests(SyncTestCase):
 
     def test_create_invite_then_delete(self):
         """
-        Cancel an invite
+        Cancel an invite and cancel it
         """
 
         # create the invite (we already tested this part above)
@@ -2244,6 +2244,33 @@ class InviteTests(SyncTestCase):
         self.assertThat(
             self.wormhole_was_closed,
             Equals(True)
+        )
+
+    def test_delete_non_existing(self):
+        """
+        Cancenl an invite that doesn't exist
+        """
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": "an id that doesn't exist",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
         )
 
 

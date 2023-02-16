@@ -615,7 +615,12 @@ def _create_experimental_resource(global_config, global_service):
         folder_service = global_service.get_folder_service(folder_name)
 
         # this may raise ValueError if the id doesn't exist etc
-        yield folder_service.invite_manager.cancel_invite(body[u"id"])
+        try:
+            yield folder_service.invite_manager.cancel_invite(body[u"id"])
+        except ValueError as e:
+            raise _InputError(
+                str(e)
+            )
         request.setResponseCode(http.OK)
         request.write(b"{}")
 
