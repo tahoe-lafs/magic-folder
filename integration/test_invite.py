@@ -64,3 +64,36 @@ async def test_invite_join(request, reactor, temp_filepath, alice, bob, wormhole
         magic_b.child("file_from_alice").path,
         content0,
     )
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_invite_then_cancel(request, reactor, temp_filepath, alice, wormhole):
+    """
+    - alice creates a new folder
+    - alice invites bob via wormhole
+    - alice cancels the invite
+    """
+    magic_a = temp_filepath.child("cancel_magic")
+    magic_a.makedirs()
+    await alice.add("eniac", magic_a.path, scan_interval=1, poll_interval=1)
+
+    def cleanup_alice():
+        pytest_twisted.blockon(alice.leave("eniac"))
+    request.addfinalizer(cleanup_alice)
+
+    print("added alice")
+
+    code, magic_proto, process_transport = await alice.invite("eniac", "kay")
+    print(code, magic_proto, process_transport)
+
+    # ensure we can see it
+    invites = await alice.list_invites("eniac")
+    assert len(invites) == 1
+
+    # delete / cancel the invite
+    await alice.cancel_invite("eniac", invites[0]["id"])
+
+    # the invite should be gone now
+    invites = await alice.list_invites("eniac")
+    assert len(invites) == 0

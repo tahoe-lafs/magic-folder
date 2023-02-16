@@ -245,6 +245,20 @@ class MagicFolderClient(object):
             api_url,
         )
 
+    def cancel_invite(self, magic_folder, invite_id):
+        # type: (str, str) -> dict
+        api_url = self.base_url.child(u"experimental").child(u"magic-folder").child(magic_folder).child(u"invite-cancel")
+        return self._authorized_request(
+            "POST",
+            api_url,
+            body=json.dumps(
+                {
+                    "id": invite_id,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+        )
+
     def enable_feature(self, feature):
         """
         Call the HTTP API to mark a given feature on. Error if it is

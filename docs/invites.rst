@@ -285,6 +285,15 @@ The ``id`` is the UUID of an existing invite.
 This endpoint will wait until the invite is consumed and then return code 200 with the serialized JSON of the invite (as above) or a 400 error.
 
 
+POST .../invite-cancel
+~~~~~~~~~~~~~~~~~~~~
+
+Accepts a JSON body containing keys: ``id``.
+The ``id`` is the UUID of an existing invite.
+This endpoint will cancel the pending invite then return code 200 with empty JSON body (``{}``).
+In case the invite cannot be cancelled (e.g. it has already succeed or failed or otherwise consumed the wormhole) an error is produced.
+
+
 GET .../invites
 ~~~~~~~~~~~~~~~
 

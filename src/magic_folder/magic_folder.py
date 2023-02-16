@@ -64,7 +64,7 @@ class MagicFolder(service.MultiService):
     """
 
     @classmethod
-    def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None):
+    def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None, invite_manager=None):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
@@ -133,12 +133,14 @@ class MagicFolder(service.MultiService):
             magic_file_factory,
             folder_status,
         )
+        if invite_manager is None:
+            invite_manager = InMemoryInviteManager(tahoe_client, folder_status, mf_config)
 
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
-            invite_manager=InMemoryInviteManager(tahoe_client, folder_status, mf_config),
+            invite_manager=invite_manager,
             local_snapshot_service=local_snapshot_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=RemoteScannerService.from_config(

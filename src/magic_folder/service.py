@@ -419,7 +419,6 @@ class MagicFolderService(MultiService):
         :raises ValueError: on input problems
         """
         folder_service = self.get_folder_service(folder_name)
-
         invite = yield folder_service.invite_manager.create_invite(
             self.reactor,
             author_name,

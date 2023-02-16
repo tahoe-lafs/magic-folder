@@ -39,6 +39,7 @@ from testtools.matchers import (
     MatchesDict,
     MatchesListwise,
     StartsWith,
+    Always,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -81,8 +82,12 @@ from treq.testing import (
 from .common import (
     skipIf,
     SyncTestCase,
+    success_result_of,
 )
-from .fixtures import MagicFolderNode
+from .fixtures import (
+    MagicFolderNode,
+    FakeWormhole,
+)
 from .matchers import (
     matches_response,
     header_contains,
@@ -264,7 +269,8 @@ class AuthorizationTests(SyncTestCase):
 
 
 def treq_for_folders(
-    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
+    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None,
+    wormhole_factory=None,
 ):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
@@ -275,7 +281,7 @@ def treq_for_folders(
     :return: An object like the ``treq`` module.
     """
     return MagicFolderNode.create(
-        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
+        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client, wormhole_factory,
     ).http_client
 
 
@@ -2099,6 +2105,249 @@ class ConflictStatusTests(SyncTestCase):
                         }),
                     )
                 ),
+            )
+        )
+
+
+class InviteTests(SyncTestCase):
+    """
+    Tests relating to invites
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./experimental/magic-folder")
+
+    def setUp(self):
+        self.local_path = FilePath(self.mktemp())
+        self.local_path.makedirs()
+
+        self.folder_config = magic_folder_config(
+            "lixia",
+            self.local_path,
+        )
+
+        self.wormhole = None
+        self.wormhole_messages = []
+        self.wormhole_was_closed = False
+
+        def create_wormhole(*args, **kw):
+            assert self.wormhole is None, "Double wormhole"
+            self.wormhole = FakeWormhole(
+                "1-foo-bar",
+                self.wormhole_messages,
+                self.wormhole_closed,
+            )
+            return self.wormhole
+
+        self.wormhole_factory = create_wormhole
+        self.treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": self.folder_config,
+            },
+            start_folder_services=False,
+            wormhole_factory=self.wormhole_factory,
+        )
+        super().setUp()
+
+    def wormhole_closed(self):
+        self.wormhole_was_closed = True
+
+    def tearDown(self):
+        self.wormhole = None
+        super().tearDown()
+
+    def test_create_invite(self):
+        """
+        Create a fresh invite for a folder
+        """
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "id": Always(),
+                            "participant-name": Equals("francesca"),
+                            "wormhole-code": Equals("1-foo-bar"),
+                            "consumed": Equals(False),
+                            "success": Equals(False),
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_create_invite_then_delete(self):
+        """
+        Cancel an invite and cancel it
+        """
+
+        # create the invite (we already tested this part above)
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            invite,
+            MatchesDict({
+                "id": Always(),
+                "participant-name": Equals("francesca"),
+                "wormhole-code": Equals("1-foo-bar"),
+                "consumed": Equals(False),
+                "success": Equals(False),
+            })
+        )
+
+        # delete the invite
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({})
+                    )
+                )
+            )
+        )
+        self.assertThat(
+            self.wormhole_was_closed,
+            Equals(True)
+        )
+
+    def test_delete_non_existing(self):
+        """
+        Cancenl an invite that doesn't exist
+        """
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": "an id that doesn't exist",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_wrong_request_body(self):
+        """
+        Malformed cancel request
+        """
+        # XXX there are many kinds of bad request-bodies, maybe we
+        # should Hypothesis more
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "no id key": "fake",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_already_consumed(self):
+        """
+        Can't cancel a request that is already consumed
+        """
+        # prepare to accept the wormhole right away
+        self.wormhole_messages = [
+            dumps({
+                "protocol": "invite-v1",
+            }).encode("utf8")
+        ]
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Contains("cannot be canceled"),
+                        })
+                    )
+                )
             )
         )
 

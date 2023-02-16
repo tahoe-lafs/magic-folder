@@ -239,7 +239,7 @@ class TestInviteManager(SyncTestCase):
 
     def test_crud(self):
         """
-        We can create, list, (there's no update), delete invites.
+        We can create, list, (there's no update), delete (finalize) invites.
         """
         inv = self.manager.create_invite(
             self.reactor,
@@ -291,6 +291,27 @@ class TestInviteManager(SyncTestCase):
                 "success": Equals(True),
                 "wormhole-code": Equals(None),
             })
+        )
+
+    def test_delete_invite(self):
+        """
+        We can delete an in-progress invite
+        """
+        self.wormhole = FakeWormhole([])
+        inv = self.manager.create_invite(
+            self.reactor,
+            "Kay McNulty",
+            "read-write",
+            self.wormhole,
+        )
+
+        # we can delete the invite
+        self.manager.cancel_invite(inv.uuid)
+
+        # now there is nothing left in the list
+        self.assertThat(
+            self.manager.list_invites(),
+            Equals([])
         )
 
     def test_error(self):
