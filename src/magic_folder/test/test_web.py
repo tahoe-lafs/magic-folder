@@ -2125,12 +2125,14 @@ class InviteTests(SyncTestCase):
         )
 
         self.wormhole = None
+        self.wormhole_messages = []
         self.wormhole_was_closed = False
 
         def create_wormhole(*args, **kw):
             assert self.wormhole is None, "Double wormhole"
             self.wormhole = FakeWormhole(
                 "1-foo-bar",
+                self.wormhole_messages,
                 self.wormhole_closed,
             )
             return self.wormhole
@@ -2267,6 +2269,82 @@ class InviteTests(SyncTestCase):
                         loads,
                         MatchesDict({
                             "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_wrong_request_body(self):
+        """
+        Malformed cancel request
+        """
+        # XXX there are many kinds of bad request-bodies, maybe we
+        # should Hypothesis more
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "no id key": "fake",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_already_consumed(self):
+        """
+        Can't cancel a request that is already consumed
+        """
+        # prepare to accept the wormhole right away
+        self.wormhole_messages = [
+            dumps({
+                "protocol": "invite-v1",
+            }).encode("utf8")
+        ]
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Contains("cannot be canceled"),
                         })
                     )
                 )

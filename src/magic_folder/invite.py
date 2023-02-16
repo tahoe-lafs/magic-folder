@@ -567,7 +567,7 @@ class InMemoryInviteManager(service.Service):
             raise ValueError(
                 "Invite '{}' doesn't exist".format(invite_id)
             )
-        if invite._consumed:
+        if invite.is_consumed():
             raise ValueError(
                 "Invite '{}' cannot be canceled".format(invite_id)
             )

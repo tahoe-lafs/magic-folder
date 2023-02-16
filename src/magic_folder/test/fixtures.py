@@ -477,9 +477,16 @@ class FakeWormhole:
     Enough of a DeferredWormhole fake to do the unit-test
     """
 
-    def __init__(self, code="1-foo-bar", on_closed=None):
+    def __init__(self, code="1-foo-bar", messages=None, on_closed=None):
         self._code = code
         self._on_closed = on_closed
+        self._outgoing_messages = [] if messages is None else messages
+        self.sent_messages = []
+
+    def add_message(self, msg):
+        self._outgoing_messages.append(msg)
+
+    # the IDeferredWormhole API methods
 
     def get_welcome(self):
         return succeed({})
@@ -489,6 +496,24 @@ class FakeWormhole:
 
     def get_code(self):
         return succeed(self._code)
+
+    def get_versions(self):
+        return succeed({
+            "magic-folder": {
+                "supported-messages": ["invite-v1"]
+            }
+        })
+
+    def get_message(self):
+        if len(self._outgoing_messages):
+            msg = self._outgoing_messages.pop(0)
+            return msg
+        raise RuntimeError(
+            "No more messages"
+        )
+
+    def send_message(self, msg):
+        self.sent_messages.append(msg)
 
     def close(self):
         self._on_closed()
