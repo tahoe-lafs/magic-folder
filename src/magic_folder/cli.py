@@ -1,6 +1,8 @@
 import sys
 import getpass
 from io import StringIO
+from collections import defaultdict
+from datetime import datetime
 
 from appdirs import (
     user_config_dir,
@@ -375,12 +377,76 @@ def status(options):
         },
     )
 
+    def fresh_folder():
+        """
+        Initial state for an as-yet-unseen folder
+        """
+        return {
+            "last-scan": None,
+            "last-poll": None,
+            "uploads": defaultdict(dict),
+            "downloads": defaultdict(dict),
+            "errors": [],
+        }
+
+    # the daemon sends us _updates_, so we must track our state
+    state = {
+        "folders": defaultdict(fresh_folder),
+        "tahoe": {
+            "happy": False,
+            "connected": None,
+            "desired": None,
+        },
+    }
+
+    def copy_state(dest, src, keys):
+        for k in keys:
+            dest[k] = src[k]
+
+    def error(e):
+        state["folders"][e["folder"]]["errors"].append({
+            "timestamp": e["timestamp"],
+            "summary": e["summary"],
+        })
+        print("ERROR: {}: {}: {}".format(
+            e["folder"],
+            datetime.fromtimestamp(e["timestamp"]),
+            e["summary"],
+        ))
+
+    def upload(e):
+        ours = state["folders"][e["folder"]]["uploads"]
+        print("UPLOAD", e, ours)
+        for k in {"queued-at", "started-at"}:
+            if k in e:
+                ours[e["relpath"]][k] = e[k]
+
+        # XXX might want a final "upload-stats" sort of thing as well?
+        if e["kind"] == "upload-finished":
+            del ours[e["relpath"]]
+
+    # based on the "kind" of event, we update our state
+    updates = {
+        "scanner": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
+        "poller": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
+        "tahoe": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
+        "error": error,
+        "upload-queued": upload,
+        "upload-started": upload,
+        "upload-finished": upload,
+    }
+
     import json
     import humanize
     def message(payload, is_binary=False):
         now = reactor.seconds()
-        data = json.loads(payload)["state"]
-        for folder_name, folder in data["folders"].items():
+        data = json.loads(payload)
+        print("EVENTS", data["events"])
+        for event in data["events"]:
+            assert "kind" in event and event["kind"] in updates, "weird: {}".format(event["kind"])
+            updates[event["kind"]](event)
+
+        for folder_name, folder in state["folders"].items():
             print('Folder "{}":'.format(folder_name))
             print("  downloads: {}".format(len(folder["downloads"])))
             if folder["downloads"]:
@@ -388,30 +454,64 @@ def status(options):
                     ", ".join(d["relpath"] for d in folder["downloads"])
                 ))
             print("  uploads: {}".format(len(folder["uploads"])))
-            for u in folder["uploads"]:
+            for relpath, u in folder["uploads"].items():
                 queue = humanize.naturaldelta(now - u["queued-at"])
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(u["relpath"], queue, start))
-            print("  recent:")
-            for f in folder["recent"]:
-                if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
-                    continue
-                if f["modified"] is not None:
-                    modified_text = "modified {} ago".format(
-                        humanize.naturaldelta(now - f["modified"])
-                    )
-                else:
-                    modified_text = "[deleted]"
-                print("    {}: {}{} (updated {} ago)".format(
-                    f["relpath"],
-                    "[CONFLICT] " if f["conflicted"] else "",
-                    modified_text,
-                    humanize.naturaldelta(now - f["last-updated"]),
-                ))
+                print("    {}: queued {} ago{}".format(relpath, queue, start))
+
+            if False:
+                # XXX need to query this some other way
+                print("  recent:")
+                for f in folder["recent"]:
+                    if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
+                        continue
+                    if f["modified"] is not None:
+                        modified_text = "modified {} ago".format(
+                            humanize.naturaldelta(now - f["modified"])
+                        )
+                    else:
+                        modified_text = "[deleted]"
+                    print("    {}: {}{} (updated {} ago)".format(
+                        f["relpath"],
+                        "[CONFLICT] " if f["conflicted"] else "",
+                        modified_text,
+                        humanize.naturaldelta(now - f["last-updated"]),
+                    ))
             if folder["errors"]:
                 print("Errors:")
+                # filter out duplicates
+                different_errors = {}
                 for e in folder["errors"]:
-                    print("  {}: {}".format(e["timestamp"], e["summary"]))
+                    summary = e["summary"]
+                    if summary in different_errors:
+                        different_errors[summary]["timestamps"].append(e["timestamp"])
+                    else:
+                        different_errors[summary] = {
+                            "summary": summary,
+                            "timestamps": [e["timestamp"]],
+                        }
+                for summary, e in different_errors.items():
+                    if len(e["timestamps"]) == 1:
+                        ts = humanize.naturaldelta(now - e["timestamps"][0])
+                    else:
+                        ts = "{} times between {} and {}".format(
+                            len(e["timestamps"]),
+                            humanize.naturaldelta(now - e["timestamps"][-1]),
+                            humanize.naturaldelta(now - e["timestamps"][0]),
+                        )
+                    print("  {} ({} ago)".format(summary, ts))
+            if folder["last-scan"] is not None:
+                print("Last scan for uploads at {}".format(
+                    datetime.fromtimestamp(folder["last-scan"]),
+                ))
+            if folder["last-poll"] is not None:
+                print("Last poll for downloads at {}".format(
+                    datetime.fromtimestamp(folder["last-poll"]),
+                ))
+        print("Tahoe is {is_happy}: connected to {connected} servers (want {desired})".format(
+            is_happy="happy" if state["tahoe"]["happy"] else "UNHAPPY",
+            **state["tahoe"]
+        ))
     proto.on('message', message)
 
     yield proto.is_closed
