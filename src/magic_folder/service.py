@@ -21,6 +21,9 @@ from twisted.web.client import Agent
 from twisted.python.compat import (
     nativeString,
 )
+from twisted.logger import (
+    Logger,
+)
 
 from .common import APIError, NoSuchMagicFolder
 from .endpoints import client_endpoint_from_address
@@ -93,6 +96,8 @@ class ConnectedTahoeService(MultiService):
     _poller = attr.ib(default=None)
     _last_update = attr.ib(default=0)
     _storage_servers = attr.ib(factory=dict)
+    _currently_happy = attr.ib(default=False)
+    _awaiting_happy = attr.ib(factory=list)
 
     def __attrs_post_init__(self):
         MultiService.__init__(self)
@@ -110,7 +115,8 @@ class ConnectedTahoeService(MultiService):
     @inline_callbacks
     def is_happy_connections(self):
         yield self._poller.call_soon()
-        returnValue(self.connected_servers() >= self.happy)
+        self._currently_happy = (self.connected_servers() >= self.happy)
+        returnValue(self._currently_happy)
 
     def connected_servers(self):
         """
@@ -121,6 +127,18 @@ class ConnectedTahoeService(MultiService):
             1 if server["connection_status"].startswith("Connected to") else 0
             for server in self._storage_servers
         )
+
+    def when_happy(self):
+        """
+        :returns Deferred[None]: triggers when this service determines we
+            are happy (which could be immediately)
+        """
+        d = Deferred()
+        if self._currently_happy:
+            d.callback(None)
+        else:
+            self._awaiting_happy.append(d)
+        return d
 
     @inline_callbacks
     def _update_status(self):
@@ -134,10 +152,17 @@ class ConnectedTahoeService(MultiService):
 
         # update status
         self.status_service.tahoe_status(status)
+        self._currently_happy = status.is_happy
 
         # tell TahoeClient whether mutable operation is fine or not
-        if status.is_happy:
+        if self._currently_happy:
             self.tahoe_client.mutables_okay()
+            for d in self._awaiting_happy:
+                try:
+                    d.callback(None)
+                except Exception as e:
+                    print("Unhandled error: {}".format(e))
+            self._awaiting_happy = []
         else:
             self.tahoe_client.mutables_bad(
                 InsufficientStorageServers(
@@ -145,10 +170,6 @@ class ConnectedTahoeService(MultiService):
                     status.desired,
                 )
             )
-
-from twisted.logger import (
-    Logger,
-)
 
 
 @attr.s
@@ -278,6 +299,12 @@ class MagicFolderService(MultiService):
             self.log.info(
                 "NOTE: not currently connected to enough storage-servers",
             )
+            self._tahoe_status_service.when_happy().addCallback(
+                lambda _: self.log.info(
+                    "service restored; now connected to enough storage-servers",
+                )
+            )
+
 
         def do_shutdown():
             self._run_deferred.callback(None)
