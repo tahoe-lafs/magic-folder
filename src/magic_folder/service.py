@@ -29,6 +29,7 @@ from .snapshot import create_local_author
 from .status import (
     IStatus,
     WebSocketStatusService,
+    EventsWebSocketStatusService,
     TahoeStatus,
 )
 from .tahoe_client import (
@@ -261,7 +262,7 @@ class MagicFolderService(MultiService):
         return cls(
             reactor,
             config,
-            WebSocketStatusService(reactor, config),
+            EventsWebSocketStatusService(reactor, config),
         )
 
     @inline_callbacks

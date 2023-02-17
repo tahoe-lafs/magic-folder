@@ -1385,7 +1385,6 @@ def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
             get_participants,
             maybe_retry,
         )
-        print("PART", reader, writer)
 
         yield deferred_retry(
             reactor,

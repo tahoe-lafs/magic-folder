@@ -43,6 +43,13 @@ class TahoeStatus:
     def is_happy(self):
         return self.is_connected and (self.connected >= self.desired)
 
+    def to_json(self):
+        return {
+            "happy": self.is_happy,
+            "connected": self.connected,
+            "desired": self.desired,
+        }
+
 
 @attr.s(frozen=True)
 class ScannerStatus:
@@ -531,6 +538,337 @@ class WebSocketStatusService(service.Service):
         """
         del self._folders[folder]["downloads"][relpath]
         self._maybe_update_clients()
+
+
+def _marshal_event(kind, event_data):
+    event_data["kind"] = kind
+    return event_data
+
+
+def _marshal_event_error(folder_name, err):
+    msg = err.to_json()
+    msg["folder"] = folder_name
+    return _marshal_event("error", msg)
+
+
+def _marshal_event_scanner(folder_name, scanner):
+    msg = scanner.to_json()
+    msg["folder"] = folder_name
+    return _marshal_event("scanner", msg)
+
+
+def _marshal_event_poller(folder_name, poller):
+    msg = poller.to_json()
+    msg["folder"] = folder_name
+    return _marshal_event("poller", msg)
+
+
+def _marshal_event_tahoe(tahoe):
+    return _marshal_event("tahoe", tahoe.to_json())
+
+
+def _marshal_event_upload_queued(folder_name=None, relpath=None, queued_at=None):
+    return {
+        "kind": "upload-queued",
+        "folder": folder_name,
+        "relpath": relpath,
+        "queued-at": queued_at,
+    }
+
+
+def _marshal_event_upload_started(folder_name=None, relpath=None, started_at=None):
+    return {
+        "kind": "upload-started",
+        "folder": folder_name,
+        "relpath": relpath,
+        "started-at": started_at,
+    }
+
+
+def _marshal_event_upload_finished(folder_name=None, relpath=None, finished_at=None):
+    return {
+        "kind": "upload-finished",
+        "folder": folder_name,
+        "relpath": relpath,
+        "finished-at": finished_at,
+    }
+
+
+def _marshal_event_download_queued(folder_name=None, relpath=None, queued_at=None):
+    return _marshal_event(
+        "download-queued", {
+            "folder": folder_name,
+            "relpath": relpath,
+            "queued-at": queued_at,
+        }
+    )
+
+
+def _marshal_event_download_started(folder_name=None, relpath=None, started_at=None):
+    return _marshal_event(
+        "download-started", {
+            "folder": folder_name,
+            "relpath": relpath,
+            "started-at": started_at,
+        }
+    )
+
+
+def _marshal_event_download_finished(folder_name=None, relpath=None, finished_at=None):
+    return {
+        "kind": "download-finished",
+        "folder": folder_name,
+        "relpath": relpath,
+        "finished-at": finished_at,
+    }
+
+
+@attr.s
+@implementer(service.IService)
+@implementer(IStatus)
+class EventsWebSocketStatusService(service.Service):
+    """
+    XXX should have just _one_ kind of service -- copy/pasting the
+    above for now for easy haxxoring
+
+    A global service that can be used to report status information via
+    an authenticated WebSocket connection.
+
+    The authentication mechanism is the same as for the HTTP API (see
+    web.py where a WebSocketResource is mounted into the resource
+    tree).
+
+    All messages look like this::
+
+        {"events": []}
+
+    ...where the list contains events, which are event-specific
+    serialization of the the event and will always contain the
+    ``"kind"`` key::
+
+        {
+            "kind": "the sort of event",
+        }
+    """
+
+    # reactor
+    _clock = attr.ib()
+
+    # global configuration
+    _config = attr.ib()
+
+    # maximum number of recent errors to retain (new clients will see
+    # at most this number of errors)
+    max_errors = attr.ib(default=30)
+
+    # tracks currently-connected clients
+    _clients = attr.ib(default=attr.Factory(set))
+
+    # current live state
+    _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
+    _tahoe = attr.ib(default=attr.Factory(lambda: TahoeStatus(0, 0, False)))
+
+    def client_connected(self, protocol):
+        """
+        Called via the WebSocket protocol when a client has successfully
+        completed the handshake (and authentication).
+
+        Push the current state to the client immediately.
+        """
+        self._clients.add(protocol)
+        protocol.sendMessage(self._marshal_state())
+
+    def client_disconnected(self, protocol):
+        """
+        Called via the WebSocket protocol when a client disconnects (for
+        whatever reason). If this is the last client, we'll start
+        buffering any messages.
+        """
+        self._clients.remove(protocol)
+
+    def _marshal_state(self):
+        """
+        Internal helper. Turn our current notion of the state into a
+        utf8-encoded byte-string of the JSON representing our current
+        state.
+
+        This bundles up a bunch of 'event' messages that represent the
+        current overall state.
+
+        Note that we _don't_ replay every single message, so the
+        transcript of a session that saw a bunch of changes live will
+        be different from a transcript of a new session on the same
+        state. They should arrive at the same point, however. A simple
+        example:
+
+        - folder "foo" added
+        - folder "bar" added
+        - folder "foo" deleted
+
+        A new client will see a bundle of messages with just and "add"
+        for folder "bar" -- whereas a client connected to entire time
+        will see the above events.
+        """
+        events = []
+        for foldername, folder in self._folders.items():
+            # XXX reverse-sort via "queued-at"?
+            for relpath, up in folder["uploads"].items():
+                events.append(
+                    _marshal_event_upload_queued(foldername, relpath, queued_at=up["queued-at"])
+                )
+                if "started-at" in up:
+                    events.append(
+                        _marshal_event_upload_started(foldername, relpath, started_at=up["started-at"])
+                    )
+                # if this had finished, it would already be deleted from the list
+            for relpath, down in folder["downloads"].items():
+                events.append(
+                    _marshal_event_download_queued(foldername, relpath, queued_at=down["queued-at"])
+                )
+                if "started-at" in down:
+                    events.append(
+                        _marshal_event_download_started(foldername, relpath, started_at=down["started-at"])
+                    )
+                # if this had finished, it would already be deleted from the list
+
+            for err in folder.get("errors", []):
+                events.append(_marshal_event_error(foldername, err))
+
+            events.append(_marshal_event_scanner(foldername, folder["scanner"]))
+            events.append(_marshal_event_poller(foldername, folder["poller"]))
+
+        events.append(_marshal_event_tahoe(self._tahoe))
+
+        return json.dumps({
+            "events": events,
+        }).encode("utf8")
+
+    def _send_single_event(self, msg_json):
+        """
+        Internal helper.
+
+        Send the given message dict as a single event to all connected clients.
+        """
+        for client in self._clients:
+            try:
+                client.sendMessage(json.dumps({"events": [msg_json]}).encode("utf8"))
+            except Exception as e:
+                print("Failed to send status: {}".format(e))
+                # XXX disconnect / remove client?
+
+    # IStatus API
+
+    def folder_gone(self, folder):
+        """
+        IStatus API
+
+        :param unicode folder: the folder which is removed
+        """
+        self._send_single_event(_marshal_event_folder_delete(folder))
+        try:
+            del self._folders[folder]
+        except KeyError:
+            pass
+
+    def tahoe_status(self, status):
+        """
+        IStatus API
+        """
+        if status != self._tahoe:
+            self._tahoe = status
+            self._send_single_event(_marshal_event_tahoe(self._tahoe))
+
+    def scan_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["scanner"] = status
+        self._send_single_event(_marshal_event_scanner(folder, status))
+
+    def poll_status(self, folder, status):
+        """
+        IStatus API
+        """
+        self._folders[folder]["poller"] = status
+        self._send_single_event(_marshal_event_poller(folder, status))
+
+    def error_occurred(self, folder, message):
+        """
+        IStatus API
+
+        :param str folder: the folder this error pertains to (or
+            None for "all folders")
+
+        :param str message: a message suitable for an end-user to
+            read that describes the error. Such a message MUST NOT
+            include any secrects such as Tahoe capabilities.
+        """
+        err = PublicError(
+            seconds_to_ns(self._clock.seconds()),
+            message,
+        )
+        self._folders[folder]["errors"].insert(0, err)
+        self._folders[folder]["errors"] = self._folders[folder]["errors"][:self.max_errors]
+        self._send_single_event(_marshal_event_error(folder, err))
+
+    def upload_queued(self, folder, relpath):
+        """
+        IStatus API
+        """
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["uploads"]:
+            queued_at = self._clock.seconds()
+            self._folders[folder]["uploads"][relpath] = {
+                "relpath": relpath,
+                "queued-at": queued_at,
+            }
+            self._send_single_event(_marshal_event_upload_queued(folder, relpath, queued_at))
+
+    def upload_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        started_at = self._clock.seconds()
+        self._folders[folder]["uploads"][relpath]["started-at"] = started_at
+        self._send_single_event(_marshal_event_upload_started(folder, relpath, started_at))
+
+    def upload_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["uploads"][relpath]
+        self._send_single_event(_marshal_event_upload_finished(folder, relpath))
+
+    def download_queued(self, folder, relpath):
+        """
+        IStatus API
+        """
+        # it's permitted to call this API more than once on the same
+        # relpath, but we should keep the _oldest_ queued time.
+        if relpath not in self._folders[folder]["downloads"]:
+            queued_at = self._clock.seconds()
+            self._folders[folder]["downloads"][relpath] = {
+                "relpath": relpath,
+                "queued-at": queued_at,
+            }
+            self._send_single_event(_marshal_event_download_queued(folder, relpath, queued_at))
+
+    def download_started(self, folder, relpath):
+        """
+        IStatus API
+        """
+        started_at = self._clock.seconds()
+        self.download_queued(folder, relpath)  # ensure relpath exists
+        self._folders[folder]["downloads"][relpath]["started-at"] = started_at
+        self._send_single_event(_marshal_event_download_started(folder, relpath, started_at))
+
+    def download_finished(self, folder, relpath):
+        """
+        IStatus API
+        """
+        del self._folders[folder]["downloads"][relpath]
+        self._send_single_event(_marshal_event_download_finished(folder, relpath))
 
 
 @attr.s
