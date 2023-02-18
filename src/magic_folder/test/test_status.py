@@ -135,6 +135,7 @@ class StatusServiceTests(SyncTestCase):
             messages,
             Equals([{
                 'events': [
+                    {"folder": "foo", "kind": "folder-add"},
                     {
                         'folder': 'foo',
                         'kind': 'upload-queued',
@@ -196,6 +197,7 @@ class StatusServiceTests(SyncTestCase):
                 },
                 {
                     "events": [
+                        {"folder": "foo", "kind": "folder-add"},
                         {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"},
                         {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe"},
                     ]

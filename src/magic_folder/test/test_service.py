@@ -40,7 +40,9 @@ from ..config import (
     create_global_configuration,
 )
 from ..service import MagicFolderService
-from ..status import WebSocketStatusService
+from ..status import (
+    EventsWebSocketStatusService,
+)
 from .fixtures import (
     NodeDirectory,
 )
@@ -83,7 +85,7 @@ class TestTahoeMonitor(AsyncTestCase):
         self.service = MagicFolderService(
             self.reactor,
             self.config,
-            WebSocketStatusService(self.reactor, self.config),
+            EventsWebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
 
@@ -142,7 +144,7 @@ class TestService(AsyncTestCase):
         self.service = MagicFolderService(
             self.reactor,
             self.config,
-            WebSocketStatusService(self.reactor, self.config),
+            EventsWebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
         self.service._stdout = self.out = io.StringIO()
@@ -222,7 +224,7 @@ class TestAdd(SyncTestCase):
         self.service = MagicFolderService(
             clock,
             self.config,
-            WebSocketStatusService(clock, self.config),
+            EventsWebSocketStatusService(clock, self.config),
             self.tahoe_client,
         )
 

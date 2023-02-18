@@ -527,20 +527,12 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Error updating personal DMD: Couldn't add random_local_file to directory. Error code 500"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    Equals([
+                        "Error updating personal DMD: Couldn't add random_local_file to directory. Error code 500",
+                    ]),
+                )
             })
         )
 
@@ -597,20 +589,12 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: random_local_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    Equals([
+                        "Cancelled: random_local_file",
+                    ]),
+                )
             })
         )
         self.assertThat(
@@ -669,20 +653,12 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: a_local_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    Equals([
+                        "Cancelled: a_local_file",
+                    ]),
+                )
             })
         )
 
@@ -750,19 +726,13 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: [error["summary"] for error in errors],
-                                Equals([
-                                    "Error updating personal DMD: bad stuff",
-                                    "Error updating personal DMD: bad stuff",
-                                ]),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    Equals([
+                        "Error updating personal DMD: bad stuff",
+                        "Error updating personal DMD: bad stuff",
+                    ]),
+                )
             })
         )
         # ...as should the logger
@@ -844,19 +814,13 @@ class AsyncMagicFileTests(AsyncTestCase):
         self.assertThat(
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: [error["summary"] for error in errors],
-                                Equals([
-                                    "Error uploading danger: bad stuff",
-                                    "Error uploading danger: bad stuff",
-                                ]),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    Equals([
+                        "Error uploading danger: bad stuff",
+                        "Error uploading danger: bad stuff",
+                    ]),
+                )
             })
         )
         # ...as should the logger

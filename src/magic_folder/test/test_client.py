@@ -62,7 +62,7 @@ class MagicFolderClientTests(SyncTestCase):
         request to the given `req_url` (with HTTP verb `req_kind`).
         """
         self.assertThat(
-            getattr(self.client, method)(*args),
+            getattr(self.client, method.replace("-", "_"))(*args),
             succeeded(Always()),
         )
         headers = {
@@ -145,7 +145,7 @@ class MagicFolderClientTests(SyncTestCase):
             "recent-changes",
             ("folder_name", ),
             b"GET",
-            "http://invalid./experimental/magic-folder/folder_name/recent-changes",
+            "http://invalid./v1/magic-folder/folder_name/recent-changes",
         )
 
     def test_join(self):

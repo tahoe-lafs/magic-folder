@@ -81,7 +81,7 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..tahoe_client import (
     create_tahoe_client,
@@ -450,7 +450,7 @@ class UpdateTests(AsyncTestCase):
             DecodedURL.from_text("http://invalid./"),
             self.http_client,
         )
-        self.status_service = WebSocketStatusService(reactor, self._global_config)
+        self.status_service = EventsWebSocketStatusService(reactor, self._global_config)
         self.service = MagicFolder.from_config(
             reactor,
             self.tahoe_client,
@@ -1524,20 +1524,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Failed to overwrite file 'foo': [Errno 13] Permission denied"
-                                    ),
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Failed to overwrite file 'foo': [Errno 13] Permission denied"
+                        )
+                    })
+                )
             })
         )
 
@@ -1619,20 +1613,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Failed to download snapshot for 'foo'."
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Failed to download snapshot for 'foo'."
+                        )
+                    })
+                )
             })
         )
 
@@ -1699,20 +1687,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
+                        )
+                    })
+                )
             })
         )
 
@@ -1780,20 +1762,14 @@ class CancelTests(AsyncTestCase):
         self.assertThat(
             loads(carol.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: some_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Cancelled: some_file"
+                        )
+                    })
+                )
             })
         )
 
@@ -1864,20 +1840,14 @@ class CancelTests(AsyncTestCase):
         self.assertThat(
             loads(carol.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: a_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Cancelled: a_file"
+                        )
+                    })
+                )
             })
         )
 

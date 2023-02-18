@@ -48,7 +48,7 @@ from ..service import (
     MagicFolderService,
 )
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 
 from magic_folder.snapshot import (
@@ -580,7 +580,7 @@ class TestService(AsyncTestCase):
             }).encode("utf8"),
         ])
 
-        self.global_status = WebSocketStatusService(
+        self.global_status = EventsWebSocketStatusService(
             self.reactor,
             self.global_config,
         )
@@ -794,7 +794,7 @@ class TestAcceptInvite(AsyncTestCase):
             }).encode("utf8"),
         ])
 
-        self.global_status = WebSocketStatusService(
+        self.global_status = EventsWebSocketStatusService(
             self.reactor,
             self.global_config,
         )

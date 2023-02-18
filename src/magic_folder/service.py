@@ -31,7 +31,6 @@ from .magic_folder import MagicFolder
 from .snapshot import create_local_author
 from .status import (
     IStatus,
-    WebSocketStatusService,
     EventsWebSocketStatusService,
     TahoeStatus,
 )
@@ -433,7 +432,7 @@ class MagicFolderService(MultiService):
         )
 
         self._add_service_for_folder(name)
-        self.status_service._maybe_update_clients()
+        self.status_service.folder_added(name)
 
     @inline_callbacks
     def invite_to_folder(self, folder_name, author_name, mode):

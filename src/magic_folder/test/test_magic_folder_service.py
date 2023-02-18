@@ -44,7 +44,7 @@ from ..config import (
 )
 from ..status import (
     FolderStatus,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
@@ -93,7 +93,7 @@ class MagicFolderServiceTests(SyncTestCase):
         config = object()
         participants = object()
         uploader = Service()
-        status_service = WebSocketStatusService(reactor, None)
+        status_service = EventsWebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
             client=tahoe_client,
@@ -154,7 +154,7 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.setContent(content)
 
         clock = task.Clock()
-        status_service = WebSocketStatusService(clock, global_config)
+        status_service = EventsWebSocketStatusService(clock, global_config)
         folder_status = FolderStatus(u"foldername", status_service)
         local_snapshot_creator = MemorySnapshotCreator()
         clock = task.Clock()
@@ -279,7 +279,7 @@ class LocalStateTests(SyncTestCase):
             ],
         )
         uploader = Service()
-        status_service = WebSocketStatusService(reactor, None)
+        status_service = EventsWebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
             client=tahoe_client,

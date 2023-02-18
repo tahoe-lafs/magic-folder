@@ -169,6 +169,13 @@ class IStatus(Interface):
         :param unicode relpath: relative local path of the snapshot
         """
 
+    def folder_added(folder):
+        """
+        A new folder has been created.
+
+        :param unicode folder: the name of the folder
+        """
+
     def folder_gone(folder):
         """
         The given folder is gone and all state for it should be deleted.
@@ -364,6 +371,20 @@ def _marshal_event_download_finished(folder_name, relpath, finished_at):
     }
 
 
+def _marshal_event_folder_add(folder_name):
+    return {
+        "kind": "folder-add",
+        "folder": folder_name,
+    }
+
+
+def _marshal_event_folder_delete(folder_name):
+    return {
+        "kind": "folder-delete",
+        "folder": folder_name,
+    }
+
+
 @attr.s
 @implementer(service.IService)
 @implementer(IStatus)
@@ -449,6 +470,7 @@ class EventsWebSocketStatusService(service.Service):
         """
         events = []
         for foldername, folder in self._folders.items():
+            events.append(_marshal_event_folder_add(foldername))
             # XXX reverse-sort via "queued-at"?
             for relpath, up in folder["uploads"].items():
                 events.append(
@@ -497,6 +519,15 @@ class EventsWebSocketStatusService(service.Service):
                 # XXX disconnect / remove client?
 
     # IStatus API
+
+    def folder_added(self, folder):
+        """
+        IStatus API
+
+        :param unicode folder: the folder which has been added
+        """
+        self._send_single_event(_marshal_event_folder_add(folder))
+        # a blank entry in the state will be created on-demand
 
     def folder_gone(self, folder):
         """
@@ -608,7 +639,7 @@ class EventsWebSocketStatusService(service.Service):
         IStatus API
         """
         del self._folders[folder]["downloads"][relpath]
-        self._send_single_event(_marshal_event_download_finished(folder, relpath))
+        self._send_single_event(_marshal_event_download_finished(folder, relpath, self._clock.seconds()))
 
 
 @attr.s
