@@ -1217,7 +1217,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 ],
                 Equals([
                     ("foo_{}".format(x), x)
-                    for x in range(34, 4, -1)  # newest to oldest
+                    for x in range(34, 14, -1)  # newest to oldest
                 ])
             )
         )
