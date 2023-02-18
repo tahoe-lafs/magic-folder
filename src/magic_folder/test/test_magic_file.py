@@ -129,7 +129,7 @@ class StateSyncTests(SyncTestCase):
         # "local_cap" on disk
 
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.read_participant, self.write_participant,
+            clock, self.config, lambda: (self.read_participant, self.write_participant)
         )
 
         self.assertThat(
@@ -181,9 +181,8 @@ class StateSyncTests(SyncTestCase):
         self.write_participant.update_snapshot = error_then_succeed
 
         # let it update
-
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.read_participant, self.write_participant,
+            clock, self.config, lambda: (self.read_participant, self.write_participant)
         )
 
         # ... but we need to wait 5 seconds to get another try, due to the error
