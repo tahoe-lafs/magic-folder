@@ -91,9 +91,13 @@ class TestTahoeMonitor(AsyncTestCase):
 
     @inline_callbacks
     def test_wait_happy(self):
+        # do one before we start the service so it "actually" has to
+        # wait
+        d0 = self.service._tahoe_status_service.when_happy()
         self.service.startService()
-        yield self.service._tahoe_status_service.when_happy()
-        yield self.service._tahoe_status_service.when_happy()
+        d1 = self.service._tahoe_status_service.when_happy()
+        yield d0
+        yield d1
         self.assertThat(
             self.service._tahoe_status_service.happy,
             Equals(True)
