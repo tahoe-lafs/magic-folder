@@ -2,9 +2,6 @@ import json
 
 from testtools.matchers import (
     Equals,
-    MatchesDict,
-    MatchesStructure,
-    MatchesListwise,
 )
 
 from twisted.python.filepath import (
