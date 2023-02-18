@@ -31,7 +31,6 @@ from .common import (
 )
 from ..status import (
     StatusFactory,
-    WebSocketStatusService,
     EventsWebSocketStatusService,
 )
 from ..config import (
@@ -222,7 +221,7 @@ class WebSocketTests(AsyncTestCase):
             self.tahoe_node_dir,
         )
 
-        self.service = WebSocketStatusService(
+        self.service = EventsWebSocketStatusService(
             self.reactor,
             self.global_config,
         )
@@ -258,10 +257,9 @@ class WebSocketTests(AsyncTestCase):
             messages,
             Equals([
                 {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
-                    }
+                    "events": [
+                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                    ]
                 }
             ])
         )
@@ -273,17 +271,15 @@ class WebSocketTests(AsyncTestCase):
             messages,
             Equals([
                 {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
-                    }
+                    "events": [
+                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                    ]
                 },
                 {
-                    "state": {
-                        "synchronizing": True,
-                        "folders": {},
-                    }
-                }
+                    "events": [
+                        {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"}
+                    ]
+                },
             ])
         )
         proto.dropConnection()
