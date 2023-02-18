@@ -137,6 +137,17 @@ class MagicFolderClientTests(SyncTestCase):
             "http://invalid./experimental/magic-folder/folder_name/invites",
         )
 
+    def test_recent_changes(self):
+        """
+        The .../magic-folder/../recent-changes API works"
+        """
+        return self._client_method_request(
+            "recent-changes",
+            ("folder_name", ),
+            b"GET",
+            "http://invalid./experimental/magic-folder/folder_name/recent-changes",
+        )
+
     def test_join(self):
         """
         The /join API works
