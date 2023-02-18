@@ -57,7 +57,7 @@ from magic_folder.tahoe_client import (
 
 class TestTahoeMonitor(AsyncTestCase):
     """
-    Tests relating to ConnectedTahoeservice
+    Tests relating to ConnectedTahoeService
     """
 
     def setUp(self):
@@ -87,6 +87,16 @@ class TestTahoeMonitor(AsyncTestCase):
             self.config,
             EventsWebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
+        )
+
+    @inline_callbacks
+    def test_wait_happy(self):
+        self.service.startService()
+        yield self.service._tahoe_status_service.when_happy()
+        yield self.service._tahoe_status_service.when_happy()
+        self.assertThat(
+            self.service._tahoe_status_service.happy,
+            Equals(True)
         )
 
     def test_welcome_fails(self):
