@@ -157,10 +157,7 @@ class ConnectedTahoeService(MultiService):
         if self._currently_happy:
             self.tahoe_client.mutables_okay()
             for d in self._awaiting_happy:
-                try:
-                    d.callback(None)
-                except Exception as e:
-                    print("Unhandled error: {}".format(e))
+                d.callback(None)
             self._awaiting_happy = []
         else:
             self.tahoe_client.mutables_bad(
