@@ -133,6 +133,12 @@ class MagicFolderClient(object):
             api_url = api_url.replace(query=[(u"include_secret_information", u"1")])
         return self._authorized_request("GET", api_url)
 
+    def recent_changes(self, folder_name, number=None):
+        api_url = self.base_url.child(u'v1').child(u'magic-folder').child(folder_name).child("recent-changes")
+        if number is not None:
+            api_url = api_url.replace(query=[(u"number", str(number))])
+        return self._authorized_request("GET", api_url)
+
     def add_snapshot(self, magic_folder, relpath):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'snapshot')
         api_url = api_url.set(u'path', relpath)

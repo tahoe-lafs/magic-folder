@@ -430,6 +430,32 @@ def _create_v1_resource(global_config, global_service, status_service):
         _application_json(request)
         returnValue(b"{}")
 
+    @app.route("/magic-folder/<string:folder_name>/recent-changes", methods=['GET'])
+    def recent_changes(request, folder_name):
+        """
+        Respond with the recent ``number?=` of files, ordered by their
+        most-recent change.
+        """
+        number = int(request.args.get("number", ["30"])[0])
+        folder = global_config.get_magic_folder(folder_name)
+        recents = folder.get_recent_remotesnapshot_paths(number)
+        print("ZZZ", recents)
+        most_recent = [
+            {
+                "relpath": relpath,
+                # XXX nothing in the status API dumps this information
+                # -- maybe it should? in upload-queued? and
+                # download-finished?  ...but also nothing except the
+                # CLI used the "recent" in the state-based API
+                "modified": timestamp,
+                "last-updated": last_updated,
+                "conflicted": bool(len(folder.list_conflicts_for(relpath))),
+            }
+            for relpath, timestamp, last_updated
+            in recents
+        ]
+        return json.dumps(most_recent).encode("utf8")
+
     @app.route("/magic-folder", methods=["GET"])
     def list_folders(request):
         """

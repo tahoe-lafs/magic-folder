@@ -1,5 +1,7 @@
 import sys
 import getpass
+import json
+import humanize
 from io import StringIO
 from collections import defaultdict
 from datetime import datetime
@@ -368,14 +370,6 @@ def status(options):
 
     from twisted.internet import reactor
     agent = create_client_agent(reactor)
-    proto = yield agent.open(
-        websocket_uri,
-        {
-            "headers": {
-                "Authorization": "Bearer {}".format(options.parent.config.api_token.decode("utf8")),
-            }
-        },
-    )
 
     def fresh_folder():
         """
@@ -399,11 +393,15 @@ def status(options):
         },
     }
 
+    # lambdas can't assign things
     def copy_state(dest, src, keys):
         for k in keys:
             dest[k] = src[k]
 
     def error(e):
+        """
+        Handle a kind=error message
+        """
         state["folders"][e["folder"]]["errors"].append({
             "timestamp": e["timestamp"],
             "summary": e["summary"],
@@ -415,6 +413,9 @@ def status(options):
         ))
 
     def upload(e):
+        """
+        Handle all events related to uploads
+        """
         ours = state["folders"][e["folder"]]["uploads"]
         print("UPLOAD", e, ours)
         for k in {"queued-at", "started-at"}:
@@ -425,6 +426,46 @@ def status(options):
         if e["kind"] == "upload-finished":
             del ours[e["relpath"]]
 
+    def download(e):
+        """
+        Handle all events related to downloads
+        """
+        ours = state["folders"][e["folder"]]["downloads"]
+        for k in {"queued-at", "started-at"}:
+            if k in e:
+                ours[e["relpath"]][k] = e[k]
+
+        # XXX might want a final "download-stats" sort of thing as well?
+        if e["kind"] == "download-finished":
+            del ours[e["relpath"]]
+
+
+    # Just dump recent changes for now -- _can_ we keep this updated
+    # properly, with the "events" API? (whether this is a _good_ idea
+    # for this CLI subcommand is a different question).
+    #
+    # For a client that wants this feature, can they query this data
+    # once up front, and then keep it fresh?
+
+    folders = yield options.parent.client.list_folders()
+    for folder_name in folders.keys():
+        print("  recent:")
+        recent = yield options.parent.client.recent_changes(folder_name, 3)
+        now = reactor.seconds()
+        for f in recent:
+            if f["modified"] is not None:
+                modified_text = "modified {} ago".format(
+                    humanize.naturaldelta(now - f["modified"])
+                )
+            else:
+                modified_text = "[deleted]"
+            print("    {}: {}{} (updated {} ago)".format(
+                f["relpath"],
+                "[CONFLICT] " if f["conflicted"] else "",
+                modified_text,
+                humanize.naturaldelta(now - f["last-updated"]),
+            ))
+
     # based on the "kind" of event, we update our state
     updates = {
         "scanner": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
@@ -434,14 +475,21 @@ def status(options):
         "upload-queued": upload,
         "upload-started": upload,
         "upload-finished": upload,
+        "download-queued": download,
+        "download-started": download,
+        "download-finished": download,
     }
 
-    import json
-    import humanize
     def message(payload, is_binary=False):
+        """
+        onMessage handler for WebSocket payloads.
+
+        The first message should contain all events necessary for our
+        state to match the actual state.
+        """
         now = reactor.seconds()
         data = json.loads(payload)
-        print("EVENTS", data["events"])
+
         for event in data["events"]:
             assert "kind" in event and event["kind"] in updates, "weird: {}".format(event["kind"])
             updates[event["kind"]](event)
@@ -451,7 +499,7 @@ def status(options):
             print("  downloads: {}".format(len(folder["downloads"])))
             if folder["downloads"]:
                 print("    {}".format(
-                    ", ".join(d["relpath"] for d in folder["downloads"])
+                    ", ".join(folder["downloads"].keys())
                 ))
             print("  uploads: {}".format(len(folder["uploads"])))
             for relpath, u in folder["uploads"].items():
@@ -459,24 +507,6 @@ def status(options):
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
                 print("    {}: queued {} ago{}".format(relpath, queue, start))
 
-            if False:
-                # XXX need to query this some other way
-                print("  recent:")
-                for f in folder["recent"]:
-                    if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
-                        continue
-                    if f["modified"] is not None:
-                        modified_text = "modified {} ago".format(
-                            humanize.naturaldelta(now - f["modified"])
-                        )
-                    else:
-                        modified_text = "[deleted]"
-                    print("    {}: {}{} (updated {} ago)".format(
-                        f["relpath"],
-                        "[CONFLICT] " if f["conflicted"] else "",
-                        modified_text,
-                        humanize.naturaldelta(now - f["last-updated"]),
-                    ))
             if folder["errors"]:
                 print("Errors:")
                 # filter out duplicates
@@ -512,8 +542,18 @@ def status(options):
             is_happy="happy" if state["tahoe"]["happy"] else "UNHAPPY",
             **state["tahoe"]
         ))
-    proto.on('message', message)
 
+    # note: can't do async work between creating the proto and adding
+    # the on-message handler, or you might miss an update
+    proto = yield agent.open(
+        websocket_uri,
+        {
+            "headers": {
+                "Authorization": "Bearer {}".format(options.parent.config.api_token.decode("utf8")),
+            }
+        },
+    )
+    proto.on('message', message)
     yield proto.is_closed
 
 
