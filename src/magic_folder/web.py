@@ -439,7 +439,6 @@ def _create_v1_resource(global_config, global_service, status_service):
         number = int(request.args.get("number", ["30"])[0])
         folder = global_config.get_magic_folder(folder_name)
         recents = folder.get_recent_remotesnapshot_paths(number)
-        print("ZZZ", recents)
         most_recent = [
             {
                 "relpath": relpath,

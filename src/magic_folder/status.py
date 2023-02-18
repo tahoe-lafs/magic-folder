@@ -567,7 +567,7 @@ def _marshal_event_tahoe(tahoe):
     return _marshal_event("tahoe", tahoe.to_json())
 
 
-def _marshal_event_upload_queued(folder_name=None, relpath=None, queued_at=None):
+def _marshal_event_upload_queued(folder_name, relpath, queued_at):
     return {
         "kind": "upload-queued",
         "folder": folder_name,
@@ -576,7 +576,7 @@ def _marshal_event_upload_queued(folder_name=None, relpath=None, queued_at=None)
     }
 
 
-def _marshal_event_upload_started(folder_name=None, relpath=None, started_at=None):
+def _marshal_event_upload_started(folder_name, relpath, started_at):
     return {
         "kind": "upload-started",
         "folder": folder_name,
@@ -585,7 +585,7 @@ def _marshal_event_upload_started(folder_name=None, relpath=None, started_at=Non
     }
 
 
-def _marshal_event_upload_finished(folder_name=None, relpath=None, finished_at=None):
+def _marshal_event_upload_finished(folder_name, relpath, finished_at):
     return {
         "kind": "upload-finished",
         "folder": folder_name,
@@ -594,7 +594,7 @@ def _marshal_event_upload_finished(folder_name=None, relpath=None, finished_at=N
     }
 
 
-def _marshal_event_download_queued(folder_name=None, relpath=None, queued_at=None):
+def _marshal_event_download_queued(folder_name, relpath, queued_at):
     return _marshal_event(
         "download-queued", {
             "folder": folder_name,
@@ -604,7 +604,7 @@ def _marshal_event_download_queued(folder_name=None, relpath=None, queued_at=Non
     )
 
 
-def _marshal_event_download_started(folder_name=None, relpath=None, started_at=None):
+def _marshal_event_download_started(folder_name, relpath, started_at):
     return _marshal_event(
         "download-started", {
             "folder": folder_name,
@@ -614,7 +614,7 @@ def _marshal_event_download_started(folder_name=None, relpath=None, started_at=N
     )
 
 
-def _marshal_event_download_finished(folder_name=None, relpath=None, finished_at=None):
+def _marshal_event_download_finished(folder_name, relpath, finished_at):
     return {
         "kind": "download-finished",
         "folder": folder_name,
@@ -734,8 +734,10 @@ class EventsWebSocketStatusService(service.Service):
             for err in folder.get("errors", []):
                 events.append(_marshal_event_error(foldername, err))
 
-            events.append(_marshal_event_scanner(foldername, folder["scanner"]))
-            events.append(_marshal_event_poller(foldername, folder["poller"]))
+            if folder["scanner"].last_completed is not None:
+                events.append(_marshal_event_scanner(foldername, folder["scanner"]))
+            if folder["poller"].last_completed is not None:
+                events.append(_marshal_event_poller(foldername, folder["poller"]))
 
         events.append(_marshal_event_tahoe(self._tahoe))
 
@@ -838,7 +840,7 @@ class EventsWebSocketStatusService(service.Service):
         IStatus API
         """
         del self._folders[folder]["uploads"][relpath]
-        self._send_single_event(_marshal_event_upload_finished(folder, relpath))
+        self._send_single_event(_marshal_event_upload_finished(folder, relpath, self._clock.seconds()))
 
     def download_queued(self, folder, relpath):
         """
