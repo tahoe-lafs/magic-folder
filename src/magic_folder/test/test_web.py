@@ -1983,6 +1983,30 @@ class FileStatusTests(SyncTestCase):
                 ),
             )
         )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                u"GET",
+                self.url.child("default", "recent-changes"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                            {
+                                "conflicted": False,
+                                "last-updated": 42,
+                                "modified": 1,
+                                "relpath": "foo",
+                            }
+                        ])
+                    )
+                )
+            )
+        )
 
 
 class ConflictStatusTests(SyncTestCase):
