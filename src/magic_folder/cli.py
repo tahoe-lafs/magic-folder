@@ -472,6 +472,8 @@ def status(options):
         "poller": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
         "tahoe": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
         "error": error,
+        "folder-add": lambda _: None,
+        "folder-delete": lambda _: None,
         "upload-queued": upload,
         "upload-started": upload,
         "upload-finished": upload,
