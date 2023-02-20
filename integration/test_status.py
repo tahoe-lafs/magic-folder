@@ -53,11 +53,11 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     while downloads is None:
         status_data = await alice.status()
         status = json.loads(status_data)
-        one = status["state"]["folders"].get("outstanding1", None)
-        if one:
-            print(json.dumps(one, indent=4))
-            if one["downloads"]:
-                downloads = one["downloads"]
+        downloads = [
+            down
+            for down in status["events"]
+            if down["kind"] == "download-queued"
+        ]
         await twisted_sleep(reactor, .2)
 
     print("found downloads: {}".format(downloads))
