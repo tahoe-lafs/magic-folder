@@ -50,13 +50,13 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     await alice.add_participant("outstanding1", "old", zero_cap)
 
     downloads = None
-    while downloads is None:
+    while not downloads:
         status_data = await alice.status()
         status = json.loads(status_data)
         downloads = [
             down
             for down in status["events"]
-            if down["kind"] == "download-queued"
+            if down["kind"].startswith("download-")
         ]
         await twisted_sleep(reactor, .2)
 
