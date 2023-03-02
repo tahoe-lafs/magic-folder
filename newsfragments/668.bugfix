@@ -1,6 +1,0 @@
-Our Personal DMD is now checked vs local database state
-
-It's possible with a crash or exit at the right time to
-have downloaded an update and noted that in the database
-but not yet succeeded in updating the Personal DMD. We
-now check at startup for this condition and fix it.
