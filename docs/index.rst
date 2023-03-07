@@ -25,11 +25,11 @@ the scenes).
    We encourage adventorous users and fellow developers to
    experiment. Integration is via an authenticated localhost :ref:`http-api`.
 
-Other participants to a synchronized folder are invited using `Magic
-Wormhole`_. This alows the use of easy-to-transcribe (yet still
-secure) codes to facilitate end-to-end encrypted communication between
-the two devices. (Note this means contacting a `Mailbox Server`_ run
-by a third party).
+Other participants to a synchronized folder are invited using `Magic Wormhole`_.
+This alows the use of easy-to-transcribe (yet still secure) codes to
+facilitate end-to-end encrypted communication between the two
+devices. (Note this means contacting a `Mailbox Server`_ run by a
+third party).
 
 
 Feedback Please
