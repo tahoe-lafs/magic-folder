@@ -199,6 +199,28 @@ def add_snapshot(options):
     print("{}".format(res), file=options.stdout)
 
 
+class FileStatusOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to list"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def file_status(options):
+    """
+    List the status of all files in a magic-folder
+    """
+    res = yield options.parent.client.file_status(
+        options['folder'],
+    )
+    print(json.dumps(res, indent=2), file=options.stdout)
+
+
 class DumpStateOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder whose state to dump", str),
@@ -424,6 +446,7 @@ class MagicFolderApiCommand(BaseOptions):
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
+        ["file-status", None, FileStatusOptions, "List status of all files in a magic-folder."],
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
@@ -543,6 +566,7 @@ def run_magic_folder_api_options(options):
     so.stderr = options.stderr
     main_func = {
         "add-snapshot": add_snapshot,
+        "file-status": file_status,
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
