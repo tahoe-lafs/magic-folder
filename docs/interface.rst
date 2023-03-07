@@ -188,6 +188,14 @@ Accepts a JSON body listing the details of the participant to add::
 
 The response is delayed until the participant is correctly added to the Collective DMD.
 The ``personal_dmd`` is a Tahoe read-only directory capability-string (the participant device holds the write-capability).
+
+.. warning::
+
+   This is a "low-level" API requiring careful handling of the secret
+   Personal capability string. A higher-level API using a secure
+   magic-wormhole connection is available with the ``.../invite`` and
+   ``.../join`` endpoints
+
 A response code of **CREATED** is sent upon success with response body::
 
     {}
