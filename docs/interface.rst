@@ -186,7 +186,7 @@ Accepts a JSON body listing the details of the participant to add::
         "personal_dmd": "URI:DIR2-RO:..."
     }
 
-The response is delayed until the participant is correctly added to the Collective DMD.
+The response is delayed until the participant is correctly added to the Collective.
 The ``personal_dmd`` is a Tahoe read-only directory capability-string (the participant device holds the write-capability).
 
 .. warning::
@@ -254,7 +254,7 @@ Returns an empty ``dict`` after the scan is complete.
 GET ``/v1/magic-folder/<folder-name>/poll-remote``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Request an immediate scan of the Collective DMD and remote participants of the given folder.
+Request an immediate scan of the Collective and remote participants of the given folder.
 Returns an empty ``dict`` after the scan is complete.
 
 
@@ -273,7 +273,7 @@ To await the end of the invite process, see the :ref:`invite-wait` endpoint.
 A serialized invite is a JSON object that has keys:
 
 * ``id``: A UUID, like ``92148d89-85ae-4677-8629-8ef6de54417d``
-* ``participant-name``: the name to call the invitee in the Collective DMD
+* ``participant-name``: the name to call the invitee in the Collective
 * ``consumed``: True if the wormhole code has been used up
 * ``success``: True if the invite has completed successfully
 * ``wormhole-code``: None or the text wormhole code
