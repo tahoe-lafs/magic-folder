@@ -263,11 +263,12 @@ POST ``/experimental/magic-folder/<folder-name>/invite``
 
 Create a new invite.
 The body of the invite is a JSON object containing the keys:
+
 * ``participant-name``: maps to a string describing what to call the invitee when they join
 * ``mode``: ``"read-write"`` or ``"read-only"`` indicating what access the new participant has
 
 This will initiate the invite and returns the serialized invite.
-To await the end of the invite process, see the ``.../invite-wait`` endpoint.
+To await the end of the invite process, see the :ref:`invite-wait` endpoint.
 
 A serialized invite is a JSON object that has keys:
 
@@ -277,6 +278,7 @@ A serialized invite is a JSON object that has keys:
 * ``success``: True if the invite has completed successfully
 * ``wormhole-code``: None or the text wormhole code
 
+.. _invite-wait:
 
 POST ``/experimental/magic-folder/<folder-name>/invite-wait``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
