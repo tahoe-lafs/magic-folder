@@ -5,6 +5,38 @@ User-Visible Changes in Magic Folder
 ====================================
 
 .. towncrier start line
+Magic_Folder 23.3.0 (2023-03-06)
+''''''''''''''''''''''''''''''''
+
+No significant changes.
+
+
+Magic_Folder 23.3.0 (2023-03-02)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Add ability to cancel an in-progress invite (`#692 <https://github.com/LeastAuthority/magic-folder/issues/692>`_)
+
+
+Bug Fixes
+---------
+
+- Our Personal DMD is now checked vs local database state
+
+  It's possible with a crash or exit at the right time to
+  have downloaded an update and noted that in the database
+  but not yet succeeded in updating the Personal DMD. We
+  now check at startup for this condition and fix it. (`#668 <https://github.com/LeastAuthority/magic-folder/issues/668>`_)
+
+
+Misc/Other
+----------
+
+- `#690 <https://github.com/LeastAuthority/magic-folder/issues/690>`_
+
+
 Magic_Folder 23.1.1 (2023-01-30)
 ''''''''''''''''''''''''''''''''
 
