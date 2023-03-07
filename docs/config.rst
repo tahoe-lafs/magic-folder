@@ -178,14 +178,8 @@ tables:
 - "version" (will always contain 1 row)
   - column:
   - "version" is an int, currently `1`
-- "config" (will always contain 1 row)
-  - columns:
-  - "author_name" is a string of unicode
-  - "author_private_key" is a 32-byte blob (a NaCl Signing key)
-  - "stash_path" is a local path where we stash data awaiting upload
-  - "collective_dircap" is a read-capability-string which defines the magic-folder
-  - "upload_dircap" is a write-capability-string defining where we put our snapshots
-  - "magic_directory" is a local path to the synchronized directory
-  - "poll_interval" says how often (in seconds) to poll for updates
-- "local_snapshots"
-  - whatever https://github.com/LeastAuthority/magic-folder/issues/197 says
+- version-dependent additional tables
+
+See the SQL statements creating additional tables in ``config.py``.
+Each version may add or change tables.
+The configuration should only be read and changed via the `http-api`_ and not via this database.

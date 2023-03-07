@@ -7,7 +7,7 @@ HTTP API
 --------
 
 Magic-Folder exposes all of its supported functionality in an HTTP API.
-The address of the HTTP server is part of the `daemon configuration`_.
+The address of the HTTP server is part of the `config`_.
 
 A client may learn how to connect by reading the file ``api_client_endpoint`` from the state directory.
 This contains a Twisted "endpoint-string", like ``tcp:localhost:1234``.
