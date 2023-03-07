@@ -25,7 +25,7 @@ For example::
 
   Authorization: Bearer abcdefghijklmnopqrstuvwxyz
 
-The correct token value can be found in the *api_token* file inside the Magic-Folder daemon configuration directory.
+The correct token value can be found in the ``api_token`` file inside the Magic-Folder daemon configuration directory.
 The token value is periodically rotated so clients must be prepared to receive an **Unauthorized** response even when supplying the token.
 In this case,
 the client should re-read the token from the filesystem to determine if the value held in memory has become stale.
@@ -71,6 +71,7 @@ The response body follows the form of this example (containing a single magic-fo
                 "verify_key": "OY7FCVPCOJXDNHQLSDTTJFONTROMQQED5Q6K33T3NBGGQHKLV73Q===="
             },
             "poll_interval": 60,
+            "scan_interval": 60,
             "is_admin": true,
             "stash_path": "/home/alice/.config/magic-folder/documents",
             "magic_path": "/home/alice/Documents"
