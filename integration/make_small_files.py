@@ -103,6 +103,8 @@ def small_files(files, directories, output, size):
 
     data_per_file = math.ceil(float(size) / files)
 
+    # TODO: this should use Python's os.urandom() so
+    # that Windows folks can use it too
     with open("/dev/urandom", "rb") as urandom:
 
         def generate_data():
