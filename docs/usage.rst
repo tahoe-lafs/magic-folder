@@ -29,10 +29,13 @@ human may control many "authors".
 Prerequisites
 -------------
 
-You must have one or more Tahoe-LAFS client nodes configured to be
-able to store objects somewhere.  They must be able to reach their
-configured storage nodes.  The client nodes must all share the same
-storage nodes.  The nodes must be running.
+You must have one or more Tahoe-LAFS client nodes (usually each one on a different computer) configured; ``magic-folder`` uses these to store objects.
+
+The clients must be able to reach their configured storage nodes.
+
+The client nodes must all share the same set of storage nodes.
+
+The nodes must be running.
 
 
 Creating a Magic Folder Daemon Configuration
