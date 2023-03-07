@@ -286,6 +286,7 @@ POST ``/experimental/magic-folder/<folder-name>/invite-wait``
 Wait for an invite to complete (either successfully or not).
 
 The body of the invite is a JSON object with keys:
+
 * ``id``: the UUID of the invite to await
 
 This endpoint returns 200 OK with the serialized Invite (see above) if the invite concluded successfully.
