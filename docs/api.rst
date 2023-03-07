@@ -5,7 +5,7 @@ HTTP API
 ========
 
 The Magic Folder Daemon provides an HTTP-based API.
-Most other `magic-folder` sub-commands interact with the Daemon by using this API.
+Most other ``magic-folder`` sub-commands interact with the Daemon by using this API.
 Other kinds of UIs or local programs can use the HTTP API directly or the Python command-line as they see fit.
 
 
