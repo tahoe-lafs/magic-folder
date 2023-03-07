@@ -18,18 +18,18 @@ from the `Open Technology Fund`_, it was redesigned and extended to
 support synchronization between clients.  It should work on all major
 platforms.
 
+Subsequent to that, Magic Folder was made into a stand-alone project
+(and daemon) with substantial changes including an improved datamodel
+allowing support for robust conflict detection, among other features.
+
 .. warning::
 
-   At the time of this writing, we are in the process of refactoring
-   Magic Folder out of Tahoe-LAFS source tree and re-writing it.
-   Because of this state of development, the documentation you read
-   here may not be up-to-date, and subject to changes.
+   Releases are ongoing but we do not yet commit to a particular
+   stable API. That said, many parts are in place and used by projects
+   such as `Gridsync`_ (and we do not expect substantial changes).
 
-Magic Folder is not currently in as mature a state as the other
-Tahoe-LAFS frontends (web, CLI, SFTP and FTP).  This means that you
-probably should not rely on all changes to files in the local
-directory to result in successful uploads.  There might be (and have
-been) incompatible changes to how the feature is configured.
+   We encourage adventorous users and fellow developers to
+   experiment. Integration is via an authenticated localhost HTTP API.
 
 We are very interested in feedback on how well this feature works for
 you.  We welcome suggestions to improve its usability, functionality,
@@ -40,6 +40,7 @@ and reliability.  Please file issues you find with Magic Folder at the
 .. _`Open Technology Fund`: https://www.opentech.fund/
 .. _`Tahoe-LAFS`: https://tahoe-lafs.org/
 .. _`GitHub project`: https://github.com/LeastAuthority/magic-folder
+.. _`Gridsync`: https://github.com/gridsync/gridsync/
 
 Contents
 --------
