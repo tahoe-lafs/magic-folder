@@ -71,7 +71,7 @@ Contents
 --------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    CODE_OF_CONDUCT
    usage
