@@ -8,11 +8,6 @@ User-Visible Changes in Magic Folder
 Magic_Folder 23.3.0 (2023-03-06)
 ''''''''''''''''''''''''''''''''
 
-No significant changes.
-
-
-Magic_Folder 23.3.0 (2023-03-02)
-''''''''''''''''''''''''''''''''
 
 Features
 --------
