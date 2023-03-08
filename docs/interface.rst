@@ -7,7 +7,7 @@ HTTP API
 --------
 
 Magic-Folder exposes all of its supported functionality in an HTTP API.
-The address of the HTTP server is part of the `config`_.
+The address of the HTTP server is part of the :ref:`config`.
 
 A client may learn how to connect by reading the file ``api_client_endpoint`` from the state directory.
 This contains a Twisted "endpoint-string", like ``tcp:localhost:1234``.
@@ -140,7 +140,7 @@ Get all snapshots for one folder beneath a certain path.
 
 
 ``POST /v1/magic-folder/<folder-name>/snapshot?path=<some-path>``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new snapshot for a certain file in a certain magic-folder.
 
@@ -228,7 +228,7 @@ The list is ordered from most-recent to least-recent timestamp.
 
 
 GET ``/v1/magic-folder/<folder-name>/tahoe-objects``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Returns a list of integers representing the sizes of all individual capabilities that this folder is using.
 That means a size for each Snapshot capability and its corresponding metadata capability and content capability.
@@ -236,7 +236,7 @@ The list is flat; if there are 2 Snapshots on the grid this will return 6 intege
 
 
 GET ``/v1/magic-folder/<folder-name>/conflicts``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Returns a ``dict`` of all conflicts in the given magic-folder.
 Each item in the ``dict`` maps a relpath to a list of author-names.
@@ -245,21 +245,21 @@ There will also be a file named like ``<relpath>.conflict-<author-name>`` in the
 
 
 GET ``/v1/magic-folder/<folder-name>/scan-local``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Request an immediate scan of the local filesystem for the given folder.
 Returns an empty ``dict`` after the scan is complete.
 
 
 GET ``/v1/magic-folder/<folder-name>/poll-remote``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Request an immediate scan of the Collective and remote participants of the given folder.
 Returns an empty ``dict`` after the scan is complete.
 
 
 POST ``/experimental/magic-folder/<folder-name>/invite``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new invite.
 The body of the invite is a JSON object containing the keys:
@@ -281,7 +281,7 @@ A serialized invite is a JSON object that has keys:
 .. _invite-wait:
 
 POST ``/experimental/magic-folder/<folder-name>/invite-wait``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wait for an invite to complete (either successfully or not).
 
@@ -294,7 +294,7 @@ Otherwise, the endpoint returns a 400 error describing the error.
 
 
 POST ``/experimental/magic-folder/<folder-name>/join``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Join a magic-folder by accepting an invite.
 The body of the request is a JSON object with keys:
@@ -310,7 +310,7 @@ Otherwise, a 400 error is returned describing the error.
 
 
 POST ``/experimental/magic-folder/<folder-name>/invites``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 List all invites.
 Invites are stored in memory only, so this is any active or completed invites since the prorgam started.
@@ -373,14 +373,14 @@ The state for each folder consists of the following information:
   - ``"desired"``: the number of storage-servers we want to connect to
   - ``"happy"``: ``true`` if ``"connected"`` is greater than the client's configured "happy"
 - ``"folders"`` contains keys mapping the folder name to:
-  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
-    Each ``dict`` in these lists contain:
+  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads). Each ``dict`` in these lists contain:
+
     - ``"relpath"``: the relative-path
     - ``"queued-at"``: the Unix timestamp when this item was queued
-    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
-      This key will not exist until we do start.
-  - ``"recent"`` contains a list up to 30 of the most-recently updated files.
-    Each ``dict`` in this list contains:
+    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item. This key will not exist until we do start.
+
+  - ``"recent"`` contains a list up to 30 of the most-recently updated files. Each ``dict`` in this list contains:
+
     - ``"relpath"``: the relative path of this item
     - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
     - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
