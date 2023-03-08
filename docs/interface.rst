@@ -1,15 +1,17 @@
-Interface
-=========
+Local HTTP Interface
+====================
+
+.. _http-api:
 
 HTTP API
 --------
 
 Magic-Folder exposes all of its supported functionality in an HTTP API.
-The address of the HTTP server is part of the `daemon configuration`_.
+The address of the HTTP server is part of the :ref:`config`.
 
-A client may learn how to connect by reading the file `api_client_endpoint` from the state directory.
-This contains a Twisted "endpoint-string", like `tcp:localhost:1234`.
-The file `api_client_endpoint` merely exports information and changes to it will not be reflected in the daemon.
+A client may learn how to connect by reading the file ``api_client_endpoint`` from the state directory.
+This contains a Twisted "endpoint-string", like ``tcp:localhost:1234``.
+The file ``api_client_endpoint`` merely exports information and changes to it will not be reflected in the daemon.
 
 
 Authorization
@@ -23,7 +25,7 @@ For example::
 
   Authorization: Bearer abcdefghijklmnopqrstuvwxyz
 
-The correct token value can be found in the *api_token* file inside the Magic-Folder daemon configuration directory.
+The correct token value can be found in the ``api_token`` file inside the Magic-Folder daemon configuration directory.
 The token value is periodically rotated so clients must be prepared to receive an **Unauthorized** response even when supplying the token.
 In this case,
 the client should re-read the token from the filesystem to determine if the value held in memory has become stale.
@@ -34,17 +36,17 @@ Versioning and Stability
 
 This API is **not considered stable** yet (as of January 2023).
 
-The HTTP API has a global version, indicated in the path: `/v1/` for example is Version 1.
+The HTTP API has a global version, indicated in the path: ``/v1/`` for example is Version 1.
 
 APIs put in this hierarchy shall be considered stable (but not yet complete backwards compatilibty, see above caveat).
 
-There is also an `/experimental` hierarchy to allow for experimentation, even when Version 1 is considered stable.
-APIs in the `/experimental/` tree may change in any revision.
+There is also an ``/experimental`` hierarchy to allow for experimentation, even when Version 1 is considered stable.
+APIs in the ``/experimental/`` tree may change in any revision.
 
 Whenever a new version is added (or changed), this section will be updatd and the relevant API(s) will indicate what version adds which features.
 A mechanism to add deprecation of APIs will be added in a future release.
 
- - **Version 1 (`/v1`)**: initial version of the API (not yet considered 100% stable).
+ - **Version 1 (``/v1``)**: initial version of the API (not yet considered 100% stable).
 
 
 .. _`daemon configuration`: :ref:`config`
@@ -69,6 +71,7 @@ The response body follows the form of this example (containing a single magic-fo
                 "verify_key": "OY7FCVPCOJXDNHQLSDTTJFONTROMQQED5Q6K33T3NBGGQHKLV73Q===="
             },
             "poll_interval": 60,
+            "scan_interval": 60,
             "is_admin": true,
             "stash_path": "/home/alice/.config/magic-folder/documents",
             "magic_path": "/home/alice/Documents"
@@ -137,7 +140,7 @@ Get all snapshots for one folder beneath a certain path.
 
 
 ``POST /v1/magic-folder/<folder-name>/snapshot?path=<some-path>``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new snapshot for a certain file in a certain magic-folder.
 
@@ -183,8 +186,16 @@ Accepts a JSON body listing the details of the participant to add::
         "personal_dmd": "URI:DIR2-RO:..."
     }
 
-The response is delayed until the participant is correctly added to the Collective DMD.
+The response is delayed until the participant is correctly added to the Collective.
 The ``personal_dmd`` is a Tahoe read-only directory capability-string (the participant device holds the write-capability).
+
+.. warning::
+
+   This is a "low-level" API requiring careful handling of the secret
+   Personal capability string. A higher-level API using a secure
+   magic-wormhole connection is available with the ``.../invite`` and
+   ``.../join`` endpoints
+
 A response code of **CREATED** is sent upon success with response body::
 
     {}
@@ -216,16 +227,16 @@ The list is ordered from most-recent to least-recent timestamp.
 ``size`` is in bytes.
 
 
-GET `/v1/magic-folder/<folder-name>/tahoe-objects`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GET ``/v1/magic-folder/<folder-name>/tahoe-objects``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Returns a list of integers representing the sizes of all individual capabilities that this folder is using.
 That means a size for each Snapshot capability and its corresponding metadata capability and content capability.
 The list is flat; if there are 2 Snapshots on the grid this will return 6 integers.
 
 
-GET `/v1/magic-folder/<folder-name>/conflicts`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GET ``/v1/magic-folder/<folder-name>/conflicts``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Returns a ``dict`` of all conflicts in the given magic-folder.
 Each item in the ``dict`` maps a relpath to a list of author-names.
@@ -233,70 +244,73 @@ The author-names correspond to the device that conflicts with this file.
 There will also be a file named like ``<relpath>.conflict-<author-name>`` in the magic-folder whose contents match those of the conflicting remote file.
 
 
-GET `/v1/magic-folder/<folder-name>/scan-local`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GET ``/v1/magic-folder/<folder-name>/scan-local``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Request an immediate scan of the local filesystem for the given folder.
-Returns an empty `dict` after the scan is complete.
+Returns an empty ``dict`` after the scan is complete.
 
 
-GET `/v1/magic-folder/<folder-name>/poll-remote`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+GET ``/v1/magic-folder/<folder-name>/poll-remote``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Request an immediate scan of the Collective DMD and remote participants of the given folder.
-Returns an empty `dict` after the scan is complete.
+Request an immediate scan of the Collective and remote participants of the given folder.
+Returns an empty ``dict`` after the scan is complete.
 
 
-POST `/experimental/magic-folder/<folder-name>/invite`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+POST ``/experimental/magic-folder/<folder-name>/invite``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a new invite.
 The body of the invite is a JSON object containing the keys:
-* `participant-name`: maps to a string describing what to call the invitee when they join
-* `mode`: `"read-write"` or `"read-only"` indicating what access the new participant has
+
+* ``participant-name``: maps to a string describing what to call the invitee when they join
+* ``mode``: ``"read-write"`` or ``"read-only"`` indicating what access the new participant has
 
 This will initiate the invite and returns the serialized invite.
-To await the end of the invite process, see the `.../invite-wait` endpoint.
+To await the end of the invite process, see the :ref:`invite-wait` endpoint.
 
 A serialized invite is a JSON object that has keys:
 
-* `id`: A UUID, like `92148d89-85ae-4677-8629-8ef6de54417d`
-* `participant-name`: the name to call the invitee in the Collective DMD
-* `consumed`: True if the wormhole code has been used up
-* `success`: True if the invite has completed successfully
-* `wormhole-code`: None or the text wormhole code
+* ``id``: A UUID, like ``92148d89-85ae-4677-8629-8ef6de54417d``
+* ``participant-name``: the name to call the invitee in the Collective
+* ``consumed``: True if the wormhole code has been used up
+* ``success``: True if the invite has completed successfully
+* ``wormhole-code``: None or the text wormhole code
 
+.. _invite-wait:
 
-POST `/experimental/magic-folder/<folder-name>/invite-wait`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+POST ``/experimental/magic-folder/<folder-name>/invite-wait``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Wait for an invite to complete (either successfully or not).
 
 The body of the invite is a JSON object with keys:
-* `id`: the UUID of the invite to await
+
+* ``id``: the UUID of the invite to await
 
 This endpoint returns 200 OK with the serialized Invite (see above) if the invite concluded successfully.
 Otherwise, the endpoint returns a 400 error describing the error.
 
 
-POST `/experimental/magic-folder/<folder-name>/join`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+POST ``/experimental/magic-folder/<folder-name>/join``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Join a magic-folder by accepting an invite.
 The body of the request is a JSON object with keys:
 
-* `invite-code`: the wormhole code
-* `local-directory`: absolute path of an existing local directory to synchronize files in
-* `author`: arbitrary, valid author name
-* `poll-interval`: seconds between remote update checks
-* `scan-interval`: seconds between local update checks
+* ``invite-code``: the wormhole code
+* ``local-directory``: absolute path of an existing local directory to synchronize files in
+* ``author``: arbitrary, valid author name
+* ``poll-interval``: seconds between remote update checks
+* ``scan-interval``: seconds between local update checks
 
 The endpoint returns 201 Created once the folder is created and joined.
 Otherwise, a 400 error is returned describing the error.
 
 
-POST `/experimental/magic-folder/<folder-name>/invites`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+POST ``/experimental/magic-folder/<folder-name>/invites``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 List all invites.
 Invites are stored in memory only, so this is any active or completed invites since the prorgam started.
@@ -359,14 +373,14 @@ The state for each folder consists of the following information:
   - ``"desired"``: the number of storage-servers we want to connect to
   - ``"happy"``: ``true`` if ``"connected"`` is greater than the client's configured "happy"
 - ``"folders"`` contains keys mapping the folder name to:
-  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads).
-    Each ``dict`` in these lists contain:
+  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads). Each ``dict`` in these lists contain:
+
     - ``"relpath"``: the relative-path
     - ``"queued-at"``: the Unix timestamp when this item was queued
-    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item
-      This key will not exist until we do start.
-  - ``"recent"`` contains a list up to 30 of the most-recently updated files.
-    Each ``dict`` in this list contains:
+    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item. This key will not exist until we do start.
+
+  - ``"recent"`` contains a list up to 30 of the most-recently updated files. Each ``dict`` in this list contains:
+
     - ``"relpath"``: the relative path of this item
     - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
     - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder

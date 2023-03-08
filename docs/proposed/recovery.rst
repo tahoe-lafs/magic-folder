@@ -1,22 +1,26 @@
 .. -*- coding: utf-8 -*-
 
-.. _snapshots:
+.. _recovery:
+
+Recovery (From Backup)
+======================
+
 
 Audience
-========
+--------
 
 This document is aimed at programmers working on integrating with magic-folder.
 
 
 Motivation
-==========
+----------
 
 It is useful to be able to back up enough information in order to recover a magic-folder on a new device.
 This document describes both the process of gathering the informatino to back up and using it to re-create a similar magic-folder.
 
 
 Overview
-========
+--------
 
 A magic-folder consists of a Collective DMD containing sub-directories pointing at the read-capabilities of one or more participant's Personal DMDs.
 If this magic-folder instance is the "admin" instance, it will contain a write-capability for the Collective.
