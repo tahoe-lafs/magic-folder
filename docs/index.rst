@@ -63,6 +63,7 @@ Fund`_ grant.
 .. _`Tahoe-LAFS`: https://tahoe-lafs.org/
 .. _`GitHub project`: https://github.com/LeastAuthority/magic-folder
 .. _`Gridsync`: https://github.com/gridsync/gridsync/
+.. _`Magic Wormhole`: https://github.com/magic-wormhole/magic-wormhole
 .. _`Mailbox Server`: https://github.com/magic-wormhole/magic-wormhole-mailbox-server
 
 
@@ -79,5 +80,9 @@ Contents
    releases
    backdoors
    development
+   interface
+   config
+   snapshots
+   downloader
    release-process
    proposed/index
