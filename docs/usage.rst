@@ -5,17 +5,19 @@
 Using Magic Folder
 ==================
 
-Magic-Folder is used in two ways.  To interact with configuration, the
-``magic-folder`` command line tool is used.  For details of this, see
-the section on :ref:`config-file`.  For additional information see
-`Magic Folder CLI design`_.
+Magic-Folder is used in two ways.
+
+The first way is to interact with the running daemon (including its
+configuration) is via the ``magic-folder`` command line tool (which uses
+the :ref:`HTTP API`). The following sections detail different subcommands
+available.  For additional information see `Magic Folder CLI design`_.
 
 .. _`Magic Folder CLI design`: ../proposed/magic-folder/user-interface-design
 
-To interact with content, use your normal filesystem-based tools.  The
-folder which Magic-Folder synchronizes is a normal folder in the
-filesystem.  The platform's filesystem change notification features
-are used to detect changes.
+The second way is to interact with content, use your normal
+filesystem-based tools.  The folder which Magic-Folder synchronizes is
+a normal folder in the filesystem.  This directory (and all
+sub-directories) are scanned for changes periodically.
 
 We think of participants in the system as "devices". A single human
 may control many devices (in case they are synchronizing files between
