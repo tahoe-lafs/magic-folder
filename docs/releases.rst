@@ -6,4 +6,4 @@ Versions follow the year and month of their release, with a minor number increas
 See also the :ref:`release-process` for further explanation.
 
 
-.. include:../NEWS.rst
+.. include:: ../NEWS.rst
