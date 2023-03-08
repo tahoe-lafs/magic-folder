@@ -1,5 +1,5 @@
-Interface
-=========
+Local HTTP Interface
+====================
 
 .. _http-api:
 
