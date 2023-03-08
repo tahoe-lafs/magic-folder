@@ -199,6 +199,28 @@ def add_snapshot(options):
     print("{}".format(res), file=options.stdout)
 
 
+class FileStatusOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to list"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def file_status(options):
+    """
+    List the status of all files in a magic-folder
+    """
+    res = yield options.parent.client.file_status(
+        options['folder'],
+    )
+    print(json.dumps(res, indent=2), file=options.stdout)
+
+
 class DumpStateOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder whose state to dump", str),
@@ -320,6 +342,31 @@ def list_participants(options):
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
+class ListConflictsOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder conflicts to list"),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+
+@inlineCallbacks
+def list_conflicts(options):
+    """
+    List all conflicts in a magic-folder
+    """
+    res = yield options.parent.client.list_conflicts(
+        options['folder'],
+    )
+    print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
+
+
 class ScanOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to scan", str),
@@ -424,9 +471,11 @@ class MagicFolderApiCommand(BaseOptions):
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
+        ["file-status", None, FileStatusOptions, "List status of all files in a magic-folder."],
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
+        ["list-conflicts", None, ListConflictsOptions, "List all conflicts in a magic-folder."],
         ["scan", None, ScanOptions, "Scan for local changes in a magic-folder."],
         ["poll", None, PollOptions, "Poll for remote changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
@@ -543,9 +592,11 @@ def run_magic_folder_api_options(options):
     so.stderr = options.stderr
     main_func = {
         "add-snapshot": add_snapshot,
+        "file-status": file_status,
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
+        "list-conflicts": list_conflicts,
         "scan": scan,
         "poll": poll,
         "monitor": monitor,
