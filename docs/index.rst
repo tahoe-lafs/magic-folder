@@ -76,6 +76,7 @@ Contents
    usage
    invites
    limitations
+   releases
    backdoors
    development
    release-process
