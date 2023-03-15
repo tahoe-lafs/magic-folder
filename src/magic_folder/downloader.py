@@ -416,7 +416,13 @@ class LocalMagicFolderFilesystem(object):
         shall be deleted.
         """
         local_path = self.magic_path.preauthChild(relpath)
-        local_path.remove()
+        try:
+            local_path.remove()
+        except FileNotFoundError:
+            # the file could never have existed -- consider if the
+            # other participant created and then deleted the file
+            # before we saw any updates.
+            pass
 
 
 @implementer(IMagicFolderFilesystem)
