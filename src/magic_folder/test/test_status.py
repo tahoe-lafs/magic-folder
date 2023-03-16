@@ -123,6 +123,8 @@ class StatusServiceTests(SyncTestCase):
 
         self.service.upload_queued("foo", "foo")
         self.service.upload_started("foo", "foo")
+        self.service.download_queued("foo", "bar")
+        self.service.download_started("foo", "bar")
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the proper state
@@ -143,6 +145,18 @@ class StatusServiceTests(SyncTestCase):
                         'folder': 'foo',
                         'kind': 'upload-started',
                         'relpath': 'foo',
+                        'started-at': 0.0,
+                    },
+                    {
+                        'folder': 'foo',
+                        'kind': 'download-queued',
+                        'queued-at': 0.0,
+                        'relpath': 'bar',
+                    },
+                    {
+                        'folder': 'foo',
+                        'kind': 'download-started',
+                        'relpath': 'bar',
                         'started-at': 0.0,
                     },
                     {
