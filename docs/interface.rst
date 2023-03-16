@@ -346,7 +346,7 @@ The follow event kinds are understood (see ``status.py`` for more details on the
 
 - ``"poller"``: has a key ``last-poll`` describing when we last asked for remote changes.
 
-- ``"tahoe"``: describes the status of our connected Tahoe-LAFS client: ``connected`` and ``desired`` are the number of server we are conencted to (and how many we want). Whether we are currently connected to enoug is in a boolean ``happy``.
+- ``"tahoe"``: describes the status of our connected Tahoe-LAFS client: ``connected`` and ``desired`` are the number of servers we are conencted to (and how many we want). Whether we are currently connected to enough is in a boolean ``happy``.
 
 - ``"error"``: An error, with ``timestamp`` and ``summary`` (human-readable string).
 
