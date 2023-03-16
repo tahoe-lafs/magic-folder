@@ -515,7 +515,7 @@ class EventsWebSocketStatusService(service.Service):
             try:
                 client.sendMessage(json.dumps({"events": [msg_json]}).encode("utf8"))
             except Exception as e:
-                print("Failed to send status: {}".format(e))
+                self.error_occurred(None, "Failed to send status: {}".format(e))
                 # XXX disconnect / remove client?
 
     # IStatus API
