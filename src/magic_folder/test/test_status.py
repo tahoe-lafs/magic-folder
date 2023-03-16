@@ -216,6 +216,45 @@ class StatusServiceTests(SyncTestCase):
             ])
         )
 
+    def test_client_error(self):
+        """
+        We log an error if a message to a client fails to send
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+                if len(messages) == 2:
+                    raise RuntimeError("loopback is broken?")
+
+        client = ClientProtocol()
+        self.service.client_connected(client)
+
+        # change our state
+        self.service.upload_queued("foo", "foo")
+
+        self.assertThat(
+            messages,
+            Equals([
+                {
+                    "events": [
+                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'}
+                    ]
+                },
+                {
+                    "events": [
+                        {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"}
+                    ]
+                },
+                {
+                    "events": [
+                        {"folder": None, "kind": "error", "summary": "Failed to send status: loopback is broken?", "timestamp": 0}
+                    ]
+                }
+            ])
+        )
+
 
 class WebSocketTests(AsyncTestCase):
     """
