@@ -1,5 +1,20 @@
+.. _leif-design:
+
+The Leif Design: synchronization model
+======================================
+
+Originally proposed by Tahoe-LAFS contributor Leif Ryge, this design of magic-folder synchronization is ofter referred to as "the Leif model".
+
+This document is of interest to magic-folder contributors or experts wishing to understand the history of the synchronization model.
+
+.. WARNING::
+
+   This document is largely for historical purposes.
+   Details have changed and some of the terminology in here dates from when magic-folder was part of the Tahoe-LAFS codebase and a subcommand of ``tahoe``.
+
+
 Multi-party Conflict Detection
-==============================
+------------------------------
 
 The current Magic-Folder remote conflict detection design does not properly detect remote conflicts
 for groups of three or more parties. This design is specified in the "Fire Dragon" section of this document:
@@ -12,7 +27,7 @@ three parties in which a remote conflict is falsely detected:
 
 
 Summary and definitions
-=======================
+-----------------------
 
 Abstract file: a file being shared by a Magic Folder.
 
@@ -44,7 +59,7 @@ The desired behaviour for initially classifying overwrites and conflicts is as f
 * if, in the same situation, V' does not follow V, then the write of the new version should be
   classified as a conflict.
 
-The existing :doc:`remote-to-local-sync` document defines when an initial
+The existing :doc:`proposed/magic-folder/remote-to-local-sync` document defines when an initial
 overwrite should be reclassified as a conflict.
 
 The above definitions completely specify the desired solution of the false
@@ -58,21 +73,18 @@ Zooko Wilcox-O'Hearn, that aim to fill this gap.
 
 
 Leif's Proposal: Magic-Folder "single-file" snapshot design
-===========================================================
+-----------------------------------------------------------
 
 Abstract
---------
+````````
 
 We propose a relatively simple modification to the initial Magic Folder design which
 adds merkle DAGs of immutable historical snapshots for each file. The full history
 does not necessarily need to be retained, and the choice of how much history to retain
 can potentially be made on a per-file basis.
 
-Motivation:
------------
-
-no SPOFs, no admins
-```````````````````
+Motivation:n o SPOFs, no admins
+```````````````````````````````
 
 Additionally, the initial design had two cases of excess authority:
 
@@ -87,7 +99,7 @@ possibility to delete it).
 
 
 Glossary
---------
+````````
 
 - merkle DAG: like a merkle tree but with multiple roots, and with each node potentially having multiple parents
 - magic folder: a logical directory that can be synchronized between many clients
@@ -111,7 +123,7 @@ Glossary
 
 
 Overview
---------
+````````
 
 This new design will track the history of each file using "snapshots" which are
 created at each upload. Each snapshot will specify one or more parent snapshots,
@@ -148,7 +160,7 @@ period of time, a single conflict-resolving snapshot with more than two parents 
 ! I think this behavior will confuse users. 
 
 Tahoe-LAFS snapshot objects
----------------------------
+```````````````````````````
 
 These Tahoe-LAFS snapshot objects only track the history of a single file, not a directory hierarchy.
 Snapshot objects contain only two field types:
@@ -165,7 +177,7 @@ parent1..N -> more parent snapshots
 
 
 Snapshot Author Identity
-------------------------
+````````````````````````
 
 Snapshot identity might become an important feature so that bad actors
 can be recognized and other clients can stop "subscribing" to (polling for) updates from them.
@@ -174,10 +186,10 @@ Perhaps snapshots could be signed by the user's Magic-Folder write key for this 
 
 
 Conflict Resolution
--------------------
+```````````````````
 
 detection of conflicts
-``````````````````````
+~~~~~~~~~~~~~~~~~~~~~~
 
 A Magic-Folder client updates a given file's current snapshot link to a snapshot which is a descendent
 of the previous snapshot. For a given file, let's say "file1", Alice can detect that Bob's DMD has a "file1"
@@ -199,7 +211,7 @@ choose the other version then she moves it into place:
 
 This scheme works for N number of conflicts. Bob for instance could choose
 the same resolution for the conflict, like this:
-   
+
    mv file1.Alice file1
 
 
@@ -289,7 +301,7 @@ because Bob's new snapshots are not descendent's of the existing Magic-Folder fi
 
 
 Example: simultaneous update with four parties:
-    
+
 1. A, B, C, D are in sync for file "foo" at snapshot X
 2. A and B simultaneously change the file, creating snapshots XA and XB (both descendants of X).
 3. C hears about XA first, and D hears about XB first. Both accept an overwrite.
@@ -329,45 +341,3 @@ Later:
 Daira: I think it is too complicated to include multiple nicknames in the .conflict files
 (e.g. "foo.conflict-B,D"). It should be sufficient to have one file for each other client,
 reflecting that client's latest version, regardless of who else it conflicts with.
-
-
-Zooko's Design (as interpreted by Daira)
-========================================
-
-A version map is a mapping from client nickname to version number.
-
-Definition: a version map M' strictly-follows a mapping M iff for every entry c->v
-in M, there is an entry c->v' in M' such that v' > v.
-
-
-Each client maintains a 'local version map' and a 'conflict version map' for each file
-in its magic folder db.
-If it has never written the file, then the entry for its own nickname in the local version
-map is zero. The conflict version map only contains entries for nicknames B where
-"$FILENAME.conflict-$B" exists.
-
-When a client A uploads a file, it increments the version for its own nickname in its
-local version map for the file, and includes that map as metadata with its upload.
-
-A download by client A from client B is an overwrite iff the downloaded version map
-strictly-follows A's local version map for that file; in this case A replaces its local
-version map with the downloaded version map. Otherwise it is a conflict, and the
-download is put into "$FILENAME.conflict-$B"; in this case A's
-local version map remains unchanged, and the entry B->v taken from the downloaded
-version map is added to its conflict version map.
-
-If client A deletes or renames a conflict file "$FILENAME.conflict-$B", then A copies
-the entry for B from its conflict version map to its local version map, deletes
-the entry for B in its conflict version map, and performs another upload (with
-incremented version number) of $FILENAME.
-
-
-Example:
-    A, B, C = (10, 20, 30) everyone agrees.
-    A updates: (11, 20, 30)
-    B updates: (10, 21, 30)
-
-C will see either A or B first. Both would be an overwrite, if considered alone.
-
-
-

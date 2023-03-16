@@ -83,6 +83,8 @@ Contents
    interface
    config
    snapshots
+   datamodel
    downloader
    release-process
+   leif-design
    proposed/index
