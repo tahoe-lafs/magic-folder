@@ -406,18 +406,12 @@ def status(options):
             "timestamp": e["timestamp"],
             "summary": e["summary"],
         })
-        print("ERROR: {}: {}: {}".format(
-            e["folder"],
-            datetime.fromtimestamp(e["timestamp"]),
-            e["summary"],
-        ))
 
     def upload(e):
         """
         Handle all events related to uploads
         """
         ours = state["folders"][e["folder"]]["uploads"]
-        print("UPLOAD", e, ours)
         for k in {"queued-at", "started-at"}:
             if k in e:
                 ours[e["relpath"]][k] = e[k]
@@ -439,13 +433,10 @@ def status(options):
         if e["kind"] == "download-finished":
             del ours[e["relpath"]]
 
-
-    # Just dump recent changes for now -- _can_ we keep this updated
-    # properly, with the "events" API? (whether this is a _good_ idea
-    # for this CLI subcommand is a different question).
-    #
-    # For a client that wants this feature, can they query this data
-    # once up front, and then keep it fresh?
+    # it might be interesting to have a status command that simply
+    # dumps event as they arrive. the original (state-message-based)
+    # UI did dump the "whole state at once" so at the very least this
+    # serves as proof a UI _can_ do that properly with this events API
 
     folders = yield options.parent.client.list_folders()
     for folder_name in folders.keys():
