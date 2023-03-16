@@ -1917,17 +1917,10 @@ class FilesystemModificationTests(SyncTestCase):
 
     def test_delete_already_gone(self):
         """
-        Error if the file is already gone
+        If a deleted file is already gone, we ignore it.
         """
-        try:
-            self.filesystem.mark_delete("foo")
-        except Exception:
-            # in python3, this will always be an OSError, but in
-            # Python2 we get a WindowsError on windows and OSError on
-            # other systems.
-            pass
-        else:
-            raise AssertionError("Expected an exception")
+        # should not cause an exception
+        self.filesystem.mark_delete("foo")
 
     def test_overwrite_sub_dir(self):
         """

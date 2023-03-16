@@ -2,14 +2,17 @@
 
 .. _conflicts:
 
+Conflict API
+============
+
 Audience
-========
+--------
 
 This document is aimed at programmers working on magic-folder. It is a proposed design.
 
 
 Motivation
-==========
+----------
 
 Under normal operation, magic-folders scans other participants' Snapshots and reflects those changes locally; sometimes, these changes can conflict.
 
@@ -20,7 +23,7 @@ The command-line interface shall have sub-commands for listing and resolving con
 
 
 Filesystem API for Conflicts and Resolution
-===========================================
+-------------------------------------------
 
 When a Snapshot is found to conflict with a particluar local file (say ``foo``) a "conflict file" is written beside it, reflecting the other participants' content (``foo.conflict-laptop``).
 That is, ``foo.conflict-laptop`` indicates that the participant "``laptop``" has a conflicting update
@@ -47,7 +50,7 @@ To resolve a conflict as "take mine", one simply deletes ``foo.conflict-laptop``
 
 
 HTTP API for Conflicts and Resolution
-=====================================
+-------------------------------------
 
 
 ``GET /v1/magic-folder/<folder-name>/conflicts``
@@ -69,8 +72,8 @@ This indicates that a single file ``foo`` has a conflict with a single other par
 
 
 
-``POST /v1/magic-folder/<folder-name>/resolve-conflict
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``POST /v1/magic-folder/<folder-name>/resolve-conflict``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A JSON body is passed to this endpoint, following this example::
 

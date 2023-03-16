@@ -246,12 +246,15 @@ Creating a Release
    - python3 setup.py bdist_wheel
 - Double-check the artifact in dist/
 - Sign the wheel if you're happy:
-   - export VERSION=21.1.0
-   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-$(VERSION)-py3-none-any.whl
+   - export VERSION=23.3.0
+   - gpg --pinentry=loopback --armor --detach-sign dist/magic_folder-${VERSION}-py3-none-any.whl
+- Make source-dist and sign:
+   - python setup.py sdist
+   - gpg --pinentry=loopback --armor --detach-sign dist/magic-folder-${VERSION}.tar.gz
 
 - OR: do all the above steps with "make release"
 
 
 - Publish the release:
    - twine upload dist/magic_folder-*-py3-none-any.whl dist/magic_folder-*-py3-none-any.whl.asc
-- OR: do all the publish steps with "make release-publish"
+- OR: do all the publish steps with "make release-upload"

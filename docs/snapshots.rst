@@ -2,15 +2,18 @@
 
 .. _snapshots:
 
+Snapshots Design
+================
+
 Audience
-========
+~~~~~~~~
 
 This document is aimed at programmers and advanced users who want to
 explore the inner working of the magic-folder feature that preserves
 file history.
 
 Motivation
-==========
+~~~~~~~~~~
 
 It would be beneficial to maintain different versions of a file that
 uses are sharing with other parties. Another benefit is for better
@@ -22,7 +25,7 @@ To address these concerns, Leif Ryge proposed an alternative design on
 which we base our design of snapshots.
 
 Snapshots
-=========
+~~~~~~~~~
 
 Information about files in a Magic Folder are encapsulated in a
 logical "Snapshot" object. We distinguish between a "local" Snapshot

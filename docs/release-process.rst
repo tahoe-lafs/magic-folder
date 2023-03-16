@@ -1,3 +1,5 @@
+.. _release-process:
+
 Magic-Folder Release Process
 ============================
 
