@@ -48,6 +48,7 @@ from twisted.internet.task import (
     Cooperator,
 )
 from twisted.internet.defer import (
+    CancelledError,
     DeferredList,
 )
 from twisted.python.filepath import FilePath
@@ -482,6 +483,7 @@ class FakeWormhole:
         self._on_closed = on_closed
         self._outgoing_messages = [] if messages is None else messages
         self.sent_messages = []
+        self._cancelled = False
 
     def add_message(self, msg):
         self._outgoing_messages.append(msg)
@@ -508,9 +510,7 @@ class FakeWormhole:
         if len(self._outgoing_messages):
             msg = self._outgoing_messages.pop(0)
             return msg
-        raise RuntimeError(
-            "No more messages"
-        )
+        raise CancelledError()
 
     def send_message(self, msg):
         self.sent_messages.append(msg)

@@ -2193,7 +2193,7 @@ class InviteTests(SyncTestCase):
 
     def test_create_invite_then_delete(self):
         """
-        Cancel an invite and cancel it
+        Create an invite and cancel it
         """
 
         # create the invite (we already tested this part above)
@@ -2222,6 +2222,22 @@ class InviteTests(SyncTestCase):
             })
         )
 
+        # in a "normal" case, we'd "actually await" and when the
+        # wormhole is closed it'll cancel the deferred .. but to do it
+        # synchronously we have to have special knowledge
+        self.wormhole._cancelled = True
+
+        # await the invite (to see that the cancel propagates)
+        invite_d = authorized_request(
+            self.treq,
+            AUTH_TOKEN,
+            u"POST",
+            self.url.child("default", "invite-wait"),
+            dumps({
+                "id": invite["id"],
+            }).encode("utf8"),
+        )
+
         # delete the invite
         self.assertThat(
             authorized_request(
@@ -2246,6 +2262,16 @@ class InviteTests(SyncTestCase):
         self.assertThat(
             self.wormhole_was_closed,
             Equals(True)
+        )
+        self.assertThat(
+            success_result_of(invite_d),
+            matches_response(
+                    code_matcher=Equals(410),
+                body_matcher=AfterPreprocessing(
+                    loads,
+                    Equals({"reason": "cancelled"})
+                )
+            )
         )
 
     def test_delete_non_existing(self):
