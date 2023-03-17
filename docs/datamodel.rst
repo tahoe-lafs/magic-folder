@@ -64,7 +64,7 @@ All read-write Participants hold the single Write Capability corresponding to th
 We call these the "**Personal**" directory.
 
 Here is an example: we have a Folder called "My Notes" whose Collective contains two Participants named "laptop" and "desktop".
-The "metadata" Immutable contains JSON describing the version (there is only one version right now, ``1``).
+The ``"@metadata"`` Immutable contains JSON describing the version (there is only one version right now, ``1``).
 
 .. figure:: magic-folder-data-model--high-level.svg
     :width: 100%
@@ -192,23 +192,40 @@ Here is a fully-worked diagram of a complete Folder called "My Notes" with two P
 Let's examine the pieces.
 
 At "1", we have the Collective.
-This contains the ``metadata`` (confirming this version, ``1``) and two participants: ``"laptop"`` and ``"desktop"``.
+This contains the ``@metadata`` (confirming this version, ``1``) and two participants: ``"laptop"`` and ``"desktop"``.
 Each of these are Mutable folders.
 We don't know from this view whether "laptop" or "desktop" holds the Write Capability to the Collective (and is thus "the admin).
 The only way to know this is to ask.
 
 At "2" we see one of the Participant's Personal directories expanded (in this case, ``"laptop"``).
-It also has a ``metadata`` confirming the version.
+It also has a ``@metadata`` confirming the version.
 
 The blue bubbles expand the Snapshots to their actual on-Grid representation.
 They are Immutable Directories containing two entries: ``"contents"`` and ``"metadata"``.
 
 The ``"contents"`` entry points at an Immutable Capability containing the actual contents of this version.
-The ``"metadata"`` entry points at an Immutable Capability containing JSON that will deserialize to a representation of some information about this entry.
+The ``"metadata"`` entry points at an Immutable Capability containing JSON that will deserialize to a representation of some information about this entry. Here is the example metadata found at "4"::
+
+    {
+        "snapshot_version": 1,
+        "relpath": "grumpy-cat.jpeg",
+        "author": {
+            "name": "laptop",
+            "verify_key": "..."
+        },
+        "modification_time": 1677542725,
+        "parents": ["URI:DIR2-CHK:..."]
+    }
 
 We see it has a ``"snapshot_version"``, the relative pathname in ``"relpath"``, the ``"modification-time"`` (in seconds-since-the epoch), some author information and a list of parents.
 
 The "parents" list contains Capability strings for other Snapshot objects. In the case of ``"grumpy-cat.jpeg"`` we can see that someone has added a colour version and that the black and white version has no parents (so is the only version).
+
+Note that the top-level filenames will not always match what is in ``"relpath": "..."`` because the on-Grid view is "flattened": any subdirectories within the Folder become a single top-level name.
+Part of the reason for this is to avoid having to recursively visit an unknown number of subdirectories. This flattening procedure is found in ``magic_folder/magicpath.py`` and replaces ``/`` characters with ``@_`` (and ``@`` with ``@@``).
+
+This makes the ``@metadata`` filenames "invalid", and thus special.
+This is the only such special name in version 1. (If a folder actually contained a user file called ``@metadata`` then it would get the name ``@@metadata``).
 
 
 Authors
