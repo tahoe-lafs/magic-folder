@@ -2266,7 +2266,7 @@ class InviteTests(SyncTestCase):
         self.assertThat(
             success_result_of(invite_d),
             matches_response(
-                    code_matcher=Equals(410),
+                code_matcher=Equals(410),
                 body_matcher=AfterPreprocessing(
                     loads,
                     Equals({"reason": "cancelled"})
