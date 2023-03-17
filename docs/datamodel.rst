@@ -105,7 +105,7 @@ Otherwise, the Snapshot will have one "parent" Snapshot, representing the latest
 A Snapshot will have more than one parent in case it is resolving a Conflict (see below).
 In this way, we consider Snapshots as a Directed Acyclic Graph (DAG).
 
-One can visualize this as a tree: each file has a root in the Personal directory pointing at some Snapshot that itself may point at zero or more parent Snapshots until the very first version.
+One can visualize this as a tree: each file has a root in the Personal directory pointing at some Snapshot that itself may point at zero or more parent Snapshots (and so on, until the very first version is reached).
 
 When fully synchronized, all Personal directories of all Participants will point to the very same Snapshot object in the Grid (the Capability string will be identical).
 
@@ -116,6 +116,7 @@ Remote Changes
 Periodically, the ``magic-folder`` daemons of Participants will check the Grid for updates.
 
 This is done by examining the Collective to determine all Participants -- that is, we list the Collective directory contents.
+If any new Participants have been added since our last check, they will be considered as well.
 
 Next, we examine each Participant's Personal folder (except our own) and determine if that file is pointing at the same Snapshot as us -- that is, we list the Personal directory contents.
 
@@ -123,7 +124,7 @@ If any Snapshot is different, it is downloaded and acted upon.
 For a full discussion of this process, see :ref:`downloader`.
 
 Ultimately, for normal updates or deletes, the change will be reflected (or "acknowledged" if you prefer) by updating our own Personal folder.
-In case of a "conflict" (e.g. two changes at "the same" time) we will not update the Personal folder until the user resolves the conflict (this isn't possible yet, see `https://github.com/LeastAuthority/magic-folder/issues/102`_).
+In case of a "conflict" (e.g. two changes at "the same" time) we will not update the Personal folder until the user resolves the conflict (this isn't possible yet, see `Issue 102 <https://github.com/LeastAuthority/magic-folder/issues/102>`_).
 
 Considered together, an abstract view of a two-Participant example:
 
@@ -150,7 +151,7 @@ While we currently lack UI or HTTP API affordances to accomplish this, there *is
 That way is by having multiple parents.
 So, looking at our two-Participant case, here is an example of a conflict and its resolution.
 
-.. figure:: magic-folder-data-model-abstract--conflict.svg
+.. figure:: magic-folder-data-model-abstract--conflict.plain.svg
     :width: 100%
     :height: 30pt
     :alt: Magic Folder datamodel, abstract snapshots
@@ -167,7 +168,7 @@ Since neither Participant had seen the other's change, they both used "2" as a p
 (If instead there had been some time to synchronize between the changes, one or the other would be first and no problem would occur).
 
 At green point "4", the "desktop" participant has "resolved" the Conflict: they have chosen some way to do this (possibly taking one or the other version whole, or merging the changes somehow).
-No matter how this was accomplished (and again, we have no UI for this yet) the conflict resolution is represented on the Grid by producing a new Snapshot (at green dot "4") with **both** Snapshots as parents -- this communicates that the "desktop" Participant saw both and did something to decide that the new snapshot at "4" is the correct way to move forward.
+No matter how this was accomplished (and again, we have no UI for this yet) the conflict resolution is represented on the Grid by producing a new Snapshot (at green dot "4") with **both** Snapshots as parents -- this communicates that the "desktop" Participant saw both and did something to decide that the new snapshot at "4" is the correct way to move forward. In cases with more Participants, there could be more conflicting Snapshots and thus more than two parents.
 
 We can also see in this diagram that participant "laptop" has **not yet updated** fully, as they are still pointing at "3".
 
@@ -214,9 +215,9 @@ Authors
 -------
 
 The author information is usable, but there is not yet a way to collect and examine who are legitimate authors of Snapshots (that is, "Public Key Infrastructure" or PKI).
-The :ref:`snapshots` document describes how the signatures are produced and how to verify them -- but as you can see the keys are simply in the metadata.
+The :ref:`snapshots` document describes how the signatures are produced and how to verify them -- but as you can see the public keys are simply in the metadata.
 
 Clients could already use this to see if authorship *change*.
 A future version of the software will add some way to manage, verify, revoke and move author keys.
 
-One such use-case could be a single human who uses multiple devices: they may wish to show they authored changes from multiple Participant devices (which would still have different Personal folders).
+One such use-case could be a single human who uses multiple devices: they may wish to show they authored changes from multiple Participant devices (which would still have different Personal capabilities).
