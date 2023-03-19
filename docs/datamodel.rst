@@ -26,13 +26,13 @@ Terminology
 
 A collection of Tahoe-LAFS servers constitutes "a **Grid**".
 
-Tahoe-LAFS stores data in "**Capabilities**".
+Tahoe-LAFS stores data accessed via "**Capabilities**".
 In this document, we talk about several kinds of these:
 
 - **Immutable Capability**: some data whose contents will never change (write once).
 
 - **Mutable Directory Capability**: this sort of capability allows one computer to hold a "Write Capability" that authorizes changes while sharing a **Read-Only Directory Capability** with other computers.
-  Clients with the latter kind will see changes made.
+  Clients with the latter kind will see changes made by the computer that can write.
   The capability contains names pointing to either contents (files) or other Directory Capabilities (sub-directories).
 
   It is **vital to note** that **only a single computer** may hold and use the Write Capability.
@@ -49,19 +49,19 @@ At a very high level, ``magic-folder`` contains one or more "**Folders**".
 These represent a collection of files to synchronize to one or more computers.
 Each computer is called a **Participant**.
 
-Participants may be "read-only" or "read-write"; the latter kind can introduce new files or changes to existing files.
+Participants may be "read-only" or "read-write"; the latter kind can introduce new files or changes to existing files (including changes constituting a "delete").
 
 A Folder is represented in Tahoe-LAFS as a Mutable Directory.
 We call this "**the Collective**".
 This directory lists all the Participants: it maps their name to a Capability.
-For read-only Participants, this will be an empty Immutable.
-For read-write Participants their name will map the a Read-Only Directory Capability.
+For read-only Participants, this will be an empty Immutable Directory.
+For read-write Participants their name will map to a Read-Only Directory Capability.
 
 The single computer that holds the Write Capability to this Mutable Directory is known as "the admin".
-They decide who the participants are, what they are named and whether they are read-only or read-write.
+It thus has control over who the participants are, what they are named and whether they are read-only or read-write.
 
 All read-write Participants hold the single Write Capability corresponding to their public Read-Only Directory Capability.
-We call these the "**Personal**" directory.
+We call these a "**Personal**" directory.
 
 Here is an example: we have a Folder called "My Notes" whose Collective contains two Participants named "laptop" and "desktop".
 The ``"@metadata"`` Immutable contains JSON describing the version (there is only one version right now, ``1``).
