@@ -130,6 +130,8 @@ class Invite(object):
     _awaiting_code = attr.ib(default=attr.Factory(list))
     _awaiting_done = attr.ib(default=attr.Factory(list))
     _had_error = attr.ib(default=None)  # if this invite ever failed, this is the failure
+    _perform_d = attr.ib(default=None)  # Deferred instance if we're in perform_invite()
+    _cancelled = attr.ib(default=None)
 
     def await_code(self):
         """
@@ -552,6 +554,7 @@ class InMemoryInviteManager(service.Service):
         d = invite.perform_invite(reactor, self.folder_config, self.tahoe_client)
         d.addCallback(self._invite_succeeded, d, invite)
         d.addErrback(self._invite_failed, d, invite)
+        invite._perform_d = d
         self._in_progress.append(d)
 
         return invite
@@ -563,6 +566,7 @@ class InMemoryInviteManager(service.Service):
         """
         try:
             invite = self._invites[invite_id]
+            invite._cancelled = True
         except KeyError:
             raise ValueError(
                 "Invite '{}' doesn't exist".format(invite_id)
@@ -575,6 +579,9 @@ class InMemoryInviteManager(service.Service):
             yield invite._wormhole.close()
         except WormholeError:
             pass
+
+        if invite._perform_d:
+            invite._perform_d.cancel()
         del self._invites[invite_id]
 
     def stopService(self):
@@ -596,12 +603,16 @@ class InMemoryInviteManager(service.Service):
             self._in_progress.remove(d)
         except ValueError:
             pass
-        self.folder_status.error_occurred(
-            "Invite of '{}' failed: {}".format(
-                invite.participant_name,
-                invite._reject_reason if invite._reject_reason is not None else str(fail.value),
+        # if we meant to cancel this, we don't want to report any
+        # error (e.g. we'll probably have a LonelyError from the
+        # wormhole, as it closed w/o a partner)
+        if not invite._cancelled:
+            self.folder_status.error_occurred(
+                "Invite of '{}' failed: {}".format(
+                    invite.participant_name,
+                    invite._reject_reason if invite._reject_reason is not None else str(fail.value),
+                )
             )
-        )
         invite._had_error = fail
         for x in invite._awaiting_code:
             x.errback(fail)

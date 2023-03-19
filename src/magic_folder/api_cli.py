@@ -46,6 +46,8 @@ class CancelInviteOptions(usage.Options):
         # required args
         if self['folder'] is None:
             raise usage.UsageError("--folder / -n is required")
+        if self['invite'] is None:
+            raise usage.UsageError("--invite / -i is required")
 
 
 @inlineCallbacks
