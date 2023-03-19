@@ -100,12 +100,12 @@ Otherwise, the Snapshot will have one "parent" Snapshot, representing the latest
 .. NOTE::
 
     There is a notion of a "local snapshot" which we won't go into here; once uploaded to the Grid, a Snapshot has a concrete representation which is what is important from a datamodel perspective.
-    Obviously, some amount of time passes between an actual change to a file on disk and it being represented in the Tahoe-LAFS Grid -- from seconds to days or more (e.g. if offline).
+    Obviously, some amount of time passes between an actual change to a file on disk and it being represented in the Tahoe-LAFS Grid -- from seconds to days or more (e.g. while offline).
 
 A Snapshot will have more than one parent in case it is resolving a Conflict (see below).
 In this way, we consider Snapshots as a Directed Acyclic Graph (DAG).
 
-One can visualize this as a tree: each file has a root in the Personal directory pointing at some Snapshot that itself may point at zero or more parent Snapshots (and so on, until the very first version is reached).
+Another way to say this is that each file has a "head" pointer in the Personal directory pointing at some Snapshot that itself may point at zero or more parent Snapshots (and so on, until the very first version is reached).
 
 When fully synchronized, all Personal directories of all Participants will point to the very same Snapshot object in the Grid (the Capability string will be identical).
 
@@ -116,15 +116,15 @@ Remote Changes
 Periodically, the ``magic-folder`` daemons of Participants will check the Grid for updates.
 
 This is done by examining the Collective to determine all Participants -- that is, we list the Collective directory contents.
-If any new Participants have been added since our last check, they will be considered as well.
+If any new Participants have been added since our last check, they will thus be considered as well.
 
-Next, we examine each Participant's Personal folder (except our own) and determine if that file is pointing at the same Snapshot as us -- that is, we list the Personal directory contents.
+Next, we examine each Participant's Personal folder (except our own) and determine if each file is pointing at the same Snapshot we point at for that file -- that is, we list the Personal directory contents.
 
 If any Snapshot is different, it is downloaded and acted upon.
 For a full discussion of this process, see :ref:`downloader`.
 
-Ultimately, for normal updates or deletes, the change will be reflected (or "acknowledged" if you prefer) by updating our own Personal folder.
-In case of a "conflict" (e.g. two changes at "the same" time) we will not update the Personal folder until the user resolves the conflict (this isn't possible yet, see `Issue 102 <https://github.com/LeastAuthority/magic-folder/issues/102>`_).
+Ultimately, for normal updates or deletes, the change will be reflected (or "acknowledged" if you prefer) by updating our own Personal folder after making local changes.
+In case of a "conflict" (e.g. two changes at "the same" time) we will not update the Personal folder until the user resolves the conflict (this part isn't possible yet, see `Issue 102 <https://github.com/LeastAuthority/magic-folder/issues/102>`_).
 
 Considered together, an abstract view of a two-Participant example:
 
@@ -177,9 +177,9 @@ Snapshot Representation
 -----------------------
 
 So far we've looked abstractly at Snapshots.
-While the :ref:`snapshots` document describes the process, lets me more concrete.
+While the :ref:`snapshots` document describes the process, lets be more concrete.
 
-Here is a fully-worked diagram of a complete Folder called "My Notes" with two Participants ("laptop", "desktop") that have two files ("Meeting Notes.odt" and "grumpy-cat.jpeg"). The main change here is visualizing all the parts.
+Here is a fully-worked diagram of a complete Folder called "My Notes" with two Participants ("laptop", "desktop") that have two files ("Meeting Notes.odt" and "grumpy-cat.jpeg"). The main difference between the above diagrams is to visualize all the parts at once.
 
 .. figure:: magic-folder-data-model.svg
     :width: 100%
@@ -211,10 +211,10 @@ The ``"metadata"`` entry points at an Immutable Capability containing JSON that 
         "relpath": "grumpy-cat.jpeg",
         "author": {
             "name": "laptop",
-            "verify_key": "..."
+            "verify_key": "leZlgAAxNI/B9vKBgQe+sAQUJmKksz3EgdUMpXBme4I="
         },
         "modification_time": 1677542725,
-        "parents": ["URI:DIR2-CHK:..."]
+        "parents": ["URI:DIR2-CHK:rewm75qmekohyfce2sukai6are:5nad26spvq6vfuymnkqqorw5ax4dqfilkftvjyv3ex2f2fvr55ha:3:5:422"]
     }
 
 We see it has a ``"snapshot_version"``, the relative pathname in ``"relpath"``, the ``"modification-time"`` (in seconds-since-the epoch), some author information and a list of parents.
@@ -225,7 +225,7 @@ Note that the top-level filenames will not always match what is in ``"relpath": 
 Part of the reason for this is to avoid having to recursively visit an unknown number of subdirectories. This flattening procedure is found in ``magic_folder/magicpath.py`` and replaces ``/`` characters with ``@_`` (and ``@`` with ``@@``).
 
 This makes the ``@metadata`` filenames "invalid", and thus special.
-This is the only such special name in version 1. (If a folder actually contained a user file called ``@metadata`` then it would get the name ``@@metadata``).
+This is the only such special name in version 1. (If a folder actually contained a user file called ``@metadata`` then it would get the name ``@@metadata`` in the Personal folder).
 
 
 Authors
