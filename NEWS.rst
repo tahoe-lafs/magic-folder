@@ -1,7 +1,21 @@
 ﻿.. -*- coding: utf-8-with-signature -*-
 
-
 .. towncrier start line
+Magic_Folder 23.3.1 (2023-03-20)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Various consistency, formatting and content updates to documentation (`#699 <https://github.com/LeastAuthority/magic-folder/issues/699>`_)
+- Add some missing magic-folder-api subcommands: list-conflicts, file-status, (`#700 <https://github.com/LeastAuthority/magic-folder/issues/700>`_)
+
+
+Bug Fixes
+---------
+
+- An incoming delete is correctly ignored if there's no local file to delete (`#704 <https://github.com/LeastAuthority/magic-folder/issues/704>`_)
+- Cancelling an invite no longer reports an error via the status API (`#706 <https://github.com/LeastAuthority/magic-folder/issues/706>`_)
 
 
 Magic_Folder 23.3.0 (2023-03-06)

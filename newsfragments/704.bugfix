@@ -1,1 +1,0 @@
-An incoming delete is correctly ignored if there's no local file to delete
