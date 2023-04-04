@@ -221,6 +221,10 @@ We see it has a ``"snapshot_version"``, the relative pathname in ``"relpath"``, 
 
 The "parents" list contains Capability strings for other Snapshot objects. In the case of ``"grumpy-cat.jpeg"`` we can see that someone has added a colour version and that the black and white version has no parents (so is the only version).
 
+
+Name Mangling
+-------------
+
 Note that the top-level filenames will not always match what is in ``"relpath": "..."`` because the on-Grid view is "flattened": any subdirectories within the Folder become a single top-level name.
 Part of the reason for this is to avoid having to recursively visit an unknown number of subdirectories. This flattening procedure is found in ``magic_folder/magicpath.py`` and replaces ``/`` characters with ``@_`` (and ``@`` with ``@@``).
 
