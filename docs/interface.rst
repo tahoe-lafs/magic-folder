@@ -342,17 +342,17 @@ The client doesn't send any messages to the server; it is an error to do so.
 
 The follow event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
 
-- ``"scanner"``: has key ``last-scan`` which is a unix-timestamp saying when we last looked for local changes.
+- ``"scan-completed"``: has key ``timestamp`` which is a unix-timestamp saying when we last looked for local changes.
 
-- ``"poller"``: has a key ``last-poll`` describing when we last asked for remote changes.
+- ``"poll-completed"``: has a key ``timestamp`` describing when we last asked for remote changes.
 
-- ``"tahoe"``: describes the status of our connected Tahoe-LAFS client: ``connected`` and ``desired`` are the number of servers we are conencted to (and how many we want). Whether we are currently connected to enough is in a boolean ``happy``.
+- ``"tahoe-connection-changed"``: describes the status of our connected Tahoe-LAFS client: ``connected`` and ``desired`` are the number of servers we are conencted to (and how many we want). Whether we are currently connected to enough is in a boolean ``happy``.
 
-- ``"error"``: An error, with ``timestamp`` and ``summary`` (human-readable string).
+- ``"error-occurred"``: An error, with ``folder`` (the name for the affected folder) ``timestamp`` and ``summary`` (human-readable string).
 
-- ``"folder-add"``: Key ``folder`` says which folder was added.
+- ``"folder-added"``: Key ``folder`` says which folder was added.
 
-- ``"folder-delete"``: Key ``folder`` says which folder was deleted.
+- ``"folder-left"``: Key ``folder`` says which folder has gone away.
 
 - ``"upload-queued"``: some file (``relpath``) in a folder (``folder``) is queued for upload since ``queued-at``.
 

@@ -65,7 +65,7 @@ class ScannerStatus:
         :returns: a dict suitable for serializing to JSON
         """
         return {
-            "last-scan": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+            "timestamp": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
         }
 
 
@@ -83,7 +83,7 @@ class PollerStatus:
         :returns: a dict suitable for serializing to JSON
         """
         return {
-            "last-poll": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
+            "timestamp": ns_to_seconds_float(self.last_completed) if self.last_completed else None,
         }
 
 
@@ -296,23 +296,23 @@ def _marshal_event(kind, event_data):
 def _marshal_event_error(folder_name, err):
     msg = err.to_json()
     msg["folder"] = folder_name
-    return _marshal_event("error", msg)
+    return _marshal_event("error-occurred", msg)
 
 
-def _marshal_event_scanner(folder_name, scanner):
+def _marshal_event_scan_completed(folder_name, scanner):
     msg = scanner.to_json()
     msg["folder"] = folder_name
-    return _marshal_event("scanner", msg)
+    return _marshal_event("scan-completed", msg)
 
 
-def _marshal_event_poller(folder_name, poller):
+def _marshal_event_poll_completed(folder_name, poller):
     msg = poller.to_json()
     msg["folder"] = folder_name
-    return _marshal_event("poller", msg)
+    return _marshal_event("poll-completed", msg)
 
 
 def _marshal_event_tahoe(tahoe):
-    return _marshal_event("tahoe", tahoe.to_json())
+    return _marshal_event("tahoe-connection-changed", tahoe.to_json())
 
 
 def _marshal_event_upload_queued(folder_name, relpath, queued_at):
@@ -371,16 +371,16 @@ def _marshal_event_download_finished(folder_name, relpath, finished_at):
     }
 
 
-def _marshal_event_folder_add(folder_name):
+def _marshal_event_folder_added(folder_name):
     return {
-        "kind": "folder-add",
+        "kind": "folder-added",
         "folder": folder_name,
     }
 
 
-def _marshal_event_folder_delete(folder_name):
+def _marshal_event_folder_left(folder_name):
     return {
-        "kind": "folder-delete",
+        "kind": "folder-left",
         "folder": folder_name,
     }
 
@@ -470,7 +470,7 @@ class EventsWebSocketStatusService(service.Service):
         """
         events = []
         for foldername, folder in self._folders.items():
-            events.append(_marshal_event_folder_add(foldername))
+            events.append(_marshal_event_folder_added(foldername))
             # XXX reverse-sort via "queued-at"?
             for relpath, up in folder["uploads"].items():
                 events.append(
@@ -495,9 +495,9 @@ class EventsWebSocketStatusService(service.Service):
                 events.append(_marshal_event_error(foldername, err))
 
             if folder["scanner"].last_completed is not None:
-                events.append(_marshal_event_scanner(foldername, folder["scanner"]))
+                events.append(_marshal_event_scan_completed(foldername, folder["scanner"]))
             if folder["poller"].last_completed is not None:
-                events.append(_marshal_event_poller(foldername, folder["poller"]))
+                events.append(_marshal_event_poll_completed(foldername, folder["poller"]))
 
         events.append(_marshal_event_tahoe(self._tahoe))
 
@@ -526,7 +526,7 @@ class EventsWebSocketStatusService(service.Service):
 
         :param unicode folder: the folder which has been added
         """
-        self._send_single_event(_marshal_event_folder_add(folder))
+        self._send_single_event(_marshal_event_folder_added(folder))
         # a blank entry in the state will be created on-demand
 
     def folder_gone(self, folder):
@@ -535,7 +535,7 @@ class EventsWebSocketStatusService(service.Service):
 
         :param unicode folder: the folder which is removed
         """
-        self._send_single_event(_marshal_event_folder_delete(folder))
+        self._send_single_event(_marshal_event_folder_left(folder))
         try:
             del self._folders[folder]
         except KeyError:
