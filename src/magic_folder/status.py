@@ -327,6 +327,22 @@ class WebSocketStatusService(service.Service):
         """
         self._clients.remove(protocol)
 
+    def upload_seconds_remaining(self, folder_name):
+        """
+        Estimate the number of seconds remaining for any pending uploads.
+        """
+        config = self._config.get_magic_folder(folder_name)
+        folder = self._folders[folder_name]
+
+        remaining_size = 0
+        for relpath, ps, _, _ in config.get_all_current_snapshot_pathstates():
+            if relpath in folder["uploads"]:
+                remaining_size += ps.size
+        recent_speed = config.get_recent_upload_speed()
+        if recent_speed is None:
+            return None
+        return remaining_size / recent_speed
+
     def _marshal_state(self):
         """
         Internal helper. Turn our current notion of the state into a
@@ -387,6 +403,7 @@ class WebSocketStatusService(service.Service):
                     for err in self._folders.get(name, {}).get("errors", [])
                 ],
                 "recent": most_recent,
+                "remaining-upload-time": self.upload_seconds_remaining(name),
                 "tahoe": {
                     "happy": self._tahoe.is_happy,
                     "connected": self._tahoe.connected,

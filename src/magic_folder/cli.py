@@ -387,7 +387,10 @@ def status(options):
                 print("    {}".format(
                     ", ".join(d["relpath"] for d in folder["downloads"])
                 ))
-            print("  uploads: {}".format(len(folder["uploads"])))
+            remaining = ""
+            if folder["remaining-upload-time"] is not None:
+                remaining = " ({:0.1f}s remaining)".format(folder["remaining-upload-time"])
+            print("  uploads: {}{}".format(len(folder["uploads"]), remaining))
             for u in folder["uploads"]:
                 queue = humanize.naturaldelta(now - u["queued-at"])
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""

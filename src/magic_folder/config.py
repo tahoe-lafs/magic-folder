@@ -123,6 +123,7 @@ from .util.eliotutil import (
 from .util.file import (
     PathState,
     ns_to_seconds,
+    ns_to_seconds_float,
     seconds_to_ns,
 )
 
@@ -1345,6 +1346,38 @@ class MagicFolderConfig(object):
                 if c is not None
             ])
         return sizes
+
+    @with_cursor
+    def get_recent_upload_speed(self, cursor):
+        """
+        Average some of our recently uploaded files and return the upload
+        speed (in bytes per second). If we've never uploaded a file
+        this is None.
+
+        :returns int: bytes per second (or None if we've never uploaded)
+        """
+        cursor.execute(
+            """
+            SELECT
+                last_updated_ns, size, upload_duration_ns
+            FROM
+                [current_snapshots]
+            ORDER BY
+                last_updated_ns DESC
+            LIMIT
+                10
+            """
+        )
+        total_size = 0
+        total_duration = 0
+        for _, size, duration_ns in cursor.fetchall():
+            if duration_ns is None:
+                continue
+            total_size += size
+            total_duration += ns_to_seconds_float(duration_ns)
+        if total_duration == 0 or total_size == 0:
+            return None
+        return float(total_size) / total_duration
 
     @with_cursor
     def get_recent_remotesnapshot_paths(self, cursor, n):
