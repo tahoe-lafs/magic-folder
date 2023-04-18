@@ -354,11 +354,11 @@ The follow event kinds are understood (see ``status.py`` for more details on the
 
 - ``"folder-left"``: Key ``folder`` says which folder has gone away.
 
-- ``"upload-queued"``: some file (``relpath``) in a folder (``folder``) is queued for upload since ``queued-at``.
+- ``"upload-queued"``: some file (``relpath``) in a folder (``folder``) is queued for upload since ``timestamp``.
 
-- ``"upload-started"``: some file (``relpath``) in a folder (``folder``) has begun upload since``started-at``. An ``upload-queued`` event will always preceed this.
+- ``"upload-started"``: some file (``relpath``) in a folder (``folder``) has begun upload since ``timestamp``. An ``upload-queued`` event will always preceed this.
 
-- ``"upload-finished"``: a file (``relpath``) in a folder (``folder``) has completed. An ``upload-started`` will always preceed this.
+- ``"upload-finished"``: a file (``relpath``) in a folder (``folder``) has completed at ``timestamp``. An ``upload-started`` will always preceed this.
 
 - ``"download-queued"``: same as upload version.
 

@@ -78,7 +78,7 @@ class StatusServiceTests(SyncTestCase):
             Equals([
                 {
                     "events": [{
-                        "kind": "tahoe",
+                        "kind": "tahoe-connection-changed",
                         "connected": 0,
                         "desired": 0,
                         "happy": False,
@@ -88,7 +88,7 @@ class StatusServiceTests(SyncTestCase):
                     "events": [{
                         "kind": "upload-queued",
                         "folder": "foo",
-                        "queued-at": 0.0,
+                        "timestamp": 0.0,
                         "relpath": "foo",
                     }]
                 },
@@ -96,7 +96,7 @@ class StatusServiceTests(SyncTestCase):
                     "events": [{
                         "kind": "upload-started",
                         "folder": "foo",
-                        "started-at": 1.0,
+                        "timestamp": 1.0,
                         "relpath": "foo",
                     }]
                 },
@@ -104,7 +104,7 @@ class StatusServiceTests(SyncTestCase):
                     "events": [{
                         "kind": "upload-finished",
                         "folder": "foo",
-                        "finished-at": 2.0,
+                        "timestamp": 2.0,
                         "relpath": "foo",
                     }]
                 },
@@ -133,37 +133,37 @@ class StatusServiceTests(SyncTestCase):
         self.assertThat(
             messages,
             Equals([{
-                'events': [
-                    {"folder": "foo", "kind": "folder-add"},
+                "events": [
+                    {"folder": "foo", "kind": "folder-added"},
                     {
-                        'folder': 'foo',
-                        'kind': 'upload-queued',
-                        'queued-at': 0.0,
-                        'relpath': 'foo',
+                        "folder": "foo",
+                        "kind": "upload-queued",
+                        "timestamp": 0.0,
+                        "relpath": "foo",
                     },
                     {
-                        'folder': 'foo',
-                        'kind': 'upload-started',
-                        'relpath': 'foo',
-                        'started-at': 0.0,
+                        "folder": "foo",
+                        "kind": "upload-started",
+                        "relpath": "foo",
+                        "timestamp": 0.0,
                     },
                     {
-                        'folder': 'foo',
-                        'kind': 'download-queued',
-                        'queued-at': 0.0,
-                        'relpath': 'bar',
+                        "folder": "foo",
+                        "kind": "download-queued",
+                        "timestamp": 0.0,
+                        "relpath": "bar",
                     },
                     {
-                        'folder': 'foo',
-                        'kind': 'download-started',
-                        'relpath': 'bar',
-                        'started-at': 0.0,
+                        "folder": "foo",
+                        "kind": "download-started",
+                        "relpath": "bar",
+                        "timestamp": 0.0,
                     },
                     {
-                        'connected': 0,
-                        'desired': 0,
-                        'happy': False,
-                        'kind': 'tahoe'
+                        "connected": 0,
+                        "desired": 0,
+                        "happy": False,
+                        "kind": "tahoe-connection-changed"
                     }
                 ]
             }])
@@ -186,7 +186,7 @@ class StatusServiceTests(SyncTestCase):
             messages,
             Equals([{
                 "events": [
-                    {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                    {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
                 ]
             }])
         )
@@ -203,14 +203,14 @@ class StatusServiceTests(SyncTestCase):
             Equals([
                 {
                     "events": [
-                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
                     ]
                 },
                 {
                     "events": [
-                        {"folder": "foo", "kind": "folder-add"},
-                        {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"},
-                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe"},
+                        {"folder": "foo", "kind": "folder-added"},
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"},
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
                     ]
                 }
             ])
@@ -239,17 +239,17 @@ class StatusServiceTests(SyncTestCase):
             Equals([
                 {
                     "events": [
-                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'}
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
                     ]
                 },
                 {
                     "events": [
-                        {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"}
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
                 },
                 {
                     "events": [
-                        {"folder": None, "kind": "error", "summary": "Failed to send status: loopback is broken?", "timestamp": 0}
+                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
                     ]
                 }
             ])
@@ -310,7 +310,7 @@ class WebSocketTests(AsyncTestCase):
             Equals([
                 {
                     "events": [
-                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
                     ]
                 }
             ])
@@ -324,12 +324,12 @@ class WebSocketTests(AsyncTestCase):
             Equals([
                 {
                     "events": [
-                        {'connected': 0, 'desired': 0, 'happy': False, 'kind': 'tahoe'},
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
                     ]
                 },
                 {
                     "events": [
-                        {"folder": "foo", "kind": "upload-queued", "queued-at": 0.0, "relpath": "foo"}
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
                 },
             ])

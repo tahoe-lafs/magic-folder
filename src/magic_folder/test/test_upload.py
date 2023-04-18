@@ -528,7 +528,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "events": AfterPreprocessing(
-                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error-occurred"],
                     Equals([
                         "Error updating personal DMD: Couldn't add random_local_file to directory. Error code 500",
                     ]),
@@ -590,7 +590,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "events": AfterPreprocessing(
-                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error-occurred"],
                     Equals([
                         "Cancelled: random_local_file",
                     ]),
@@ -654,7 +654,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "events": AfterPreprocessing(
-                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error-occurred"],
                     Equals([
                         "Cancelled: a_local_file",
                     ]),
@@ -727,7 +727,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "events": AfterPreprocessing(
-                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error-occurred"],
                     Equals([
                         "Error updating personal DMD: bad stuff",
                         "Error updating personal DMD: bad stuff",
@@ -815,7 +815,7 @@ class AsyncMagicFileTests(AsyncTestCase):
             loads(alice.global_service.status_service._marshal_state()),
             ContainsDict({
                 "events": AfterPreprocessing(
-                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error"],
+                    lambda errors: [error["summary"] for error in errors if error["kind"] == "error-occurred"],
                     Equals([
                         "Error uploading danger: bad stuff",
                         "Error uploading danger: bad stuff",

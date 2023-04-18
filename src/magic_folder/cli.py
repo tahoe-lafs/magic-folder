@@ -412,12 +412,13 @@ def status(options):
         Handle all events related to uploads
         """
         ours = state["folders"][e["folder"]]["uploads"]
-        for k in {"queued-at", "started-at"}:
-            if k in e:
-                ours[e["relpath"]][k] = e[k]
+        if e["kind"] == "upload-queued":
+            ours[e["relpath"]]["queued-at"] = e["timestamp"]
+        elif e["kind"] == "upload-started":
+            ours[e["relpath"]]["started-at"] = e["timestamp"]
 
         # XXX might want a final "upload-stats" sort of thing as well?
-        if e["kind"] == "upload-finished":
+        elif e["kind"] == "upload-finished":
             del ours[e["relpath"]]
 
     def download(e):
@@ -425,9 +426,10 @@ def status(options):
         Handle all events related to downloads
         """
         ours = state["folders"][e["folder"]]["downloads"]
-        for k in {"queued-at", "started-at"}:
-            if k in e:
-                ours[e["relpath"]][k] = e[k]
+        if e["kind"] == "dowload-queued":
+            ours[e["relpath"]]["queued-at"] = e["timestamp"]
+        elif e["kind"] == "download-started":
+            ours[e["relpath"]]["started-at"] = e["timestamp"]
 
         # XXX might want a final "download-stats" sort of thing as well?
         if e["kind"] == "download-finished":

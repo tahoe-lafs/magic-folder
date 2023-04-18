@@ -873,7 +873,7 @@ class TestApiMonitor(AsyncTestCase):
             json.loads(stdout.getvalue()),
             Equals({
                 "events": [
-                    {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe"}
+                    {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
                 ]
             })
         )

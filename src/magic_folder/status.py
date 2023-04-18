@@ -320,7 +320,7 @@ def _marshal_event_upload_queued(folder_name, relpath, queued_at):
         "kind": "upload-queued",
         "folder": folder_name,
         "relpath": relpath,
-        "queued-at": queued_at,
+        "timestamp": queued_at,
     }
 
 
@@ -329,7 +329,7 @@ def _marshal_event_upload_started(folder_name, relpath, started_at):
         "kind": "upload-started",
         "folder": folder_name,
         "relpath": relpath,
-        "started-at": started_at,
+        "timestamp": started_at,
     }
 
 
@@ -338,7 +338,7 @@ def _marshal_event_upload_finished(folder_name, relpath, finished_at):
         "kind": "upload-finished",
         "folder": folder_name,
         "relpath": relpath,
-        "finished-at": finished_at,
+        "timestamp": finished_at,
     }
 
 
@@ -347,7 +347,7 @@ def _marshal_event_download_queued(folder_name, relpath, queued_at):
         "download-queued", {
             "folder": folder_name,
             "relpath": relpath,
-            "queued-at": queued_at,
+            "timestamp": queued_at,
         }
     )
 
@@ -357,7 +357,7 @@ def _marshal_event_download_started(folder_name, relpath, started_at):
         "download-started", {
             "folder": folder_name,
             "relpath": relpath,
-            "started-at": started_at,
+            "timestamp": started_at,
         }
     )
 
@@ -367,7 +367,7 @@ def _marshal_event_download_finished(folder_name, relpath, finished_at):
         "kind": "download-finished",
         "folder": folder_name,
         "relpath": relpath,
-        "finished-at": finished_at,
+        "timestamp": finished_at,
     }
 
 
@@ -554,14 +554,14 @@ class EventsWebSocketStatusService(service.Service):
         IStatus API
         """
         self._folders[folder]["scanner"] = status
-        self._send_single_event(_marshal_event_scanner(folder, status))
+        self._send_single_event(_marshal_event_scan_completed(folder, status))
 
     def poll_status(self, folder, status):
         """
         IStatus API
         """
         self._folders[folder]["poller"] = status
-        self._send_single_event(_marshal_event_poller(folder, status))
+        self._send_single_event(_marshal_event_poll_completed(folder, status))
 
     def error_occurred(self, folder, message):
         """
