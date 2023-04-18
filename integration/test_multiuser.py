@@ -23,6 +23,7 @@ from .util import (
     ensure_file_not_created,
     twisted_sleep,
     database_retry,
+    find_conflicts,
 )
 
 
@@ -124,4 +125,6 @@ async def test_three_users(request, reactor, temp_filepath, alice, bob, edmond):
         timeout=25,
     )
 
-    breakpoint()
+    assert find_conflicts(magic) == [], "alice has conflicts"
+    assert find_conflicts(magic_bob) == [], "bob has conflicts"
+    assert find_conflicts(magic_ed) == [], "edmond has conflicts"
