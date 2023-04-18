@@ -82,22 +82,21 @@ async def perform_invite(request, folder_name, inviter, invitee_name, invitee, i
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
-async def test_three_users(request, reactor, temp_filepath, alice, bob, edmond):
+async def test_found_users(request, reactor, temp_filepath, alice, bob, edmond, fran):
     """
-    Invite two other users to a folder, at different times
+    Invite three other users to a folder, at different times
     """
 
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
     await alice.add("seekrits", magic.path)
-    local_cfg = alice.global_config().get_magic_folder("seekrits")
 
     def cleanup():
         pytest_twisted.blockon(alice.leave("seekrits"))
     request.addfinalizer(cleanup)
 
-    # put a file in our folder
+    # put a file in our folder, in a subdir
     content0 = non_lit_content("very-secret")
     folder = magic.child("folder")
     folder.makedirs()
@@ -115,16 +114,25 @@ async def test_three_users(request, reactor, temp_filepath, alice, bob, edmond):
         timeout=25,
     )
 
-    # invite / await edmond
+    # invite / await edmond + fran
     magic_ed = temp_filepath.child("magic-edmond")
+    magic_fran = temp_filepath.child("magic-fran")
     await perform_invite(request, "seekrits", alice, "eddy", edmond, magic_ed)
+    await perform_invite(request, "seekrits", alice, "fran", fran, magic_fran)
 
     await await_file_contents(
         magic_ed.child("folder").child("very-secret.txt").path,
         content0,
         timeout=25,
     )
+    await await_file_contents(
+        magic_fran.child("folder").child("very-secret.txt").path,
+        content0,
+        timeout=25,
+    )
 
+    # make sure nobody has conflicts
     assert find_conflicts(magic) == [], "alice has conflicts"
     assert find_conflicts(magic_bob) == [], "bob has conflicts"
+    assert find_conflicts(magic_fran) == [], "fran has conflicts"
     assert find_conflicts(magic_ed) == [], "edmond has conflicts"
