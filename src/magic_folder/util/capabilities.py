@@ -24,6 +24,7 @@ from base64 import (
 )
 from os import (
     urandom,
+    environ,
 )
 import attr
 
@@ -150,8 +151,15 @@ class Capability:
         """
         return "[REDACTED]"
 
-    def __repr__(self):
-        return "<Capability>"
+    # this lets a developer easily enable debugging of
+    # capability-strings (an env-variable seems to defeat the
+    # purpose of redacting these in the first place)
+    if True:
+        def __repr__(self):
+            return "<Capability {}>".format(self._uri)
+    else:
+        def __repr__(self):
+            return "<Capability {}>".format(self.hex_digest())
 
     def danger_real_capability_string(self):
         """

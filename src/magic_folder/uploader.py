@@ -45,6 +45,9 @@ from .config import (
     MagicFolderConfig,
 )
 from .util.file import get_pathinfo
+from .util.capabilities import (
+    random_immutable,
+)
 
 
 SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
@@ -89,6 +92,8 @@ class LocalSnapshotCreator(object):
     _magic_dir = attr.ib(validator=attr.validators.instance_of(FilePath))
     _tahoe_client = attr.ib()
     _cooperator = attr.ib(default=None)
+
+    # XXX store_local_snapshot here, and in Config :/
 
     @inline_callbacks
     def store_local_snapshot(self, path):
@@ -200,6 +205,7 @@ class LocalSnapshotService(service.Service):
             try:
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    print("HEYHEY", snap, self._snapshot_creator)
                     d.callback(snap)
             except CancelledError:
                 d.cancel()
@@ -369,3 +375,35 @@ class UploaderService(service.Service):
         d = Deferred()
         self._queue.put((snapshot, d))
         return d
+
+
+@attr.s
+@implementer(service.IService)
+class InMemoryUploaderService(service.Service):
+    """
+    For testing.
+
+    An UploaderService that doesn't actually talk to Tahoe-LAFS
+    """
+
+    _uploads = attr.ib(validator=attr.validators.instance_of(list))
+
+    @inline_callbacks
+    def upload_snapshot(self, snapshot):
+        print("XXzzzzz", self._uploads)
+        if self._uploads and self._uploads.pop(0):
+            print("asdf")
+            class FakeRemoteSnapshot(object):
+                relpath = "a-file-name"
+                author = object()#SnapshotAuthor()
+                metadata = dict()
+                capability = random_immutable(directory=True)
+                parents_raw = []
+                content_cap = random_immutable(directory=False)
+                metadata_cap = random_immutable(directory=False)
+                def send(*args, **kw):
+                    breakpoint()
+            returnValue(FakeRemoteSnapshot())
+        raise RuntimeError(
+            "Upload fails"
+        )

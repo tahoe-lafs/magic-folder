@@ -175,6 +175,10 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
+        if target_cap == child_cap:
+            print("FIXME? is_ancestor_of target == child")
+            return True
+        print(f"   is_ancestor_of {target_cap.danger_real_capability_string()} {child_cap.danger_real_capability_string()}")
         # TODO: We can make this more efficent in the future by tracking some extra data.
         # - for each snapshot in our remotesnapshotdb, we are going to check if something is
         #   an ancestor very often, so could cache that information (we'd probably want to
@@ -189,6 +193,7 @@ class RemoteSnapshotCacheService(service.Service):
         while q:
             snap = q.popleft()
             for parent_cap in snap.parents_raw:
+                print(f"      a parent {parent_cap}")
                 if target_cap.danger_real_capability_string() == parent_cap:
                     return True
                 else:
@@ -572,6 +577,7 @@ class RemoteScannerService(service.MultiService):
                             updates.append((relpath, file_data.snapshot_cap))
 
             # allow for parallel downloads
+            # (we could de-duplicate snapshots here, but the state-machine has to anyway)
             yield gatherResults([
                 self._process_snapshot(relpath, snapshot_cap)
                 for relpath, snapshot_cap in updates
