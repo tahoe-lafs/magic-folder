@@ -36,6 +36,7 @@ from ..participants import (
     IParticipant,
     IWriteableParticipant,
     SnapshotEntry,
+    static_participants,
 )
 from ..snapshot import (
     create_local_author,
@@ -59,30 +60,6 @@ from .common import (
 )
 
 
-
-
-@implementer(IParticipant)
-@attr.s
-class _FakeParticipant(object):
-    our_files = attr.ib()
-    _is_self = attr.ib(default=False)
-
-    def files(self):
-        return self.our_files
-
-    def is_self(self):
-        return self._is_self
-
-
-@implementer(IWriteableParticipant)
-@attr.s
-class _FakeWriteableParticipant(object):
-    updates = attr.ib(factory=list)
-
-    def update_snapshot(self, relpath, capability):
-        self.updates.append((relpath, capability))
-
-
 class StateSyncTests(SyncTestCase):
     """
     Correct operations of maybe_update_personal_dmd_to_local and helpers
@@ -91,8 +68,7 @@ class StateSyncTests(SyncTestCase):
     def setUp(self):
         super(StateSyncTests, self).setUp()
         self.author = create_local_author("alice")
-        self.read_participant = _FakeParticipant({})
-        self.write_participant = _FakeWriteableParticipant()
+        self.participants = static_participants()
 
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
@@ -120,7 +96,7 @@ class StateSyncTests(SyncTestCase):
         clock = Clock()
         remote_cap = random_dircap(readonly=True)
         local_cap = random_dircap(readonly=True)
-        self.read_participant.our_files = {
+        self.participants.participants[0].my_files = {
             "foo": SnapshotEntry(remote_cap, {}),
         }
 
@@ -141,11 +117,11 @@ class StateSyncTests(SyncTestCase):
         # "local_cap" on disk
 
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.read_participant, self.write_participant,
+            clock, self.config, self.participants.participants[0], self.participants.writer,
         )
 
         self.assertThat(
-            self.write_participant.updates,
+            self.participants.writer.updates,
             Equals([
                 ("foo", local_cap),
             ])
@@ -158,7 +134,7 @@ class StateSyncTests(SyncTestCase):
         clock = Clock()
         remote_cap = random_dircap(readonly=True)
         local_cap = random_dircap(readonly=True)
-        self.read_participant.our_files = {
+        self.participants.participants[0].my_files = {
             "foo": SnapshotEntry(remote_cap, {}),
         }
 
@@ -189,20 +165,20 @@ class StateSyncTests(SyncTestCase):
                 errors.pop()
                 return fail(Exception("something went wrong"))
             return original(relpath, cap)
-        original = self.write_participant.update_snapshot
-        self.write_participant.update_snapshot = error_then_succeed
+        original = self.participants.writer.update_snapshot
+        self.participants.writer.update_snapshot = error_then_succeed
 
         # let it update
 
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.read_participant, self.write_participant,
+            clock, self.config, self.participants.participants[0], self.participants.writer,
         )
 
         # ... but we need to wait 5 seconds to get another try, due to the error
         clock.advance(5)
 
         self.assertThat(
-            self.write_participant.updates,
+            self.participants.writer.updates,
             Equals([
                 ("foo", local_cap),
                 ("bar", local_cap),
@@ -217,9 +193,11 @@ class RemoteUpdateTests(AsyncTestCase):
 
     def setUp(self):
         super(RemoteUpdateTests, self).setUp()
+        # avoid global import
+        from twisted.internet import reactor
+        self.reactor = reactor
         self.author = create_local_author("alice")
-        self.read_participant = _FakeParticipant({})
-        self.write_participant = _FakeWriteableParticipant()
+        self.participants = static_participants()
 
         self.magic_path = FilePath(self.mktemp())
         self.magic_path.makedirs()
@@ -241,35 +219,15 @@ class RemoteUpdateTests(AsyncTestCase):
         )
 
     @inlineCallbacks
-    def test_multiple_updates(self):
+    def test_multiple_local_updates(self):
         """
-        If multiple other participants have updated to the same Snapshot
-        before a poll, the state-machine will re-enter _downloading
-        with same Snapshot. It should handle this and not produce a
-        Conflict.
+        If we trigger multiple updates to a local file quickly (could be
+        done via API for example) then local snapshot are produced in
+        order.
         """
 
-        from twisted.internet import reactor
-        clock = reactor#Clock()
-        remote_cap = random_dircap(readonly=True)
-        local_cap = random_dircap(readonly=True)
-        self.read_participant.our_files = {
-            "foo": SnapshotEntry(remote_cap, {}),
-        }
-
-        ps = PathState(size=1234, mtime_ns=42, ctime_ns=99)
-        snap = RemoteSnapshot(
-            "foo",
-            self.author,
-            {},
-            capability=local_cap,
-            parents_raw=[],
-            content_cap=random_immutable(),
-            metadata_cap=random_immutable(),
-        )
         tahoe_client = object()
 
-        from .test_magic_folder_service import _FakeParticipants
         from twisted.application.service import (
             Service,
             MultiService,
@@ -280,17 +238,9 @@ class RemoteUpdateTests(AsyncTestCase):
         )
         from ..magic_folder import MagicFolder
         from ..uploader import LocalSnapshotService, LocalSnapshotCreator
-
-        participants = _FakeParticipants(
-            self.write_participant,
-            [
-                self.read_participant,
-            ],
-        )
-
         from ..uploader import InMemoryUploaderService
         uploader = InMemoryUploaderService([True, True])
-        status_service = WebSocketStatusService(clock, self._global_config)
+        status_service = WebSocketStatusService(self.reactor, self._global_config)
         folder_status = FolderStatus("folder-name", status_service)
         stash_path = FilePath(self.mktemp())
         stash_path.makedirs()
@@ -321,16 +271,16 @@ class RemoteUpdateTests(AsyncTestCase):
             remote_snapshot_cache=remote_cache,
             downloader=MultiService(),
             uploader=uploader,
-            participants=participants,
+            participants=self.participants,
             scanner_service=Service(),
-            clock=clock,
+            clock=self.reactor,
             magic_file_factory=MagicFileFactory(
                 self.config,
                 tahoe_client,
                 folder_status,
                 local_snapshot_service,
                 uploader,
-                self.write_participant,
+                self.participants.writer,
                 remote_cache,
                 filesystem,
             ),
