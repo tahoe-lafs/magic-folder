@@ -401,8 +401,6 @@ class InMemoryUploaderService(service.Service):
                 parents_raw = []
                 content_cap = random_immutable(directory=False)
                 metadata_cap = random_immutable(directory=False)
-                def send(*args, **kw):
-                    breakpoint()
             returnValue(FakeRemoteSnapshot())
         raise RuntimeError(
             "Upload fails"

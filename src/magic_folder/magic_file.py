@@ -889,7 +889,6 @@ class MagicFile(object):
 
         @inline_callbacks
         def update_personal_dmd():
-            breakpoint()
             remote_snapshot = snapshot.remote_snapshot
             assert remote_snapshot is not None, "remote-snapshot must exist"
             # update the entry in the DMD
