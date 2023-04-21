@@ -73,15 +73,6 @@ from .strategies import (
 
 
 @attr.s
-class FakeSnapshot(object):
-    """
-    A false Snapshot for testing
-    """
-    relpath = attr.ib()
-    content_path = attr.ib(default=None)
-
-
-@attr.s
 class MemorySnapshotCreator(object):
     """
     A way to test LocalSnapshotService with an in-memory database.
@@ -98,8 +89,7 @@ class MemorySnapshotCreator(object):
             local_snapshot=local_snapshot,
         )
         self.processed.append(path)
-        return FakeSnapshot(path.basename())
-
+        # XXX real code returns a LocalSnapshot?
 
 class LocalSnapshotServiceTests(SyncTestCase):
     """

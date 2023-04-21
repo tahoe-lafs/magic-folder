@@ -280,9 +280,6 @@ class RemoteUpdateTests(AsyncTestCase):
         )
         from ..magic_folder import MagicFolder
         from ..uploader import LocalSnapshotService, LocalSnapshotCreator
-        from .test_local_snapshot import (
-            MemorySnapshotCreator,
-        )
 
         participants = _FakeParticipants(
             self.write_participant,
