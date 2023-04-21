@@ -948,6 +948,37 @@ class MagicFolderConfig(object):
         :param PathState path_state: Status of the on-disk data (can be
             None if there is nothing on disk, i.e. a delete).
         """
+        # XXX should confirm too that if this snapshot refers to a
+        # relpath that IS in the database already (i.e. > 0 local
+        # snapshots) then its local_parents MUST contain at least one
+        # of the existing local snapshots
+        rows = cursor.execute(
+            """
+            SELECT
+                identifier from [local_snapshots]
+            WHERE
+                relpath= ?
+            """,
+            (snapshot.relpath,),
+        ).fetchall()
+        if rows:
+            # each row is a 1-tuple
+            localsnap_identifiers = [UUID(row[0]) for row in rows]
+            # we have 1 or more local-snapshots already for this
+            # relpath -- so it better include at least one of them as
+            # parent. "Normally" these should relate like A -> A' ->
+            # A'' etc (i.e. each the parent of the last)
+            if not any(
+                    sn.identifier in localsnap_identifiers
+                    for sn in snapshot.parents_local
+            ):
+                raise ValueError(
+                    "LocalSnapshot for '{}' doesn't include any of '{}' as parents".format(
+                        snapshot.relpath,
+                        ' '.join(localsnap_identifiers)
+                    )
+                )
+
         # Ensure that the local parent snapshots are already in the database.
         for parent in snapshot.parents_local:
             cursor.execute(

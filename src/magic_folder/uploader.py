@@ -181,12 +181,14 @@ class LocalSnapshotService(service.Service):
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
+    _service_d = attr.ib(default=None)
 
     def startService(self):
         """
         Start a periodic loop that looks for work and does it.
         """
         service.Service.startService(self)
+        assert self._service_d is None, "already started"
         self._service_d = self._process_queue()
 
     @inline_callbacks

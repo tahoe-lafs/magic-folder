@@ -337,7 +337,6 @@ class RemoteUpdateTests(AsyncTestCase):
         )
 
         magic_folder.startService()
-        local_snapshot_service.startService()
         self.magic_path.child("a-file-name").setContent(b"file data zero\n" * 1000)
         d0 = magic_folder.add_snapshot("a-file-name")
         self.magic_path.child("a-file-name").setContent(b"file data one\n" * 1000)
