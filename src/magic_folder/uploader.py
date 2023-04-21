@@ -93,10 +93,8 @@ class LocalSnapshotCreator(object):
     _tahoe_client = attr.ib()
     _cooperator = attr.ib(default=None)
 
-    # XXX store_local_snapshot here, and in Config :/
-
     @inline_callbacks
-    def store_local_snapshot(self, path):
+    def create_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk. If
         `path` does not exist, the this is a 'delete' (and we must
@@ -204,7 +202,7 @@ class LocalSnapshotService(service.Service):
 
             try:
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    snap = yield self._snapshot_creator.create_local_snapshot(path)
                     print("HEYHEY", snap, self._snapshot_creator)
                     d.callback(snap)
             except CancelledError:
