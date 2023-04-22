@@ -389,17 +389,14 @@ class InMemoryUploaderService(service.Service):
 
     @inline_callbacks
     def upload_snapshot(self, snapshot):
-        if self._uploads:
+        rel = self._uploads.pop(0)
 
-            class FakeRemoteSnapshot(object):
-                relpath = self._uploads.pop(0)
-                author = object()#SnapshotAuthor()
-                metadata = dict()
-                capability = random_immutable(directory=True)
-                parents_raw = []
-                content_cap = random_immutable(directory=False)
-                metadata_cap = random_immutable(directory=False)
-            returnValue(FakeRemoteSnapshot())
-        raise RuntimeError(
-            "Upload fails"
-        )
+        class FakeRemoteSnapshot(object):
+            relpath = rel
+            author = object()#SnapshotAuthor()
+            metadata = dict()
+            capability = random_immutable(directory=True)
+            parents_raw = []
+            content_cap = random_immutable(directory=False)
+            metadata_cap = random_immutable(directory=False)
+        returnValue(FakeRemoteSnapshot())
