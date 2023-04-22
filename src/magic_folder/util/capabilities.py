@@ -24,7 +24,6 @@ from base64 import (
 )
 from os import (
     urandom,
-    environ,
 )
 import attr
 

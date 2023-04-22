@@ -7,7 +7,6 @@ from testtools.matchers import (
 )
 from twisted.internet.task import (
     Clock,
-    deferLater,
 )
 from twisted.internet.defer import (
     fail,
@@ -17,16 +16,8 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     inlineCallbacks,
-    Deferred,
     DeferredList,
-    succeed,
-    setDebugging,
 )
-setDebugging(True)
-from zope.interface import (
-    implementer,
-)
-import attr
 
 from ..config import (
     create_testing_configuration,
@@ -39,8 +30,6 @@ from ..downloader import (
     RemoteSnapshotCacheService,
 )
 from ..participants import (
-    IParticipant,
-    IWriteableParticipant,
     SnapshotEntry,
     static_participants,
 )

@@ -701,7 +701,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # the first snapshot goes into the database
         self.db.store_local_snapshot(
             snapshots[0],
-                PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
         )
         # trying to serialize this one is an error: it must have
         # snapshots[0] as a parent to be valid

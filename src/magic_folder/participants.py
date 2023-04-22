@@ -187,7 +187,7 @@ def static_participants(my_files=None, other_files=None):
     writer = _StaticWriteableParticipant()
     reader = _StaticParticipant(my_files or [], True)
     others = [
-        _StaticPartcipant(files, False)
+        _StaticParticipant(files, False)
         for files in (other_files or [])
     ]
     return _StaticParticipants(writer, [reader] + others)

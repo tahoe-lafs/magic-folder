@@ -6,7 +6,6 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
-import attr
 from twisted.python.filepath import (
     FilePath,
 )
@@ -28,9 +27,6 @@ from testtools.matchers import (
 )
 from testtools.twistedsupport import (
     succeeded,
-)
-from zope.interface import (
-    implementer,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -54,7 +50,6 @@ from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
 from ..participants import (
-    IParticipants,
     SnapshotEntry,
     static_participants,
 )
