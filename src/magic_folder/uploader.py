@@ -389,9 +389,10 @@ class InMemoryUploaderService(service.Service):
 
     @inline_callbacks
     def upload_snapshot(self, snapshot):
-        if self._uploads and self._uploads.pop(0):
+        if self._uploads:
+
             class FakeRemoteSnapshot(object):
-                relpath = "a-file-name"
+                relpath = self._uploads.pop(0)
                 author = object()#SnapshotAuthor()
                 metadata = dict()
                 capability = random_immutable(directory=True)

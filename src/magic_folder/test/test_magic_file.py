@@ -20,7 +20,9 @@ from twisted.internet.defer import (
     Deferred,
     DeferredList,
     succeed,
+    setDebugging,
 )
+setDebugging(True)
 from zope.interface import (
     implementer,
 )
@@ -218,14 +220,6 @@ class RemoteUpdateTests(AsyncTestCase):
             None,
         )
 
-    @inlineCallbacks
-    def test_multiple_local_updates(self):
-        """
-        If we trigger multiple updates to a local file quickly (could be
-        done via API for example) then local snapshot are produced in
-        order.
-        """
-
         tahoe_client = object()
 
         from twisted.application.service import (
@@ -239,17 +233,17 @@ class RemoteUpdateTests(AsyncTestCase):
         from ..magic_folder import MagicFolder
         from ..uploader import LocalSnapshotService, LocalSnapshotCreator
         from ..uploader import InMemoryUploaderService
-        uploader = InMemoryUploaderService([True, True])
+        uploader = InMemoryUploaderService(["a-file-name", "a-file-name"])
         status_service = WebSocketStatusService(self.reactor, self._global_config)
         folder_status = FolderStatus("folder-name", status_service)
-        stash_path = FilePath(self.mktemp())
-        stash_path.makedirs()
-        local_snapshot_service = LocalSnapshotService(
+        self.stash_path = FilePath(self.mktemp())
+        self.stash_path.makedirs()
+        self.local_snapshot_service = LocalSnapshotService(
             self.config,
             LocalSnapshotCreator(
                 self.config,
                 self.author,
-                stash_path,
+                self.stash_path,
                 self.magic_path,
                 object(),
             ),
@@ -259,16 +253,16 @@ class RemoteUpdateTests(AsyncTestCase):
 
         class FakeRemoteCache(Service):
             _cached_snapshots = dict()
-        remote_cache = FakeRemoteCache()
+        self.remote_cache = FakeRemoteCache()
 
-        magic_folder = MagicFolder(
+        self.magic_folder = MagicFolder(
             client=tahoe_client,
             config=self.config,
             name="folder-name",
             invite_manager=Service(),
-            local_snapshot_service=local_snapshot_service,
+            local_snapshot_service=self.local_snapshot_service,
             folder_status=folder_status,
-            remote_snapshot_cache=remote_cache,
+            remote_snapshot_cache=self.remote_cache,
             downloader=MultiService(),
             uploader=uploader,
             participants=self.participants,
@@ -278,25 +272,52 @@ class RemoteUpdateTests(AsyncTestCase):
                 self.config,
                 tahoe_client,
                 folder_status,
-                local_snapshot_service,
+                self.local_snapshot_service,
                 uploader,
                 self.participants.writer,
-                remote_cache,
+                self.remote_cache,
                 filesystem,
             ),
         )
+        self.magic_folder.startService()
 
-        magic_folder.startService()
+    def tearDown(self):
+        super(RemoteUpdateTests, self).tearDown()
+        d0 = self.magic_folder.stopService()
+        d1 = self.local_snapshot_service.stopService()
+        return DeferredList([d0, d1])
+
+    @inlineCallbacks
+    def test_multiple_local_updates(self):
+        """
+        If we trigger multiple updates to a local file quickly (could be
+        done via API for example) then local snapshot are produced in
+        order.
+        """
         self.magic_path.child("a-file-name").setContent(b"file data zero\n" * 1000)
-        d0 = magic_folder.add_snapshot("a-file-name")
+        d0 = self.magic_folder.add_snapshot("a-file-name")
         self.magic_path.child("a-file-name").setContent(b"file data one\n" * 1000)
-        d1 = magic_folder.add_snapshot("a-file-name")
+        d1 = self.magic_folder.add_snapshot("a-file-name")
 
         results = yield DeferredList([d0, d1])
         for ok, snap in results:
             assert ok, "a snapshot failed"
 
-        print("HIHI")
-
-        yield magic_folder.stopService()
-        yield local_snapshot_service.stopService()
+    @inlineCallbacks
+    def _test_multiple_remote_updates(self):
+        """
+        If we are scanning a multi-participant folder and 2 or more have
+        updates, we can easily trigger multiple identical
+        updates. This should not result in a conflict.
+        """
+        cap0 = random_immutable(directory=True)
+        remote0 = RemoteSnapshot(
+            relpath="foo",
+            author=self.carol_author,
+            metadata={"modification_time": 0},
+            capability=cap0,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0

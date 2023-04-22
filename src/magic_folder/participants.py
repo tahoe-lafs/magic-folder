@@ -135,7 +135,7 @@ class _StaticParticipant(object):
         return self.my_files
 
     def is_self(self):
-        return _is_self
+        return self._is_self
 
 
 @implementer(IWriteableParticipant)
@@ -160,12 +160,12 @@ class _StaticParticipants(object):
     writer = attr.ib()
     participants = attr.ib(default=None)
 
-    def __post_attrs_init__(self):
+    def __attrs_post_init__(self):
         if self.participants is None:
             self.participants = [
                 _StaticParticipant([], True),
             ]
-        assert len(p.is_self() for p in self._participants) == 1, "Must have exactly one is-self participant"
+        assert len([p.is_self() for p in self.participants]) == 1, "Must have exactly one 'self' participant"
 
     def list(self):
         return self.participants
