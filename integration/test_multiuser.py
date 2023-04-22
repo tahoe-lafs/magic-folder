@@ -131,9 +131,6 @@ async def test_found_users(request, reactor, temp_filepath, alice, bob, edmond, 
         timeout=25,
     )
 
-    #breakpoint()
-    await twisted_sleep(reactor, 6000)
-
     # make sure nobody has conflicts
     assert find_conflicts(magic) == [], "alice has conflicts"
     assert find_conflicts(magic_bob) == [], "bob has conflicts"
