@@ -319,7 +319,4 @@ class RemoteUpdateTests(AsyncTestCase):
         d0 = mf.found_new_remote(remote0)
         d1 = mf.found_new_remote(remote0)
         d2 = mf.found_new_remote(remote0)
-        print(d0)
-        print(d1)
-        print(d2)
         yield DeferredList([d0, d1, d2])
