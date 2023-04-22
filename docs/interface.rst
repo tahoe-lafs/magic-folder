@@ -366,7 +366,7 @@ The follow event kinds are understood (see ``status.py`` for more details on the
 
 - ``"download-finished"``: same as upload version.
 
-All timestamps are "seconds since the Unix epoch", as floats.
+All timestamps are "seconds since the Unix epoch", as numbers (JSON only has "numbers" and doesn't distinguish floats from ints).
 
 Note that the first "update events" message received will _not_ contain all the updates to that point; it will synthesize the correct events to communicate the current state.
 For example, if there are 50 files in the folder and 48 have already been uploaded, there will be just 2 ``upload-queued`` events (because the other 48 have all finished already).
