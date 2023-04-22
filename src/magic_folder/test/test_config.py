@@ -705,7 +705,7 @@ class StoreLocalSnapshotTests(SyncTestCase):
         )
         # trying to serialize this one is an error: it must have
         # snapshots[0] as a parent to be valid
-        with ExpectedException(LocalSnapshotRequiresParent):
+        with ExpectedException(LocalSnapshotRequiresParent, ".*at least one parent.*"):
             self.db.store_local_snapshot(
                 snapshots[1],
                 PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
