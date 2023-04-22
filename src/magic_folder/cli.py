@@ -367,9 +367,7 @@ def status(options):
     """
     endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
-
-    from twisted.internet import reactor
-    agent = create_client_agent(reactor)
+    agent = options.parent.websocket_agent
 
     def fresh_folder():
         """
@@ -879,6 +877,7 @@ class BaseOptions(usage.Options):
     _config = None  # lazy-instantiated by .config @property
     _http_client = None  # lazy-initalized by .client @property
     _client = None  # lazy-instantiated by .client @property
+    _ws_agent = None  # lazy-instantiated by .websocket_agent
 
     @property
     def _config_path(self):
@@ -936,6 +935,15 @@ class BaseOptions(usage.Options):
             raise Exception("Incorrect token data")
         return data
 
+    @property
+    def websocket_agent(self):
+        """
+        An implementor of IWebSocketClientAgent from autobahn
+        """
+        if self._ws_agent is None:
+            from twisted.internet import reactor
+            self._ws_agent = create_client_agent(reactor)
+        return self._ws_agent
 
     @property
     def client(self):
