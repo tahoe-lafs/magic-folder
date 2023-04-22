@@ -31,8 +31,12 @@ import attr
 from ..config import (
     create_testing_configuration,
 )
+from ..testing.web import (
+    create_tahoe_treq_client,
+)
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
+    RemoteSnapshotCacheService,
 )
 from ..participants import (
     IParticipant,
@@ -251,10 +255,19 @@ class RemoteUpdateTests(AsyncTestCase):
         )
         filesystem = InMemoryMagicFolderFilesystem()
 
-        class FakeRemoteCache(Service):
-            _cached_snapshots = dict()
-        self.remote_cache = FakeRemoteCache()
+        self.tahoe_client = create_tahoe_treq_client()
+        self.remote_cache = RemoteSnapshotCacheService.from_config(self.config, self.tahoe_client)
 
+        self.magic_file_factory = MagicFileFactory(
+            self.config,
+            tahoe_client,
+            folder_status,
+            self.local_snapshot_service,
+            uploader,
+            self.participants.writer,
+            self.remote_cache,
+            filesystem,
+        )
         self.magic_folder = MagicFolder(
             client=tahoe_client,
             config=self.config,
@@ -268,16 +281,7 @@ class RemoteUpdateTests(AsyncTestCase):
             participants=self.participants,
             scanner_service=Service(),
             clock=self.reactor,
-            magic_file_factory=MagicFileFactory(
-                self.config,
-                tahoe_client,
-                folder_status,
-                self.local_snapshot_service,
-                uploader,
-                self.participants.writer,
-                self.remote_cache,
-                filesystem,
-            ),
+            magic_file_factory=self.magic_file_factory,
         )
         self.magic_folder.startService()
 
@@ -304,16 +308,17 @@ class RemoteUpdateTests(AsyncTestCase):
             assert ok, "a snapshot failed"
 
     @inlineCallbacks
-    def _test_multiple_remote_updates(self):
+    def test_multiple_remote_updates(self):
         """
         If we are scanning a multi-participant folder and 2 or more have
         updates, we can easily trigger multiple identical
         updates. This should not result in a conflict.
         """
+        relpath = "multiple-remote"
         cap0 = random_immutable(directory=True)
         remote0 = RemoteSnapshot(
-            relpath="foo",
-            author=self.carol_author,
+            relpath=relpath,
+            author=self.author,
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
@@ -321,3 +326,10 @@ class RemoteUpdateTests(AsyncTestCase):
             metadata_cap=random_immutable(),
         )
         self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
+        abspath = self.config.magic_path.preauthChild(relpath)
+        mf = self.magic_file_factory.magic_file_for(abspath)
+        d0 = mf.found_new_remote(remote0)
+        d1 = mf.found_new_remote(remote0)
+        print(d0)
+        print(d1)
+        yield DeferredList([d0, d1])
