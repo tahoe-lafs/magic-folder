@@ -1,5 +1,5 @@
 """
-Testing synchronizing files between participants
+Testing synchronizing files between 3 or more participants
 """
 
 from eliot.twisted import (
@@ -24,25 +24,6 @@ def non_lit_content(s):
     # We don't need to be exactly longer than that threshold, as long as we
     # are over it.
     return "{} {}\n".format(s, "." * max(55 - len(s), 0)).encode("utf8")
-
-
-def add_snapshot(node, folder_name, path):
-    """
-    Take a snapshot of the given path in the given magic folder.
-
-    :param MagicFolderEnabledNode node: The node on which to take the snapshot.
-    """
-    return node.add_snapshot(folder_name, path)
-
-
-def scan_folder(node, folder_name, path):
-    """
-    Scan the given magic folder. This should cause the given path to be
-    snapshotted.
-
-    :param MagicFolderEnabledNode node: The node on which to do the scan.
-    """
-    return node.scan_folder(folder_name)
 
 
 async def perform_invite(request, folder_name, inviter, invitee_name, invitee, invitee_magic_fp):
