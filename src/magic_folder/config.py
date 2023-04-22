@@ -327,6 +327,23 @@ class LocalSnapshotMissingParent(Exception):
 
 
 @attr.s(auto_exc=True)
+class LocalSnapshotRequiresParent(Exception):
+    """
+    An attempt was made to store a local snapshot but it doesn't
+    include any of the existing snapshots as a parent.
+    """
+    snapshot_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
+    relpath = attr.ib()
+    missing_parents = attr.ib(validator=attr.validators.instance_of(list))  # of UUIDs
+
+    def __str__(self):
+        return "LocalSnapshot for '{}' should have at least one parent: {}".format(
+            self.relpath,
+            ' '.join([str(sid) for sid in self.missing_parents]),
+        )
+
+
+@attr.s(auto_exc=True)
 class RemoteSnapshotWithoutPathState(Exception):
     """
     An attempt was made to insert a remote snapshot into the database without
@@ -972,11 +989,10 @@ class MagicFolderConfig(object):
                     sn.identifier in localsnap_identifiers
                     for sn in snapshot.parents_local
             ):
-                raise ValueError(
-                    "LocalSnapshot for '{}' doesn't include any of '{}' as parents".format(
-                        snapshot.relpath,
-                        ' '.join(localsnap_identifiers)
-                    )
+                raise LocalSnapshotRequiresParent(
+                    snapshot.identifier,
+                    snapshot.relpath,
+                    localsnap_identifiers,
                 )
 
         # Ensure that the local parent snapshots are already in the database.
