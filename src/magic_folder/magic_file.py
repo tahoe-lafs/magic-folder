@@ -136,7 +136,7 @@ class MagicFileFactory(object):
                             new_state=new_state,
                             relpath=relpath,
                         )
-                    print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
+                    # print("{}: {} --[ {} ]--> {}".format(relpath, old_state, the_input, new_state))
                 mf.set_trace(tracer)
 
             return mf
@@ -491,7 +491,6 @@ class MagicFile(object):
         Download a given Snapshot (including its content)
         """
         def downloaded(staged_path):
-            print(f"downloaded {staged_path}")
             self._call_later(self._download_completed, snapshot, staged_path)
 
         retry_delay_sequence = _delay_sequence()
@@ -518,7 +517,6 @@ class MagicFile(object):
 
         @inline_callbacks
         def perform_download():
-            print("PERFORM")
             if snapshot.content_cap is None:
                 d = succeed(None)
             else:
@@ -605,7 +603,6 @@ class MagicFile(object):
         # if remote_cap is None, we've never seen this before (so the
         # ancestor is always correct)
         if remote_cap is not None:
-            print("is ancestor of", remote_cap, snapshot.capability)
             ancestor = self._factory._remote_cache.is_ancestor_of(remote_cap, snapshot.capability)
             if not ancestor:
                 # if the incoming remotesnapshot is actually an
@@ -617,7 +614,6 @@ class MagicFile(object):
                 Message.log(
                     message_type="ancestor_mismatch",
                 )
-                print("MISMATCH no ancestor", ancestor)
                 self._call_later(self._ancestor_mismatch, snapshot, staged_path)
                 return
         self._call_later(self._ancestor_matches, snapshot, staged_path)
@@ -809,7 +805,6 @@ class MagicFile(object):
             retry_delay_sequence = _delay_sequence()
 
             def upload_error(f, snap):
-                print("ASDF", f)
                 write_failure(f)
                 if f.check(CancelledError):
                     self._factory._folder_status.error_occurred(
@@ -868,7 +863,6 @@ class MagicFile(object):
         retry_delay_sequence = _delay_sequence()
 
         def error(f):
-            print("fail", f)
             write_failure(f)
             if f.check(CancelledError):
                 self._factory._folder_status.error_occurred(
@@ -992,7 +986,6 @@ class MagicFile(object):
         """
         if self._queue_remote:
             d, snapshot = self._queue_remote.pop(0)
-            print(f"process: {snapshot}")
 
             def do_remote_update(done_d, snap):
                 update_d = self._queued_download(snap)

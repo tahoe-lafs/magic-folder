@@ -205,7 +205,6 @@ class LocalSnapshotService(service.Service):
             try:
                 with PROCESS_FILE_QUEUE(relpath=path.path):
                     snap = yield self._snapshot_creator.create_local_snapshot(path)
-                    print("HEYHEY", snap, self._snapshot_creator)
                     d.callback(snap)
             except CancelledError:
                 d.cancel()
@@ -390,9 +389,7 @@ class InMemoryUploaderService(service.Service):
 
     @inline_callbacks
     def upload_snapshot(self, snapshot):
-        print("XXzzzzz", self._uploads)
         if self._uploads and self._uploads.pop(0):
-            print("asdf")
             class FakeRemoteSnapshot(object):
                 relpath = "a-file-name"
                 author = object()#SnapshotAuthor()
