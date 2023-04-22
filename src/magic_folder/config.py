@@ -337,8 +337,8 @@ class LocalSnapshotRequiresParent(Exception):
     missing_parents = attr.ib(validator=attr.validators.instance_of(list))  # of UUIDs
 
     def __str__(self):
-        return "LocalSnapshot for '{}' should have at least one parent: {}".format(
-            self.relpath,
+        return "LocalSnapshot for {} should have at least one parent: {}".format(
+            repr(self.relpath),
             ' '.join([str(sid) for sid in self.missing_parents]),
         )
 
