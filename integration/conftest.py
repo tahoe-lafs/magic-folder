@@ -376,6 +376,25 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
 
 
 @pytest.fixture(scope='session')
+def fran(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
+    return pytest_twisted.blockon(
+        MagicFolderEnabledNode.create(
+            reactor,
+            tahoe_venv,
+            request,
+            base_dir,
+            introducer_furl,
+            flog_gatherer,
+            u"fran",
+            tahoe_web_port=u"tcp:9986:interface=localhost",
+            magic_folder_web_port=u"tcp:19986:interface=localhost",
+            wormhole_url="ws://localhost:4000/v1",
+            storage=False,
+        )
+    )
+
+
+@pytest.fixture(scope='session')
 def wormhole(reactor, request):
     """
     A local Magic Wormhole mailbox server

@@ -175,6 +175,8 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
+        if target_cap == child_cap:
+            return True
         # TODO: We can make this more efficent in the future by tracking some extra data.
         # - for each snapshot in our remotesnapshotdb, we are going to check if something is
         #   an ancestor very often, so could cache that information (we'd probably want to
@@ -572,6 +574,7 @@ class RemoteScannerService(service.MultiService):
                             updates.append((relpath, file_data.snapshot_cap))
 
             # allow for parallel downloads
+            # (we could de-duplicate snapshots here, but the state-machine has to anyway)
             yield gatherResults([
                 self._process_snapshot(relpath, snapshot_cap)
                 for relpath, snapshot_cap in updates

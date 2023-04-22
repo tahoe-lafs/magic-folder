@@ -82,6 +82,7 @@ from ..common import (
 from ..config import (
     Conflict,
     LocalSnapshotMissingParent,
+    LocalSnapshotRequiresParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
@@ -655,6 +656,56 @@ class StoreLocalSnapshotTests(SyncTestCase):
         # serialize and store the snapshot in db.
         # It should rewrite the previously written row.
         with ExpectedException(LocalSnapshotMissingParent):
+            self.db.store_local_snapshot(
+                snapshots[1],
+                PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+            )
+
+    @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_store_snapshot_wrong_parent(self, content1, content2, filename, stash_subdir):
+        """
+        If we already have a local-snapshot for a relpath it is an error
+        to add one that doesn't include that snapshot as a parent.
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+
+        d = create_snapshot(
+            relpath=filename,
+            author=self.author,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash,
+            parents=[],
+            cooperator=self.uncooperator,
+        )
+        d.addCallback(snapshots.append)
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            relpath=filename,
+            author=self.author,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash,
+            parents=[],  # ...but don't include the correct parent
+            cooperator=self.uncooperator,
+        )
+        d.addCallback(snapshots.append)
+
+        # the first snapshot goes into the database
+        self.db.store_local_snapshot(
+            snapshots[0],
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
+        # trying to serialize this one is an error: it must have
+        # snapshots[0] as a parent to be valid
+        with ExpectedException(LocalSnapshotRequiresParent, ".*at least one parent.*"):
             self.db.store_local_snapshot(
                 snapshots[1],
                 PathState(42, seconds_to_ns(42), seconds_to_ns(42)),

@@ -3,6 +3,7 @@ import time
 import json
 import sqlite3
 import os
+import re
 from os import mkdir
 from io import (
     BytesIO,
@@ -1140,6 +1141,19 @@ class FileShouldVanishException(Exception):
         super(FileShouldVanishException, self).__init__(
             u"'{}' still exists after {}s".format(path, timeout),
         )
+
+
+def find_conflicts(path):
+    """
+    Check a directory and any sub-directories for any files that look
+    like magic-folder conflict markers
+    """
+    conflict_re = re.compile(r".*\.conflict-.*")
+    return [
+        child
+        for child in path.walk()
+        if conflict_re.match(child.basename())
+    ]
 
 
 @log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)

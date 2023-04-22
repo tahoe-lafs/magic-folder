@@ -71,6 +71,7 @@ from .strategies import (
     absolute_paths,
 )
 
+
 @attr.s
 class MemorySnapshotCreator(object):
     """
@@ -81,14 +82,14 @@ class MemorySnapshotCreator(object):
     """
     processed = attr.ib(default=attr.Factory(list))
 
-    def store_local_snapshot(self, path, local_snapshot=None):
+    def create_local_snapshot(self, path, local_snapshot=None):
         Message.log(
             message_type=u"memory-snapshot-creator:store-local-snapshot",
             path=path.path,
             local_snapshot=local_snapshot,
         )
         self.processed.append(path)
-
+        # XXX real code returns a LocalSnapshot?
 
 class LocalSnapshotServiceTests(SyncTestCase):
     """
@@ -308,7 +309,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         for (file, filename, _unused) in files:
             self.assertThat(
-                self.snapshot_creator.store_local_snapshot(file),
+                self.snapshot_creator.create_local_snapshot(file),
                 succeeded(Always())
             )
 
@@ -341,7 +342,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.create_local_snapshot(foo),
             succeeded(Always()),
         )
 
@@ -352,7 +353,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the second call succeeds as well
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.create_local_snapshot(foo),
             succeeded(Always()),
         )
         stored_snapshot2 = self.db.get_local_snapshot(filename)
@@ -376,7 +377,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # make sure the store_local_snapshot() succeeds
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.create_local_snapshot(foo),
             succeeded(Always()),
         )
 
@@ -385,7 +386,7 @@ class LocalSnapshotCreatorTests(SyncTestCase):
 
         # store a new snapshot
         self.assertThat(
-            self.snapshot_creator.store_local_snapshot(foo),
+            self.snapshot_creator.create_local_snapshot(foo),
             succeeded(Always()),
         )
         stored_snapshot2 = self.db.get_local_snapshot(filename)
