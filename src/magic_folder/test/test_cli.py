@@ -546,6 +546,7 @@ class TestStatus(AsyncTestCase):
         # XXX maybe there's a better way, but MemoryReactorClock
         # doesn't provide resolving services, and it seems we need
         # them...
+        # (see also https://github.com/twisted/twisted/issues/9032)
         directlyProvides(self.reactor, IReactorPluggableNameResolver)
 
         class Resolver:
