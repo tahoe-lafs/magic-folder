@@ -37,6 +37,9 @@ from twisted.web import http
 from twisted.logger import (
     Logger,
 )
+from autobahn.twisted.websocket import (
+    create_client_agent,
+)
 from wormhole.cli.public_relay import (
     RENDEZVOUS_RELAY,
 )
@@ -356,10 +359,6 @@ class StatusOptions(usage.Options):
     ]
 
 
-from autobahn.twisted.websocket import (
-    create_client_agent,
-)
-
 @inline_callbacks
 def status(options):
     """
@@ -368,6 +367,8 @@ def status(options):
     endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
     agent = options.parent.websocket_agent
+    out = options.parent.stdout
+    reactor = options.parent.reactor
 
     def fresh_folder():
         """
@@ -437,10 +438,9 @@ def status(options):
     # dumps event as they arrive. the original (state-message-based)
     # UI did dump the "whole state at once" so at the very least this
     # serves as proof a UI _can_ do that properly with this events API
-
     folders = yield options.parent.client.list_folders()
     for folder_name in folders.keys():
-        print("  recent:")
+        print("  recent:", file=out)
         recent = yield options.parent.client.recent_changes(folder_name, 3)
         now = reactor.seconds()
         for f in recent:
@@ -450,21 +450,24 @@ def status(options):
                 )
             else:
                 modified_text = "[deleted]"
-            print("    {}: {}{} (updated {} ago)".format(
-                f["relpath"],
-                "[CONFLICT] " if f["conflicted"] else "",
-                modified_text,
-                humanize.naturaldelta(now - f["last-updated"]),
-            ))
+            print(
+                "    {}: {}{} (updated {} ago)".format(
+                    f["relpath"],
+                    "[CONFLICT] " if f["conflicted"] else "",
+                    modified_text,
+                    humanize.naturaldelta(now - f["last-updated"]),
+                ),
+                file=out,
+            )
 
     # based on the "kind" of event, we update our state
     updates = {
-        "scanner": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
-        "poller": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
-        "tahoe": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
-        "error": error,
-        "folder-add": lambda _: None,
-        "folder-delete": lambda _: None,
+        "scan-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
+        "poll-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
+        "tahoe-connection-changed": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
+        "error-occurred": error,
+        "folder-added": lambda _: None,
+        "folder-deleted": lambda _: None,
         "upload-queued": upload,
         "upload-started": upload,
         "upload-finished": upload,
@@ -488,20 +491,23 @@ def status(options):
             updates[event["kind"]](event)
 
         for folder_name, folder in state["folders"].items():
-            print('Folder "{}":'.format(folder_name))
-            print("  downloads: {}".format(len(folder["downloads"])))
+            print('Folder "{}":'.format(folder_name), file=out)
+            print("  downloads: {}".format(len(folder["downloads"])), file=out)
             if folder["downloads"]:
-                print("    {}".format(
-                    ", ".join(folder["downloads"].keys())
-                ))
-            print("  uploads: {}".format(len(folder["uploads"])))
+                print(
+                    "    {}".format(
+                        ", ".join(folder["downloads"].keys())
+                    ),
+                    file=out,
+                )
+            print("  uploads: {}".format(len(folder["uploads"])), file=out)
             for relpath, u in folder["uploads"].items():
                 queue = humanize.naturaldelta(now - u["queued-at"])
                 start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(relpath, queue, start))
+                print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
 
             if folder["errors"]:
-                print("Errors:")
+                print("Errors:", file=out)
                 # filter out duplicates
                 different_errors = {}
                 for e in folder["errors"]:
@@ -522,19 +528,28 @@ def status(options):
                             humanize.naturaldelta(now - e["timestamps"][-1]),
                             humanize.naturaldelta(now - e["timestamps"][0]),
                         )
-                    print("  {} ({} ago)".format(summary, ts))
+                    print("  {} ({} ago)".format(summary, ts), file=out)
             if folder["last-scan"] is not None:
-                print("Last scan for uploads at {}".format(
-                    datetime.fromtimestamp(folder["last-scan"]),
-                ))
+                print(
+                    "Last scan for uploads at {}".format(
+                        datetime.fromtimestamp(folder["last-scan"]),
+                    ),
+                    file=out,
+                )
             if folder["last-poll"] is not None:
-                print("Last poll for downloads at {}".format(
-                    datetime.fromtimestamp(folder["last-poll"]),
-                ))
-        print("Tahoe is {is_happy}: connected to {connected} servers (want {desired})".format(
-            is_happy="happy" if state["tahoe"]["happy"] else "UNHAPPY",
-            **state["tahoe"]
-        ))
+                print(
+                    "Last poll for downloads at {}".format(
+                        datetime.fromtimestamp(folder["last-poll"]),
+                    ),
+                    file=out,
+                )
+        print(
+            "Tahoe is {is_happy}: connected to {connected} servers (want {desired})".format(
+                is_happy="happy" if state["tahoe"]["happy"] else "UNHAPPY",
+                **state["tahoe"]
+            ),
+            file=out,
+        )
 
     # note: can't do async work between creating the proto and adding
     # the on-message handler, or you might miss an update
@@ -1036,20 +1051,25 @@ subDispatch = {
 }
 
 
-def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
+def dispatch_magic_folder_command(reactor, args, stdout=None, stderr=None, client=None, agent=None):
     """
     Run a magic-folder command with the given args
+
+    :param IWebSocketClientAgent agent: override the WebSocket connection agent
 
     :returns: a Deferred which fires with the result of doing this
         magic-folder (sub)command.
     """
     options = MagicFolderCommand()
+    options.reactor = reactor
     if stdout is not None:
         options.stdout = stdout
     if stderr is not None:
         options.stderr = stderr
     if client is not None:
         options._client = client
+    if agent is not None:
+        options._ws_agent = agent
 
     try:
         options.parseOptions(args)
@@ -1151,5 +1171,5 @@ def _entry():
     :return: ``None``
     """
     def main(reactor):
-        return dispatch_magic_folder_command(sys.argv[1:])
+        return dispatch_magic_folder_command(reactor, sys.argv[1:])
     return react(main)

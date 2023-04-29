@@ -427,6 +427,13 @@ class EventsWebSocketStatusService(service.Service):
     _folders = attr.ib(default=attr.Factory(lambda: defaultdict(_create_blank_folder_state)))
     _tahoe = attr.ib(default=attr.Factory(lambda: TahoeStatus(0, 0, False)))
 
+    def stopService(self):
+        """
+        Disconnect all clients upon shutdown
+        """
+        for client in self._clients:
+            client.dropConnection()
+
     def client_connected(self, protocol):
         """
         Called via the WebSocket protocol when a client has successfully
