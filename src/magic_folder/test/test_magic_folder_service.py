@@ -6,7 +6,6 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
-import attr
 from twisted.python.filepath import (
     FilePath,
 )
@@ -28,9 +27,6 @@ from testtools.matchers import (
 )
 from testtools.twistedsupport import (
     succeeded,
-)
-from zope.interface import (
-    implementer,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -54,8 +50,8 @@ from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
 from ..participants import (
-    IParticipants,
     SnapshotEntry,
+    static_participants,
 )
 from ..util.capabilities import (
     random_immutable,
@@ -209,21 +205,6 @@ class MagicFolderServiceTests(SyncTestCase):
         )
 
 
-from .test_magic_file import (
-    _FakeParticipant,
-    _FakeWriteableParticipant,
-)
-
-@implementer(IParticipants)
-@attr.s
-class _FakeParticipants:
-    writer = attr.ib()
-    our_participants = attr.ib()
-
-    def list(self):
-        return self.our_participants
-
-
 class LocalStateTests(SyncTestCase):
     """
     Tests for ``MagicFolder.check_local_state``
@@ -267,16 +248,13 @@ class LocalStateTests(SyncTestCase):
         )
         config.store_local_snapshot(snap, PathState(size=1234, mtime_ns=555, ctime_ns=555))
 
-        participants = _FakeParticipants(
-            _FakeWriteableParticipant(),
-            [
-                _FakeParticipant({
-                    "foo": SnapshotEntry(
-                        random_immutable(),
-                        {"version": 1}
-                    ),
-                }, is_self=True),
-            ],
+        participants = static_participants(
+            my_files={
+                "foo": SnapshotEntry(
+                    random_immutable(),
+                    {"version": 1}
+                ),
+            }
         )
         uploader = Service()
         status_service = EventsWebSocketStatusService(reactor, None)

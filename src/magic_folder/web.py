@@ -28,6 +28,7 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     returnValue,
+    CancelledError,
 )
 from twisted.application.internet import (
     StreamServerEndpointService,
@@ -214,6 +215,12 @@ def _add_klein_error_handlers(app):
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps({"reason": str(failure.value)}).encode("utf8")
+
+    @app.handle_errors(CancelledError)
+    def something_cancelled(request, failure):
+        request.setResponseCode(http.GONE)
+        _application_json(request)
+        return json.dumps({"reason": "cancelled"}).encode("utf8")
 
     @app.handle_errors(Exception)
     def fallback_error(request, failure):

@@ -45,6 +45,9 @@ from .config import (
     MagicFolderConfig,
 )
 from .util.file import get_pathinfo
+from .util.capabilities import (
+    random_immutable,
+)
 
 
 SNAPSHOT_CREATOR_PROCESS_ITEM = ActionType(
@@ -91,7 +94,7 @@ class LocalSnapshotCreator(object):
     _cooperator = attr.ib(default=None)
 
     @inline_callbacks
-    def store_local_snapshot(self, path):
+    def create_local_snapshot(self, path):
         """
         Convert `path` into a LocalSnapshot and persist it to disk. If
         `path` does not exist, the this is a 'delete' (and we must
@@ -178,12 +181,14 @@ class LocalSnapshotService(service.Service):
     _snapshot_creator = attr.ib()
     _status = attr.ib(validator=attr.validators.instance_of(FolderStatus))
     _queue = attr.ib(default=attr.Factory(DeferredQueue))
+    _service_d = attr.ib(default=None)
 
     def startService(self):
         """
         Start a periodic loop that looks for work and does it.
         """
         service.Service.startService(self)
+        assert self._service_d is None, "already started"
         self._service_d = self._process_queue()
 
     @inline_callbacks
@@ -199,7 +204,7 @@ class LocalSnapshotService(service.Service):
 
             try:
                 with PROCESS_FILE_QUEUE(relpath=path.path):
-                    snap = yield self._snapshot_creator.store_local_snapshot(path)
+                    snap = yield self._snapshot_creator.create_local_snapshot(path)
                     d.callback(snap)
             except CancelledError:
                 d.cancel()
@@ -369,3 +374,29 @@ class UploaderService(service.Service):
         d = Deferred()
         self._queue.put((snapshot, d))
         return d
+
+
+@attr.s
+@implementer(service.IService)
+class InMemoryUploaderService(service.Service):
+    """
+    For testing.
+
+    An UploaderService that doesn't actually talk to Tahoe-LAFS
+    """
+
+    _uploads = attr.ib(validator=attr.validators.instance_of(list))
+
+    @inline_callbacks
+    def upload_snapshot(self, snapshot):
+        rel = self._uploads.pop(0)
+
+        class FakeRemoteSnapshot(object):
+            relpath = rel
+            author = object()#SnapshotAuthor()
+            metadata = dict()
+            capability = random_immutable(directory=True)
+            parents_raw = []
+            content_cap = random_immutable(directory=False)
+            metadata_cap = random_immutable(directory=False)
+        returnValue(FakeRemoteSnapshot())

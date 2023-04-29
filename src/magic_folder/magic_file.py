@@ -491,7 +491,6 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-
         def downloaded(staged_path):
             self._call_later(self._download_completed, snapshot, staged_path)
 
@@ -777,7 +776,6 @@ class MagicFile(object):
         Create a LocalSnapshot for this update
         """
         d = self._factory._local_snapshot_service.add_file(self._path)
-
         # when the local snapshot gets created, it _should_ have the
         # next thing in our queue (if any) as its parent (see assert below)
 
@@ -957,6 +955,12 @@ class MagicFile(object):
         """
         Save this remote snapshot for later processing (in _check_for_remote_work)
         """
+        # skip queueing this download if we already have this snapshot
+        # ahead in the queue
+        for _, queued_snap in self._queue_remote:
+            if snapshot == queued_snap:
+                # same return-value as _begin_download: None
+                return succeed(None)
         d = Deferred()
         self._queue_remote.append((d, snapshot))
         return d
@@ -1355,13 +1359,15 @@ def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
     exit before successfully updating our Personal DMD.
 
     This function examines all entries in [current_snapshots] and
-    ensure that our Personal DMD matches. If it doesn't, the Personal
+    ensures that our Personal DMD matches. If it doesn't, the Personal
     DMD is updated (that is, local state is taken as the most
     up-to-date).
 
-    We run this function once at startup. To avoid fully starting with
-    inconsistent state, we keep re-trying this and will only be
-    "ready" once we've confirmed our state.
+    It is arranged for this function to run once at startup.
+
+    To avoid fully starting with inconsistent state, we internally
+    keep re-trying this and will only callback our Deferred when our
+    state is consistent.
 
     :param MagicFolderConfig config: our configuration state
 
@@ -1370,6 +1376,9 @@ def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
         we can retry it -- if we can't talk to Tahoe yet, we probably
         can't list participants yet either)
     """
+
+    # XXX should probably do _some_ kind of falloff and jitter
+    # here..with max delay of some sort
 
     with start_action(action_type="confirm-personal-dmd-state", folder=config.name) as action:
 
