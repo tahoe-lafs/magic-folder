@@ -4,7 +4,6 @@ from io import (
 )
 
 from twisted.internet.address import (
-    HostnameAddress,
     IPv4Address,
 )
 from twisted.internet._resolver import HostResolution
@@ -25,7 +24,6 @@ from twisted.internet.task import (
 from twisted.internet.defer import (
     succeed,
     inlineCallbacks,
-    DeferredList,
 )
 from twisted.python.failure import (
     Failure,
@@ -88,7 +86,6 @@ from ..client import (
 )
 from ..status import (
     StatusProtocol,
-    IStatus,
     EventsWebSocketStatusService,
     TahoeStatus,
 )
