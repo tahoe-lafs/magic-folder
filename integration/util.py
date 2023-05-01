@@ -568,6 +568,46 @@ class MagicFolderEnabledNode(object):
             ],
         )
 
+    @inline_callbacks
+    def status_monitor(self, how_long):
+        """
+        collect the output of `magic-folder-api monitor` for `how_long`
+        seconds and return all the output (as a list of JSON-decoded
+        events)
+        """
+        # FIXME: should use FilePath throughout this class
+        config = FilePath(self.magic_config_directory)
+        from autobahn.twisted.websocket import (
+            WebSocketClientProtocol,
+            create_client_agent,
+        )
+        # XXX some of this duplicated from api_cli / cli -- would be
+        # nice to not do that...
+        with config.child("api_client_endpoint").open("rb") as f:
+            endpoint_str = f.read().decode("utf8").strip()
+        websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+
+        agent = create_client_agent(self.reactor)
+        with config.child("api_token").open("rb") as f:
+            token = f.read()
+        proto = yield agent.open(
+            websocket_uri,
+            {
+                "headers": {
+                    "Authorization": "Bearer {}".format(token.decode("utf8")),
+                }
+            }
+        )
+        messages = []
+
+        def foo(data, is_binary=False):
+            messages.append(json.loads(data.decode("utf8")))
+        proto.on("message", foo)
+
+        # collect some messages
+        yield deferLater(self.reactor, how_long)
+        returnValue(messages)
+
     def dump_state(self, folder_name):
         """
         magic-folder-api dump-state

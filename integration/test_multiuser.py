@@ -10,6 +10,7 @@ import pytest_twisted
 from .util import (
     await_file_contents,
     find_conflicts,
+    twisted_sleep,
 )
 
 
@@ -103,3 +104,72 @@ async def test_found_users(request, reactor, temp_filepath, alice, bob, edmond, 
     assert find_conflicts(magic_bob) == [], "bob has conflicts"
     assert find_conflicts(magic_fran) == [], "fran has conflicts"
     assert find_conflicts(magic_ed) == [], "edmond has conflicts"
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_participant_never_updates(request, reactor, temp_filepath, alice, bob):
+    """
+    Invite a user to a folder, but they never update.
+
+    This can happen for a variety of reasons, but the participant that
+    _is_ updating shouldn't keep re-downloading the (old) Snapshots
+    from the never-updating user.
+    """
+
+    magic = temp_filepath.child("magic-alice")
+    magic.makedirs()
+
+    await alice.add("salmonella", magic.path)
+
+    def cleanup():
+        pytest_twisted.blockon(alice.leave("salmonella"))
+    request.addfinalizer(cleanup)
+
+    # put a file in our folder, in a subdir
+    content0 = non_lit_content("first content")
+    content1 = non_lit_content("second content")
+    content2 = non_lit_content("third content")
+    magic.child("content.txt").setContent(content0)
+    await alice.add_snapshot("salmonella", "content.txt")
+
+    # invite another participant
+    magic_bob = temp_filepath.child("magic-bob")
+    await perform_invite(request, "salmonella", alice, "robert", bob, magic_bob)
+
+    # wait until bob has sync'd
+    await await_file_contents(
+        magic_bob.child("content.txt").path,
+        content0,
+        timeout=25,
+    )
+
+    # turn off bob (but arrange to re-start)
+    await bob.stop_magic_folder()
+
+    def cleanup():
+        pytest_twisted.blockon(bob.start_magic_folder())
+    request.addfinalizer(cleanup)
+
+    # do some updates
+    magic.child("content.txt").setContent(content1)
+    await alice.add_snapshot("salmonella", "content.txt")
+
+    magic.child("content.txt").setContent(content2)
+    await alice.add_snapshot("salmonella", "content.txt")
+
+    # now, we monitor "alice" as some scans are done to ensure the
+    # client doesn't keep downloading bob's (now out-of-date) update.
+    updates = await alice.status_monitor(how_long=15)
+
+    # XXX note to self: merge the "events" stuff first!
+    downloads = []
+    for up in updates:
+        downs = up["events"]["downloads"]
+        if downs:
+            downloads.extend(downs)
+    assert downloads == [], "Alice downloaded {}, but shouldn't be".format(downloads)
+
+    # ensure nobody has conflicts
+    assert find_conflicts(magic) == [], "alice has conflicts"
+    assert find_conflicts(magic_bob) == [], "bob has conflicts"
