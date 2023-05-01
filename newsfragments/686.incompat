@@ -1,6 +1,6 @@
 The /status endpoint now produces event-based output
 
-This means the message emitted via the WebSocket are entirely different.
+This means the messages emitted via the WebSocket are entirely different.
 Please see the documentation under "Status API" for the new method.
 Ordinarily, this would mean a new version of the API (e.g. /v2/) but we
 do not yet declare a stable /v1 API so it has simply changed.
