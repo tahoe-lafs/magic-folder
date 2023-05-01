@@ -21,6 +21,7 @@ from twisted.internet.defer import (
     maybeDeferred,
     succeed,
     CancelledError,
+    returnValue,
 )
 from twisted.web.client import (
     ResponseNeverReceived,
@@ -1314,7 +1315,7 @@ def deferred_retry(reactor, function, should_retry, *args, **kw):
         try:
             d = maybeDeferred(function, *args, **kw)
             result = yield d
-            return result
+            returnValue(result)
 
         except Exception as e:
             delay = should_retry(e)
@@ -1348,7 +1349,7 @@ def _attempt_personal_dmd_sync(reactor, action, config, read_participant, write_
 
 
 @inline_callbacks
-def maybe_update_personal_dmd_to_local(reactor, config, read_participant, write_participant):
+def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
     """
     It is possible for us to crash or otherwise exit when updates have
     been made to local databases but not yet to our Personal DMD.
@@ -1369,8 +1370,11 @@ def maybe_update_personal_dmd_to_local(reactor, config, read_participant, write_
     state is consistent.
 
     :param MagicFolderConfig config: our configuration state
-    :param IParticipant read_participant: read-API for our participant
-    :param IWriteableParticipant write_participant: write-API for our participant
+
+    :param get_participants: a possibly-async callable that returns
+        our IParticipant and IWriteParticipants (this is a callable so
+        we can retry it -- if we can't talk to Tahoe yet, we probably
+        can't list participants yet either)
     """
 
     # XXX should probably do _some_ kind of falloff and jitter
@@ -1385,9 +1389,15 @@ def maybe_update_personal_dmd_to_local(reactor, config, read_participant, write_
             action.log(message_type="error", e=str(exc))
             return 5
 
+        reader, writer = yield deferred_retry(
+            reactor,
+            get_participants,
+            maybe_retry,
+        )
+
         yield deferred_retry(
             reactor,
             _attempt_personal_dmd_sync,
             maybe_retry,
-            reactor, action, config, read_participant, write_participant
+            reactor, action, config, reader, writer
         )

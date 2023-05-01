@@ -52,7 +52,7 @@ from ..config import (
 )
 from ..status import (
     FolderStatus,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..util.file import (
     seconds_to_ns,
@@ -118,7 +118,7 @@ class LocalSnapshotServiceTests(SyncTestCase):
             None,
         )
 
-        self.status = WebSocketStatusService(reactor, self._global_config)
+        self.status = EventsWebSocketStatusService(reactor, self._global_config)
         self.snapshot_creator = MemorySnapshotCreator()
         self.snapshot_service = LocalSnapshotService(
             config=self.magic_config,

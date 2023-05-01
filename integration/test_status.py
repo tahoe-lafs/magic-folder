@@ -50,14 +50,14 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     await alice.add_participant("outstanding1", "old", zero_cap)
 
     downloads = None
-    while downloads is None:
+    while not downloads:
         status_data = await alice.status()
         status = json.loads(status_data)
-        one = status["state"]["folders"].get("outstanding1", None)
-        if one:
-            print(json.dumps(one, indent=4))
-            if one["downloads"]:
-                downloads = one["downloads"]
+        downloads = [
+            down
+            for down in status["events"]
+            if down["kind"].startswith("download-")
+        ]
         await twisted_sleep(reactor, .2)
 
     print("found downloads: {}".format(downloads))

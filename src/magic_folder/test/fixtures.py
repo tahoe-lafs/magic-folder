@@ -77,7 +77,7 @@ from ..tahoe_client import (
 from ..participants import participants_from_collective
 from ..snapshot import create_local_author
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..service import MagicFolderService
 
@@ -225,7 +225,7 @@ class MagicFileFactoryFixture(Fixture):
             self.temp.child("config"),
             self.temp.child("tahoe-node"),
         )
-        self.status = WebSocketStatusService(Clock(), self._global_config)
+        self.status = EventsWebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
 
         uncooperator = Cooperator(
@@ -395,7 +395,7 @@ class MagicFolderNode(object):
                         config[u"scan-interval"],
                     )
 
-        status_service = WebSocketStatusService(
+        status_service = EventsWebSocketStatusService(
             reactor,
             global_config,
         )

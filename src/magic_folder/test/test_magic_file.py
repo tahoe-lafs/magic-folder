@@ -18,6 +18,10 @@ from twisted.internet.defer import (
     inlineCallbacks,
     DeferredList,
 )
+from twisted.application.service import (
+    Service,
+    MultiService,
+)
 
 from ..config import (
     create_testing_configuration,
@@ -37,6 +41,10 @@ from ..snapshot import (
     create_local_author,
     RemoteSnapshot,
 )
+from ..status import (
+    FolderStatus,
+    EventsWebSocketStatusService,
+)
 from ..util.capabilities import (
     Capability,
     random_immutable,
@@ -48,6 +56,14 @@ from ..util.file import (
 from ..magic_file import (
     maybe_update_personal_dmd_to_local,
     MagicFileFactory,
+)
+from ..magic_folder import (
+    MagicFolder,
+)
+from ..uploader import (
+    LocalSnapshotService,
+    LocalSnapshotCreator,
+    InMemoryUploaderService,
 )
 from .common import (
     SyncTestCase,
@@ -112,7 +128,7 @@ class StateSyncTests(SyncTestCase):
         # "local_cap" on disk
 
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.participants.participants[0], self.participants.writer,
+            clock, self.config, lambda: (self.participants.participants[0], self.participants.writer)
         )
 
         self.assertThat(
@@ -164,9 +180,8 @@ class StateSyncTests(SyncTestCase):
         self.participants.writer.update_snapshot = error_then_succeed
 
         # let it update
-
         maybe_update_personal_dmd_to_local(
-            clock, self.config, self.participants.participants[0], self.participants.writer,
+            clock, self.config, lambda: (self.participants.participants[0], self.participants.writer)
         )
 
         # ... but we need to wait 5 seconds to get another try, due to the error
@@ -214,20 +229,8 @@ class RemoteUpdateTests(AsyncTestCase):
         )
 
         tahoe_client = object()
-
-        from twisted.application.service import (
-            Service,
-            MultiService,
-        )
-        from ..status import (
-            FolderStatus,
-            WebSocketStatusService,
-        )
-        from ..magic_folder import MagicFolder
-        from ..uploader import LocalSnapshotService, LocalSnapshotCreator
-        from ..uploader import InMemoryUploaderService
         uploader = InMemoryUploaderService(["a-file-name", "a-file-name"])
-        status_service = WebSocketStatusService(self.reactor, self._global_config)
+        status_service = EventsWebSocketStatusService(self.reactor, self._global_config)
         folder_status = FolderStatus("folder-name", status_service)
         self.stash_path = FilePath(self.mktemp())
         self.stash_path.makedirs()

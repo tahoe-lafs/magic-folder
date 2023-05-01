@@ -1,6 +1,10 @@
 import sys
 import getpass
+import json
+import humanize
 from io import StringIO
+from collections import defaultdict
+from datetime import datetime
 
 from appdirs import (
     user_config_dir,
@@ -32,6 +36,9 @@ from twisted.python import usage
 from twisted.web import http
 from twisted.logger import (
     Logger,
+)
+from autobahn.twisted.websocket import (
+    create_client_agent,
 )
 from wormhole.cli.public_relay import (
     RENDEZVOUS_RELAY,
@@ -352,10 +359,6 @@ class StatusOptions(usage.Options):
     ]
 
 
-from autobahn.twisted.websocket import (
-    create_client_agent,
-)
-
 @inline_callbacks
 def status(options):
     """
@@ -363,9 +366,193 @@ def status(options):
     """
     endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+    agent = options.parent.websocket_agent
+    out = options.parent.stdout
+    reactor = options.parent.reactor
 
-    from twisted.internet import reactor
-    agent = create_client_agent(reactor)
+    def fresh_folder():
+        """
+        Initial state for an as-yet-unseen folder
+        """
+        return {
+            "last-scan": None,
+            "last-poll": None,
+            "uploads": defaultdict(dict),
+            "downloads": defaultdict(dict),
+            "errors": [],
+        }
+
+    # the daemon sends us _updates_, so we must track our state
+    state = {
+        "folders": defaultdict(fresh_folder),
+        "tahoe": {
+            "happy": False,
+            "connected": None,
+            "desired": None,
+        },
+    }
+
+    # lambdas can't assign things
+    def copy_state(dest, src, keys):
+        for k in keys:
+            dest[k] = src[k]
+
+    def error(e):
+        """
+        Handle a kind=error message
+        """
+        state["folders"][e["folder"]]["errors"].append({
+            "timestamp": e["timestamp"],
+            "summary": e["summary"],
+        })
+
+    def upload(e):
+        """
+        Handle all events related to uploads
+        """
+        ours = state["folders"][e["folder"]]["uploads"]
+        if e["kind"] == "upload-queued":
+            ours[e["relpath"]]["queued-at"] = e["timestamp"]
+        elif e["kind"] == "upload-started":
+            ours[e["relpath"]]["started-at"] = e["timestamp"]
+
+        # XXX might want a final "upload-stats" sort of thing as well?
+        elif e["kind"] == "upload-finished":
+            del ours[e["relpath"]]
+
+    def download(e):
+        """
+        Handle all events related to downloads
+        """
+        ours = state["folders"][e["folder"]]["downloads"]
+        if e["kind"] == "dowload-queued":
+            ours[e["relpath"]]["queued-at"] = e["timestamp"]
+        elif e["kind"] == "download-started":
+            ours[e["relpath"]]["started-at"] = e["timestamp"]
+
+        # XXX might want a final "download-stats" sort of thing as well?
+        if e["kind"] == "download-finished":
+            del ours[e["relpath"]]
+
+    # it might be interesting to have a status command that simply
+    # dumps event as they arrive. the original (state-message-based)
+    # UI did dump the "whole state at once" so at the very least this
+    # serves as proof a UI _can_ do that properly with this events API
+    folders = yield options.parent.client.list_folders()
+    for folder_name in folders.keys():
+        print("  recent:", file=out)
+        recent = yield options.parent.client.recent_changes(folder_name, 3)
+        now = reactor.seconds()
+        for f in recent:
+            if f["modified"] is not None:
+                modified_text = "modified {} ago".format(
+                    humanize.naturaldelta(now - f["modified"])
+                )
+            else:
+                modified_text = "[deleted]"
+            print(
+                "    {}: {}{} (updated {} ago)".format(
+                    f["relpath"],
+                    "[CONFLICT] " if f["conflicted"] else "",
+                    modified_text,
+                    humanize.naturaldelta(now - f["last-updated"]),
+                ),
+                file=out,
+            )
+
+    # based on the "kind" of event, we update our state
+    updates = {
+        "scan-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
+        "poll-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
+        "tahoe-connection-changed": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
+        "error-occurred": error,
+        "folder-added": lambda _: None,
+        "folder-deleted": lambda _: None,
+        "upload-queued": upload,
+        "upload-started": upload,
+        "upload-finished": upload,
+        "download-queued": download,
+        "download-started": download,
+        "download-finished": download,
+    }
+
+    def message(payload, is_binary=False):
+        """
+        onMessage handler for WebSocket payloads.
+
+        The first message should contain all events necessary for our
+        state to match the actual state.
+        """
+        now = reactor.seconds()
+        data = json.loads(payload)
+
+        for event in data["events"]:
+            assert "kind" in event and event["kind"] in updates, "weird: {}".format(event["kind"])
+            updates[event["kind"]](event)
+
+        for folder_name, folder in state["folders"].items():
+            print('Folder "{}":'.format(folder_name), file=out)
+            print("  downloads: {}".format(len(folder["downloads"])), file=out)
+            if folder["downloads"]:
+                print(
+                    "    {}".format(
+                        ", ".join(folder["downloads"].keys())
+                    ),
+                    file=out,
+                )
+            print("  uploads: {}".format(len(folder["uploads"])), file=out)
+            for relpath, u in folder["uploads"].items():
+                queue = humanize.naturaldelta(now - u["queued-at"])
+                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
+                print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
+
+            if folder["errors"]:
+                print("Errors:", file=out)
+                # filter out duplicates
+                different_errors = {}
+                for e in folder["errors"]:
+                    summary = e["summary"]
+                    if summary in different_errors:
+                        different_errors[summary]["timestamps"].append(e["timestamp"])
+                    else:
+                        different_errors[summary] = {
+                            "summary": summary,
+                            "timestamps": [e["timestamp"]],
+                        }
+                for summary, e in different_errors.items():
+                    if len(e["timestamps"]) == 1:
+                        ts = humanize.naturaldelta(now - e["timestamps"][0])
+                    else:
+                        ts = "{} times between {} and {}".format(
+                            len(e["timestamps"]),
+                            humanize.naturaldelta(now - e["timestamps"][-1]),
+                            humanize.naturaldelta(now - e["timestamps"][0]),
+                        )
+                    print("  {} ({} ago)".format(summary, ts), file=out)
+            if folder["last-scan"] is not None:
+                print(
+                    "Last scan for uploads at {}".format(
+                        datetime.fromtimestamp(folder["last-scan"]),
+                    ),
+                    file=out,
+                )
+            if folder["last-poll"] is not None:
+                print(
+                    "Last poll for downloads at {}".format(
+                        datetime.fromtimestamp(folder["last-poll"]),
+                    ),
+                    file=out,
+                )
+        print(
+            "Tahoe is {is_happy}: connected to {connected} servers (want {desired})".format(
+                is_happy="happy" if state["tahoe"]["happy"] else "UNHAPPY",
+                **state["tahoe"]
+            ),
+            file=out,
+        )
+
+    # note: can't do async work between creating the proto and adding
+    # the on-message handler, or you might miss an update
     proto = yield agent.open(
         websocket_uri,
         {
@@ -374,46 +561,7 @@ def status(options):
             }
         },
     )
-
-    import json
-    import humanize
-    def message(payload, is_binary=False):
-        now = reactor.seconds()
-        data = json.loads(payload)["state"]
-        for folder_name, folder in data["folders"].items():
-            print('Folder "{}":'.format(folder_name))
-            print("  downloads: {}".format(len(folder["downloads"])))
-            if folder["downloads"]:
-                print("    {}".format(
-                    ", ".join(d["relpath"] for d in folder["downloads"])
-                ))
-            print("  uploads: {}".format(len(folder["uploads"])))
-            for u in folder["uploads"]:
-                queue = humanize.naturaldelta(now - u["queued-at"])
-                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(u["relpath"], queue, start))
-            print("  recent:")
-            for f in folder["recent"]:
-                if f["relpath"] in folder["uploads"] or f["relpath"] in folder["downloads"]:
-                    continue
-                if f["modified"] is not None:
-                    modified_text = "modified {} ago".format(
-                        humanize.naturaldelta(now - f["modified"])
-                    )
-                else:
-                    modified_text = "[deleted]"
-                print("    {}: {}{} (updated {} ago)".format(
-                    f["relpath"],
-                    "[CONFLICT] " if f["conflicted"] else "",
-                    modified_text,
-                    humanize.naturaldelta(now - f["last-updated"]),
-                ))
-            if folder["errors"]:
-                print("Errors:")
-                for e in folder["errors"]:
-                    print("  {}: {}".format(e["timestamp"], e["summary"]))
     proto.on('message', message)
-
     yield proto.is_closed
 
 
@@ -744,6 +892,7 @@ class BaseOptions(usage.Options):
     _config = None  # lazy-instantiated by .config @property
     _http_client = None  # lazy-initalized by .client @property
     _client = None  # lazy-instantiated by .client @property
+    _ws_agent = None  # lazy-instantiated by .websocket_agent
 
     @property
     def _config_path(self):
@@ -801,6 +950,15 @@ class BaseOptions(usage.Options):
             raise Exception("Incorrect token data")
         return data
 
+    @property
+    def websocket_agent(self):
+        """
+        An implementor of IWebSocketClientAgent from autobahn
+        """
+        if self._ws_agent is None:
+            from twisted.internet import reactor
+            self._ws_agent = create_client_agent(reactor)
+        return self._ws_agent
 
     @property
     def client(self):
@@ -893,20 +1051,25 @@ subDispatch = {
 }
 
 
-def dispatch_magic_folder_command(args, stdout=None, stderr=None, client=None):
+def dispatch_magic_folder_command(reactor, args, stdout=None, stderr=None, client=None, agent=None):
     """
     Run a magic-folder command with the given args
+
+    :param IWebSocketClientAgent agent: override the WebSocket connection agent
 
     :returns: a Deferred which fires with the result of doing this
         magic-folder (sub)command.
     """
     options = MagicFolderCommand()
+    options.reactor = reactor
     if stdout is not None:
         options.stdout = stdout
     if stderr is not None:
         options.stderr = stderr
     if client is not None:
         options._client = client
+    if agent is not None:
+        options._ws_agent = agent
 
     try:
         options.parseOptions(args)
@@ -1008,5 +1171,5 @@ def _entry():
     :return: ``None``
     """
     def main(reactor):
-        return dispatch_magic_folder_command(sys.argv[1:])
+        return dispatch_magic_folder_command(reactor, sys.argv[1:])
     return react(main)

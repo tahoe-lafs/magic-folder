@@ -36,7 +36,10 @@ from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
 )
-from ..status import FolderStatus, WebSocketStatusService
+from ..status import (
+    FolderStatus,
+    EventsWebSocketStatusService,
+)
 from ..util.file import (
     PathState,
     get_pathinfo,
@@ -80,7 +83,7 @@ class FindUpdatesTests(SyncTestCase):
         self.personal_cap = random_dircap()
 
         self.clock = Clock()
-        self.status_service = WebSocketStatusService(self.clock, self._global_config)
+        self.status_service = EventsWebSocketStatusService(self.clock, self._global_config)
         self.folder_status = FolderStatus("default", self.status_service)
 
         self.config = self._global_config.create_magic_folder(

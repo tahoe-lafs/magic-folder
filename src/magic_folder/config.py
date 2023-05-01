@@ -1410,8 +1410,9 @@ class MagicFolderConfig(object):
             ORDER BY
                 last_updated_ns DESC
             LIMIT
-                30
-            """
+                ?
+            """,
+            (n, )
         )
         rows = cursor.fetchall()
         return [(r[0], ns_to_seconds(r[1]), ns_to_seconds(r[2])) for r in rows]
