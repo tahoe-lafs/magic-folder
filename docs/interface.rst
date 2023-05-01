@@ -227,6 +227,25 @@ The list is ordered from most-recent to least-recent timestamp.
 ``size`` is in bytes.
 
 
+GET ``/v1/magic-folder/<folder-name>/recent-changes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Takes an optional ``?number=`` argument (default is 30).
+Returns a list of the most-recent changes, like::
+
+    [
+        {
+            "relpath": "rel/path/foo",
+            "modified": 12345,
+            "last-updated": 12345,
+            "conflicted": false
+        },
+        # ...
+    ]
+
+The results will be reverse-chronological on ``"last-updated"``.
+
+
 GET ``/v1/magic-folder/<folder-name>/tahoe-objects``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
