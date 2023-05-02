@@ -39,6 +39,10 @@ from twisted.python.filepath import (
 )
 from twisted.web.client import Agent
 
+from autobahn.twisted.websocket import (
+    create_client_agent,
+)
+
 import treq
 
 from eliot import (
@@ -577,10 +581,6 @@ class MagicFolderEnabledNode(object):
         """
         # FIXME: should use FilePath throughout this class
         config = FilePath(self.magic_config_directory)
-        from autobahn.twisted.websocket import (
-            WebSocketClientProtocol,
-            create_client_agent,
-        )
         # XXX some of this duplicated from api_cli / cli -- would be
         # nice to not do that...
         with config.child("api_client_endpoint").open("rb") as f:

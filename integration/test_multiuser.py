@@ -10,7 +10,6 @@ import pytest_twisted
 from .util import (
     await_file_contents,
     find_conflicts,
-    twisted_sleep,
 )
 
 
