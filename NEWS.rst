@@ -1,6 +1,29 @@
 ﻿.. -*- coding: utf-8-with-signature -*-
 
 .. towncrier start line
+Magic_Folder 23.5.0 (2023-05-02)
+''''''''''''''''''''''''''''''''
+
+Backwards Incompatible Changes
+------------------------------
+
+- The /status endpoint now produces event-based output
+
+  This means the messages emitted via the WebSocket are entirely different.
+  Please see the documentation under "Status API" for the new method.
+  Ordinarily, this would mean a new version of the API (e.g. /v2/) but we
+  do not yet declare a stable /v1 API so it has simply changed.
+
+  Please get in touch if this causes you problems. (`#686 <https://github.com/LeastAuthority/magic-folder/issues/686>`_)
+
+
+Bug Fixes
+---------
+
+- Old or redundant updates from other participants are correctly ignored (`#703 <https://github.com/LeastAuthority/magic-folder/issues/703>`_)
+- If a client saw multiple other Participants with the same update a Conflict was produced (`#713 <https://github.com/LeastAuthority/magic-folder/issues/713>`_)
+
+
 Magic_Folder 23.3.1 (2023-03-20)
 ''''''''''''''''''''''''''''''''
 
