@@ -601,7 +601,8 @@ class MagicFolderEnabledNode(object):
         messages = []
 
         def foo(data, is_binary=False):
-            messages.append(json.loads(data.decode("utf8")))
+            msg = json.loads(data.decode("utf8"))
+            messages.extend(msg["events"])
         proto.on("message", foo)
 
         # collect some messages

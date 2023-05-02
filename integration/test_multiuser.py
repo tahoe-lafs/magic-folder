@@ -162,14 +162,17 @@ async def test_participant_never_updates(request, reactor, temp_filepath, alice,
     # client doesn't keep downloading bob's (now out-of-date) update.
     updates = await alice.status_monitor(how_long=15)
 
-    # XXX note to self: merge the "events" stuff first!
-    downloads = []
+    downloads = []  # we should get no downloads
+    polls = 0  # ...but at least one "poll"
     for up in updates:
-        downs = up["events"]["downloads"]
+        downs = up.get("downloads", None)
         if downs:
             downloads.extend(downs)
-    assert downloads == [], "Alice downloaded {}, but shouldn't be".format(downloads)
+        if up["kind"] == "poll-completed":
+            polls += 1
+    assert downloads == [], "Alice downloaded {}, but shouldn't".format(downloads)
+    assert polls > 0, "Alice should have completed at least one remote poll"
 
-    # ensure nobody has conflicts
+    # ensure nobody has conflicts, just in case
     assert find_conflicts(magic) == [], "alice has conflicts"
     assert find_conflicts(magic_bob) == [], "bob has conflicts"
