@@ -392,10 +392,15 @@ def status(options):
         },
     }
 
-    # lambdas can't assign things
+    # helper because lambdas can't assign things
     def copy_state(dest, src, keys):
         for k in keys:
             dest[k] = src[k]
+
+    # helper because lambdas can't assign things
+    def assign(dest, dest_key, value):
+        dest[dest_key] = value
+
 
     def error(e):
         """
@@ -462,8 +467,8 @@ def status(options):
 
     # based on the "kind" of event, we update our state
     updates = {
-        "scan-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-scan"}),
-        "poll-completed": lambda e: copy_state(state["folders"][e["folder"]], e, {"last-poll"}),
+        "scan-completed": lambda e: assign(state["folders"][e["folder"]], "last-scan", e["timestamp"]),
+        "poll-completed": lambda e: assign(state["folders"][e["folder"]], "last-poll", e["timestamp"]),
         "tahoe-connection-changed": lambda e: copy_state(state["tahoe"], e, {"happy", "connected", "desired"}),
         "error-occurred": error,
         "folder-added": lambda _: None,
