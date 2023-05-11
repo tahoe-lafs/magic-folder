@@ -88,6 +88,8 @@ from ..status import (
     StatusProtocol,
     EventsWebSocketStatusService,
     TahoeStatus,
+    ScannerStatus,
+    PollerStatus,
 )
 from magic_folder.util.observer import (
     ListenObserver,
@@ -594,6 +596,8 @@ class TestStatus(AsyncTestCase):
         status_service.download_queued("a", "b-file")
         status_service.download_started("a", "b-file")
         status_service.error_occurred("a", "Some sort of error")
+        status_service.scan_status("a", ScannerStatus(0))
+        status_service.poll_status("a", PollerStatus(0))
 
         # now we build up enough infrastructure to serve this status
         # out
