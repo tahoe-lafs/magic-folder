@@ -246,7 +246,7 @@ class MagicFile(object):
         """
         return self._local_update()
 
-    def found_new_remote(self, remote_snapshot):
+    def found_new_remote(self, remote_snapshot, participant):
         """
         A RemoteSnapshot that doesn't match our existing database entry
         has been found. It will be downloaded and applied (possibly
@@ -254,7 +254,7 @@ class MagicFile(object):
 
         :param RemoteSnapshot remote_snapshot: the newly-discovered remote
         """
-        self._remote_update(remote_snapshot)
+        self._remote_update(remote_snapshot, participant)
         return self.when_idle()
 
     def local_snapshot_exists(self, local_snapshot):
@@ -377,20 +377,20 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _download_mismatch(self, snapshot, staged_path):
+    def _download_mismatch(self, snapshot, staged_path, participant):
         """
         The local file does not match what we expect given database state
         """
 
     @_machine.input()
-    def _download_matches(self, snapshot, staged_path, local_pathstate):
+    def _download_matches(self, snapshot, staged_path, local_pathstate, participant):
         """
         The local file (if any) matches what we expect given database
         state
         """
 
     @_machine.input()
-    def _remote_update(self, snapshot):
+    def _remote_update(self, snapshot, participant):
         """
         The file has a remote update.
         """
@@ -412,7 +412,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _download_completed(self, snapshot, staged_path):
+    def _download_completed(self, snapshot, staged_path, participant):
         """
         A remote Snapshot has been downloaded
         """
@@ -442,7 +442,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _queued_download(self, snapshot):
+    def _queued_download(self, snapshot, participant):
         """
         There is queued RemoteSnapshot work
         """
@@ -460,13 +460,13 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _ancestor_matches(self, snapshot, staged_path):
+    def _ancestor_matches(self, snapshot, staged_path, participant):
         """
         snapshot is our ancestor
         """
 
     @_machine.input()
-    def _ancestor_mismatch(self, snapshot, staged_path):
+    def _ancestor_mismatch(self, snapshot, staged_path, participant):
         """
         snapshot is not our ancestor
         """
@@ -484,12 +484,12 @@ class MagicFile(object):
         """
 
     @_machine.output()
-    def _begin_download(self, snapshot):
+    def _begin_download(self, snapshot, participant):
         """
         Download a given Snapshot (including its content)
         """
         def downloaded(staged_path):
-            self._call_later(self._download_completed, snapshot, staged_path)
+            self._call_later(self._download_completed, snapshot, staged_path, participant)
 
         retry_delay_sequence = _delay_sequence()
 
@@ -542,7 +542,7 @@ class MagicFile(object):
         return perform_download()
 
     @_machine.output()
-    def _check_local_update(self, snapshot, staged_path):
+    def _check_local_update(self, snapshot, staged_path, participant):
         """
         Detect a 'last minute' change by comparing the state of our local
         file to that of the database.
@@ -576,20 +576,20 @@ class MagicFile(object):
         # now, determine if we've found a local update
         if current_pathstate is None:
             if local_pathinfo.exists:
-                self._call_later(self._download_mismatch, snapshot, staged_path)
+                self._call_later(self._download_mismatch, snapshot, staged_path, participant)
                 return
         else:
             # we've seen this file before so its pathstate should
             # match what we expect according to the database .. or
             # else some update happened meantime.
             if current_pathstate != local_pathinfo.state:
-                self._call_later(self._download_mismatch, snapshot, staged_path)
+                self._call_later(self._download_mismatch, snapshot, staged_path, participant)
                 return
 
-        self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state)
+        self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state, participant)
 
     @_machine.output()
-    def _check_ancestor(self, snapshot, staged_path):
+    def _check_ancestor(self, snapshot, staged_path, participant):
         """
         Check if the ancestor for this remote update is correct or not.
         """
@@ -612,13 +612,13 @@ class MagicFile(object):
                 Message.log(
                     message_type="ancestor_mismatch",
                 )
-                self._call_later(self._ancestor_mismatch, snapshot, staged_path)
+                self._call_later(self._ancestor_mismatch, snapshot, staged_path, participant)
                 return
-        self._call_later(self._ancestor_matches, snapshot, staged_path)
+        self._call_later(self._ancestor_matches, snapshot, staged_path, participant)
         return
 
     @_machine.output()
-    def _perform_remote_update(self, snapshot, staged_path, local_pathstate):
+    def _perform_remote_update(self, snapshot, staged_path, local_pathstate, participant):
         """
         Resolve a remote update locally
 
@@ -671,7 +671,7 @@ class MagicFile(object):
                 # emergency data to be in the conflict file .. maybe
                 # this should just be the original tmpfile and we
                 # shouldn't mess with it further?
-                self._call_later(self._download_mismatch, snapshot, e.path)
+                self._call_later(self._download_mismatch, snapshot, e.path, participant)
                 return
 
         # Note, if we crash here (after moving the file into place but
@@ -764,7 +764,7 @@ class MagicFile(object):
     def _cancel_queued_work(self):
         for d in self._queue_local:
             d.cancel()
-        for d in self._queue_remote:
+        for d, _, _ in self._queue_remote:
             d.cancel()
 
     @_machine.output()
@@ -841,13 +841,13 @@ class MagicFile(object):
             return d
 
     @_machine.output()
-    def _mark_download_conflict(self, snapshot, staged_path):
+    def _mark_download_conflict(self, snapshot, staged_path, participant):
         """
         Mark a conflict for this remote snapshot
         """
         conflict_path = "{}.conflict-{}".format(
             self._relpath,
-            snapshot.author.name
+            participant.name,
         )
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
         self._factory._config.add_conflict(snapshot)
@@ -948,18 +948,18 @@ class MagicFile(object):
         return ret_d
 
     @_machine.output()
-    def _queue_remote_update(self, snapshot):
+    def _queue_remote_update(self, snapshot, participant):
         """
         Save this remote snapshot for later processing (in _check_for_remote_work)
         """
         # skip queueing this download if we already have this snapshot
         # ahead in the queue
-        for _, queued_snap in self._queue_remote:
+        for _, queued_snap, _ in self._queue_remote:
             if snapshot == queued_snap:
                 # same return-value as _begin_download: None
                 return succeed(None)
         d = Deferred()
-        self._queue_remote.append((d, snapshot))
+        self._queue_remote.append((d, snapshot, participant))
         return d
 
     @_machine.output()
@@ -983,12 +983,12 @@ class MagicFile(object):
         Inject any saved remote updates.
         """
         if self._queue_remote:
-            d, snapshot = self._queue_remote.pop(0)
+            d, snapshot, participant = self._queue_remote.pop(0)
 
-            def do_remote_update(done_d, snap):
-                update_d = self._queued_download(snap)
+            def do_remote_update(done_d, snap, part):
+                update_d = self._queued_download(snap, part)
                 update_d.addBoth(done_d.callback)
-            self._call_later(do_remote_update, d, snapshot)
+            self._call_later(do_remote_update, d, snapshot, participant)
             return
         self._call_later(self._no_download_work, None)
 

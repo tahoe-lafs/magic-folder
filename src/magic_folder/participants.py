@@ -128,6 +128,7 @@ class _StaticParticipant(object):
     """
     An in-memory IParticipant provider
     """
+    name = attr.ib()
     my_files = attr.ib()  # dict: str -> SnapshotEntry
     _is_self = attr.ib(default=False)
 
@@ -163,9 +164,9 @@ class _StaticParticipants(object):
     def __attrs_post_init__(self):
         if self.participants is None:
             self.participants = [
-                _StaticParticipant([], True),
+                _StaticParticipant("default", {}, True),
             ]
-        assert len([p.is_self() for p in self.participants]) == 1, "Must have exactly one 'self' participant"
+        assert len([p for p in self.participants if p.is_self()]) == 1, "Must have exactly one 'self' participant"
 
     def list(self):
         return self.participants
@@ -179,15 +180,26 @@ class _StaticParticipants(object):
         )
 
 
-def static_participants(my_files=None, other_files=None):
+def static_participants(my_files=None, other_files=None, names=None):
     """
     An ``IParticipants`` provider. Usually for testing.
     """
     # XXX name, dircap, is_self for participants is public?
+    def name_generator():
+        number = 0
+        while True:
+            yield "name_{}".format(number)
+            number += 1
+    if names is None:
+        names = name_generator()
+    else:
+        # turn it into a generator too
+        names = (n for n in names)
+
     writer = _StaticWriteableParticipant()
-    reader = _StaticParticipant(my_files or [], True)
+    reader = _StaticParticipant(next(names), my_files or [], True)
     others = [
-        _StaticParticipant(files, False)
+        _StaticParticipant(next(names), files, False)
         for files in (other_files or [])
     ]
     return _StaticParticipants(writer, [reader] + others)

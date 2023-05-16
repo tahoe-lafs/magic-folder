@@ -23,6 +23,10 @@ from twisted.application.service import (
     MultiService,
 )
 
+from nacl.signing import (
+    VerifyKey,
+)
+
 from ..config import (
     create_testing_configuration,
 )
@@ -39,6 +43,7 @@ from ..participants import (
 )
 from ..snapshot import (
     create_local_author,
+    create_author,
     RemoteSnapshot,
 )
 from ..status import (
@@ -319,7 +324,10 @@ class RemoteUpdateTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
         abspath = self.config.magic_path.preauthChild(relpath)
         mf = self.magic_file_factory.magic_file_for(abspath)
-        d0 = mf.found_new_remote(remote0)
-        d1 = mf.found_new_remote(remote0)
-        d2 = mf.found_new_remote(remote0)
+        self.participants.add(create_author("beth", VerifyKey(b"\xff" * 32)), random_dircap())
+        self.participants.add(create_author("callum", VerifyKey(b"\xee" * 32)), random_dircap())
+        self.participants.add(create_author("dawn", VerifyKey(b"\xee" * 32)), random_dircap())
+        d0 = mf.found_new_remote(remote0, self.participants.participants[1])
+        d1 = mf.found_new_remote(remote0, self.participants.participants[2])
+        d2 = mf.found_new_remote(remote0, self.participants.participants[3])
         yield DeferredList([d0, d1, d2])
