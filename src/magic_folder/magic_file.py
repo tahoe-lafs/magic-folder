@@ -244,7 +244,19 @@ class MagicFile(object):
         :returns Deferred: fires with None when our local state is
             persisted. This is before the upload has occurred.
         """
-        return self._local_update()
+        d = maybeDeferred(self._local_update)
+
+        def is_empty(arg):
+            """
+            The state-machine can return 'no outputs' -- which is an empty
+            list -- if we go conflict -> conflict. Here we translate
+            that to None
+            """
+            if not arg:
+                return None
+            return arg
+        d.addCallback(is_empty)
+        return d
 
     def found_new_remote(self, remote_snapshot):
         """

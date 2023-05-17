@@ -170,13 +170,11 @@ class ScannerService(MultiService):
                 self._cooperator, self._config, process, self._status
             )
 
-        results = []
-
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
             d = magic_file.create_update()
-            assert d is not None, "Internal error: no snapshot produced"
-            d.addBoth(results.append)
+            # this will produce a LocalSnapshot instance or None when
+            # there is nothing to do -- for example, when conflicted.
             return d
 
         yield self._cooperator.coiterate(
