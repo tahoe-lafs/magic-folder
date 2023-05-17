@@ -23,6 +23,9 @@ from twisted.python.filepath import FilePath
 from hyperlink import (
     DecodedURL,
 )
+from nacl.signing import (
+    VerifyKey,
+)
 
 from ..config import create_testing_configuration
 from ..magic_file import MagicFileFactory
@@ -35,6 +38,7 @@ from ..snapshot import (
     LocalSnapshot,
     RemoteSnapshot,
     create_local_author,
+    create_author,
 )
 from ..status import (
     FolderStatus,
@@ -549,4 +553,97 @@ class FindUpdatesTests(SyncTestCase):
         self.assertThat(
             files,
             Equals([local])
+        )
+
+    @given(
+        relative_paths(),
+    )
+    def test_scan_conflicted_file(self, relpath):
+        """
+        A locally conflicted file receives a remote update (which should
+        be ignored)
+        """
+        # make a conflict
+        # update same file, different participant
+        # (XXX how does the error manifest, exactly?)
+        self.setup_example()
+        other_author = create_author("radia", VerifyKey(b"\xaa" * 32))
+
+        # a snapshot we have seen already
+        snap0 = RemoteSnapshot(
+            relpath,
+            self.author,
+            metadata={
+                "modification_time": int(0),
+            },
+            capability=random_immutable(directory=True),
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        self.config.store_downloaded_snapshot(
+            relpath,
+            snap0,
+            OLD_PATH_STATE,
+        )
+
+        # make it conflicted
+        snap1 = RemoteSnapshot(
+            relpath,
+            other_author,
+            metadata={
+                "modification_time": int(1),
+            },
+            capability=random_immutable(directory=True),
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        self.config.store_downloaded_snapshot(
+            relpath,
+            snap1,
+            OLD_PATH_STATE,
+        )
+        self.config.add_conflict(snap1)
+
+        # now it is conflicted, start a scanner service and let it
+        # find an update.
+        local = self.magic_path.preauthChild(relpath)
+        local.parent().makedirs(ignoreExistingDirectory=True)
+        local.setContent(b"test_scanner conflicted content\n" * 10)
+
+        class SnapshotService(object):
+            def add_file(self, f):
+                assert False, "Should not actually add files"
+
+        class FakeUploader(object):
+            def upload_snapshot(self, snapshot):
+                return Deferred()
+
+        file_factory = MagicFileFactory(
+            self.config,
+            self.tahoe_client,
+            self.folder_status,
+            SnapshotService(),
+            FakeUploader(),
+            object(), # write_participant,
+            object(), # remote_cache,
+            object(), # filesystem,
+            synchronous=True,
+        )
+
+        service = ScannerService(
+            self.config,
+            file_factory,
+            object(),
+            cooperator=self.cooperator,
+            scan_interval=None,
+            clock=self.clock,
+        )
+        service.startService()
+        self.addCleanup(service.stopService)
+
+        self.assertThat(
+            service._loop(),
+            succeeded(Always()),
         )

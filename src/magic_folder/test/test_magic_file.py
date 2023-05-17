@@ -198,7 +198,7 @@ class StateSyncTests(SyncTestCase):
 
 class RemoteUpdateTests(AsyncTestCase):
     """
-    Correct operations of maybe_update_personal_dmd_to_local and helpers
+    Correct operation of remote updates
     """
 
     def setUp(self):
