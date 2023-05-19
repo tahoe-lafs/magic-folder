@@ -5,17 +5,20 @@
 Using Magic Folder
 ==================
 
-Magic-Folder is used in two ways.  To interact with configuration, the
-``magic-folder`` command line tool is used.  For details of this, see
-the section on :ref:`config-file`.  For additional information see
-`Magic Folder CLI design`_.
+Magic-Folder is used in two ways.
+
+The first way is to interact with the running daemon (including its
+configuration) is via the ``magic-folder`` command line tool (which
+uses the :ref:`http-api`). The following sections detail different
+subcommands available.  For additional information see `Magic Folder
+CLI design`_. See :ref:`config` for more on how configuration is kept.
 
 .. _`Magic Folder CLI design`: ../proposed/magic-folder/user-interface-design
 
-To interact with content, use your normal filesystem-based tools.  The
-folder which Magic-Folder synchronizes is a normal folder in the
-filesystem.  The platform's filesystem change notification features
-are used to detect changes.
+The second way is to interact with content, use your normal
+filesystem-based tools.  The folder which Magic-Folder synchronizes is
+a normal folder in the filesystem.  This directory (and all
+sub-directories) are scanned for changes periodically.
 
 We think of participants in the system as "devices". A single human
 may control many devices (in case they are synchronizing files between
@@ -29,10 +32,13 @@ human may control many "authors".
 Prerequisites
 -------------
 
-You must have one or more Tahoe-LAFS client nodes configured to be
-able to store objects somewhere.  They must be able to reach their
-configured storage nodes.  The client nodes must all share the same
-storage nodes.  The nodes must be running.
+You must have one or more Tahoe-LAFS client nodes (usually each one on a different computer) configured; ``magic-folder`` uses these to store objects.
+
+The clients must be able to reach their configured storage nodes.
+
+The client nodes must all share the same set of storage nodes.
+
+The nodes must be running.
 
 
 Creating a Magic Folder Daemon Configuration
@@ -105,6 +111,12 @@ commands to work as they use the API.
 Remember that the Tahoe-LAFS node which the daemon uses to upload and
 download items from the Grid must also be running.
 
+When run, the configuration directory will be checked for a ``running.process`` file.
+This file contains the PID and start-time of the magic-folder process.
+The file is deleted on exit.
+Upon startup, if the file exists and the PID points to a running process a new process will refuse to start.
+This is because running two daemons on the same configuration is not supported and will lead to undefined behavior or corruption of the state.
+
 
 Creating Magic Folders
 ----------------------
@@ -170,28 +182,23 @@ Internet. The code may only be used once, for a single invitee.
 
 .. code-block:: console
 
-   $ magic-folder --config ./foo invite --name example
+   $ magic-folder --config ./foo invite --folder example device-name
 
-An invitation code is created using an existing magic folder (``--name
+An invitation code is created using an existing magic folder (``--folder
 example`` above). The magic-folder identified must have been created on
-this device.
+this device (that is, this device is the admin).
+
+You may invite a ``--mode read-only`` or ``--mode read-write`` device, which controls whether it can include new versions of files or not.
 
 Once the invitee runs ``magic-folder join`` (see below) the two
 devices will connect and exchange some information; this will complete
 the invitation. The "invite" command won't exit until the invitee has
-actually completed and will print out some details. If you pass
-``--no-wait`` then the command will exit immediately (although the
-invite will still be valid).
-
-XXX DECIDE: should the default be to wait, or to not? Developers are
-split on this; maybe some UX research or discussion can solve it? No
-matter what, the HTTP API will have to be two-part ("start invite ->
-X" and "status of invite X" or "wait for invite X")
+actually completed and will print out some details.
 
 Invites are valid until the magic-folder daemon stops running or until
-the default number of minutes pass (whichever is sooner). See the
-``--timeout`` options for the default (or you can pass a different
-number of mintues if you prefer).
+the default number of minutes pass (whichever is sooner).
+
+More details about the invite protocol are in :ref:`invites`.
 
 
 Joining a Magic Folder
@@ -207,7 +214,8 @@ join`` command:
 The first argument required is an invitation code, as described in
 `Inviting Participant Devices`_.  The second argument
 required is the path to a local directory.  This is the directory to
-which content will be downloaded and from which it will be uploaded.
+which content will be downloaded (and from which it will be uploaded
+if this is a read-write invitation).
 
 You must choose a name to identify content from this device with
 ``--author``. The device which has invited you must also be connected
@@ -216,6 +224,7 @@ established, the two devices exchange some information and the invite
 is complete.
 
 Further options are documented in ``magic-folder join --help``.
+More details about the invite protocol are in :ref:`invites`.
 
 
 Leaving a Magic Folder

@@ -6,3 +6,5 @@ dulwich>=0.20.30
 twine>=3.7.1
 towncrier>=21.3.0
 readme_renderer>=32.0
+wheel>=0.37.1
+gpg>=1.10.0

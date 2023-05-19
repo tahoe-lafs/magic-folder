@@ -14,10 +14,9 @@ from twisted.internet.error import ProcessTerminated
 
 from .util import (
     MagicFolderEnabledNode,
+    WormholeMailboxServer,
     _CollectOutputProtocol,
     _DumpOutputProtocol,
-    _generate_invite,
-    _pair_magic_folder,
     _ProcessExitedProtocol,
     _tahoe_runner,
     run_service,
@@ -169,7 +168,7 @@ def tahoe_venv(request, reactor):
     parser = ConfigParser(strict=False)
     parser.read_string(output.decode("utf-8"))
 
-    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'envdir')
+    venv_dir = parser.get("testenv:{}".format(tahoe_env), 'env_dir')
 
     return VirtualEnv(FilePath(venv_dir))
 
@@ -309,7 +308,7 @@ def magic_folder_nodes(request):
 
 
 @pytest.fixture(scope='session')
-def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
+def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request, wormhole):
     try:
         mkdir(join(base_dir, 'magic-alice'))
     except OSError:
@@ -326,6 +325,7 @@ def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request
             name=u"alice",
             tahoe_web_port=u"tcp:9980:interface=localhost",
             magic_folder_web_port=u"tcp:19980:interface=localhost",
+            wormhole_url=wormhole.url,
             storage=True,
         )
     )
@@ -333,7 +333,7 @@ def alice(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request
 
 
 @pytest.fixture(scope='session')
-def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
+def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request, wormhole):
     try:
         mkdir(join(base_dir, 'magic-bob'))
     except OSError:
@@ -350,6 +350,7 @@ def bob(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
             name=u"bob",
             tahoe_web_port=u"tcp:9981:interface=localhost",
             magic_folder_web_port=u"tcp:19981:interface=localhost",
+            wormhole_url=wormhole.url,
             storage=False,
         )
     )
@@ -368,26 +369,39 @@ def edmond(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, reques
             u"edmond",
             tahoe_web_port=u"tcp:9985:interface=localhost",
             magic_folder_web_port=u"tcp:19985:interface=localhost",
+            wormhole_url="ws://localhost:4000/v1",
             storage=True,
         )
     )
 
-@pytest.fixture(scope='session')
-@log_call(action_type=u"integration:alice:invite", include_args=["base_dir"])
-def alice_invite(reactor, alice, base_dir):
-    invite = pytest_twisted.blockon(
-        _generate_invite(reactor, alice, "bob")
-    )
-    return invite
-
 
 @pytest.fixture(scope='session')
-@log_call(
-    action_type=u"integration:magic_folder",
-    include_args=["alice_invite"],
-)
-def magic_folder(reactor, alice_invite, alice, bob):
-    print("pairing magic-folder")
+def fran(reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, request):
     return pytest_twisted.blockon(
-        _pair_magic_folder(reactor, alice_invite, alice, bob)
+        MagicFolderEnabledNode.create(
+            reactor,
+            tahoe_venv,
+            request,
+            base_dir,
+            introducer_furl,
+            flog_gatherer,
+            u"fran",
+            tahoe_web_port=u"tcp:9986:interface=localhost",
+            magic_folder_web_port=u"tcp:19986:interface=localhost",
+            wormhole_url="ws://localhost:4000/v1",
+            storage=False,
+        )
+    )
+
+
+@pytest.fixture(scope='session')
+def wormhole(reactor, request):
+    """
+    A local Magic Wormhole mailbox server
+    """
+    return pytest_twisted.blockon(
+        WormholeMailboxServer.create(
+            reactor,
+            request,
+        )
     )

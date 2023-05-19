@@ -1,3 +1,5 @@
+.. _release-process:
+
 Magic-Folder Release Process
 ============================
 
@@ -24,8 +26,10 @@ There is no supported Python API.
 
 **Currently we make no stability guarantees.**
 
-One we change the above statement, the version numbers in the protocols will be updated upon any breaking changes.
+Once we change the above statement, the version numbers in the protocols will be updated upon any breaking changes.
 Any such changes will also be noted in the release notes.
+
+No matter the above statement, anyting in the `/experimental` tree of the HTTP API may change in any release.
 
 Integrations should:
 * run the Python daemon as a "black box"
@@ -35,7 +39,7 @@ Integrations should:
 The `magic-folder-api` command is intended as a convenience around the HTTP API and _should_ be in sync with that API (if it is not, that is a bug).
 Generally, this endeavors to return the same information in the same way as the HTTP API itself (usually JSON).
 
-The `magic-folder` command and sub-commands are mostly intended for "human" use so parsing their output should not be considered stable.
+The `magic-folder` command and sub-commands are mostly intended for "human" use so parsing their output *should not* be considered stable.
 For automated use it is preferable to use the "low-level" `magic-folder-api` or the HTTP API instead.
 (Please reach out if your needs are not served by the latter).
 

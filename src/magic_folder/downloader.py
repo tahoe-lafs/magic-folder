@@ -4,6 +4,7 @@ Classes and services relating to the operation of the Downloader
 
 import os
 from collections import deque
+import hashlib
 
 import attr
 from attr.validators import (
@@ -47,6 +48,7 @@ from .snapshot import (
 )
 from .status import (
     IStatus,
+    PollerStatus,
 )
 from .util.file import (
     PathState,
@@ -173,6 +175,8 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
+        if target_cap == child_cap:
+            return True
         # TODO: We can make this more efficent in the future by tracking some extra data.
         # - for each snapshot in our remotesnapshotdb, we are going to check if something is
         #   an ancestor very often, so could cache that information (we'd probably want to
@@ -270,7 +274,10 @@ class LocalMagicFolderFilesystem(object):
         IMagicFolderFilesystem API
         """
         assert file_cap is not None, "must supply a file-cap"
-        staged_path = self.staging_path.child(file_cap.hex_digest())
+        relpath_hasher = hashlib.sha256()  # rather blake2b, but is it all-platform?
+        relpath_hasher.update(file_cap.danger_real_capability_string().encode("ascii"))
+        relpath_hasher.update(relpath.encode("utf8"))
+        staged_path = self.staging_path.child(relpath_hasher.hexdigest())
         with staged_path.open('wb') as f:
             yield tahoe_client.stream_capability(file_cap, f)
         returnValue(staged_path)
@@ -411,7 +418,13 @@ class LocalMagicFolderFilesystem(object):
         shall be deleted.
         """
         local_path = self.magic_path.preauthChild(relpath)
-        local_path.remove()
+        try:
+            local_path.remove()
+        except FileNotFoundError:
+            # the file could never have existed -- consider if the
+            # other participant created and then deleted the file
+            # before we saw any updates.
+            pass
 
 
 @implementer(IMagicFolderFilesystem)
@@ -499,6 +512,12 @@ class RemoteScannerService(service.MultiService):
     def _loop(self):
         try:
             yield self._poll_collective()
+            self._status.poll_status(
+                self._config.name,
+                PollerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
         except Exception:
             # in some cases, might want to surface elsewhere
             write_traceback()
@@ -555,6 +574,7 @@ class RemoteScannerService(service.MultiService):
                             updates.append((relpath, file_data.snapshot_cap))
 
             # allow for parallel downloads
+            # (we could de-duplicate snapshots here, but the state-machine has to anyway)
             yield gatherResults([
                 self._process_snapshot(relpath, snapshot_cap)
                 for relpath, snapshot_cap in updates
@@ -588,4 +608,15 @@ class RemoteScannerService(service.MultiService):
                 yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
             abspath = self._config.magic_path.preauthChild(snapshot.relpath)
             mf = self._file_factory.magic_file_for(abspath)
-            yield maybeDeferred(mf.found_new_remote, snapshot)
+
+            # check if "snapshot" is already one of our ancestors; if
+            # it is, we've re-noticed an old update (so do not engage
+            # the state-machine)
+            if our_snapshot_cap is not None \
+               and self._remote_snapshot_cache.is_ancestor_of(snapshot.capability, our_snapshot_cap):
+                Message.log(
+                    message_type=u"downloader:redundant-update",
+                    relpath=snapshot.relpath,
+                )
+            else:
+                yield maybeDeferred(mf.found_new_remote, snapshot)

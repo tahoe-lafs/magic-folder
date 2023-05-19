@@ -40,21 +40,30 @@ from ..config import (
 )
 from ..status import (
     FolderStatus,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
+    LocalSnapshot,
 )
 from ..downloader import (
     InMemoryMagicFolderFilesystem,
+)
+from ..participants import (
+    SnapshotEntry,
+    static_participants,
 )
 from ..util.capabilities import (
     random_immutable,
     random_dircap,
 )
+from ..util.file import (
+    PathState,
+)
 
 from .common import (
     SyncTestCase,
+    success_result_of,
 )
 from .strategies import (
     relative_paths,
@@ -80,12 +89,13 @@ class MagicFolderServiceTests(SyncTestCase):
         config = object()
         participants = object()
         uploader = Service()
-        status_service = WebSocketStatusService(reactor, None)
+        status_service = EventsWebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
             client=tahoe_client,
             config=config,
             name=name,
+            invite_manager=Service(),
             local_snapshot_service=local_snapshot_service,
             folder_status=folder_status,
             remote_snapshot_cache=Service(),
@@ -140,7 +150,7 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.setContent(content)
 
         clock = task.Clock()
-        status_service = WebSocketStatusService(clock, global_config)
+        status_service = EventsWebSocketStatusService(clock, global_config)
         folder_status = FolderStatus(u"foldername", status_service)
         local_snapshot_creator = MemorySnapshotCreator()
         clock = task.Clock()
@@ -158,6 +168,7 @@ class MagicFolderServiceTests(SyncTestCase):
             client=tahoe_client,
             config=mf_config,
             name=name,
+            invite_manager=Service(),
             local_snapshot_service=local_snapshot_service,
             folder_status=folder_status,
             scanner_service=Service(),
@@ -192,3 +203,84 @@ class MagicFolderServiceTests(SyncTestCase):
             local_snapshot_creator.processed,
             Equals([target_path]),
         )
+
+
+class LocalStateTests(SyncTestCase):
+    """
+    Tests for ``MagicFolder.check_local_state``
+    """
+
+    def test_update_personal_dmd(self):
+        """
+        ``check_local_state`` find a local mismatch
+        """
+        local_snapshot_service = Service()
+        tahoe_client = object()
+        reactor = task.Clock()
+        name = u"local-snapshot-service-test"
+        basedir = FilePath(self.mktemp())
+        basedir.makedirs()
+        tahoedir = FilePath(self.mktemp())
+        tahoedir.makedirs()
+        magicdir = FilePath(self.mktemp())
+        magicdir.makedirs()
+        collective_cap = random_dircap()
+        upload_cap = random_dircap()
+
+        global_config = create_testing_configuration(basedir, tahoedir)
+        author = create_local_author(u"Ida Rhodes")
+        config = global_config.create_magic_folder(
+            "a folder",
+            magicdir,
+            author,
+            collective_cap,
+            upload_cap,
+            5,
+            5,
+        )
+        snap = LocalSnapshot(
+            "foo",
+            author,
+            dict(),
+            content_path=FilePath("snap content"),
+            parents_local=[],
+            parents_remote=[],
+        )
+        config.store_local_snapshot(snap, PathState(size=1234, mtime_ns=555, ctime_ns=555))
+
+        participants = static_participants(
+            my_files={
+                "foo": SnapshotEntry(
+                    random_immutable(),
+                    {"version": 1}
+                ),
+            }
+        )
+        uploader = Service()
+        status_service = EventsWebSocketStatusService(reactor, None)
+        folder_status = FolderStatus(name, status_service)
+        magic_folder = MagicFolder(
+            client=tahoe_client,
+            config=config,
+            name=name,
+            invite_manager=Service(),
+            local_snapshot_service=local_snapshot_service,
+            folder_status=folder_status,
+            remote_snapshot_cache=Service(),
+            downloader=MultiService(),
+            uploader=uploader,
+            participants=participants,
+            scanner_service=Service(),
+            clock=reactor,
+            magic_file_factory=MagicFileFactory(
+                config,
+                tahoe_client,
+                folder_status,
+                local_snapshot_service,
+                uploader,
+                Service(),
+                Service(),
+                InMemoryMagicFolderFilesystem(),
+            ),
+        )
+        success_result_of(magic_folder.check_local_state())

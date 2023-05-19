@@ -43,6 +43,7 @@ def magic_folder_show_config(config, stdout=None):
         "api_endpoint": config.api_endpoint,
         "api_client_endpoint": config.api_client_endpoint,
         "api_token": config.api_token.decode("utf8"),
+        "wormhole_uri": config.wormhole_uri,
         "magic_folders": magic_folders,
     }
     if stdout is None:

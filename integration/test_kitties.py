@@ -74,18 +74,32 @@ async def test_kittens(request, reactor, temp_filepath, alice):
     await alice.scan("kitties")
     print("scan done")
 
+    def find_uploads(data):
+        pending = []
+        for event in data["events"]:
+            if event["kind"].startswith("upload-"):
+                pending.append(event)
+        return pending
+
     # wait for a limited time to be complete
+    uploads = 0
     for _ in range(10):
         st = await alice.status()
         data = json.loads(st.strip())
-        if data["state"]["synchronizing"] is False:
+        uploads = len(find_uploads(data))
+        if uploads == 0:
             break
         await twisted_sleep(reactor, 1)
-    assert data["state"]["synchronizing"] is False, "Should be finished uploading"
+    assert uploads == 0, "Should be finished uploading"
 
-    kitties = data["state"]["folders"]["kitties"]
-    assert kitties["errors"] == [], "Expected zero errors"
-    actual_cats = {cat["relpath"] for cat in kitties["recent"]}
+    errors = [
+        evt for evt in data["events"]
+        if evt["kind"] == "error"
+    ]
+    assert errors == [], "Expected zero errors: {}".format(errors)
+
+    recent = await alice.client.recent_changes("kitties")
+    actual_cats = {cat["relpath"] for cat in recent}
     expected = set(cat_names + ["subdir/{}".format(n) for n in cat_names])
     assert expected == actual_cats, "Data mismatch"
 

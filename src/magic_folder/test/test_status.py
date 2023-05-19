@@ -28,7 +28,7 @@ from .common import (
 )
 from ..status import (
     StatusFactory,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..config import (
     create_testing_configuration,
@@ -51,7 +51,7 @@ class StatusServiceTests(SyncTestCase):
             self.basedir,
             self.tahoe_node_dir,
         )
-        self.service = WebSocketStatusService(
+        self.service = EventsWebSocketStatusService(
             self.clock,
             self.global_config,
         )
@@ -68,27 +68,47 @@ class StatusServiceTests(SyncTestCase):
 
         self.service.client_connected(ClientProtocol())
         self.service.upload_queued("foo", "foo")
+        self.clock.advance(1)
         self.service.upload_started("foo", "foo")
+        self.clock.advance(1)
         self.service.upload_finished("foo", "foo")
 
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }, {
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
-                }
-            }, {
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
-            }])
+            Equals([
+                {
+                    "events": [{
+                        "kind": "tahoe-connection-changed",
+                        "connected": 0,
+                        "desired": 0,
+                        "happy": False,
+                    }]
+                },
+                {
+                    "events": [{
+                        "kind": "upload-queued",
+                        "folder": "foo",
+                        "timestamp": 0.0,
+                        "relpath": "foo",
+                    }]
+                },
+                {
+                    "events": [{
+                        "kind": "upload-started",
+                        "folder": "foo",
+                        "timestamp": 1.0,
+                        "relpath": "foo",
+                    }]
+                },
+                {
+                    "events": [{
+                        "kind": "upload-finished",
+                        "folder": "foo",
+                        "timestamp": 2.0,
+                        "relpath": "foo",
+                    }]
+                },
+            ])
         )
 
     def test_offline_client(self):
@@ -103,6 +123,8 @@ class StatusServiceTests(SyncTestCase):
 
         self.service.upload_queued("foo", "foo")
         self.service.upload_started("foo", "foo")
+        self.service.download_queued("foo", "bar")
+        self.service.download_started("foo", "bar")
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the proper state
@@ -111,10 +133,39 @@ class StatusServiceTests(SyncTestCase):
         self.assertThat(
             messages,
             Equals([{
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
-                }
+                "events": [
+                    {"folder": "foo", "kind": "folder-added"},
+                    {
+                        "folder": "foo",
+                        "kind": "upload-queued",
+                        "timestamp": 0.0,
+                        "relpath": "foo",
+                    },
+                    {
+                        "folder": "foo",
+                        "kind": "upload-started",
+                        "relpath": "foo",
+                        "timestamp": 0.0,
+                    },
+                    {
+                        "folder": "foo",
+                        "kind": "download-queued",
+                        "timestamp": 0.0,
+                        "relpath": "bar",
+                    },
+                    {
+                        "folder": "foo",
+                        "kind": "download-started",
+                        "relpath": "bar",
+                        "timestamp": 0.0,
+                    },
+                    {
+                        "connected": 0,
+                        "desired": 0,
+                        "happy": False,
+                        "kind": "tahoe-connection-changed"
+                    }
+                ]
             }])
         )
 
@@ -134,10 +185,9 @@ class StatusServiceTests(SyncTestCase):
         self.assertThat(
             messages,
             Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
-                }
+                "events": [
+                    {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
+                ]
             }])
         )
 
@@ -147,19 +197,62 @@ class StatusServiceTests(SyncTestCase):
         # re-connect the client; it should get the (latest) state as
         # well as the initial state it got on the first connect
         self.service.client_connected(client)
+
         self.assertThat(
             messages,
-            Equals([{
-                "state": {
-                    "synchronizing": False,
-                    "folders": {},
+            Equals([
+                {
+                    "events": [
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
+                    ]
+                },
+                {
+                    "events": [
+                        {"folder": "foo", "kind": "folder-added"},
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"},
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
+                    ]
                 }
-            }, {
-                "state": {
-                    "synchronizing": True,
-                    "folders": {},
+            ])
+        )
+
+    def test_client_error(self):
+        """
+        We log an error if a message to a client fails to send
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+                if len(messages) == 2:
+                    raise RuntimeError("loopback is broken?")
+
+        client = ClientProtocol()
+        self.service.client_connected(client)
+
+        # change our state
+        self.service.upload_queued("foo", "foo")
+
+        self.assertThat(
+            messages,
+            Equals([
+                {
+                    "events": [
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
+                    ]
+                },
+                {
+                    "events": [
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
+                    ]
+                },
+                {
+                    "events": [
+                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
+                    ]
                 }
-            }])
+            ])
         )
 
 
@@ -180,7 +273,7 @@ class WebSocketTests(AsyncTestCase):
             self.tahoe_node_dir,
         )
 
-        self.service = WebSocketStatusService(
+        self.service = EventsWebSocketStatusService(
             self.reactor,
             self.global_config,
         )
@@ -216,10 +309,9 @@ class WebSocketTests(AsyncTestCase):
             messages,
             Equals([
                 {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
-                    }
+                    "events": [
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
+                    ]
                 }
             ])
         )
@@ -231,17 +323,15 @@ class WebSocketTests(AsyncTestCase):
             messages,
             Equals([
                 {
-                    "state": {
-                        "synchronizing": False,
-                        "folders": {},
-                    }
+                    "events": [
+                        {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"},
+                    ]
                 },
                 {
-                    "state": {
-                        "synchronizing": True,
-                        "folders": {},
-                    }
-                }
+                    "events": [
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
+                    ]
+                },
             ])
         )
         proto.dropConnection()

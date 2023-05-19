@@ -15,6 +15,9 @@ from autobahn.twisted.websocket import (
 )
 
 from twisted.python import usage
+from twisted.python.filepath import (
+    FilePath,
+)
 from twisted.internet.defer import (
     maybeDeferred,
     inlineCallbacks,
@@ -31,6 +34,144 @@ from .util.file import (
     ns_to_seconds_float,
 )
 from .util.eliotutil import maybe_enable_eliot_logging, with_eliot_options
+
+
+class CancelInviteOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder in which the invite exists"),
+        ("invite", "i", None, "ID of the invite to delete"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+        if self['invite'] is None:
+            raise usage.UsageError("--invite / -i is required")
+
+
+@inlineCallbacks
+def cancel_invite(options):
+    """
+    Cancel a pending invite in a folder
+    """
+    res = yield options.parent.client.cancel_invite(
+        options['folder'],
+        options['invite'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
+class ListInvitesOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to list invites for"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def list_invites(options):
+    """
+    List all pending invites for a folder
+    """
+    res = yield options.parent.client.list_invites(
+        options['folder'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
+class CreateInviteOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to add invite to"),
+        ("participant-name", "p", None, "Name to use for the invitee"),
+        ("mode", "m", "read-write", "Mode for the invitee"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+        if self['participant-name'] is None:
+            raise usage.UsageError("--participant-name / -p is required")
+
+
+@inlineCallbacks
+def create_invite(options):
+    """
+    Create a new invite for a folder
+    """
+    res = yield options.parent.client.invite(
+        options['folder'],
+        options['participant-name'],
+        options['mode'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
+class AwaitInviteOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder containing the invite"),
+        ("id", "i", None, "The ID of the invite to await"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def await_invite(options):
+    """
+    Await a new invite for a folder
+    """
+    res = yield options.parent.client.invite_wait(
+        options['folder'],
+        options['id'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
+
+
+class AcceptInviteOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to create"),
+        ("code", "c", None, "The invite code"),
+        ("local-dir", "d", None, "The local directory to synchronize", FilePath),
+        ("author", "a", None, "The author name"),
+        ("poll-interval", "p", 60, "Seconds between polling for remote updates", int),
+        ("scan-interval", "s", 60, "Seconds between scanning for local updates", int),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "n"),
+            ("code", "c"),
+            ("local-dir", "d"),
+            ("author", "a"),
+        ]
+        for large, smol in required_args:
+            if self[large] is None:
+                raise usage.UsageError("--{} / -{} is required".format(large, smol))
+
+
+@inlineCallbacks
+def accept_invite(options):
+    """
+    Accept a new invite for a folder
+    """
+    res = yield options.parent.client.join(
+        options['folder'],
+        options['code'],
+        options['local-dir'],
+        options['author'],
+        options['poll-interval'],
+        options['scan-interval'],
+    )
+    print(json.dumps(res, indent=4), file=options.stdout)
 
 
 class AddSnapshotOptions(usage.Options):
@@ -58,6 +199,28 @@ def add_snapshot(options):
         options['file'],
     )
     print("{}".format(res), file=options.stdout)
+
+
+class FileStatusOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder to list"),
+    ]
+
+    def postOptions(self):
+        # required args
+        if self['folder'] is None:
+            raise usage.UsageError("--folder / -n is required")
+
+
+@inlineCallbacks
+def file_status(options):
+    """
+    List the status of all files in a magic-folder
+    """
+    res = yield options.parent.client.file_status(
+        options['folder'],
+    )
+    print(json.dumps(res, indent=2), file=options.stdout)
 
 
 class DumpStateOptions(usage.Options):
@@ -181,6 +344,31 @@ def list_participants(options):
     print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
 
 
+class ListConflictsOptions(usage.Options):
+    optParameters = [
+        ("folder", "n", None, "Name of the magic-folder conflicts to list"),
+    ]
+
+    def postOptions(self):
+        required_args = [
+            ("folder", "--folder / -n is required"),
+        ]
+        for (arg, error) in required_args:
+            if self[arg] is None:
+                raise usage.UsageError(error)
+
+
+@inlineCallbacks
+def list_conflicts(options):
+    """
+    List all conflicts in a magic-folder
+    """
+    res = yield options.parent.client.list_conflicts(
+        options['folder'],
+    )
+    print("{}".format(json.dumps(res, indent=4)), file=options.stdout)
+
+
 class ScanOptions(usage.Options):
     optParameters = [
         ("folder", "n", None, "Name of the magic-folder to scan", str),
@@ -285,12 +473,19 @@ class MagicFolderApiCommand(BaseOptions):
 
     subCommands = [
         ["add-snapshot", None, AddSnapshotOptions, "Add a Snapshot of a file to a magic-folder."],
+        ["file-status", None, FileStatusOptions, "List status of all files in a magic-folder."],
         ["dump-state", None, DumpStateOptions, "Dump the local state of a magic-folder."],
         ["add-participant", None, AddParticipantOptions, "Add a Participant to a magic-folder."],
         ["list-participants", None, ListParticipantsOptions, "List all Participants in a magic-folder."],
+        ["list-conflicts", None, ListConflictsOptions, "List all conflicts in a magic-folder."],
         ["scan", None, ScanOptions, "Scan for local changes in a magic-folder."],
         ["poll", None, PollOptions, "Poll for remote changes in a magic-folder."],
         ["monitor", None, MonitorOptions, "Monitor status updates."],
+        ["list-invites", None, ListInvitesOptions, "List all invites in a magic-folder."],
+        ["create-invite", None, CreateInviteOptions, "Create an invite in a magic-folder."],
+        ["await-invite", None, AwaitInviteOptions, "Wait for an invite to be resolved."],
+        ["accept-invite", None, AcceptInviteOptions, "Accept an invite (creating a magic-folder)."],
+        ["cancel-invite", None, CancelInviteOptions, "Cancel a pending invite."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -399,12 +594,19 @@ def run_magic_folder_api_options(options):
     so.stderr = options.stderr
     main_func = {
         "add-snapshot": add_snapshot,
+        "file-status": file_status,
         "dump-state": dump_state,
         "add-participant": add_participant,
         "list-participants": list_participants,
+        "list-conflicts": list_conflicts,
         "scan": scan,
         "poll": poll,
         "monitor": monitor,
+        "list-invites": list_invites,
+        "create-invite": create_invite,
+        "await-invite": await_invite,
+        "accept-invite": accept_invite,
+        "cancel-invite": cancel_invite,
     }[options.subCommand]
 
     maybe_enable_eliot_logging(options)

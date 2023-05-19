@@ -21,6 +21,7 @@ from twisted.internet.defer import (
     maybeDeferred,
     succeed,
     CancelledError,
+    returnValue,
 )
 from twisted.web.client import (
     ResponseNeverReceived,
@@ -243,7 +244,19 @@ class MagicFile(object):
         :returns Deferred: fires with None when our local state is
             persisted. This is before the upload has occurred.
         """
-        return self._local_update()
+        d = maybeDeferred(self._local_update)
+
+        def is_empty(arg):
+            """
+            The state-machine can return 'no outputs' -- which is an empty
+            list -- if we go conflict -> conflict. Here we translate
+            that to None
+            """
+            if not arg:
+                return None
+            return arg
+        d.addCallback(is_empty)
+        return d
 
     def found_new_remote(self, remote_snapshot):
         """
@@ -392,9 +405,6 @@ class MagicFile(object):
     def _remote_update(self, snapshot):
         """
         The file has a remote update.
-
-        XXX should this be 'snapshots' for multiple participant updates 'at once'?
-        XXX does this include deletes?
         """
 
     @_machine.input()
@@ -490,7 +500,6 @@ class MagicFile(object):
         """
         Download a given Snapshot (including its content)
         """
-
         def downloaded(staged_path):
             self._call_later(self._download_completed, snapshot, staged_path)
 
@@ -776,7 +785,6 @@ class MagicFile(object):
         Create a LocalSnapshot for this update
         """
         d = self._factory._local_snapshot_service.add_file(self._path)
-
         # when the local snapshot gets created, it _should_ have the
         # next thing in our queue (if any) as its parent (see assert below)
 
@@ -956,6 +964,12 @@ class MagicFile(object):
         """
         Save this remote snapshot for later processing (in _check_for_remote_work)
         """
+        # skip queueing this download if we already have this snapshot
+        # ahead in the queue
+        for _, queued_snap in self._queue_remote:
+            if snapshot == queued_snap:
+                # same return-value as _begin_download: None
+                return succeed(None)
         d = Deferred()
         self._queue_remote.append((d, snapshot))
         return d
@@ -1297,3 +1311,102 @@ class MagicFile(object):
         enter=_failed,
         outputs=[],  # should perhaps record (another) error?
     )
+
+
+@inline_callbacks
+def deferred_retry(reactor, function, should_retry, *args, **kw):
+    """
+    Run the possibly-async `function` (passing all `args` and `kw`)
+    and retry upon error if `should_retry(exc)` returns a positive
+    integer (which is the delay).
+    """
+    while True:
+        try:
+            d = maybeDeferred(function, *args, **kw)
+            result = yield d
+            returnValue(result)
+
+        except Exception as e:
+            delay = should_retry(e)
+            if delay in (None, False):
+                return
+            yield deferLater(reactor, delay, lambda: None)
+
+
+@inline_callbacks
+def _attempt_personal_dmd_sync(reactor, action, config, read_participant, write_participant):
+    """
+    The core of `maybe_update_personal_dmd_to_local` (which controls
+    our retry behavior).
+    """
+    files = yield read_participant.files()
+    local_files = config.get_all_snapshot_paths_and_caps()
+
+    for relpath, snap_cap in local_files:
+        try:
+            current_cap = files[relpath].snapshot_cap
+        except KeyError:
+            action.log(message_type=relpath, status="no-entry")
+            current_cap = None
+        if current_cap != snap_cap:
+            action.log(message_type=relpath, status="updating")
+            yield write_participant.update_snapshot(relpath, snap_cap)
+        else:
+            action.log(message_type=relpath, status="good")
+    if not local_files:
+        action.log(message_type="no-files")
+
+
+@inline_callbacks
+def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
+    """
+    It is possible for us to crash or otherwise exit when updates have
+    been made to local databases but not yet to our Personal DMD.
+
+    For example, when downloading a new update, we may have downloaded
+    the file and updated the [current_snapshots] database but then
+    exit before successfully updating our Personal DMD.
+
+    This function examines all entries in [current_snapshots] and
+    ensures that our Personal DMD matches. If it doesn't, the Personal
+    DMD is updated (that is, local state is taken as the most
+    up-to-date).
+
+    It is arranged for this function to run once at startup.
+
+    To avoid fully starting with inconsistent state, we internally
+    keep re-trying this and will only callback our Deferred when our
+    state is consistent.
+
+    :param MagicFolderConfig config: our configuration state
+
+    :param get_participants: a possibly-async callable that returns
+        our IParticipant and IWriteParticipants (this is a callable so
+        we can retry it -- if we can't talk to Tahoe yet, we probably
+        can't list participants yet either)
+    """
+
+    # XXX should probably do _some_ kind of falloff and jitter
+    # here..with max delay of some sort
+
+    with start_action(action_type="confirm-personal-dmd-state", folder=config.name) as action:
+
+        def maybe_retry(exc):
+            """
+            Always retry in 5 seconds.
+            """
+            action.log(message_type="error", e=str(exc))
+            return 5
+
+        reader, writer = yield deferred_retry(
+            reactor,
+            get_participants,
+            maybe_retry,
+        )
+
+        yield deferred_retry(
+            reactor,
+            _attempt_personal_dmd_sync,
+            maybe_retry,
+            reactor, action, config, reader, writer
+        )

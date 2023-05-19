@@ -40,7 +40,9 @@ from ..config import (
     create_global_configuration,
 )
 from ..service import MagicFolderService
-from ..status import WebSocketStatusService
+from ..status import (
+    EventsWebSocketStatusService,
+)
 from .fixtures import (
     NodeDirectory,
 )
@@ -55,7 +57,7 @@ from magic_folder.tahoe_client import (
 
 class TestTahoeMonitor(AsyncTestCase):
     """
-    Tests relating to ConnectedTahoeservice
+    Tests relating to ConnectedTahoeService
     """
 
     def setUp(self):
@@ -83,8 +85,22 @@ class TestTahoeMonitor(AsyncTestCase):
         self.service = MagicFolderService(
             self.reactor,
             self.config,
-            WebSocketStatusService(self.reactor, self.config),
+            EventsWebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
+        )
+
+    @inline_callbacks
+    def test_wait_happy(self):
+        # do one before we start the service so it "actually" has to
+        # wait
+        d0 = self.service._tahoe_status_service.when_happy()
+        self.service.startService()
+        d1 = self.service._tahoe_status_service.when_happy()
+        yield d0
+        yield d1
+        self.assertThat(
+            self.service._tahoe_status_service.happy,
+            Equals(True)
         )
 
     def test_welcome_fails(self):
@@ -142,7 +158,7 @@ class TestService(AsyncTestCase):
         self.service = MagicFolderService(
             self.reactor,
             self.config,
-            WebSocketStatusService(self.reactor, self.config),
+            EventsWebSocketStatusService(self.reactor, self.config),
             self.tahoe_client,
         )
         self.service._stdout = self.out = io.StringIO()
@@ -222,7 +238,7 @@ class TestAdd(SyncTestCase):
         self.service = MagicFolderService(
             clock,
             self.config,
-            WebSocketStatusService(clock, self.config),
+            EventsWebSocketStatusService(clock, self.config),
             self.tahoe_client,
         )
 

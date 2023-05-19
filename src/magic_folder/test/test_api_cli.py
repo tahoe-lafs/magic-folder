@@ -57,7 +57,7 @@ from ..config import (
 )
 from ..status import (
     StatusFactory,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
@@ -834,7 +834,7 @@ class TestApiMonitor(AsyncTestCase):
         )
         self.reactor = MemoryReactorClockResolver()
         self.pumper = create_pumper()
-        self.service = WebSocketStatusService(
+        self.service = EventsWebSocketStatusService(
             self.reactor,
             self.global_config,
         )
@@ -872,9 +872,8 @@ class TestApiMonitor(AsyncTestCase):
         self.assertThat(
             json.loads(stdout.getvalue()),
             Equals({
-                'state': {
-                    'folders': {},
-                    'synchronizing': False,
-                }
-            }),
+                "events": [
+                    {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
+                ]
+            })
         )

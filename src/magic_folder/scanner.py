@@ -16,9 +16,17 @@ from twisted.application.service import MultiService
 from twisted.internet.defer import (
     DeferredLock,
 )
-from twisted.internet.task import Cooperator
+from twisted.internet.task import (
+    Cooperator,
+)
 
-from .util.file import get_pathinfo
+from .status import (
+    ScannerStatus,
+)
+from .util.file import (
+    get_pathinfo,
+    seconds_to_ns,
+)
 from .util.twisted import (
     exclusively,
     PeriodicService,
@@ -52,7 +60,8 @@ class ScannerService(MultiService):
 
     _config = attr.ib()
     _file_factory = attr.ib()
-    _status = attr.ib()
+    # "tests" and "relative_proxy_for" don't play nicely w/ validator
+    _status = attr.ib()  #validator=attr.validators.provides(IStatus))
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _clock = attr.ib()
@@ -122,6 +131,11 @@ class ScannerService(MultiService):
         """
         try:
             yield self._scan()
+            self._status.scan_status(
+                ScannerStatus(
+                    last_completed=seconds_to_ns(self._clock.seconds()),
+                )
+            )
         except Exception:
             write_traceback()
 
@@ -156,13 +170,11 @@ class ScannerService(MultiService):
                 self._cooperator, self._config, process, self._status
             )
 
-        results = []
-
         def create_update(path):
             magic_file = self._file_factory.magic_file_for(path)
             d = magic_file.create_update()
-            assert d is not None, "Internal error: no snapshot produced"
-            d.addBoth(results.append)
+            # this will produce a LocalSnapshot instance or None when
+            # there is nothing to do -- for example, when conflicted.
             return d
 
         yield self._cooperator.coiterate(

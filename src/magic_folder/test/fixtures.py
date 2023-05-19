@@ -12,6 +12,16 @@ from errno import (
 from allmydata.util.base32 import (
     b2a,
 )
+from wormhole.wormhole import (
+    IDeferredWormhole,
+)
+from zope.interface import (
+    implementer,
+)
+from twisted.internet.defer import (
+    succeed,
+)
+
 from ..util.encoding import (
     load_yaml,
     dump_yaml,
@@ -38,6 +48,7 @@ from twisted.internet.task import (
     Cooperator,
 )
 from twisted.internet.defer import (
+    CancelledError,
     DeferredList,
 )
 from twisted.python.filepath import FilePath
@@ -66,7 +77,7 @@ from ..tahoe_client import (
 from ..participants import participants_from_collective
 from ..snapshot import create_local_author
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..service import MagicFolderService
 
@@ -214,7 +225,7 @@ class MagicFileFactoryFixture(Fixture):
             self.temp.child("config"),
             self.temp.child("tahoe-node"),
         )
-        self.status = WebSocketStatusService(Clock(), self._global_config)
+        self.status = EventsWebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
 
         uncooperator = Cooperator(
@@ -296,6 +307,7 @@ class MagicFolderNode(object):
         folders=None,
         start_folder_services=False,
         tahoe_client=None,
+        wormhole_factory=None,
     ):
         """
         Create a :py:`MagicFolderService` and a treq client which is hooked up to it.
@@ -383,7 +395,7 @@ class MagicFolderNode(object):
                         config[u"scan-interval"],
                     )
 
-        status_service = WebSocketStatusService(
+        status_service = EventsWebSocketStatusService(
             reactor,
             global_config,
         )
@@ -396,6 +408,8 @@ class MagicFolderNode(object):
             # in its efforts to create one itself.
             tahoe_client,
             cooperator=uncooperator,
+            skip_check_state=True,
+            wormhole_factory=wormhole_factory,
         )
 
         if folders and tahoe_root:
@@ -456,3 +470,51 @@ class MagicFolderNode(object):
             magic_folder.stopService()
             for magic_folder in self.global_service._iter_magic_folder_services()
         ])
+
+
+@implementer(IDeferredWormhole)
+class FakeWormhole:
+    """
+    Enough of a DeferredWormhole fake to do the unit-test
+    """
+
+    def __init__(self, code="1-foo-bar", messages=None, on_closed=None):
+        self._code = code
+        self._on_closed = on_closed
+        self._outgoing_messages = [] if messages is None else messages
+        self.sent_messages = []
+        self._cancelled = False
+
+    def add_message(self, msg):
+        self._outgoing_messages.append(msg)
+
+    # the IDeferredWormhole API methods
+
+    def get_welcome(self):
+        return succeed({})
+
+    def allocate_code(self, size):
+        return succeed(self._code)
+
+    def get_code(self):
+        return succeed(self._code)
+
+    def get_versions(self):
+        return succeed({
+            "magic-folder": {
+                "supported-messages": ["invite-v1"]
+            }
+        })
+
+    def get_message(self):
+        if len(self._outgoing_messages):
+            msg = self._outgoing_messages.pop(0)
+            return msg
+        raise CancelledError()
+
+    def send_message(self, msg):
+        self.sent_messages.append(msg)
+
+    def close(self):
+        self._on_closed()
+        return succeed(None)

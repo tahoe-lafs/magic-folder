@@ -31,7 +31,6 @@ from hypothesis.strategies import (
 
 from testtools.matchers import (
     AfterPreprocessing,
-    AllMatch,
     ContainsDict,
     Equals,
     Contains,
@@ -39,8 +38,8 @@ from testtools.matchers import (
     MatchesAny,
     MatchesDict,
     MatchesListwise,
-    MatchesPredicate,
     StartsWith,
+    Always,
 )
 from testtools.twistedsupport import (
     succeeded,
@@ -83,8 +82,12 @@ from treq.testing import (
 from .common import (
     skipIf,
     SyncTestCase,
+    success_result_of,
 )
-from .fixtures import MagicFolderNode
+from .fixtures import (
+    MagicFolderNode,
+    FakeWormhole,
+)
 from .matchers import (
     matches_response,
     header_contains,
@@ -105,7 +108,6 @@ from ..config import (
 )
 from ..web import (
     magic_folder_resource,
-    APIv1,
 )
 from ..util.file import (
     PathState,
@@ -176,7 +178,7 @@ class AuthorizationTests(SyncTestCase):
         def get_auth_token():
             return good_token
 
-        root = magic_folder_resource(get_auth_token, Resource())
+        root = magic_folder_resource(get_auth_token, Resource(), Resource())
         treq = StubTreq(root)
         url = DecodedURL.from_text(u"http://example.invalid./v1").child(*child_segments)
         encoded_url = url_to_bytes(url)
@@ -239,6 +241,7 @@ class AuthorizationTests(SyncTestCase):
         root = magic_folder_resource(
             get_auth_token,
             v1_resource=branch,
+            exp_resource=Resource(),
         )
 
         treq = StubTreq(root)
@@ -266,7 +269,8 @@ class AuthorizationTests(SyncTestCase):
 
 
 def treq_for_folders(
-    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None
+    reactor, basedir, auth_token, folders, start_folder_services, tahoe_client=None,
+    wormhole_factory=None,
 ):
     """
     Construct a ``treq``-module-alike which is hooked up to a Magic Folder
@@ -277,7 +281,7 @@ def treq_for_folders(
     :return: An object like the ``treq`` module.
     """
     return MagicFolderNode.create(
-        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client
+        reactor, basedir, auth_token, folders, start_folder_services, tahoe_client, wormhole_factory,
     ).http_client
 
 
@@ -923,25 +927,6 @@ class RedirectTests(SyncTestCase):
                 ),
             ),
         )
-
-    def test_werkzeug_issue_2157_fix(self):
-        """
-        Ensure that the only redirects that werkzeug will generate are merging slashes.
-
-        This ensures that the workaround to
-        https://github.com/pallets/werkzeug/issues/2157 is correct.
-        """
-        self.assertThat(
-            APIv1.app.url_map.iter_rules(),
-            AllMatch(
-                MatchesPredicate(
-                    lambda rule: rule.is_leaf and not rule.alias,
-                    "Rule %r is not a leaf, has an alias, or has a redirect specified. "
-                    "This will break our fix for https://github.com/pallets/werkzeug/issues/2157"
-                )
-            ),
-        )
-
 
 
 class ScanFolderTests(SyncTestCase):
@@ -1998,6 +1983,30 @@ class FileStatusTests(SyncTestCase):
                 ),
             )
         )
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                u"GET",
+                self.url.child("default", "recent-changes"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals([
+                            {
+                                "conflicted": False,
+                                "last-updated": 42,
+                                "modified": 1,
+                                "relpath": "foo",
+                            }
+                        ])
+                    )
+                )
+            )
+        )
 
 
 class ConflictStatusTests(SyncTestCase):
@@ -2120,6 +2129,275 @@ class ConflictStatusTests(SyncTestCase):
                         }),
                     )
                 ),
+            )
+        )
+
+
+class InviteTests(SyncTestCase):
+    """
+    Tests relating to invites
+    """
+    url = DecodedURL.from_text(u"http://example.invalid./experimental/magic-folder")
+
+    def setUp(self):
+        self.local_path = FilePath(self.mktemp())
+        self.local_path.makedirs()
+
+        self.folder_config = magic_folder_config(
+            "lixia",
+            self.local_path,
+        )
+
+        self.wormhole = None
+        self.wormhole_messages = []
+        self.wormhole_was_closed = False
+
+        def create_wormhole(*args, **kw):
+            assert self.wormhole is None, "Double wormhole"
+            self.wormhole = FakeWormhole(
+                "1-foo-bar",
+                self.wormhole_messages,
+                self.wormhole_closed,
+            )
+            return self.wormhole
+
+        self.wormhole_factory = create_wormhole
+        self.treq = treq_for_folders(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": self.folder_config,
+            },
+            start_folder_services=False,
+            wormhole_factory=self.wormhole_factory,
+        )
+        super().setUp()
+
+    def wormhole_closed(self):
+        self.wormhole_was_closed = True
+
+    def tearDown(self):
+        self.wormhole = None
+        super().tearDown()
+
+    def test_create_invite(self):
+        """
+        Create a fresh invite for a folder
+        """
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "id": Always(),
+                            "participant-name": Equals("francesca"),
+                            "wormhole-code": Equals("1-foo-bar"),
+                            "consumed": Equals(False),
+                            "success": Equals(False),
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_create_invite_then_delete(self):
+        """
+        Create an invite and cancel it
+        """
+
+        # create the invite (we already tested this part above)
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            invite,
+            MatchesDict({
+                "id": Always(),
+                "participant-name": Equals("francesca"),
+                "wormhole-code": Equals("1-foo-bar"),
+                "consumed": Equals(False),
+                "success": Equals(False),
+            })
+        )
+
+        # in a "normal" case, we'd "actually await" and when the
+        # wormhole is closed it'll cancel the deferred .. but to do it
+        # synchronously we have to have special knowledge
+        self.wormhole._cancelled = True
+
+        # await the invite (to see that the cancel propagates)
+        invite_d = authorized_request(
+            self.treq,
+            AUTH_TOKEN,
+            u"POST",
+            self.url.child("default", "invite-wait"),
+            dumps({
+                "id": invite["id"],
+            }).encode("utf8"),
+        )
+
+        # delete the invite
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({})
+                    )
+                )
+            )
+        )
+        self.assertThat(
+            self.wormhole_was_closed,
+            Equals(True)
+        )
+        self.assertThat(
+            success_result_of(invite_d),
+            matches_response(
+                code_matcher=Equals(410),
+                body_matcher=AfterPreprocessing(
+                    loads,
+                    Equals({"reason": "cancelled"})
+                )
+            )
+        )
+
+    def test_delete_non_existing(self):
+        """
+        Cancenl an invite that doesn't exist
+        """
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": "an id that doesn't exist",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_wrong_request_body(self):
+        """
+        Malformed cancel request
+        """
+        # XXX there are many kinds of bad request-bodies, maybe we
+        # should Hypothesis more
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "no id key": "fake",
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Always(),
+                        })
+                    )
+                )
+            )
+        )
+
+    def test_delete_already_consumed(self):
+        """
+        Can't cancel a request that is already consumed
+        """
+        # prepare to accept the wormhole right away
+        self.wormhole_messages = [
+            dumps({
+                "protocol": "invite-v1",
+            }).encode("utf8")
+        ]
+        invite_response = success_result_of(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite"),
+                dumps({
+                    "participant-name": "francesca",
+                    "mode": "read-write",
+                }).encode("utf8"),
+            )
+        )
+        invite = success_result_of(invite_response.json())
+
+        self.assertThat(
+            authorized_request(
+                self.treq,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "invite-cancel"),
+                dumps({
+                    "id": invite["id"],
+                }).encode("utf8"),
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        MatchesDict({
+                            "reason": Contains("cannot be canceled"),
+                        })
+                    )
+                )
             )
         )
 

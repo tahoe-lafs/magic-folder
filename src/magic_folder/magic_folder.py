@@ -34,6 +34,7 @@ from .downloader import (
 )
 from .magic_file import (
     MagicFileFactory,
+    maybe_update_personal_dmd_to_local,
 )
 from .participants import (
     IParticipant,
@@ -42,7 +43,12 @@ from .participants import (
 from .scanner import (
     ScannerService,
 )
-from .status import FolderStatus
+from .invite import (
+    InMemoryInviteManager,
+)
+from .status import (
+    FolderStatus,
+)
 
 
 # Mask off all non-owner permissions for magic-folders files by default.
@@ -58,7 +64,7 @@ class MagicFolder(service.MultiService):
     """
 
     @classmethod
-    def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None):
+    def from_config(cls, reactor, tahoe_client, name, config, status_service, cooperator=None, invite_manager=None):
         """
         Create a ``MagicFolder`` from a client node and magic-folder
         configuration.
@@ -127,11 +133,14 @@ class MagicFolder(service.MultiService):
             magic_file_factory,
             folder_status,
         )
+        if invite_manager is None:
+            invite_manager = InMemoryInviteManager(tahoe_client, folder_status, mf_config)
 
         return cls(
             client=tahoe_client,
             config=mf_config,
             name=name,
+            invite_manager=invite_manager,
             local_snapshot_service=local_snapshot_service,
             remote_snapshot_cache=remote_snapshot_cache_service,
             downloader=RemoteScannerService.from_config(
@@ -156,7 +165,7 @@ class MagicFolder(service.MultiService):
         # this is used by 'service' things and must be unique in this Service hierarchy
         return u"magic-folder-{}".format(self.folder_name)
 
-    def __init__(self, client, config, name, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
+    def __init__(self, client, config, name, invite_manager, local_snapshot_service, folder_status, scanner_service, remote_snapshot_cache, downloader, uploader, participants, clock, magic_file_factory):
         super(MagicFolder, self).__init__()
         self.folder_name = name
         self._clock = clock
@@ -168,24 +177,55 @@ class MagicFolder(service.MultiService):
         self.uploader_service = uploader
         self.folder_status = folder_status
         self.scanner_service = scanner_service
+        self.invite_manager = invite_manager
         # By setting the parents these services will now start when
         # self, the top-level service, starts
         local_snapshot_service.setServiceParent(self)
         downloader.setServiceParent(self)
         uploader.setServiceParent(self)
         scanner_service.setServiceParent(self)
+        invite_manager.setServiceParent(self)
+
+    def startService(self):
+        # we don't start any of our "real" services until the
+        # local-state check has completed (unless we're skipping that,
+        # usually in tests)
+        do_check = self.parent and not self.parent._skip_check_state
+        if do_check:
+            d = self.check_local_state()
+        else:
+            d = defer.succeed(None)
+        d.addCallback(lambda _: super(MagicFolder, self).startService())
 
     @inline_callbacks
     def stopService(self):
         yield self.file_factory.cancel()
         yield super(MagicFolder, self).stopService()
 
-    def ready(self):
+    @inline_callbacks
+    def check_local_state(self):
         """
-        :returns: Deferred that fires with None when this magic-folder is
-            ready to operate
+        :returns: Deferred that fires with None when this magic-folder has
+            successfully confirmed that its local state matches the
+            Personal DMD.
         """
-        return defer.succeed(None)
+
+        @inline_callbacks
+        def get_participants():
+            participants = yield self.participants()
+            self_reader = [
+                participant
+                for participant in participants
+                if participant.is_self
+            ]
+            assert len(self_reader) == 1, f"should be exactly one 'self' participant: {participants}"
+            defer.returnValue(tuple((self_reader[0], self._participants.writer)))
+
+        yield maybe_update_personal_dmd_to_local(
+            self._clock,
+            self.config,
+            get_participants,
+        )
 
     def scan_local(self):
         """

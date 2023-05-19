@@ -19,7 +19,7 @@ from . import util
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
-async def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer):
+async def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flog_gatherer, wormhole):
     """
     'magic-folder list' happy-path works
     """
@@ -35,6 +35,7 @@ async def test_list(request, reactor, tahoe_venv, base_dir, introducer_furl, flo
             name="zelda",
             tahoe_web_port="tcp:9982:interface=localhost",
             magic_folder_web_port="tcp:19982:interface=localhost",
+            wormhole_url=wormhole.url,
             storage=True,
         )
 

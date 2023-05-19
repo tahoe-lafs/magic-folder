@@ -82,12 +82,15 @@ from ..common import (
 from ..config import (
     Conflict,
     LocalSnapshotMissingParent,
+    LocalSnapshotRequiresParent,
     RemoteSnapshotWithoutPathState,
     SQLite3DatabaseLocation,
     MagicFolderConfig,
     endpoint_description_to_http_api_root,
     create_global_configuration,
+    create_testing_configuration,
     load_global_configuration,
+    is_valid_experimental_feature,
 )
 from ..snapshot import (
     create_local_author,
@@ -200,6 +203,31 @@ class TestGlobalConfig(SyncTestCase):
         self.assertThat(
             config2.api_endpoint,
             Equals("tcp:42")
+        )
+
+    def test_change_websocket_url(self):
+        """
+        An assignment that changes the value of
+        ``GlobalConfigDatabase.wormhole_uri`` results in the new value
+        being available when the database is loaded again with
+        ``load_global_configuration``.
+        """
+        config = create_global_configuration(
+            self.temp,
+            u"tcp:1234",
+            self.node_dir,
+            u"tcp:localhost:1234",
+            u"ws://localhost:4444/",
+        )
+        config.wormhole_uri = "ws://example.invalid./"
+        config2 = load_global_configuration(self.temp)
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals(config.wormhole_uri)
+        )
+        self.assertThat(
+            config2.wormhole_uri,
+            Equals("ws://example.invalid./")
         )
 
 
@@ -634,6 +662,56 @@ class StoreLocalSnapshotTests(SyncTestCase):
             )
 
     @given(
+        content1=binary(min_size=1),
+        content2=binary(min_size=1),
+        filename=magic_folder_filenames(),
+        stash_subdir=path_segments(),
+    )
+    def test_store_snapshot_wrong_parent(self, content1, content2, filename, stash_subdir):
+        """
+        If we already have a local-snapshot for a relpath it is an error
+        to add one that doesn't include that snapshot as a parent.
+        """
+        data1 = BytesIO(content1)
+
+        snapshots = []
+
+        d = create_snapshot(
+            relpath=filename,
+            author=self.author,
+            data_producer=data1,
+            snapshot_stash_dir=self.stash,
+            parents=[],
+            cooperator=self.uncooperator,
+        )
+        d.addCallback(snapshots.append)
+
+        # now modify the same file and create a new local snapshot
+        data2 = BytesIO(content2)
+        d = create_snapshot(
+            relpath=filename,
+            author=self.author,
+            data_producer=data2,
+            snapshot_stash_dir=self.stash,
+            parents=[],  # ...but don't include the correct parent
+            cooperator=self.uncooperator,
+        )
+        d.addCallback(snapshots.append)
+
+        # the first snapshot goes into the database
+        self.db.store_local_snapshot(
+            snapshots[0],
+            PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+        )
+        # trying to serialize this one is an error: it must have
+        # snapshots[0] as a parent to be valid
+        with ExpectedException(LocalSnapshotRequiresParent, ".*at least one parent.*"):
+            self.db.store_local_snapshot(
+                snapshots[1],
+                PathState(42, seconds_to_ns(42), seconds_to_ns(42)),
+            )
+
+    @given(
         local_snapshots(),
     )
     def test_delete_all_local_snapshots_for(self, snapshot):
@@ -649,7 +727,6 @@ class StoreLocalSnapshotTests(SyncTestCase):
         self.db.delete_all_local_snapshots_for(snapshot.relpath)
         with ExpectedException(KeyError, escape(repr(snapshot.relpath))):
             self.db.get_local_snapshot(snapshot.relpath)
-
 
 
 class DeleteLocalSnapshotTests(SyncTestCase):
@@ -1191,7 +1268,7 @@ class RemoteSnapshotTimeTests(SyncTestCase):
                 ],
                 Equals([
                     ("foo_{}".format(x), x)
-                    for x in range(34, 4, -1)  # newest to oldest
+                    for x in range(34, 14, -1)  # newest to oldest
                 ])
             )
         )
@@ -1381,3 +1458,63 @@ class ConflictTests(SyncTestCase):
             self.db.is_conflict_marker(conflict_path),
             Equals(True)
         )
+
+
+class OptionalFeatureTests(SyncTestCase):
+    """
+    Test optional features
+    """
+    def setUp(self):
+        super(OptionalFeatureTests, self).setUp()
+        self._basedir = FilePath(self.mktemp())
+        self._nodedir = FilePath(self.mktemp())
+        self.config = create_testing_configuration(self._basedir, self._nodedir)
+
+    def test_invalid_feature(self):
+        self.assertThat(
+            is_valid_experimental_feature("not-a-valid-feature"),
+            Equals(False)
+        )
+
+    def test_enable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.enable_feature("not-a-valid-feature")
+
+    def test_disable_fail_on_invalid_feature(self):
+        with self.assertRaises(ValueError):
+            self.config.disable_feature("not-a-valid-feature")
+
+    def test_disable_but_wasnt(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            with self.assertRaises(ValueError):
+                self.config.disable_feature(valid_feature)
+
+    def test_enable_disable_feature(self):
+        from ..config import _features
+        for valid_feature in _features.keys():
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )
+
+            with self.assertRaises(ValueError):
+                self.config.enable_feature(valid_feature)
+
+            self.config.disable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(False)
+            )
+
+            self.config.enable_feature(valid_feature)
+            self.assertThat(
+                self.config.feature_enabled(valid_feature),
+                Equals(True)
+            )

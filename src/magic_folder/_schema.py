@@ -83,6 +83,7 @@ class SchemaUpgrade(object):
             cursor.execute(statement)
         change_user_version(cursor, lambda old: old + 1)
 
+
 @attr.s
 class Schema(object):
     """
@@ -156,9 +157,6 @@ class Schema(object):
 
         This method does no transaction management.  It uses the cursor in
         whatever state it is in.
-
-        :param list[unicode] upgrades: The SQL statements to apply for the
-            upgrade.
 
         :param cursor: A DB-API cursor to use to run the SQL.
         """

@@ -60,6 +60,8 @@ class IParticipants(Interface):
     An ``IParticipants`` provider grants access to the group of other
     participants in a particular magic folder.
     """
+    writer = Attribute("an IWritableParticipant")
+
     def list():
         """
         Get all of the participants.
@@ -118,6 +120,77 @@ def participant_from_dmd(name, dirnode, is_self, tahoe_client):
         participant's state.
     """
     return _CollectiveDirnodeParticipant(name, dirnode, is_self, tahoe_client)
+
+
+@implementer(IParticipant)
+@attr.s
+class _StaticParticipant(object):
+    """
+    An in-memory IParticipant provider
+    """
+    my_files = attr.ib()  # dict: str -> SnapshotEntry
+    _is_self = attr.ib(default=False)
+
+    def files(self):
+        return self.my_files
+
+    def is_self(self):
+        return self._is_self
+
+
+@implementer(IWriteableParticipant)
+@attr.s
+class _StaticWriteableParticipant(object):
+    """
+    An in-memory IWritableParticipant that just remembers what updates
+    it did.
+    """
+    updates = attr.ib(factory=list)
+
+    def update_snapshot(self, relpath, capability):
+        self.updates.append((relpath, capability))
+
+
+@implementer(IParticipants)
+@attr.s
+class _StaticParticipants(object):
+    """
+    An in-memory IParticipants provider
+    """
+    writer = attr.ib()
+    participants = attr.ib(default=None)
+
+    def __attrs_post_init__(self):
+        if self.participants is None:
+            self.participants = [
+                _StaticParticipant([], True),
+            ]
+        assert len([p.is_self() for p in self.participants]) == 1, "Must have exactly one 'self' participant"
+
+    def list(self):
+        return self.participants
+
+    def add(self, author, personal_dmd_cap):
+        self.participants.append(
+            _StaticParticipant(
+                author,
+                personal_dmd_cap,
+            )
+        )
+
+
+def static_participants(my_files=None, other_files=None):
+    """
+    An ``IParticipants`` provider. Usually for testing.
+    """
+    # XXX name, dircap, is_self for participants is public?
+    writer = _StaticWriteableParticipant()
+    reader = _StaticParticipant(my_files or [], True)
+    others = [
+        _StaticParticipant(files, False)
+        for files in (other_files or [])
+    ]
+    return _StaticParticipants(writer, [reader] + others)
 
 
 def participants_from_collective(collective_dirnode, upload_dirnode, tahoe_client):
@@ -217,6 +290,12 @@ class _CollectiveDirnodeParticipants(object):
         if any(personal_dmd_cap == p.dircap for p in participants):
             raise ValueError(
                 "Already have a participant with Personal DMD '{}'".format(personal_dmd_cap)
+            )
+
+        # _can_ we add this, even?
+        if self._collective_cap.is_readonly_directory():
+            raise ValueError(
+                "Collective DMD is read-only"
             )
 
         # NB: we could check here if there is already a participant

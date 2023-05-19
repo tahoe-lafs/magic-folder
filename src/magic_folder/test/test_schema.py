@@ -36,6 +36,7 @@ from .._schema import (
     change_user_version,
 )
 
+
 class SchemaTests(TestCase):
     """
     Tests for ``Schema``.
