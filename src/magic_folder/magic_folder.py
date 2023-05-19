@@ -209,18 +209,22 @@ class MagicFolder(service.MultiService):
             successfully confirmed that its local state matches the
             Personal DMD.
         """
-        participants = yield self.participants()
-        self_reader = [
-            participant
-            for participant in participants
-            if participant.is_self
-        ]
-        assert len(self_reader) == 1, f"should be exactly one 'self' participant: {participants}"
+
+        @inline_callbacks
+        def get_participants():
+            participants = yield self.participants()
+            self_reader = [
+                participant
+                for participant in participants
+                if participant.is_self
+            ]
+            assert len(self_reader) == 1, f"should be exactly one 'self' participant: {participants}"
+            defer.returnValue(tuple((self_reader[0], self._participants.writer)))
+
         yield maybe_update_personal_dmd_to_local(
             self._clock,
             self.config,
-            self_reader[0],
-            self._participants.writer,
+            get_participants,
         )
 
     def scan_local(self):

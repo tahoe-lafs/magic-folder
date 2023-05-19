@@ -48,7 +48,7 @@ from ...client import (
     create_testing_http_client,
 )
 from ...status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ...endpoints import (
     CannotConvertEndpointError,
@@ -112,7 +112,7 @@ class ListMagicFolder(AsyncTestCase):
             FilePath(self.mktemp()),
             FilePath(u"/no/tahoe/node-directory"),
         )
-        status_service = WebSocketStatusService(reactor, self.config)
+        status_service = EventsWebSocketStatusService(reactor, self.config)
         global_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )
@@ -232,7 +232,7 @@ class CreateMagicFolder(AsyncTestCase):
             self.config_dir,
             FilePath(u"/non-tahoe-directory"),
         )
-        status_service = WebSocketStatusService(reactor, self.config)
+        status_service = EventsWebSocketStatusService(reactor, self.config)
         folder_service = MagicFolderService(
             reactor, self.config, status_service, tahoe_client,
         )

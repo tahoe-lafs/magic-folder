@@ -175,6 +175,8 @@ class RemoteSnapshotCacheService(service.Service):
 
         :returns bool:
         """
+        if target_cap == child_cap:
+            return True
         # TODO: We can make this more efficent in the future by tracking some extra data.
         # - for each snapshot in our remotesnapshotdb, we are going to check if something is
         #   an ancestor very often, so could cache that information (we'd probably want to
@@ -572,6 +574,7 @@ class RemoteScannerService(service.MultiService):
                             updates.append((relpath, file_data.snapshot_cap))
 
             # allow for parallel downloads
+            # (we could de-duplicate snapshots here, but the state-machine has to anyway)
             yield gatherResults([
                 self._process_snapshot(relpath, snapshot_cap)
                 for relpath, snapshot_cap in updates
@@ -605,4 +608,15 @@ class RemoteScannerService(service.MultiService):
                 yield self._remote_snapshot_cache.get_snapshot_from_capability(our_snapshot_cap)
             abspath = self._config.magic_path.preauthChild(snapshot.relpath)
             mf = self._file_factory.magic_file_for(abspath)
-            yield maybeDeferred(mf.found_new_remote, snapshot)
+
+            # check if "snapshot" is already one of our ancestors; if
+            # it is, we've re-noticed an old update (so do not engage
+            # the state-machine)
+            if our_snapshot_cap is not None \
+               and self._remote_snapshot_cache.is_ancestor_of(snapshot.capability, our_snapshot_cap):
+                Message.log(
+                    message_type=u"downloader:redundant-update",
+                    relpath=snapshot.relpath,
+                )
+            else:
+                yield maybeDeferred(mf.found_new_remote, snapshot)

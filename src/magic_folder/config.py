@@ -327,6 +327,23 @@ class LocalSnapshotMissingParent(Exception):
 
 
 @attr.s(auto_exc=True)
+class LocalSnapshotRequiresParent(Exception):
+    """
+    An attempt was made to store a local snapshot but it doesn't
+    include any of the existing snapshots as a parent.
+    """
+    snapshot_identifier = attr.ib(validator=attr.validators.instance_of(UUID))
+    relpath = attr.ib()
+    missing_parents = attr.ib(validator=attr.validators.instance_of(list))  # of UUIDs
+
+    def __str__(self):
+        return "LocalSnapshot for {} should have at least one parent: {}".format(
+            repr(self.relpath),
+            ' '.join([str(sid) for sid in self.missing_parents]),
+        )
+
+
+@attr.s(auto_exc=True)
 class RemoteSnapshotWithoutPathState(Exception):
     """
     An attempt was made to insert a remote snapshot into the database without
@@ -948,6 +965,36 @@ class MagicFolderConfig(object):
         :param PathState path_state: Status of the on-disk data (can be
             None if there is nothing on disk, i.e. a delete).
         """
+        # XXX should confirm too that if this snapshot refers to a
+        # relpath that IS in the database already (i.e. > 0 local
+        # snapshots) then its local_parents MUST contain at least one
+        # of the existing local snapshots
+        rows = cursor.execute(
+            """
+            SELECT
+                identifier from [local_snapshots]
+            WHERE
+                relpath= ?
+            """,
+            (snapshot.relpath,),
+        ).fetchall()
+        if rows:
+            # each row is a 1-tuple
+            localsnap_identifiers = [UUID(row[0]) for row in rows]
+            # we have 1 or more local-snapshots already for this
+            # relpath -- so it better include at least one of them as
+            # parent. "Normally" these should relate like A -> A' ->
+            # A'' etc (i.e. each the parent of the last)
+            if not any(
+                    sn.identifier in localsnap_identifiers
+                    for sn in snapshot.parents_local
+            ):
+                raise LocalSnapshotRequiresParent(
+                    snapshot.identifier,
+                    snapshot.relpath,
+                    localsnap_identifiers,
+                )
+
         # Ensure that the local parent snapshots are already in the database.
         for parent in snapshot.parents_local:
             cursor.execute(
@@ -1363,8 +1410,9 @@ class MagicFolderConfig(object):
             ORDER BY
                 last_updated_ns DESC
             LIMIT
-                30
-            """
+                ?
+            """,
+            (n, )
         )
         rows = cursor.fetchall()
         return [(r[0], ns_to_seconds(r[1]), ns_to_seconds(r[2])) for r in rows]

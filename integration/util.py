@@ -3,6 +3,7 @@ import time
 import json
 import sqlite3
 import os
+import re
 from os import mkdir
 from io import (
     BytesIO,
@@ -37,6 +38,10 @@ from twisted.python.filepath import (
     FilePath,
 )
 from twisted.web.client import Agent
+
+from autobahn.twisted.websocket import (
+    create_client_agent,
+)
 
 import treq
 
@@ -566,6 +571,43 @@ class MagicFolderEnabledNode(object):
                 "--once",
             ],
         )
+
+    @inline_callbacks
+    def status_monitor(self, how_long):
+        """
+        collect the output of `magic-folder-api monitor` for `how_long`
+        seconds and return all the output (as a list of JSON-decoded
+        events)
+        """
+        # FIXME: should use FilePath throughout this class
+        config = FilePath(self.magic_config_directory)
+        # XXX some of this duplicated from api_cli / cli -- would be
+        # nice to not do that...
+        with config.child("api_client_endpoint").open("rb") as f:
+            endpoint_str = f.read().decode("utf8").strip()
+        websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
+
+        agent = create_client_agent(self.reactor)
+        with config.child("api_token").open("rb") as f:
+            token = f.read()
+        proto = yield agent.open(
+            websocket_uri,
+            {
+                "headers": {
+                    "Authorization": "Bearer {}".format(token.decode("utf8")),
+                }
+            }
+        )
+        messages = []
+
+        def foo(data, is_binary=False):
+            msg = json.loads(data.decode("utf8"))
+            messages.extend(msg["events"])
+        proto.on("message", foo)
+
+        # collect some messages
+        yield deferLater(self.reactor, how_long)
+        returnValue(messages)
 
     def dump_state(self, folder_name):
         """
@@ -1140,6 +1182,19 @@ class FileShouldVanishException(Exception):
         super(FileShouldVanishException, self).__init__(
             u"'{}' still exists after {}s".format(path, timeout),
         )
+
+
+def find_conflicts(path):
+    """
+    Check a directory and any sub-directories for any files that look
+    like magic-folder conflict markers
+    """
+    conflict_re = re.compile(r".*\.conflict-.*")
+    return [
+        child
+        for child in path.walk()
+        if conflict_re.match(child.basename())
+    ]
 
 
 @log_inline_callbacks(action_type=u"integration:await-file-contents", include_args=True)

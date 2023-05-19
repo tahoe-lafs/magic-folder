@@ -28,6 +28,7 @@ from twisted.python.filepath import (
 )
 from twisted.internet.defer import (
     returnValue,
+    CancelledError,
 )
 from twisted.application.internet import (
     StreamServerEndpointService,
@@ -214,6 +215,12 @@ def _add_klein_error_handlers(app):
         request.setResponseCode(http.INTERNAL_SERVER_ERROR)
         _application_json(request)
         return json.dumps({"reason": str(failure.value)}).encode("utf8")
+
+    @app.handle_errors(CancelledError)
+    def something_cancelled(request, failure):
+        request.setResponseCode(http.GONE)
+        _application_json(request)
+        return json.dumps({"reason": "cancelled"}).encode("utf8")
 
     @app.handle_errors(Exception)
     def fallback_error(request, failure):
@@ -429,6 +436,31 @@ def _create_v1_resource(global_config, global_service, status_service):
         request.setResponseCode(http.CREATED)
         _application_json(request)
         returnValue(b"{}")
+
+    @app.route("/magic-folder/<string:folder_name>/recent-changes", methods=['GET'])
+    def recent_changes(request, folder_name):
+        """
+        Respond with the recent ``number?=` of files, ordered by their
+        most-recent change.
+        """
+        number = int(request.args.get("number", ["30"])[0])
+        folder = global_config.get_magic_folder(folder_name)
+        recents = folder.get_recent_remotesnapshot_paths(number)
+        most_recent = [
+            {
+                "relpath": relpath,
+                # XXX nothing in the status API dumps this information
+                # -- maybe it should? in upload-queued? and
+                # download-finished?  ...but also nothing except the
+                # CLI used the "recent" in the state-based API
+                "modified": timestamp,
+                "last-updated": last_updated,
+                "conflicted": bool(len(folder.list_conflicts_for(relpath))),
+            }
+            for relpath, timestamp, last_updated
+            in recents
+        ]
+        return json.dumps(most_recent).encode("utf8")
 
     @app.route("/magic-folder", methods=["GET"])
     def list_folders(request):

@@ -56,13 +56,13 @@ class MagicFolderClientTests(SyncTestCase):
         self.setup_client()
 
     def _client_method_request(self, method, args, req_kind, req_url,
-                               body=b"", extra_headers={}):
+                               body=b"", extra_headers={}, expected_query_args={}):
         """
         Test that calling a given `method` results in the client making a
         request to the given `req_url` (with HTTP verb `req_kind`).
         """
         self.assertThat(
-            getattr(self.client, method)(*args),
+            getattr(self.client, method.replace("-", "_"))(*args),
             succeeded(Always()),
         )
         headers = {
@@ -78,7 +78,7 @@ class MagicFolderClientTests(SyncTestCase):
             Equals([
                 (req_kind,
                  req_url,
-                 {},
+                 expected_query_args,
                  headers,
                  body,
                 ),
@@ -135,6 +135,20 @@ class MagicFolderClientTests(SyncTestCase):
             ("folder_name", ),
             b"GET",
             "http://invalid./experimental/magic-folder/folder_name/invites",
+        )
+
+    def test_recent_changes(self):
+        """
+        The .../magic-folder/../recent-changes API works"
+        """
+        return self._client_method_request(
+            "recent-changes",
+            ("folder_name", 25),
+            b"GET",
+            "http://invalid./v1/magic-folder/folder_name/recent-changes",
+            expected_query_args={
+                b"number": [b"25"],
+            }
         )
 
     def test_join(self):

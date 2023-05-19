@@ -6,7 +6,6 @@ Tests for the Twisted service which is responsible for a single
 magic-folder.
 """
 
-import attr
 from twisted.python.filepath import (
     FilePath,
 )
@@ -29,9 +28,6 @@ from testtools.matchers import (
 from testtools.twistedsupport import (
     succeeded,
 )
-from zope.interface import (
-    implementer,
-)
 from ..magic_folder import (
     MagicFolder,
     LocalSnapshotService,
@@ -44,7 +40,7 @@ from ..config import (
 )
 from ..status import (
     FolderStatus,
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..snapshot import (
     create_local_author,
@@ -54,8 +50,8 @@ from ..downloader import (
     InMemoryMagicFolderFilesystem,
 )
 from ..participants import (
-    IParticipants,
     SnapshotEntry,
+    static_participants,
 )
 from ..util.capabilities import (
     random_immutable,
@@ -93,7 +89,7 @@ class MagicFolderServiceTests(SyncTestCase):
         config = object()
         participants = object()
         uploader = Service()
-        status_service = WebSocketStatusService(reactor, None)
+        status_service = EventsWebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
             client=tahoe_client,
@@ -154,7 +150,7 @@ class MagicFolderServiceTests(SyncTestCase):
         target_path.setContent(content)
 
         clock = task.Clock()
-        status_service = WebSocketStatusService(clock, global_config)
+        status_service = EventsWebSocketStatusService(clock, global_config)
         folder_status = FolderStatus(u"foldername", status_service)
         local_snapshot_creator = MemorySnapshotCreator()
         clock = task.Clock()
@@ -209,21 +205,6 @@ class MagicFolderServiceTests(SyncTestCase):
         )
 
 
-from .test_magic_file import (
-    _FakeParticipant,
-    _FakeWriteableParticipant,
-)
-
-@implementer(IParticipants)
-@attr.s
-class _FakeParticipants:
-    writer = attr.ib()
-    our_participants = attr.ib()
-
-    def list(self):
-        return self.our_participants
-
-
 class LocalStateTests(SyncTestCase):
     """
     Tests for ``MagicFolder.check_local_state``
@@ -267,19 +248,16 @@ class LocalStateTests(SyncTestCase):
         )
         config.store_local_snapshot(snap, PathState(size=1234, mtime_ns=555, ctime_ns=555))
 
-        participants = _FakeParticipants(
-            _FakeWriteableParticipant(),
-            [
-                _FakeParticipant({
-                    "foo": SnapshotEntry(
-                        random_immutable(),
-                        {"version": 1}
-                    ),
-                }, is_self=True),
-            ],
+        participants = static_participants(
+            my_files={
+                "foo": SnapshotEntry(
+                    random_immutable(),
+                    {"version": 1}
+                ),
+            }
         )
         uploader = Service()
-        status_service = WebSocketStatusService(reactor, None)
+        status_service = EventsWebSocketStatusService(reactor, None)
         folder_status = FolderStatus(name, status_service)
         magic_folder = MagicFolder(
             client=tahoe_client,

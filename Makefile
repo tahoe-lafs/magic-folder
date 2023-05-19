@@ -52,3 +52,9 @@ release-test:
 
 release-upload:
 	twine upload dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-folder-`git describe --abbrev=0`.tar.gz dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
+
+coverage:
+	-coverage erase
+	MAGIC_FOLDER_HYPOTHESIS_PROFILE=magic-folder-fast coverage run -m twisted.trial magic_folder
+	coverage combine
+	git diff main.. | cuv diff -

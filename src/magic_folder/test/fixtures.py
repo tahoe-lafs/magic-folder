@@ -48,6 +48,7 @@ from twisted.internet.task import (
     Cooperator,
 )
 from twisted.internet.defer import (
+    CancelledError,
     DeferredList,
 )
 from twisted.python.filepath import FilePath
@@ -76,7 +77,7 @@ from ..tahoe_client import (
 from ..participants import participants_from_collective
 from ..snapshot import create_local_author
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..service import MagicFolderService
 
@@ -224,7 +225,7 @@ class MagicFileFactoryFixture(Fixture):
             self.temp.child("config"),
             self.temp.child("tahoe-node"),
         )
-        self.status = WebSocketStatusService(Clock(), self._global_config)
+        self.status = EventsWebSocketStatusService(Clock(), self._global_config)
         folder_status = FolderStatus(self.config.name, self.status)
 
         uncooperator = Cooperator(
@@ -394,7 +395,7 @@ class MagicFolderNode(object):
                         config[u"scan-interval"],
                     )
 
-        status_service = WebSocketStatusService(
+        status_service = EventsWebSocketStatusService(
             reactor,
             global_config,
         )
@@ -482,6 +483,7 @@ class FakeWormhole:
         self._on_closed = on_closed
         self._outgoing_messages = [] if messages is None else messages
         self.sent_messages = []
+        self._cancelled = False
 
     def add_message(self, msg):
         self._outgoing_messages.append(msg)
@@ -508,9 +510,7 @@ class FakeWormhole:
         if len(self._outgoing_messages):
             msg = self._outgoing_messages.pop(0)
             return msg
-        raise RuntimeError(
-            "No more messages"
-        )
+        raise CancelledError()
 
     def send_message(self, msg):
         self.sent_messages.append(msg)

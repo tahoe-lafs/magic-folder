@@ -1,1 +1,0 @@
-Add some missing magic-folder-api subcommands: list-conflicts, file-status, 

@@ -64,18 +64,31 @@ async def test_identical_files(request, reactor, temp_filepath, alice, bob):
     await alice.scan("sames")
     print("scan done")
 
+    def find_uploads(data):
+        pending = []
+        for event in data["events"]:
+            if event["kind"].startswith("upload-"):
+                pending.append(event)
+        return pending
+
     # wait for a limited time to be complete
+    uploads = 0
     for _ in range(10):
-        st = await alice.status()
-        data = json.loads(st.strip())
-        if data["state"]["synchronizing"] is False:
+        data = json.loads(await alice.status())
+        uploads = len(find_uploads(data))
+        if uploads == 0:
             break
         await twisted_sleep(reactor, 1)
-    assert data["state"]["synchronizing"] is False, "Should be finished uploading"
+    assert uploads == 0, "Should be finished uploading"
 
-    sames = data["state"]["folders"]["sames"]
-    assert sames["errors"] == [], "Expected zero errors"
-    actual_cats = {cat["relpath"] for cat in sames["recent"]}
+    errors = [
+        evt for evt in data["events"]
+        if evt["kind"] == "error"
+    ]
+    assert errors == [], "Expected zero errors: {}".format(errors)
+
+    recent = await alice.client.recent_changes("sames")
+    actual_cats = {cat["relpath"] for cat in recent}
     expected = set(cat_names)
     assert expected == actual_cats, "Data mismatch"
 

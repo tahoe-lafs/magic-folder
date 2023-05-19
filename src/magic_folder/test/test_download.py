@@ -81,7 +81,7 @@ from ..snapshot import (
     write_snapshot_to_tahoe,
 )
 from ..status import (
-    WebSocketStatusService,
+    EventsWebSocketStatusService,
 )
 from ..tahoe_client import (
     create_tahoe_client,
@@ -450,7 +450,7 @@ class UpdateTests(AsyncTestCase):
             DecodedURL.from_text("http://invalid./"),
             self.http_client,
         )
-        self.status_service = WebSocketStatusService(reactor, self._global_config)
+        self.status_service = EventsWebSocketStatusService(reactor, self._global_config)
         self.service = MagicFolder.from_config(
             reactor,
             self.tahoe_client,
@@ -1524,20 +1524,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Failed to overwrite file 'foo': [Errno 13] Permission denied"
-                                    ),
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Failed to overwrite file 'foo': [Errno 13] Permission denied"
+                        )
+                    })
+                )
             })
         )
 
@@ -1619,20 +1613,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Failed to download snapshot for 'foo'."
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Failed to download snapshot for 'foo'."
+                        )
+                    })
+                )
             })
         )
 
@@ -1699,20 +1687,14 @@ class ConflictTests(AsyncTestCase):
         self.assertThat(
             loads(self.alice.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Error updating personal DMD: Couldn't add foo to directory. Error code 500"
+                        )
+                    })
+                )
             })
         )
 
@@ -1780,20 +1762,14 @@ class CancelTests(AsyncTestCase):
         self.assertThat(
             loads(carol.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: some_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Cancelled: some_file"
+                        )
+                    })
+                )
             })
         )
 
@@ -1864,20 +1840,14 @@ class CancelTests(AsyncTestCase):
         self.assertThat(
             loads(carol.global_service.status_service._marshal_state()),
             ContainsDict({
-                "state": ContainsDict({
-                    "folders": ContainsDict({
-                        "default": ContainsDict({
-                            "errors": AfterPreprocessing(
-                                lambda errors: errors[0],
-                                ContainsDict({
-                                    "summary": Equals(
-                                        "Cancelled: a_file"
-                                    )
-                                }),
-                            ),
-                        }),
-                    }),
-                }),
+                "events": AfterPreprocessing(
+                    lambda events: events[1],
+                    ContainsDict({
+                        "summary": Equals(
+                            "Cancelled: a_file"
+                        )
+                    })
+                )
             })
         )
 
@@ -2003,4 +1973,113 @@ class FilesystemModificationTests(SyncTestCase):
                     Equals(b"pre-existing file")
                 )
             )
+        )
+
+
+class RemoteScannerTests(AsyncTestCase):
+    """
+    Tests relating to polling the remote
+    """
+
+    def setUp(self):
+        super(RemoteScannerTests, self).setUp()
+
+        self.alice_magic_path = FilePath(self.mktemp())
+        self.alice_magic_path.makedirs()
+        self.alice = MagicFolderNode.create(
+            reactor,
+            FilePath(self.mktemp()),
+            folders={
+                "default": {
+                    "magic-path": self.alice_magic_path,
+                    "author-name": "alice",
+                    "admin": True,
+                    "poll-interval": 100,
+                    "scan-interval": 100,
+                },
+            },
+            start_folder_services=True,
+        )
+
+        self.file_factory = self.alice.global_service.getServiceNamed("magic-folder-default").file_factory
+        self.remote_cache = self.file_factory._remote_cache
+        self.state_path = self.alice.global_config._get_state_path("default")
+        self.alice_config = self.alice.global_config.get_magic_folder("default")
+        self.alice_author = self.alice_config.author
+        self.filesystem = InMemoryMagicFolderFilesystem()
+        self.file_factory._magic_fs = self.filesystem
+        self.carol_author = create_local_author("carol")
+
+    def tearDown(self):
+        super(RemoteScannerTests, self).tearDown()
+        return self.alice.cleanup()
+
+    @inline_callbacks
+    def test_redundant_update(self):
+        """
+        Give the updater an update taht's the ancestor of the current
+        snapshot (i.e. an out-of-date participant)
+        """
+
+        parent_cap = random_immutable(directory=True)
+        parent = RemoteSnapshot(
+            relpath="foo",
+            author=self.alice_author,
+            metadata={"modification_time": 0},
+            capability=parent_cap,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        parent_content = b"parent" * 1000
+        self.remote_cache._cached_snapshots[parent_cap.danger_real_capability_string()] = parent
+        # we've 'seen' this file before so we must have the path locally
+        local_path = self.alice_magic_path.child("foo")
+        local_path.setContent(parent_content)
+        self.alice_config.store_downloaded_snapshot("foo", parent, get_pathinfo(local_path).state)
+
+        cap0 = random_immutable(directory=True)
+        remote0 = RemoteSnapshot(
+            relpath="foo",
+            author=self.carol_author,
+            metadata={"modification_time": 0},
+            capability=cap0,
+            parents_raw=[parent_cap.danger_real_capability_string()],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
+        self.alice_config.store_downloaded_snapshot("foo", remote0, get_pathinfo(local_path).state)
+
+        # set up a plausible 2-participant situation
+        tahoe_client = self.alice.tahoe_client
+        collective = yield tahoe_client.create_mutable_directory()
+        alice_personal = yield tahoe_client.create_mutable_directory()
+        carol_personal = yield tahoe_client.create_mutable_directory()
+        yield tahoe_client.add_entry_to_mutable_directory(collective, "carol", carol_personal)
+        # carol is on "parent", we are on "remote0" (the child)
+        yield tahoe_client.add_entry_to_mutable_directory(carol_personal, "foo", parent.capability)
+        yield tahoe_client.add_entry_to_mutable_directory(alice_personal, "foo", remote0.capability)
+
+        alice_participants = participants_from_collective(
+            collective,
+            alice_personal,
+            tahoe_client,
+        )
+
+        # run a scan, but "carol" is on the old (parent) snapshot
+        top_service = RemoteScannerService(
+            Clock(),
+            self.alice_config,
+            alice_participants,
+            self.file_factory,
+            self.remote_cache,
+            self.alice.global_service.status_service,
+        )
+        yield top_service._loop()
+
+        # we should have seen "carol's" out-of-date remote and ignored it
+        self.assertThat(
+            self.filesystem.actions,
+            Equals([])
         )

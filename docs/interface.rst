@@ -227,6 +227,25 @@ The list is ordered from most-recent to least-recent timestamp.
 ``size`` is in bytes.
 
 
+GET ``/v1/magic-folder/<folder-name>/recent-changes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Takes an optional ``?number=`` argument (default is 30).
+Returns a list of the most-recent changes, like::
+
+    [
+        {
+            "relpath": "rel/path/foo",
+            "modified": 12345,
+            "last-updated": 12345,
+            "conflicted": false
+        },
+        # ...
+    ]
+
+The results will be reverse-chronological on ``"last-updated"``.
+
+
 GET ``/v1/magic-folder/<folder-name>/tahoe-objects``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -325,74 +344,50 @@ There is a WebSocket-based status API located at ``/v1/status``.
 This is authenticated the same way as the HTTP API with an ``Authorization:`` header (see above).
 
 All messages are JSON.
-Upon connecting, a new client will immediately receive a "state" message::
+Every message looks like this::
 
     {
-        "state": {
-            "folders": {
-                "default": {
-                    "downloads": [],
-                    "errors": [],
-                    "uploads": [],
-                    "recent": [
-                        {
-                            "relpath": "foo"
-                            "conflicted": false,
-                            "modified": 1634431697,
-                            "last-updated": 1634431700
-                        }
-                    ]
-                }
-            },
-            "synchronizing": false,
-            "tahoe": {
-                "connected": 3,
-                "happy": true,
-                "desired": 2
-            },
-            "scanner": {
-                "last-scan": 1634431700.1234
-            },
-            "poller": {
-                "last-poll": null
-            }
-        }
+        "events": []
     }
 
-After that the client may receive further state updates with a ``"state"`` message like the above.
-Currently the only valid kind of message is ``"state"``.
-The above example has no uploads or downloads happening and a single recent file, ``foo``.
+...where the ``events`` list contains some non-zero number of event messages.
+The first message, upon connect, will likely contain many events: enough to give a consistent view of the current state.
+Thereafter, most messages will include only a single event (although clients should handle any number).
 
-The state for each folder consists of the following information:
-
-- ``"synchronizing"``: ``true`` or ``false``. When ``true`` the
-  magic-folder daemon is uploading data to or downloading data from
-  Tahoe-LAFS.
-- ``"tahoe"``: a dict containing status information about the Tahoe-LAFS connection
-  - ``"connected"``: the number of storage-servers the client is connected to
-  - ``"desired"``: the number of storage-servers we want to connect to
-  - ``"happy"``: ``true`` if ``"connected"`` is greater than the client's configured "happy"
-- ``"folders"`` contains keys mapping the folder name to:
-  - ``"uploads"`` and ``"downloads"`` contain currently queued or active uploads (or downloads). Each ``dict`` in these lists contain:
-
-    - ``"relpath"``: the relative-path
-    - ``"queued-at"``: the Unix timestamp when this item was queued
-    - ``"started-at"``: the Unix timestamp when we started uploading (or downloading) this item. This key will not exist until we do start.
-
-  - ``"recent"`` contains a list up to 30 of the most-recently updated files. Each ``dict`` in this list contains:
-
-    - ``"relpath"``: the relative path of this item
-    - ``"modified"``: the Unix timestamp when the on-disk file was most-recently modified
-    - ``"last-updated"``: the Unix timestamp when this item's state was updated in the magic-folder
-    - ``"conflicted"``: a boolean indicating if there is a conflict for this relative path
-  - ``"scanner"`` contains information about the local changes scanner
-    - ``"last-scan"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
-  - ``"poller"`` contains information about the remote changes poller
-    - ``"last-poll"``: ``null`` if no scan is completed yet, or the timestamp of the last completion
-
-Clients should be tolerant of keys in the state they don't understand.
-Unknown state keys should be ignored.
-Note that ``"modified"`` is when the local state for thie item changed while ``"last-updated"`` is to do with the filesystem modification time.
-For example, a file may have an on-disk modification time that is older than the last time we updated our state about it, especially one that came from another device.
+Every event has a ``"kind"`` key describing what sort of message it is.
+Events will contain other keys; clients should be tolerant of keys in the state they don't understand.
 
 The client doesn't send any messages to the server; it is an error to do so.
+
+The follow event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
+
+- ``"scan-completed"``: has key ``timestamp`` which is a unix-timestamp saying when we last looked for local changes.
+
+- ``"poll-completed"``: has a key ``timestamp`` describing when we last asked for remote changes.
+
+- ``"tahoe-connection-changed"``: describes the status of our connected Tahoe-LAFS client: ``connected`` and ``desired`` are the number of servers we are conencted to (and how many we want). Whether we are currently connected to enough is in a boolean ``happy``.
+
+- ``"error-occurred"``: An error, with ``folder`` (the name for the affected folder) ``timestamp`` and ``summary`` (human-readable string).
+
+- ``"folder-added"``: Key ``folder`` says which folder was added.
+
+- ``"folder-left"``: Key ``folder`` says which folder has gone away.
+
+- ``"upload-queued"``: some file (``relpath``) in a folder (``folder``) is queued for upload since ``timestamp``.
+
+- ``"upload-started"``: some file (``relpath``) in a folder (``folder``) has begun upload since ``timestamp``. An ``upload-queued`` event will always preceed this.
+
+- ``"upload-finished"``: a file (``relpath``) in a folder (``folder``) has completed at ``timestamp``. An ``upload-started`` will always preceed this.
+
+- ``"download-queued"``: same as upload version.
+
+- ``"download-started"``: same as upload version.
+
+- ``"download-finished"``: same as upload version.
+
+All timestamps are "seconds since the Unix epoch", as numbers (JSON only has "numbers" and doesn't distinguish floats from ints).
+
+Note that the first "update events" message received will _not_ contain all the updates to that point; it will synthesize the correct events to communicate the current state.
+For example, if there are 50 files in the folder and 48 have already been uploaded, there will be just 2 ``upload-queued`` events (because the other 48 have all finished already).
+If one of these files is currently being uploaded, there will also be a ``upload-started`` event.
+To know the state of all files, use the other endpoints.

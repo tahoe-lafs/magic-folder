@@ -68,8 +68,10 @@ WANT to store is:
 - for each magic-folder (indexed by "name"):
   - local directory path (the "magic folder")
   - an author:
+
     - name
     - private_key (32 bytes, a NaCl signing key)
+
   - a write-cap of our mutable directory
   - some state (see below)
 - the node-directory of our Tahoe-LAFS client
