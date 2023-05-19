@@ -9,7 +9,7 @@ Magic-Folder is used in two ways.
 
 The first way is to interact with the running daemon (including its
 configuration) is via the ``magic-folder`` command line tool (which
-uses the :ref:`HTTP API`). The following sections detail different
+uses the :ref:`http-api`). The following sections detail different
 subcommands available.  For additional information see `Magic Folder
 CLI design`_. See :ref:`config` for more on how configuration is kept.
 
