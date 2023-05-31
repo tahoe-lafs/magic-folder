@@ -175,6 +175,25 @@ class TestInviteManager(SyncTestCase):
         class FakeStatus:
             def __init__(self):
                 self.errors = []
+                self.invite_updates = []
+
+            def _generic_invite_update(self, name, *args, **kw):
+                self.invite_updates.append((name, args, kw))
+
+            def invite_created(self, *args, **kw):
+                self._generic_invite_update("created")
+
+            def invite_updated(self, *args, **kw):
+                self._generic_invite_update("updated")
+
+            def invite_succeeded(self, *args, **kw):
+                self._generic_invite_update("succeeded")
+
+            def invite_failed(self, *args, **kw):
+                self._generic_invite_update("failed")
+
+            def invite_cancelled(self, *args, **kw):
+                self._generic_invite_update("cancelled")
 
             def error_occurred(self, err):
                 self.errors.append(err)

@@ -112,6 +112,36 @@ class IStatus(Interface):
         :param PollerStatus: the status
         """
 
+    def invite_created(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_updated(folder, invite, welcome=None, code=None, versions=None):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_succeeded(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_failed(folder, invite, reason):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_cancelled(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
     def error_occurred(folder, message):
         """
         Some error happened that should be reported to the user.
@@ -257,6 +287,7 @@ def _create_blank_folder_state():
         "errors": [],
         "scanner": ScannerStatus(None),
         "poller": PollerStatus(None),
+        "invites": {},
     }
 
 
@@ -309,6 +340,57 @@ def _marshal_event_poll_completed(folder_name, poller):
     msg = poller.to_json()
     msg["folder"] = folder_name
     return _marshal_event("poll-completed", msg)
+
+
+
+def _invite_to_json(invite):
+    return {
+        "uuid": invite.uuid,
+        "participant-name": invite.participant_name,
+        "mode": invite.participant_mode,
+    }
+
+
+def _marshal_event_invite_created(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-created", msg)
+
+
+def _marshal_event_invite_updated(folder_name, invite, **kwargs):
+    for k in kwargs.keys():
+        if k not in {"welcome", "code", "versions"}:
+            raise ValueError("Unknown extra {}".format(k))
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg.update(kwargs)
+    return _marshal_event("invite-updated", msg)
+
+
+def _marshal_event_invite_succeeded(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-succeeded", msg)
+
+
+def _marshal_event_invite_failed(folder_name, invite, reason):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["reason"] = reason
+    return _marshal_event("invite-failed", msg)
+
+
+def _marshal_event_invite_rejected(folder_name, invite, reason):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["reason"] = str(reason)
+    return _marshal_event("invite-rejected", msg)
+
+
+def _marshal_event_invite_cancelled(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-canceled", msg)
 
 
 def _marshal_event_tahoe(tahoe):
@@ -569,6 +651,43 @@ class EventsWebSocketStatusService(service.Service):
         """
         self._folders[folder]["poller"] = status
         self._send_single_event(_marshal_event_poll_completed(folder, status))
+
+    # invite-created
+    # invite-updated
+    #   - state: welcome -> code -> versions
+    # invite-succeeded
+    # invite-failed
+    # invite-rejected
+    # invite-cancelled
+
+    def invite_created(self, folder, invite):
+        self._folders[folder]["invites"][invite.uuid] = (invite, dict())
+        self._send_single_event(_marshal_event_invite_created(folder, invite))
+
+    def invite_updated(self, folder, invite, welcome=None, code=None, versions=None):
+        if welcome is not None:
+            self._folders[folder]["invites"][invite.uuid][1]["welcome"] = welcome
+        if code is not None:
+            self._folders[folder]["invites"][invite.uuid][1]["code"] = code
+        if versions is not None:
+            self._folders[folder]["invites"][invite.uuid][1]["versions"] = versions
+        self._send_single_event(_marshal_event_invite_updated(folder, invite, welcome=welcome, code=code, versions=versions))
+
+    def invite_succeeded(self, folder, invite):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_succeeded(folder, invite))
+
+    def invite_failed(self, folder, invite, reason):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_failed(folder, invite, reason))
+
+    def invite_rejected(self, folder, invite, reason):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_rejected(folder, invite, reason))
+
+    def invite_cancelled(self, folder, invite):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_cancelled(folder, invite))
 
     def error_occurred(self, folder, message):
         """

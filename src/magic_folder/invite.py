@@ -123,6 +123,7 @@ class Invite(object):
     participant_mode = attr.ib(validator=attr.validators.in_(["read-only", "read-write"]))
     _collection = attr.ib()  # IInviteCollection instance
     _wormhole = attr.ib()  # wormhole.IDeferredWormhole instance
+    _status = attr.ib()  # IStatus
     _code = None  # if non-None, our wormhole code
     _consumed = None  # True if the wormhole code was consumed
     _success = None  # True if succeeded, False if something went wrong
@@ -184,15 +185,19 @@ class Invite(object):
             existing_devices = yield participants.list()
             collective_readcap = mf_config.collective_dircap.to_readonly()
 
+            # we "create" it here in case the below check fails, then
+            # the status system "knows" about this failed invite up
+            # front.
+            self._status.invite_created(self)
+
             if self.participant_name in (dev.name for dev in existing_devices):
-                raise ValueError(
-                    "Already have participant '{}'".format(self.participant_name)
-                )
+                msg = "Already have participant '{}'".format(self.participant_name)
+                self._status.invite_failed(self, reason=msg)
+                raise ValueError(msg)
 
             with start_action(action_type="invite:welcome"):
                 welcome = yield self._wormhole.get_welcome()
-                if 'motd' in welcome:
-                    print(welcome['motd'])
+                self._status.invite_updated(self, welcome=welcome)
 
             with start_action(action_type="invite:get_code") as action_code:
                 self._wormhole.allocate_code(2)
@@ -201,9 +206,11 @@ class Invite(object):
                 while self._awaiting_code:
                     d = self._awaiting_code.pop()
                     d.callback(None)
+                self._status.invite_updated(self, code=self._code)
 
             versions = yield self._wormhole.get_versions()
             validate_versions(versions)
+            self._status.invite_updated(self, versions=versions)
 
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({
@@ -290,8 +297,10 @@ class Invite(object):
                         "error": self._reject_reason,
                         "success": False,
                     }
+                    self._status.invite_rejected(self, self._reject_reason)
                 except Exception:
                     self._had_error = Failure()
+                    self._status.invite_failed(self, self._had_error.value)
                     raise
                 else:
                     self._success = True
@@ -301,6 +310,7 @@ class Invite(object):
                         "participant-name": self.participant_name,
                         "success": True,
                     }
+                    self._status.invite_succeeded(self)
 
                 yield self._wormhole.send_message(
                     json.dumps(final_message).encode("utf8")
@@ -548,6 +558,7 @@ class InMemoryInviteManager(service.Service):
             participant_mode=mode,
             collection=self,
             wormhole=wh,
+            status=self.folder_status,
         )
         self._invites[invite.uuid] = invite
 
