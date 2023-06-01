@@ -54,6 +54,9 @@ from ..snapshot import (
     create_local_author,
     RemoteSnapshot,
 )
+from ..participants import (
+    static_participants,
+)
 from ..testing.web import (
     create_fake_tahoe_root,
     create_tahoe_treq_client,
@@ -304,7 +307,8 @@ class MagicFileFactoryTests(SyncTestCase):
             content_cap=random_immutable(),
             metadata_cap=random_immutable(),
         )
-        mf.found_new_remote(child)
+        participants = static_participants()
+        mf.found_new_remote(child, participants.participants[0])
 
         self.assertThat(
             transitions,

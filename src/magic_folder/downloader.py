@@ -571,17 +571,17 @@ class RemoteScannerService(service.MultiService):
                     for relpath, file_data in files.items():
                         if self._is_remote_update(relpath, file_data.snapshot_cap):
                             self._status.download_queued(self._config.name, relpath)
-                            updates.append((relpath, file_data.snapshot_cap))
+                            updates.append((relpath, file_data.snapshot_cap, participant))
 
             # allow for parallel downloads
             # (we could de-duplicate snapshots here, but the state-machine has to anyway)
             yield gatherResults([
-                self._process_snapshot(relpath, snapshot_cap)
-                for relpath, snapshot_cap in updates
+                self._process_snapshot(relpath, snapshot_cap, participant)
+                for relpath, snapshot_cap, participant in updates
             ])
 
     @inline_callbacks
-    def _process_snapshot(self, relpath, snapshot_cap):
+    def _process_snapshot(self, relpath, snapshot_cap, participant):
         """
         Internal helper.
 
@@ -619,4 +619,4 @@ class RemoteScannerService(service.MultiService):
                     relpath=snapshot.relpath,
                 )
             else:
-                yield maybeDeferred(mf.found_new_remote, snapshot)
+                yield maybeDeferred(mf.found_new_remote, snapshot, participant)
