@@ -136,6 +136,12 @@ class IStatus(Interface):
         :param Invite: the affected Invite
         """
 
+    def invite_rejected(folder, invite, reason):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
     def invite_cancelled(folder, invite):
         """
         :param str folder: folder name

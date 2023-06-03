@@ -195,6 +195,9 @@ class TestInviteManager(SyncTestCase):
             def invite_cancelled(self, *args, **kw):
                 self._generic_invite_update("cancelled")
 
+            def invite_rejected(self, *args, **kw):
+                self._generic_invite_update("rejected")
+
             def error_occurred(self, err):
                 self.errors.append(err)
         self.status = FakeStatus()

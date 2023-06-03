@@ -243,6 +243,7 @@ class Invite(object):
                 if kind == "join-folder-reject":
                     self._success = False
                     self._reject_reason = reply_msg.get("reject-reason", "No reason given")
+                    self._status.invite_rejected(self, self._reject_reason)
                     raise InviteRejected(
                         invite=self,
                         reason=self._reject_reason,
@@ -578,6 +579,7 @@ class InMemoryInviteManager(service.Service):
         try:
             invite = self._invites[invite_id]
             invite._cancelled = True
+            self.folder_status.invite_cancelled(invite)
         except KeyError:
             raise ValueError(
                 "Invite '{}' doesn't exist".format(invite_id)
@@ -624,6 +626,8 @@ class InMemoryInviteManager(service.Service):
                     invite._reject_reason if invite._reject_reason is not None else str(fail.value),
                 )
             )
+            if invite._reject_reason is not None:
+                self.folder_status.invite_rejected(self, invite._reject_reason)
         invite._had_error = fail
         for x in invite._awaiting_code:
             x.errback(fail)
