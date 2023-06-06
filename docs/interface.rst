@@ -403,3 +403,6 @@ Note that the first "update events" message received will _not_ contain all the 
 For example, if there are 50 files in the folder and 48 have already been uploaded, there will be just 2 ``upload-queued`` events (because the other 48 have all finished already).
 If one of these files is currently being uploaded, there will also be a ``upload-started`` event.
 To know the state of all files, use the other endpoints.
+
+
+The *invite events* follow an ordered pattern: ``invite-created`` will be followed by 3 ``invite-updated`` events (one each for ``welcome``, ``versions`` and ``code`` as those arrive) and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).

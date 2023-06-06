@@ -2,6 +2,8 @@ import json
 
 from testtools.matchers import (
     Equals,
+    MatchesDict,
+    MatchesListwise,
 )
 
 from twisted.python.filepath import (
@@ -29,6 +31,9 @@ from .common import (
 from ..status import (
     StatusFactory,
     EventsWebSocketStatusService,
+)
+from ..invite import (
+    Invite,
 )
 from ..config import (
     create_testing_configuration,
@@ -167,6 +172,49 @@ class StatusServiceTests(SyncTestCase):
                     }
                 ]
             }])
+        )
+
+
+    def test_offline_client_invites(self):
+        """
+        A client gets the correct state when connecting, with invite
+        events
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+
+        inv = Invite(
+            "fake-uuid", "invitee name", "read-only",
+            collection=object(),
+            wormhole=object(),
+            status=self.service,
+        )
+        self.service.invite_created("foo", inv)
+        self.service.invite_updated("foo", inv, welcome={"motd": "hello, world"})
+        self.service.invite_updated("foo", inv, code="1-foo-bar")
+        self.service.invite_updated("foo", inv, versions={"magic-wormhole": {}})
+        self.assertThat(messages, Equals([]))
+
+        # once connected, this client should get the proper state
+        self.service.client_connected(ClientProtocol())
+
+        self.assertThat(
+            messages,
+            MatchesListwise([
+                MatchesDict({
+                    "events": MatchesListwise([
+                        Equals({"folder": "foo", "kind": "folder-added"}),
+                        Equals({"folder": "foo", "kind": "invite-created", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid"}),
+                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "welcome": {"motd": "hello, world"}}),
+                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "code": "1-foo-bar"}),
+                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "versions": {"magic-wormhole": {}}}),
+                        Equals({"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}),
+                    ])
+                })
+            ])
         )
 
     def test_disconnect(self):

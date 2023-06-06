@@ -594,6 +594,19 @@ class EventsWebSocketStatusService(service.Service):
             if folder["poller"].last_completed is not None:
                 events.append(_marshal_event_poll_completed(foldername, folder["poller"]))
 
+            invites = []
+            for invite, meta in folder["invites"].values():
+                invites.append(_marshal_event_invite_created(foldername, invite))
+                if "welcome" in meta:
+                    invites.append(_marshal_event_invite_updated(foldername, invite, welcome=meta["welcome"]))
+                if "code" in meta:
+                    invites.append(_marshal_event_invite_updated(foldername, invite, code=meta["code"]))
+                if "versions" in meta:
+                    invites.append(_marshal_event_invite_updated(foldername, invite, versions=meta["versions"]))
+            # if the invite was "done" (succeeded, failed, cancelled,
+            # rejected) it would not be in our dict still
+            events.extend(invites)
+
         events.append(_marshal_event_tahoe(self._tahoe))
 
         return json.dumps({
