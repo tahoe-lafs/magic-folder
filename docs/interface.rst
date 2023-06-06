@@ -359,7 +359,7 @@ Events will contain other keys; clients should be tolerant of keys in the state 
 
 The client doesn't send any messages to the server; it is an error to do so.
 
-The follow event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
+The following event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
 
 - ``"scan-completed"``: has key ``timestamp`` which is a unix-timestamp saying when we last looked for local changes.
 
@@ -384,6 +384,18 @@ The follow event kinds are understood (see ``status.py`` for more details on the
 - ``"download-started"``: same as upload version.
 
 - ``"download-finished"``: same as upload version.
+
+- ``"invite-created"``: A new invite is created. All invite events also have a ``folder`` indicating which folder they pertain to, a ``uuid``, ``participant-name`` indicating the invitee and ``mode`` (``"read-only"`` or ``"read-write"``).
+
+- ``"invite-updated"``: An update to an invite has happened; as well as the keys from ``"invite-created"`` there may be one or all of: ``welcome``, the Welcome message from the Magic Wormhole server (you should show users the ``"motd"`` if there is one); a ``versions`` indicating the app-version support of the other side; or a ``code`` indicating the wormhole code.
+
+- ``"invite-succeeded"``: An invite is successful. All the keys from `"invite-created"`.
+
+- ``"invite-failed"``: An invite has failed. All the keys from `"invite-created"` plus a ``reason``, a freeform string indicating why.
+
+- ``"invite-rejected"``: An invite has been rejected by the other side. All the keys from `"invite-created"` plus a ``reason`` if the other side indicated one.
+
+- ``"invite-cancelled"``: An invite has been cancelled. All the keys from `"invite-created"`.
 
 All timestamps are "seconds since the Unix epoch", as numbers (JSON only has "numbers" and doesn't distinguish floats from ints).
 
