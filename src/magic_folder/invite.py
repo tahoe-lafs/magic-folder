@@ -197,7 +197,7 @@ class Invite(object):
 
             with start_action(action_type="invite:welcome"):
                 welcome = yield self._wormhole.get_welcome()
-                self._status.invite_updated(self, welcome=welcome)
+                self._status.invite_welcomed(self, welcome)
 
             with start_action(action_type="invite:get_code") as action_code:
                 self._wormhole.allocate_code(2)
@@ -206,11 +206,11 @@ class Invite(object):
                 while self._awaiting_code:
                     d = self._awaiting_code.pop()
                     d.callback(None)
-                self._status.invite_updated(self, code=self._code)
+                self._status.invite_code_created(self, self._code)
 
             versions = yield self._wormhole.get_versions()
             validate_versions(versions)
-            self._status.invite_updated(self, versions=versions)
+            self._status.invite_versions(self, versions)
 
             with start_action(action_type="invite:send_message"):
                 invite_message = json.dumps({

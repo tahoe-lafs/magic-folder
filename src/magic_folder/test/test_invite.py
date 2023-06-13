@@ -183,8 +183,14 @@ class TestInviteManager(SyncTestCase):
             def invite_created(self, *args, **kw):
                 self._generic_invite_update("created")
 
-            def invite_updated(self, *args, **kw):
-                self._generic_invite_update("updated")
+            def invite_welcomed(self, *args, **kw):
+                self._generic_invite_update("welcomed")
+
+            def invite_code_created(self, *args, **kw):
+                self._generic_invite_update("code_created")
+
+            def invite_versions(self, *args, **kw):
+                self._generic_invite_update("versions")
 
             def invite_succeeded(self, *args, **kw):
                 self._generic_invite_update("succeeded")

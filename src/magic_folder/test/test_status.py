@@ -193,9 +193,9 @@ class StatusServiceTests(SyncTestCase):
             status=self.service,
         )
         self.service.invite_created("foo", inv)
-        self.service.invite_updated("foo", inv, welcome={"motd": "hello, world"})
-        self.service.invite_updated("foo", inv, code="1-foo-bar")
-        self.service.invite_updated("foo", inv, versions={"magic-wormhole": {}})
+        self.service.invite_welcomed("foo", inv, {"motd": "hello, world"})
+        self.service.invite_code_created("foo", inv, "1-foo-bar")
+        self.service.invite_versions("foo", inv, {"magic-wormhole": {}})
         self.assertThat(messages, Equals([]))
 
         # once connected, this client should get the proper state
@@ -207,10 +207,10 @@ class StatusServiceTests(SyncTestCase):
                 MatchesDict({
                     "events": MatchesListwise([
                         Equals({"folder": "foo", "kind": "folder-added"}),
-                        Equals({"folder": "foo", "kind": "invite-created", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid"}),
-                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "welcome": {"motd": "hello, world"}}),
-                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "code": "1-foo-bar"}),
-                        Equals({"folder": "foo", "kind": "invite-updated", "mode": "read-only", "participant-name": "invitee name", "uuid": "fake-uuid", "versions": {"magic-wormhole": {}}}),
+                        Equals({"folder": "foo", "kind": "invite-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid"}),
+                        Equals({"folder": "foo", "kind": "invite-welcomed", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "welcome": {"motd": "hello, world"}}),
+                        Equals({"folder": "foo", "kind": "invite-code-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "code": "1-foo-bar"}),
+                        Equals({"folder": "foo", "kind": "invite-versions", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "versions": {"magic-wormhole": {}}}),
                         Equals({"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}),
                     ])
                 })
