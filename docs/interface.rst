@@ -387,7 +387,11 @@ The following event kinds are understood (see ``status.py`` for more details on 
 
 - ``"invite-created"``: A new invite is created. All invite events also have a ``folder`` indicating which folder they pertain to, a ``uuid``, ``participant-name`` indicating the invitee and ``mode`` (``"read-only"`` or ``"read-write"``).
 
-- ``"invite-updated"``: An update to an invite has happened; as well as the keys from ``"invite-created"`` there may be one or all of: ``welcome``, the Welcome message from the Magic Wormhole server (you should show users the ``"motd"`` if there is one); a ``versions`` indicating the app-version support of the other side; or a ``code`` indicating the wormhole code.
+- ``"invite-welcomed"``: Connection to the mailbox has succeeded. As well as the keys from ``"invite-created"`` the welcome data is contained in ``welcome`` (you should show users the ``"motd"`` if there is one).
+
+- ``"invite-code-created"``: As well as the keys from ``"invite-created"``, a ``code`` key will be included indicating the wormhole code.
+
+- ``"invite-versions"``: As well as the keys from ``"invite-created"``, a ``versions`` key is included indicating the peer's version information.
 
 - ``"invite-succeeded"``: An invite is successful. All the keys from `"invite-created"`.
 
