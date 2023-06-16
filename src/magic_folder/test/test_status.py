@@ -268,22 +268,27 @@ class StatusServiceTests(SyncTestCase):
         """
         We log an error if a message to a client fails to send
         """
-        messages = []
 
         class ClientProtocol(object):
+            def __init__(self, do_error=False):
+                self.do_error = do_error
+                self.messages = []
+
             def sendMessage(self, payload):
-                messages.append(json.loads(payload))
-                if len(messages) == 2:
+                self.messages.append(json.loads(payload))
+                if len(self.messages) == 2 and self.do_error:
                     raise RuntimeError("loopback is broken?")
 
-        client = ClientProtocol()
-        self.service.client_connected(client)
+        client0 = ClientProtocol(do_error=True)
+        client1 = ClientProtocol(do_error=False)
+        self.service.client_connected(client0)
+        self.service.client_connected(client1)
 
         # change our state
         self.service.upload_queued("foo", "foo")
 
         self.assertThat(
-            messages,
+            client1.messages,  # the one without errors
             Equals([
                 {
                     "events": [
@@ -292,14 +297,14 @@ class StatusServiceTests(SyncTestCase):
                 },
                 {
                     "events": [
-                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
+                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
                     ]
                 },
                 {
                     "events": [
-                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
-                }
+                },
             ])
         )
 

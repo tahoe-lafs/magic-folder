@@ -642,12 +642,17 @@ class EventsWebSocketStatusService(service.Service):
 
         Send the given message dict as a single event to all connected clients.
         """
+        # let encoding / serialize errors out
+        msg = json.dumps({"events": [msg_json]}).encode("utf8")
         for client in self._clients:
             try:
-                client.sendMessage(json.dumps({"events": [msg_json]}).encode("utf8"))
+                client.sendMessage(msg)
             except Exception as e:
+                # must remove client in case we end up doing a
+                # recursive "error_occurred"...
+                self._clients = self._clients.copy()
+                self._clients.remove(client)
                 self.error_occurred(None, "Failed to send status: {}".format(e))
-                # XXX disconnect / remove client?
 
     # IStatus API
 
