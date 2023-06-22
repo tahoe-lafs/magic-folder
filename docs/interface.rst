@@ -409,4 +409,5 @@ If one of these files is currently being uploaded, there will also be a ``upload
 To know the state of all files, use the other endpoints.
 
 
-The *invite events* follow an ordered pattern: ``invite-created`` will be followed by 3 ``invite-updated`` events (one each for ``welcome``, ``versions`` and ``code`` as those arrive) and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).
+The *invite events* follow an ordered pattern: ``invite-created`` will be followed by ``invite-created``, ``invite-welcomed``, ``invite-code-created`` and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).
+These can thus form the basis of a progress-indicator or other UX treatments.
