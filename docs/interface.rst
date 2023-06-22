@@ -385,7 +385,7 @@ The following event kinds are understood (see ``status.py`` for more details on 
 
 - ``"download-finished"``: same as upload version.
 
-- ``"invite-created"``: A new invite is created. All invite events also have a ``folder`` indicating which folder they pertain to, a ``uuid``, ``participant-name`` indicating the invitee and ``mode`` (``"read-only"`` or ``"read-write"``).
+- ``"invite-created"``: A new invite is created. All invite events also have a ``folder`` indicating which folder they pertain to, a ``id``, ``participant-name`` indicating the invitee and ``mode`` (``"read-only"`` or ``"read-write"``).
 
 - ``"invite-welcomed"``: Connection to the mailbox has succeeded. As well as the keys from ``"invite-created"`` the welcome data is contained in ``welcome`` (you should show users the ``"motd"`` if there is one).
 
