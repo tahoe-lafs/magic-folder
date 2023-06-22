@@ -1,1 +1,1 @@
-Added a description of the datamodel to the documentation.
+Added a description of the datamodel to the documentation

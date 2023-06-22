@@ -68,7 +68,6 @@ The ``"@metadata"`` Immutable contains JSON describing the version (there is onl
 
 .. figure:: magic-folder-data-model--high-level.svg
     :width: 100%
-    :height: 30pt
     :alt: Overview of Magic Folder datamodel
     :align: center
 
@@ -130,7 +129,6 @@ Considered together, an abstract view of a two-Participant example:
 
 .. figure:: magic-folder-data-model-abstract.svg
     :width: 100%
-    :height: 30pt
     :alt: Magic Folder datamodel, abstract snapshots
     :align: center
 
@@ -153,7 +151,6 @@ So, looking at our two-Participant case, here is an example of a conflict and it
 
 .. figure:: magic-folder-data-model-abstract--conflict.plain.svg
     :width: 100%
-    :height: 30pt
     :alt: Magic Folder datamodel, abstract snapshots
     :align: center
 
@@ -183,7 +180,6 @@ Here is a fully-worked diagram of a complete Folder called "My Notes" with two P
 
 .. figure:: magic-folder-data-model.svg
     :width: 100%
-    :height: 40pt
     :alt: Magic Folder datamodel with all details
     :align: center
 

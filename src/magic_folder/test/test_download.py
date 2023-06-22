@@ -92,6 +92,7 @@ from ..testing.web import (
 )
 from ..participants import (
     participants_from_collective,
+    static_participants,
 )
 from ..util.capabilities import (
     Capability,
@@ -1137,6 +1138,14 @@ class ConflictTests(AsyncTestCase):
         self.filesystem = InMemoryMagicFolderFilesystem()
         self.file_factory._magic_fs = self.filesystem
 
+        self.participants = static_participants(
+            names=["alice", "carol"],
+            my_files=[],
+            other_files=[
+                [],
+            ],
+        )
+
         self.carol_author = create_local_author("carol")
 
     def tearDown(self):
@@ -1183,7 +1192,7 @@ class ConflictTests(AsyncTestCase):
         # examine the remote-snapshot
         mf = self.file_factory.magic_file_for(local_path)
         yield mf.local_snapshot_exists(local0)
-        yield mf.found_new_remote(remote0)
+        yield mf.found_new_remote(remote0, self.participants.participants[1])
 
         yield mf.when_idle()
 
@@ -1235,7 +1244,7 @@ class ConflictTests(AsyncTestCase):
 
         # tell the updater to examine the remote-snapshot
         mf = self.file_factory.magic_file_for(local_path)
-        yield mf.found_new_remote(remote0)
+        yield mf.found_new_remote(remote0, self.participants.participants[1])
         yield mf.when_idle()
 
         # we have a local-snapshot for the same relpath as the incoming
@@ -1281,7 +1290,7 @@ class ConflictTests(AsyncTestCase):
         # tell the updater to examine the youngest remote
         youngest = remotes[-1]
         mf = self.file_factory.magic_file_for(local_path)
-        yield mf.found_new_remote(youngest)
+        yield mf.found_new_remote(youngest, self.participants.participants[0])
         yield mf.when_idle()
 
         # we have a common ancestor so this should be an update
@@ -1343,7 +1352,7 @@ class ConflictTests(AsyncTestCase):
 
         # ...child->parent aren't related to "other"
         mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
-        yield mf.found_new_remote(child)
+        yield mf.found_new_remote(child, self.participants.participants[0])
         yield mf.when_idle()
 
         # so, no common ancestor: a conflict
@@ -1400,7 +1409,7 @@ class ConflictTests(AsyncTestCase):
 
         # deletion snapshot
         mf = self.file_factory.magic_file_for(self.alice_magic_path.child("foo"))
-        yield mf.found_new_remote(child)
+        yield mf.found_new_remote(child, self.participants.participants[0])
         yield mf.when_idle()
 
         self.assertThat(
@@ -1448,7 +1457,7 @@ class ConflictTests(AsyncTestCase):
 
         # we update with the parent (so, it's old)
         mf = self.file_factory.magic_file_for(local_path)
-        yield mf.found_new_remote(parent)
+        yield mf.found_new_remote(parent, self.participants.participants[0])
         yield mf.when_idle()
 
         # XXX to fix this need to add another state in the
@@ -1711,6 +1720,10 @@ class CancelTests(AsyncTestCase):
     Tests relating to cancelling operations
     """
 
+    def setUp(self):
+        super(CancelTests, self).setUp()
+        self.participants = static_participants()
+
     # XXX NOTE if this name gets longer, the resulting temp-paths can
     # become "too long" on windows causing failures
     @inline_callbacks
@@ -1755,7 +1768,7 @@ class CancelTests(AsyncTestCase):
         mf = service.file_factory.magic_file_for(local)
         # when .stream_capability() is called it will receive an
         # already cancelled Deferred
-        yield mf.found_new_remote(remote_snapshot)
+        yield mf.found_new_remote(remote_snapshot, self.participants.participants[0])
         yield mf.when_idle()
 
         # status system should report our error
@@ -1833,7 +1846,7 @@ class CancelTests(AsyncTestCase):
         )
 
         mf = service.file_factory.magic_file_for(magic_path.child(relpath))
-        yield mf.found_new_remote(parent)
+        yield mf.found_new_remote(parent, self.participants.participants[0])
         yield mf.when_idle()
 
         # status system should report our error
