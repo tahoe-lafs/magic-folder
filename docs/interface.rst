@@ -393,7 +393,7 @@ All invite events also have a ``folder`` indicating which folder they pertain to
 - ``"invite-code-created"``: We have allocated what we need on the mailbox server and have a valid code.
 As well as the keys from ``"invite-created"``, a ``code`` key will be included indicating the wormhole code.
 
-- ``"invite-received-versions"``: We have received an encrypted message from our peer.
+- ``"invite-versions-received"``: We have received an encrypted message from our peer.
 As well as the keys from ``"invite-created"``, a ``versions`` key is included indicating the peer's version information.
 
 - ``"invite-succeeded"``: An invite is successful. All the keys from `"invite-created"`.
@@ -412,5 +412,5 @@ If one of these files is currently being uploaded, there will also be a ``upload
 To know the state of all files, use the other endpoints.
 
 
-The *invite events* follow an ordered pattern: ``invite-created`` will be followed by ``invite-welcomed``, ``invite-code-created``, ``invite-received-versions``, and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).
+The *invite events* follow an ordered pattern: ``invite-created`` will be followed by ``invite-welcomed``, ``invite-code-created``, ``invite-versions-received``, and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).
 These can thus form the basis of a progress-indicator or other UX treatments.

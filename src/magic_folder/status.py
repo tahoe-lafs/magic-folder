@@ -393,7 +393,7 @@ def _marshal_event_invite_versions(folder_name, invite, versions):
     msg = _invite_to_json(invite)
     msg["folder"] = folder_name
     msg["versions"] = versions
-    return _marshal_event("invite-received-versions", msg)
+    return _marshal_event("invite-versions-received", msg)
 
 
 def _marshal_event_invite_succeeded(folder_name, invite):
@@ -699,14 +699,12 @@ class EventsWebSocketStatusService(service.Service):
         self._folders[folder]["poller"] = status
         self._send_single_event(_marshal_event_poll_completed(folder, status))
 
+    # usual / expected message order:
     # invite-created
     # invite-welcomed
     # invite-code-created
-    # invite-received-versions
-    # invite-succeeded
-    # invite-failed
-    # invite-rejected
-    # invite-cancelled
+    # invite-versions-received
+    # invite-succeeded | invite-failed | invite-rejected | invite-cancelled
 
     def invite_created(self, folder, invite):
         self._folders[folder]["invites"][invite.uuid] = (invite, dict())
