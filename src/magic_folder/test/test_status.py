@@ -210,7 +210,7 @@ class StatusServiceTests(SyncTestCase):
                         Equals({"folder": "foo", "kind": "invite-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid"}),
                         Equals({"folder": "foo", "kind": "invite-welcomed", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "welcome": {"motd": "hello, world"}}),
                         Equals({"folder": "foo", "kind": "invite-code-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "code": "1-foo-bar"}),
-                        Equals({"folder": "foo", "kind": "invite-versions", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "versions": {"magic-wormhole": {}}}),
+                        Equals({"folder": "foo", "kind": "invite-versions-received", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "versions": {"magic-wormhole": {}}}),
                         Equals({"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}),
                     ])
                 })
@@ -297,12 +297,12 @@ class StatusServiceTests(SyncTestCase):
                 },
                 {
                     "events": [
-                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
+                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
                 },
                 {
                     "events": [
-                        {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
+                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
                     ]
                 },
             ])
