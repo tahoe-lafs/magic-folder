@@ -570,7 +570,8 @@ class RemoteScannerService(service.MultiService):
                     files = yield participant.files()
                     for relpath, file_data in files.items():
                         if self._is_remote_update(relpath, file_data.snapshot_cap):
-                            self._status.download_queued(self._config.name, relpath)
+                            # reminder: the MagicFile state-machine handles all status
+                            # updates related to files.
                             updates.append((relpath, file_data.snapshot_cap, participant))
 
             # allow for parallel downloads
