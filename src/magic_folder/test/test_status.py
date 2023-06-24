@@ -270,7 +270,7 @@ class StatusServiceTests(SyncTestCase):
         """
 
         class ClientProtocol(object):
-            def __init__(self, do_error=False):
+            def __init__(self, do_error):
                 self.do_error = do_error
                 self.messages = []
 
@@ -287,11 +287,12 @@ class StatusServiceTests(SyncTestCase):
         # change our state
         self.service.upload_queued("foo", "foo")
 
-        # comparing using set()s because it seems the specific timing
-        # of "error" versus "upload queued" isn't stable (todo?)
+        # client1 has a send-error .. so it is removed from the list
+        # of clients, and then the error (i.e. "failing to send") is
+        # reported to all other connected clients.
         self.assertThat(
-            set(client1.messages),  # the one without errors
-            Equals(set([
+            client0.messages,
+            Equals([
                 {
                     "events": [
                         {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
@@ -302,12 +303,7 @@ class StatusServiceTests(SyncTestCase):
                         {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
                 },
-                {
-                    "events": [
-                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
-                    ]
-                },
-            ]))
+            ])
         )
 
 
