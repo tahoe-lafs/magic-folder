@@ -2,6 +2,8 @@ import json
 
 from testtools.matchers import (
     Equals,
+    MatchesDict,
+    MatchesListwise,
 )
 
 from twisted.python.filepath import (
@@ -29,6 +31,9 @@ from .common import (
 from ..status import (
     StatusFactory,
     EventsWebSocketStatusService,
+)
+from ..invite import (
+    Invite,
 )
 from ..config import (
     create_testing_configuration,
@@ -169,6 +174,49 @@ class StatusServiceTests(SyncTestCase):
             }])
         )
 
+
+    def test_offline_client_invites(self):
+        """
+        A client gets the correct state when connecting, with invite
+        events
+        """
+        messages = []
+
+        class ClientProtocol(object):
+            def sendMessage(self, payload):
+                messages.append(json.loads(payload))
+
+        inv = Invite(
+            "fake-uuid", "invitee name", "read-only",
+            collection=object(),
+            wormhole=object(),
+            status=self.service,
+        )
+        self.service.invite_created("foo", inv)
+        self.service.invite_welcomed("foo", inv, {"motd": "hello, world"})
+        self.service.invite_code_created("foo", inv, "1-foo-bar")
+        self.service.invite_versions("foo", inv, {"magic-wormhole": {}})
+        self.assertThat(messages, Equals([]))
+
+        # once connected, this client should get the proper state
+        self.service.client_connected(ClientProtocol())
+
+        self.assertThat(
+            messages,
+            MatchesListwise([
+                MatchesDict({
+                    "events": MatchesListwise([
+                        Equals({"folder": "foo", "kind": "folder-added"}),
+                        Equals({"folder": "foo", "kind": "invite-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid"}),
+                        Equals({"folder": "foo", "kind": "invite-welcomed", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "welcome": {"motd": "hello, world"}}),
+                        Equals({"folder": "foo", "kind": "invite-code-created", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "code": "1-foo-bar"}),
+                        Equals({"folder": "foo", "kind": "invite-versions-received", "mode": "read-only", "participant-name": "invitee name", "id": "fake-uuid", "versions": {"magic-wormhole": {}}}),
+                        Equals({"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}),
+                    ])
+                })
+            ])
+        )
+
     def test_disconnect(self):
         """
         A client disconnecting and re-connecting gets correct state
@@ -220,22 +268,30 @@ class StatusServiceTests(SyncTestCase):
         """
         We log an error if a message to a client fails to send
         """
-        messages = []
 
         class ClientProtocol(object):
+            def __init__(self, do_error):
+                self.do_error = do_error
+                self.messages = []
+
             def sendMessage(self, payload):
-                messages.append(json.loads(payload))
-                if len(messages) == 2:
+                self.messages.append(json.loads(payload))
+                if len(self.messages) == 2 and self.do_error:
                     raise RuntimeError("loopback is broken?")
 
-        client = ClientProtocol()
-        self.service.client_connected(client)
+        client0 = ClientProtocol(do_error=True)
+        client1 = ClientProtocol(do_error=False)
+        self.service.client_connected(client0)
+        self.service.client_connected(client1)
 
         # change our state
         self.service.upload_queued("foo", "foo")
 
+        # client1 has a send-error .. so it is removed from the list
+        # of clients, and then the error (i.e. "failing to send") is
+        # reported to all other connected clients.
         self.assertThat(
-            messages,
+            client0.messages,
             Equals([
                 {
                     "events": [
@@ -247,11 +303,6 @@ class StatusServiceTests(SyncTestCase):
                         {"folder": "foo", "kind": "upload-queued", "timestamp": 0.0, "relpath": "foo"}
                     ]
                 },
-                {
-                    "events": [
-                        {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
-                    ]
-                }
             ])
         )
 

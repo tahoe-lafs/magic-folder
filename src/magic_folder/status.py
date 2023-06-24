@@ -112,6 +112,54 @@ class IStatus(Interface):
         :param PollerStatus: the status
         """
 
+    def invite_created(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_welcomed(folder, invite, welcome):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_code_created(folder, invite, code):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_versions(folder, invite, versions=None):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_succeeded(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_failed(folder, invite, reason):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_rejected(folder, invite, reason):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
+    def invite_cancelled(folder, invite):
+        """
+        :param str folder: folder name
+        :param Invite: the affected Invite
+        """
+
     def error_occurred(folder, message):
         """
         Some error happened that should be reported to the user.
@@ -257,6 +305,7 @@ def _create_blank_folder_state():
         "errors": [],
         "scanner": ScannerStatus(None),
         "poller": PollerStatus(None),
+        "invites": {},
     }
 
 
@@ -309,6 +358,68 @@ def _marshal_event_poll_completed(folder_name, poller):
     msg = poller.to_json()
     msg["folder"] = folder_name
     return _marshal_event("poll-completed", msg)
+
+
+
+def _invite_to_json(invite):
+    return {
+        "id": invite.uuid,
+        "participant-name": invite.participant_name,
+        "mode": invite.participant_mode,
+    }
+
+
+def _marshal_event_invite_created(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-created", msg)
+
+
+def _marshal_event_invite_welcomed(folder_name, invite, welcome):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["welcome"] = welcome
+    return _marshal_event("invite-welcomed", msg)
+
+
+def _marshal_event_invite_code_created(folder_name, invite, code):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["code"] = code
+    return _marshal_event("invite-code-created", msg)
+
+
+def _marshal_event_invite_versions(folder_name, invite, versions):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["versions"] = versions
+    return _marshal_event("invite-versions-received", msg)
+
+
+def _marshal_event_invite_succeeded(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-succeeded", msg)
+
+
+def _marshal_event_invite_failed(folder_name, invite, reason):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["reason"] = reason
+    return _marshal_event("invite-failed", msg)
+
+
+def _marshal_event_invite_rejected(folder_name, invite, reason):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    msg["reason"] = str(reason)
+    return _marshal_event("invite-rejected", msg)
+
+
+def _marshal_event_invite_cancelled(folder_name, invite):
+    msg = _invite_to_json(invite)
+    msg["folder"] = folder_name
+    return _marshal_event("invite-cancelled", msg)
 
 
 def _marshal_event_tahoe(tahoe):
@@ -506,6 +617,19 @@ class EventsWebSocketStatusService(service.Service):
             if folder["poller"].last_completed is not None:
                 events.append(_marshal_event_poll_completed(foldername, folder["poller"]))
 
+            invites = []
+            for invite, meta in folder["invites"].values():
+                invites.append(_marshal_event_invite_created(foldername, invite))
+                if "welcome" in meta:
+                    invites.append(_marshal_event_invite_welcomed(foldername, invite, meta["welcome"]))
+                if "code" in meta:
+                    invites.append(_marshal_event_invite_code_created(foldername, invite, meta["code"]))
+                if "versions" in meta:
+                    invites.append(_marshal_event_invite_versions(foldername, invite, meta["versions"]))
+            # if the invite was "done" (succeeded, failed, cancelled,
+            # rejected) it would not be in our dict still
+            events.extend(invites)
+
         events.append(_marshal_event_tahoe(self._tahoe))
 
         return json.dumps({
@@ -518,12 +642,17 @@ class EventsWebSocketStatusService(service.Service):
 
         Send the given message dict as a single event to all connected clients.
         """
+        # let encoding / serialize errors out
+        msg = json.dumps({"events": [msg_json]}).encode("utf8")
         for client in self._clients:
             try:
-                client.sendMessage(json.dumps({"events": [msg_json]}).encode("utf8"))
+                client.sendMessage(msg)
             except Exception as e:
+                # must remove client in case we end up doing a
+                # recursive "error_occurred"...
+                self._clients = self._clients.copy()
+                self._clients.remove(client)
                 self.error_occurred(None, "Failed to send status: {}".format(e))
-                # XXX disconnect / remove client?
 
     # IStatus API
 
@@ -569,6 +698,45 @@ class EventsWebSocketStatusService(service.Service):
         """
         self._folders[folder]["poller"] = status
         self._send_single_event(_marshal_event_poll_completed(folder, status))
+
+    # usual / expected message order:
+    # invite-created
+    # invite-welcomed
+    # invite-code-created
+    # invite-versions-received
+    # invite-succeeded | invite-failed | invite-rejected | invite-cancelled
+
+    def invite_created(self, folder, invite):
+        self._folders[folder]["invites"][invite.uuid] = (invite, dict())
+        self._send_single_event(_marshal_event_invite_created(folder, invite))
+
+    def invite_welcomed(self, folder, invite, welcome):
+        self._folders[folder]["invites"][invite.uuid][1]["welcome"] = welcome
+        self._send_single_event(_marshal_event_invite_welcomed(folder, invite, welcome))
+
+    def invite_code_created(self, folder, invite, code):
+        self._folders[folder]["invites"][invite.uuid][1]["code"] = code
+        self._send_single_event(_marshal_event_invite_code_created(folder, invite, code))
+
+    def invite_versions(self, folder, invite, versions):
+        self._folders[folder]["invites"][invite.uuid][1]["versions"] = versions
+        self._send_single_event(_marshal_event_invite_versions(folder, invite, versions))
+
+    def invite_succeeded(self, folder, invite):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_succeeded(folder, invite))
+
+    def invite_failed(self, folder, invite, reason):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_failed(folder, invite, reason))
+
+    def invite_rejected(self, folder, invite, reason):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_rejected(folder, invite, reason))
+
+    def invite_cancelled(self, folder, invite):
+        del self._folders[folder]["invites"][invite.uuid]
+        self._send_single_event(_marshal_event_invite_cancelled(folder, invite))
 
     def error_occurred(self, folder, message):
         """

@@ -359,7 +359,7 @@ Events will contain other keys; clients should be tolerant of keys in the state 
 
 The client doesn't send any messages to the server; it is an error to do so.
 
-The follow event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
+The following event kinds are understood (see ``status.py`` for more details on the sending side, and ``cli.py`` for an example of receiving them):
 
 - ``"scan-completed"``: has key ``timestamp`` which is a unix-timestamp saying when we last looked for local changes.
 
@@ -385,9 +385,32 @@ The follow event kinds are understood (see ``status.py`` for more details on the
 
 - ``"download-finished"``: same as upload version.
 
+- ``"invite-created"``: A new invite is created locally.
+All invite events also have a ``folder`` indicating which folder they pertain to, a ``id``, ``participant-name`` indicating the invitee and ``mode`` (``"read-only"`` or ``"read-write"``).
+
+- ``"invite-welcomed"``: Connection to the mailbox has succeeded. As well as the keys from ``"invite-created"`` the welcome data is contained in ``welcome`` (you should show users the ``"motd"`` if there is one).
+
+- ``"invite-code-created"``: We have allocated what we need on the mailbox server and have a valid code.
+As well as the keys from ``"invite-created"``, a ``code`` key will be included indicating the wormhole code.
+
+- ``"invite-versions-received"``: We have received an encrypted message from our peer.
+As well as the keys from ``"invite-created"``, a ``versions`` key is included indicating the peer's version information.
+
+- ``"invite-succeeded"``: An invite is successful. All the keys from `"invite-created"`.
+
+- ``"invite-failed"``: An invite has failed. All the keys from `"invite-created"` plus a ``reason``, a freeform string indicating why.
+
+- ``"invite-rejected"``: An invite has been rejected by the other side. All the keys from `"invite-created"` plus a ``reason`` if the other side indicated one.
+
+- ``"invite-cancelled"``: An invite has been cancelled. All the keys from `"invite-created"`.
+
 All timestamps are "seconds since the Unix epoch", as numbers (JSON only has "numbers" and doesn't distinguish floats from ints).
 
 Note that the first "update events" message received will _not_ contain all the updates to that point; it will synthesize the correct events to communicate the current state.
 For example, if there are 50 files in the folder and 48 have already been uploaded, there will be just 2 ``upload-queued`` events (because the other 48 have all finished already).
 If one of these files is currently being uploaded, there will also be a ``upload-started`` event.
 To know the state of all files, use the other endpoints.
+
+
+The *invite events* follow an ordered pattern: ``invite-created`` will be followed by ``invite-welcomed``, ``invite-code-created``, ``invite-versions-received``, and then finalized by one of the "terminal" events (``invite-succeeded``, ``invite-failed``, ``invite-rejected`` or ``invite-cancelled``).
+These can thus form the basis of a progress-indicator or other UX treatments.

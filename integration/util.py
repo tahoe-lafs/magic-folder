@@ -654,6 +654,7 @@ class WormholeMailboxServer:
                     "action_type": "integration:wormhole-mailbox",
                 },
                 magic_text="Starting reactor...",
+                error_text="CannotListenError",
                 executable=sys.executable,
                 args=args,
                 print_logs=False,  # they're Twisted struct-log JSON stuff
@@ -773,6 +774,7 @@ def run_service(
     args,
     cwd=None,
     print_logs=True,
+    error_text=None,
 ):
     """
     Start a service, and capture the output from the service in an eliot
@@ -795,7 +797,7 @@ def run_service(
     :return Deferred[IProcessTransport]: The started process.
     """
     with start_action(args=args, executable=executable, **action_fields).context() as ctx:
-        protocol = _MagicTextProtocol(magic_text, print_logs=print_logs)
+        protocol = _MagicTextProtocol(magic_text, print_logs=print_logs, error_text=error_text)
 
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -860,10 +862,11 @@ class _MagicTextProtocol(ProcessProtocol):
     Also capture eliot logs from file descriptor 3, and logs them.
     """
 
-    def __init__(self, magic_text, print_logs=True):
+    def __init__(self, magic_text, print_logs=True, error_text=None):
         self.magic_seen = Deferred()
         self.exited = Deferred()
         self._magic_text = magic_text
+        self._error_text = error_text
         self._output = StringIO()
         self._eliot_stream = EliotLogStream(fallback=self.eliot_garbage_received)
         self._eliot_stderr = EliotLogStream(fallback=self.err_received)
@@ -898,10 +901,16 @@ class _MagicTextProtocol(ProcessProtocol):
             if self._print_logs:
                 sys.stdout.write(data.decode("utf8"))
             self._output.write(data.decode("utf8"))
-        if self.magic_seen is not None and self._magic_text in self._output.getvalue():
-            print("Saw '{}' in the logs".format(self._magic_text))
-            d, self.magic_seen = self.magic_seen, None
-            d.callback(self)
+        if self.magic_seen is not None:
+            if self._magic_text in self._output.getvalue():
+                print("Saw '{}' in the logs".format(self._magic_text))
+                d, self.magic_seen = self.magic_seen, None
+                d.callback(self)
+            if self._error_text and self._error_text in self._output.getvalue():
+                msg = "'{}' in logs".format(self._error)
+                print(msg)
+                d, self.magic_seen = self.magic_seen, None
+                d.errback(RuntimeError(msg))
 
     def err_received(self, data):
         """
