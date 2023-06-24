@@ -307,7 +307,7 @@ class StatusServiceTests(SyncTestCase):
                         {"folder": None, "kind": "error-occurred", "summary": "Failed to send status: loopback is broken?", "timestamp": 0.0}
                     ]
                 },
-            ])
+            ]))
         )
 
 
