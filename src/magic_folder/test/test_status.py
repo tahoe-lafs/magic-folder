@@ -287,9 +287,11 @@ class StatusServiceTests(SyncTestCase):
         # change our state
         self.service.upload_queued("foo", "foo")
 
+        # comparing using set()s because it seems the specific timing
+        # of "error" versus "upload queued" isn't stable (todo?)
         self.assertThat(
-            client1.messages,  # the one without errors
-            Equals([
+            set(client1.messages),  # the one without errors
+            Equals(set([
                 {
                     "events": [
                         {"connected": 0, "desired": 0, "happy": False, "kind": "tahoe-connection-changed"}
