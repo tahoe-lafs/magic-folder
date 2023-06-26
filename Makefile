@@ -51,7 +51,7 @@ release-test:
 	rm -rf testmf_venv
 
 release-upload:
-	twine upload dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-folder-`git describe --abbrev=0`.tar.gz dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
+	twine upload --config-file pypirc-magicfolder dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-folder-`git describe --abbrev=0`.tar.gz dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
 
 coverage:
 	-coverage erase
