@@ -1,6 +1,35 @@
 ﻿.. -*- coding: utf-8-with-signature -*-
 
 .. towncrier start line
+Magic_Folder 23.6.0 (2023-06-26)
+''''''''''''''''''''''''''''''''
+
+No significant changes.
+
+
+Magic_Folder 23.6.0 (2023-06-26)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- Added a description of the datamodel to the documentation (`#702 <https://github.com/LeastAuthority/magic-folder/issues/702>`_)
+- Conflict files now named after the Participant (not Author) (`#711 <https://github.com/LeastAuthority/magic-folder/issues/711>`_)
+
+
+Bug Fixes
+---------
+
+- "magic-folder status" properly parses scan/poll events (`#717 <https://github.com/LeastAuthority/magic-folder/issues/717>`_)
+- Handle updates to conflicted files more robustly (`#719 <https://github.com/LeastAuthority/magic-folder/issues/719>`_)
+
+
+Other Changes
+-------------
+
+- Bump dependencies, including security-relevant cryptography library (`#716 <https://github.com/LeastAuthority/magic-folder/issues/716>`_)
+
+
 Magic_Folder 23.5.0 (2023-05-02)
 ''''''''''''''''''''''''''''''''
 
