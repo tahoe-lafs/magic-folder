@@ -455,6 +455,13 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
                 "The 'collective' must be read-only"
             )
 
+        # if the invite is read-only we do not know how to accept that yet; see
+        # https://github.com/LeastAuthority/magic-folder/issues/735
+        if invite_msg["mode"] != "read-write":
+            raise ValueError(
+                "Cannot accept a 'read-only' invite"
+            )
+
         # create a new Personal DMD for our new magic-folder
         with start_action(action_type="join:create_personal_dmd"):
             personal_dmd = yield tahoe_client.create_mutable_directory()
