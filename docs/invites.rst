@@ -186,6 +186,11 @@ Laptop sends back a message to Desktop (as with all wormhole messages these will
 
 Laptop will not close the wormhole; that will be done by Desktop.
 Note that the ``"personal"`` key MUST be absent for read-only participants.
+
+It may be the case that an invite is for `"read-write"` access, but the invited participant only desires `"read-only"` access.
+This is communicated by excluding the `"personal"` read-cap from the `"join-folder-accept"` message.
+Note that magic-folder currently doesn't support read-only access (see `<https://github.com/LeastAuthority/magic-folder/issues/735>`_) but other clients may.
+
 Laptop may accept the invite with the command-line::
 
     % magic-folder --config ~/.magic-folder join --author laptop --name hilarious-pics 5-secret-words ~/Documents/desktop-fun-pix
