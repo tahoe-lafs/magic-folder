@@ -263,13 +263,13 @@ class Invite(object):
                             )
                     else:
                         if self.participant_mode != "read-only":
-                            raise ValueError(
-                                "Peer with mode '{}' did not send a Personal capability".format(
-                                    self.participant_mode,
-                                )
+                            # Gracefully degrading to "read-only" mode in this case .. but
+                            # log it.
+                            action.log(
+                                "Peer with mode '{}' did not send a Personal capability."
+                                " Treating as read-only.".format(self.participant_mode)
                             )
-                        # to mark a read-only participant, we use an
-                        # empty immutable directory
+                            self.participant_mode = "read-only"
                         personal_dmd = yield tahoe_client.create_immutable_directory({})
 
                 else:  # unhandled "kind"
