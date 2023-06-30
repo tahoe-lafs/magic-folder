@@ -163,6 +163,7 @@ class MagicFolderClientTests(SyncTestCase):
                 "author": "amy",
                 "poll-interval": 123,
                 "scan-interval": 321,
+                "read-only": None,
             }
         ).encode("utf-8")
 
