@@ -384,7 +384,7 @@ def validate_versions(versions):
 
 
 @inline_callbacks
-def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client, wh):
+def accept_invite(reactor, global_config, wormhole_code, folder_name, author_name, local_dir, poll_interval, scan_interval, tahoe_client, wh, read_only=None):
     """
     This does the opposite side of the invite to Invite.perform_invite()
     above. That is:
@@ -407,6 +407,8 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
     :param int scan_interval: seconds between searching for local updates
 
     :param IDeferredWormhole wh: the Magic Wormhole object to use
+
+    :param bool read_only: if `True`, we will only ever accept invites as read-only (never read-write). If missing or `False` the normal behavior is followed.
     """
     if poll_interval < 1:
         raise ValueError(
@@ -457,15 +459,14 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
 
         # if the invite is read-only we do not know how to accept that yet; see
         # https://github.com/LeastAuthority/magic-folder/issues/735
-        if invite_msg["mode"] != "read-write":
-            raise ValueError(
-                "Cannot accept a 'read-only' invite"
-            )
-
-        # create a new Personal DMD for our new magic-folder
-        with start_action(action_type="join:create_personal_dmd"):
-            personal_dmd = yield tahoe_client.create_mutable_directory()
-            personal_readonly_cap = personal_dmd.to_readonly()
+        if invite_msg["mode"] != "read-write" or read_only:
+            personal_dmd = None
+            personal_readonly_cap = None
+        else:
+            # create a new Personal DMD for our new magic-folder
+            with start_action(action_type="join:create_personal_dmd"):
+                personal_dmd = yield tahoe_client.create_mutable_directory()
+                personal_readonly_cap = personal_dmd.to_readonly()
 
         # create our author
         author = create_local_author(author_name)
@@ -499,8 +500,9 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         reply = {
             "kind": "join-folder-accept",
             "protocol": "invite-v1",
-            "personal": personal_readonly_cap.danger_real_capability_string(),
         }
+        if personal_readonly_cap is not None:
+            reply["personal"] = personal_readonly_cap.danger_real_capability_string()
         yield wh.send_message(json.dumps(reply).encode("utf8"))
 
         # final ack

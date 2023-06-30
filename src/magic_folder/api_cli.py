@@ -146,6 +146,10 @@ class AcceptInviteOptions(usage.Options):
         ("scan-interval", "s", 60, "Seconds between scanning for local updates", int),
     ]
 
+    optFlags = [
+        ("read-only", "r", "Accept the invite as read-only"),
+    ]
+
     def postOptions(self):
         required_args = [
             ("folder", "n"),
@@ -170,6 +174,7 @@ def accept_invite(options):
         options['author'],
         options['poll-interval'],
         options['scan-interval'],
+        read_only=True if options['read-only'] else None,
     )
     print(json.dumps(res, indent=4), file=options.stdout)
 

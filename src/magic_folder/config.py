@@ -855,7 +855,7 @@ class MagicFolderConfig(object):
 
         :param Capability upload_dircap: A Tahoe-LAFS read-write
             directory capability representing the DMD belonging to
-            ``author``.
+            ``author``. Or ``None``
 
         :param FilePath magic_path: The local filesystem path where magic
             folder will read and write files belonging to this folder.
@@ -897,7 +897,7 @@ class MagicFolderConfig(object):
                     author.signing_key.encode(Base32Encoder),
                     stash_path.path,
                     collective_dircap.danger_real_capability_string(),
-                    upload_dircap.danger_real_capability_string(),
+                    None if upload_dircap is None else upload_dircap.danger_real_capability_string(),
                     magic_path.path,
                     poll_interval,
                     scan_interval,
@@ -1680,7 +1680,10 @@ class MagicFolderConfig(object):
     @with_cursor
     def upload_dircap(self, cursor):
         cursor.execute("SELECT upload_dircap FROM config")
-        return Capability.from_string(cursor.fetchone()[0])
+        maybe_cap = cursor.fetchone()[0]
+        if maybe_cap:
+            return Capability.from_string(maybe_cap)
+        return None
 
     @property
     @with_cursor
@@ -2137,7 +2140,7 @@ class GlobalConfigDatabase(object):
             directory defining the magic-folder.
 
         :param Capability upload_dircap: the write-capability of the
-            directory we upload data into.
+            directory we upload data into. Or ``None`` if we are read-only.
 
         :param int poll_interval: how often to scan for remote changes
             (in seconds).
