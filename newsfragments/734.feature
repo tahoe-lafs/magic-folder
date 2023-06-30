@@ -1,0 +1,1 @@
+Invited devices may decline "write" authority by accepting read-only
