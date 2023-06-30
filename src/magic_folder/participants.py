@@ -166,7 +166,7 @@ class _StaticParticipants(object):
             self.participants = [
                 _StaticParticipant("default", {}, True),
             ]
-        assert len([p for p in self.participants if p.is_self()]) > 1, "Must have at most one 'self' participant"
+        assert len([p for p in self.participants if p.is_self()]) <= 1, "Must have at most one 'self' participant"
 
     def list(self):
         return self.participants
