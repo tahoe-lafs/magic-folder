@@ -443,7 +443,7 @@ class _UnwriteableParticipant(object):
         """
         Update the snapshot with the given relpath.
         """
-        raise RuntimeError("unwritable participant: cannot upload")
+        return
 
 
 @attr.s
