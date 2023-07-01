@@ -1399,8 +1399,6 @@ def maybe_update_personal_dmd_to_local(reactor, config, get_participants):
             """
             Always retry in 5 seconds.
             """
-            print("ERR", exc)
-            import traceback; traceback.print_stack()
             action.log(message_type="error", e=str(exc))
             return 5
 
