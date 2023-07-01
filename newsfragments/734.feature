@@ -1,1 +1,1 @@
-Invited devices may decline "write" authority by exclusing a Personal capability
+Invited devices may decline "write" authority by excluding a Personal capability in their reply
