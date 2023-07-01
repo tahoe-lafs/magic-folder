@@ -26,7 +26,7 @@ def non_lit_content(s):
     return "{} {}\n".format(s, "." * max(55 - len(s), 0)).encode("utf8")
 
 
-async def perform_invite(request, folder_name, inviter, invitee_name, invitee, invitee_magic_fp):
+async def perform_invite(request, folder_name, inviter, invitee_name, invitee, invitee_magic_fp, read_only=False):
     invitee_magic_fp.makedirs()
 
     code, magic_proto, process_transport = await inviter.invite(folder_name, invitee_name)
@@ -37,6 +37,7 @@ async def perform_invite(request, folder_name, inviter, invitee_name, invitee, i
         invitee_name,
         poll_interval=1,
         scan_interval=1,
+        read_only=read_only,
     )
 
     def cleanup_invitee():
@@ -171,6 +172,47 @@ async def test_participant_never_updates(request, reactor, temp_filepath, alice,
             polls += 1
     assert downloads == [], "Alice downloaded {}, but shouldn't".format(downloads)
     assert polls > 0, "Alice should have completed at least one remote poll"
+
+    # ensure nobody has conflicts, just in case
+    assert find_conflicts(magic) == [], "alice has conflicts"
+    assert find_conflicts(magic_bob) == [], "bob has conflicts"
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_read_only_participant(request, reactor, temp_filepath, alice, bob, edmond):
+    """
+    Invite two other users, one read-only.
+    """
+
+    magic = temp_filepath.child("magic-alice")
+    magic.makedirs()
+    await alice.add("readonly", magic.path)
+
+    def cleanup():
+        pytest_twisted.blockon(alice.leave("readonly"))
+    request.addfinalizer(cleanup)
+
+    # put a file in our folder, in a subdir
+    content0 = non_lit_content("first content")
+    magic.child("content.txt").setContent(content0)
+    await alice.add_snapshot("readonly", "content.txt")
+
+    # invite another participant
+    magic_bob = temp_filepath.child("magic-bob")
+    await perform_invite(request, "readonly", alice, "robert", bob, magic_bob)
+
+    # wait until bob has sync'd
+    await await_file_contents(
+        magic_bob.child("content.txt").path,
+        content0,
+        timeout=25,
+    )
+
+    # invite a read-only participant
+    magic_ed = temp_filepath.child("edmond")
+    await perform_invite(request, "readonly", alice, "eddy", edmond, magic_ed, read_only=True)
+
 
     # ensure nobody has conflicts, just in case
     assert find_conflicts(magic) == [], "alice has conflicts"

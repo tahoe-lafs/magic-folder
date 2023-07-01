@@ -406,7 +406,7 @@ class MagicFolderEnabledNode(object):
                 raise Exception("Couldn't find invite code")
             returnValue((code, proto, transport))
 
-    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5):
+    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5, read_only=False):
         """
         magic-folder join
         """
@@ -418,6 +418,8 @@ class MagicFolderEnabledNode(object):
             "--author", author,
             "--poll-interval", str(poll_interval),
         ]
+        if read_only:
+            args.append("--read-only")
         if scan_interval is None:
             args += ["--disable-scanning"]
         else:
