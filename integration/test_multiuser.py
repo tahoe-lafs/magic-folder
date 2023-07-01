@@ -11,6 +11,7 @@ from .util import (
     await_file_contents,
     find_conflicts,
 )
+from twisted.internet.defer import DeferredList
 
 
 def non_lit_content(s):
@@ -176,6 +177,61 @@ async def test_participant_never_updates(request, reactor, temp_filepath, alice,
     # ensure nobody has conflicts, just in case
     assert find_conflicts(magic) == [], "alice has conflicts"
     assert find_conflicts(magic_bob) == [], "bob has conflicts"
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edmond):
+    """
+    Three users all add the same file at the same time, producing conflicts.
+    """
+
+    magic = temp_filepath.child("magic-alice")
+    magic.makedirs()
+
+    await alice.add("love2share", magic.path)
+
+    def cleanup():
+        pytest_twisted.blockon(alice.leave("love2share"))
+    request.addfinalizer(cleanup)
+
+    # invite some friends
+    magic_bob = temp_filepath.child("magic-bob")
+    await perform_invite(request, "love2share", alice, "robert", bob, magic_bob)
+
+    # invite / await edmond + fran
+    magic_ed = temp_filepath.child("magic-edmond")
+    await perform_invite(request, "love2share", alice, "eddy", edmond, magic_ed)
+
+    # add the same file to all three at "the same" time
+    content0 = non_lit_content("very-secret")
+    magic.child("a-fun-story.txt").setContent(content0)
+    magic_bob.child("a-fun-story.txt").setContent(content0)
+    magic_ed.child("a-fun-story.txt").setContent(content0)
+
+    await DeferredList([
+        alice.add_snapshot("love2share", "a-fun-story.txt"),
+        bob.add_snapshot("love2share", "a-fun-story.txt"),
+        edmond.add_snapshot("love2share", "a-fun-story.txt"),
+    ])
+    # we've added all the files on all participants .. they _should_ conflict, but also we
+    # shouldn't _keep_ trying to download conflicted updates.
+
+    # now, wait for updates
+    all_updates = await DeferredList([
+        alice.status_monitor(how_long=20),
+        bob.status_monitor(how_long=20),
+        edmond.status_monitor(how_long=20),
+    ])
+    # ensure we don't "keep downloading" when there's a conflict
+    for st, updates in all_updates:
+        assert st, "status streaming failed"
+        assert len([e for e in updates if e["kind"] == "download-queued"]) < 2, "too many downloads queued"
+
+    # everyone should have a conflict though...
+    assert find_conflicts(magic) != [], "alice should have conflicts"
+    assert find_conflicts(magic_bob) != [], "bob should have conflicts"
+    assert find_conflicts(magic_ed) != [], "edmond should have conflicts"
 
 
 @inline_callbacks
