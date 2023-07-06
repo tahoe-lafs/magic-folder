@@ -907,7 +907,7 @@ class _MagicTextProtocol(ProcessProtocol):
                 d, self.magic_seen = self.magic_seen, None
                 d.callback(self)
             if self._error_text and self._error_text in self._output.getvalue():
-                msg = "'{}' in logs".format(self._error)
+                msg = "'{}' in logs".format(self._error_text)
                 print(msg)
                 d, self.magic_seen = self.magic_seen, None
                 d.errback(RuntimeError(msg))

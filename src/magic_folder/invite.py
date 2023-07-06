@@ -263,13 +263,13 @@ class Invite(object):
                             )
                     else:
                         if self.participant_mode != "read-only":
-                            raise ValueError(
-                                "Peer with mode '{}' did not send a Personal capability".format(
-                                    self.participant_mode,
-                                )
+                            # Gracefully degrading to "read-only" mode in this case .. but
+                            # log it.
+                            action.log(
+                                "Peer with mode '{}' did not send a Personal capability."
+                                " Treating as read-only.".format(self.participant_mode)
                             )
-                        # to mark a read-only participant, we use an
-                        # empty immutable directory
+                            self.participant_mode = "read-only"
                         personal_dmd = yield tahoe_client.create_immutable_directory({})
 
                 else:  # unhandled "kind"
@@ -453,6 +453,13 @@ def accept_invite(reactor, global_config, wormhole_code, folder_name, author_nam
         if not collective_dmd.is_readonly_directory():
             raise ValueError(
                 "The 'collective' must be read-only"
+            )
+
+        # if the invite is read-only we do not know how to accept that yet; see
+        # https://github.com/LeastAuthority/magic-folder/issues/735
+        if invite_msg["mode"] != "read-write":
+            raise ValueError(
+                "Cannot accept a 'read-only' invite"
             )
 
         # create a new Personal DMD for our new magic-folder

@@ -714,7 +714,7 @@ class TestService(AsyncTestCase):
         )
 
     @inlineCallbacks
-    def test_folder_invite_capability_mismatch_write(self):
+    def test_folder_invite_capability_graceful_degrade(self):
         """
         Invite someone read-write and they don't send a capability back
         """
@@ -724,16 +724,14 @@ class TestService(AsyncTestCase):
                 "protocol": "invite-v1",
             }).encode("utf8"),
         ])
-        with self.assertRaises(ValueError) as ctx:
-            invite = yield self.service.invite_to_folder("foldername", "Betty Snyder", "read-write")
-            yield invite.await_done()
+
+        invite = yield self.service.invite_to_folder("foldername", "Betty Snyder", "read-write")
+        yield invite.await_done()
+
+        # we should have switched to read-only mode for this one
         self.assertThat(
-            str(ctx.exception),
-            Contains("did not send a Personal capability")
-        )
-        self.assertThat(
-            invite.is_accepted(),
-            Equals(False)
+            invite.participant_mode,
+            Equals("read-only")
         )
 
 
@@ -815,6 +813,7 @@ class TestAcceptInvite(AsyncTestCase):
                 "kind": "join-folder",
                 "protocol": "invite-v1",
                 "collective": self.invitee_dircap.to_readonly().danger_real_capability_string(),
+                "mode": "read-write",
             }).encode("utf8"),
 
             json.dumps({
