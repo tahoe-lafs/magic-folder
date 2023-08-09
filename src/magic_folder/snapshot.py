@@ -350,7 +350,7 @@ class LocalSnapshot(object):
         return deserialize_dict(local_snapshot_dict, author)
 
 
-@attr.s
+@attr.define(frozen=True)
 class RemoteSnapshot(object):
     """
     Represents a snapshot corresponding to a particular version of a
@@ -392,6 +392,12 @@ class RemoteSnapshot(object):
         :returns: True if this is a delete snapshot
         """
         return self.content_cap is not None
+
+    def __eq__(self, other):
+        return self.capability == other.capability
+
+    def __hash__(self):
+        return hash(self.capability.danger_real_capability_string())
 
 
 @inline_callbacks

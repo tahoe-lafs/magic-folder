@@ -267,6 +267,17 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
+        # From version 23.6.0 until 23.7.0 we recorded "author name"
+        # in the database, but "participant name" on the filesystem.
+        #
+        # ...from 23.7.0 onwards we record "participant name" in the
+        # database (and filesystem)
+        #
+        # So (relpath, conflict_author) _can_ be counted on to be
+        # unique ONLY IF conflict_author is actually the "participant"
+        # name from the Collective. Gridsync sets all author names to
+        # "user", though, so actual author names have zero assurance
+        # of being unique (and generally won't be unique in Gridsync usage)
         """
         --- This table represents our notion of conflicts (although they are also represented
         --- on disk, our representation is canonical as the filesystem is part of the API)
@@ -810,6 +821,7 @@ class Conflict(object):
     """
     snapshot_cap = attr.ib()  # Tahoe URI
     author_name = attr.ib(validator=instance_of(str))
+##    participant_name = attr.ib(validator=instance_of(str))
 
 
 @attr.s
@@ -1585,11 +1597,13 @@ class MagicFolderConfig(object):
             ]
 
     @with_cursor
-    def add_conflict(self, cursor, snapshot):
+    def add_conflict(self, cursor, snapshot, participant):
         """
         Add a new conflicting author
 
         :param RemoteSnapshot snapshot: the conflicting Snapshot
+
+        :param IParticipant participant: member of the Collective we found this update in
         """
         with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
             cursor.execute(
@@ -1599,7 +1613,8 @@ class MagicFolderConfig(object):
                 VALUES
                     (?,?,?)
                 """,
-                (snapshot.relpath, snapshot.author.name, snapshot.capability.danger_real_capability_string()),
+                ##(snapshot.relpath, snapshot.author.name, snapshot.capability.danger_real_capability_string()),
+                (snapshot.relpath, participant.name, snapshot.capability.danger_real_capability_string()),
             )
 
     @with_cursor

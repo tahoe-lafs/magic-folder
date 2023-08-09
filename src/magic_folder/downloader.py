@@ -229,8 +229,8 @@ class IMagicFolderFilesystem(Interface):
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
         a file named `<path>.theirs.<name>` where `<name>` is the
-        petname of the author of the conflicting snapshot and `<path>`
-        is the relative path inside the magic-folder.
+        participant name of the conflicting snapshot and `<path>` is
+        the relative path inside the magic-folder.
 
         XXX can deletes conflict? if so staged_content would be None
 
@@ -238,6 +238,18 @@ class IMagicFolderFilesystem(Interface):
 
         :param FilePath staged_content: a local path to the downloaded
             content.
+        """
+
+    def mark_not_conflicted(relpath, keep_path, rejected_paths):
+        """
+        A formerly conflicted file is now no longer conflicted.
+
+        :param FilePath keep_path: the variant we will retain
+            (i.e. that must end up at `relpath`)
+
+        :param [FilePath] rejected_paths: the existing conflict files
+            which we should ensure no longer exist. Must contain at
+            least one item (or else this wasn't actually conflicted).
         """
 
     def mark_delete(relpath):
@@ -411,6 +423,21 @@ class LocalMagicFolderFilesystem(object):
         """
         local_path = self.magic_path.preauthChild(conflict_path)
         staged_content.moveTo(local_path)
+
+
+    def mark_not_conflicted(self, relpath, keep_path, rejected_paths):
+        """
+        """
+        dest_path = self.magic_path.preauthChild(relpath)
+        src_path = self.magic_path.preauthChild(keep_path)
+        del_paths = [
+            self.magic_path.preauthChild(p)
+            for p in rejected_paths
+            if p.exists()
+        ]
+        src_path.moveTo(dest_path)
+        for p in del_paths:
+            p.remove()
 
     def mark_delete(self, relpath):
         """

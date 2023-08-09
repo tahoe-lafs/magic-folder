@@ -73,7 +73,7 @@ class MagicFileFactory(object):
     _config = attr.ib()  # MagicFolderConfig
     _tahoe_client = attr.ib()
     _folder_status = attr.ib()
-    _local_snapshot_service = attr.ib()
+    _local_snapshot_service = attr.ib()#validator=attr.validators.instance_of(LocalSnapshotService))
     _uploader = attr.ib()
     _write_participant = attr.ib()
     _remote_cache = attr.ib()
@@ -194,6 +194,9 @@ class MagicFile(object):
     _queue_remote = attr.ib(default=attr.Factory(list))
     _is_working = attr.ib(default=None)
 
+    # XXX
+    _known_remotes = attr.ib(default=None)
+
     # to facilitate testing, sometimes we _don't_ want to use the real
     # reactor to wait one turn, or to delay for retry purposes.
     _call_later = attr.ib(default=None)  # Callable to schedule work at least one reactor turn later
@@ -258,6 +261,40 @@ class MagicFile(object):
         d.addCallback(is_empty)
         return d
 
+    def resolve_conflict(self, resolution):
+        """
+        This file is in conflict and we specify a resolution.
+        """
+        # ultimately, we want to do this:
+        # - make all local files "match" the resolution
+        #    - move the favored file to relpath (check first?)
+        #    - delete all (other) conflict-markers
+        #    - make a new LocalSnapshot with multiplate parents
+        #
+        # XXX _WHEN_ do we "move files" and "delete markers"; if we
+        # have queued stuff for this file ... bail? Does it still /
+        # ever make sense to resolve a conflict if we're offline?
+        #
+        # If we say "mine", we take whatever is in relpath.
+        #   - delete all conflict markers
+        #
+        # If we say "theirs", we:
+        #   - move "their" content over top of relpath
+        #   - delete any other conflict-marker files
+        #
+        # If we say "some participant name", we:
+        #   - move that content over top of relpath
+        #   - delete all (other) conflict-markers
+        #
+        # For all cases above, we _then_ create a new LocalSnapshot:
+        #   - content is in relpath
+        #   - parents are ALL the parents (at least 2!)
+        #   - one (or more) from conflict database, one from remotesnapshots
+        #
+        # Delete all conflict entries from the database (last? first?)
+        #
+        ## self._factory._locate_snapshot_service.
+
     def found_new_remote(self, remote_snapshot, participant):
         """
         A RemoteSnapshot that doesn't match our existing database entry
@@ -265,7 +302,14 @@ class MagicFile(object):
         resulting in conflicts).
 
         :param RemoteSnapshot remote_snapshot: the newly-discovered remote
+
+        :param IParticipant participant: the participant we found this snapshot via
         """
+        if self._known_remotes is None:
+            self._known_remotes = {remote_snapshot}
+        else:
+            self._known_remotes.add(remote_snapshot)
+        print("{} --[known]--> {}".format(remote_snapshot.relpath, [r.author.name for r in self._known_remotes]))
         self._remote_update(remote_snapshot, participant)
         return self.when_idle()
 
@@ -862,7 +906,7 @@ class MagicFile(object):
             participant.name,
         )
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
-        self._factory._config.add_conflict(snapshot)
+        self._factory._config.add_conflict(snapshot, participant)
 
     @_machine.output()
     def _update_personal_dmd_upload(self, snapshot):

@@ -534,6 +534,71 @@ def _create_v1_resource(global_config, global_service, status_service):
             for relpath, conflicts in folder_config.list_conflicts().items()
         }).encode("utf8")
 
+    @app.route("/magic-folder/<string:folder_name>/resolve-conflict", methods=['POST'])
+    def resolve_conflict(request, folder_name):
+        """
+        Resolve an existing conflict.
+        """
+        # maybe 'too much' code to live in the Web API? Move to Service?
+
+        # XXX maybe we can just "dumb-ly" pass these args through to
+        # the state-machine and have it throw these exceptions, which
+        # we catch (as ValueError) and re-raise as _InputError ?
+
+        _application_json(request)  # set reply headers
+        folder_config = global_config.get_magic_folder(folder_name)
+        resolution = _load_json(request.content.read())
+        conflicts = folder_config.list_conflicts_for(resolution["relpath"])
+        if not conflicts:
+            raise _InputError('No conflicts for "{relpath}"'.format(**resolution))
+        if "take" in resolution:
+            if "use" in resolution:
+                raise _InputError('Cannot specify "take" and "use" at once')
+            who = resolution["take"]
+            if who not in {"mine", "theirs"}:
+                raise _InputError('"take" must be "mine" or "theirs"')
+            # if there is more than one conflicted party, then
+            # "theirs" is ambiguous and they must use "--take"
+            if who == "theirs" and len(conflicts) > 1:
+                raise _InputError('Cannot use "theirs" with {} conflicts'.format(len(conflicts)))
+            # now we know the resolution, and it's valid
+            if who == "theirs":
+                matching_conflicts = conflicts
+            else:
+                matching_conflicts = None
+
+        elif "use" in resolution:
+            if "take" in resolution:
+                raise _InputError('Cannot specify "take" and "use" at once')
+            participant_name = resolution["take"]
+            matching_conflicts = [
+                conflict
+                for conflict in conflicts
+                if conflict.name == participant_name
+            ]
+            if not matching_conflicts:
+                raise _InputError('"{relpath}" is not conflicted with "{take}"'.format(**resolution))
+            if len(matching_conflicts) > 1:
+                raise _InputError('Multiple conflicts match; internal inconsistency?')
+            # now we know the resolution, and it's valid
+
+        else:
+            raise _InputError('Must specify "take" or "use"')
+
+        # if "matching_conflicts" is None, we want "us"
+        # ...otherwise, it contains a single Conflict which is the one we want
+
+        # XXX names coming in are "participants" (since 23.6.0) not
+        # authors -- is it even possible to map between them? (I think
+        # at least for GridSync, it'll always be "user" for
+        # author-name unfortunately)
+
+        # XXX probably want to use "the state-machine" for resolving
+        # conflicts, since that produces a new (local) snapshot .. and
+        # they may be others in the queue...?
+
+        return json.dumps({"hello": "foo"}).encode("utf8")
+
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
     def folder_tahoe_objects(request, folder_name):
         """
