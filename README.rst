@@ -19,7 +19,7 @@ for integrators
 When packaging magic-folder, please install using our pinned requirements,
 which are tested in CI. This should be done in a virtualenv, or other
 isolated python environment, so as to not interfere with system or user
-python packages.
+python packages::
 
     git clone https://github.com/LeastAuthority/magic-folder
     cd magic-folder
