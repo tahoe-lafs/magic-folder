@@ -30,14 +30,14 @@ python packages::
 from source
 ^^^^^^^^^^^
 To install from source (either so you can hack on it, or just to run
-pre-release code), you should create a virtualenv and install into that:
+pre-release code), you should create a virtualenv and install into that::
 
-* ``git clone https://github.com/LeastAuthority/magic-folder.git``
-* ``cd magic-folder``
-* ``virtualenv venv``
-* ``venv/bin/pip install --upgrade setuptools``
-* ``venv/bin/pip install --editable .``
-* ``venv/bin/magic-folder --version``
+    git clone https://github.com/LeastAuthority/magic-folder.git
+    cd magic-folder
+    virtualenv venv
+    venv/bin/pip install --upgrade setuptools
+    venv/bin/pip install --editable .
+    venv/bin/magic-folder --version
 
 
 Usage
