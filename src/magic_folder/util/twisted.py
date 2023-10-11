@@ -8,6 +8,9 @@ Utilities for interacting with twisted.
 from functools import wraps
 
 import attr
+from ..util.attrs_zope import (
+    provides,
+)
 from eliot import write_failure
 from eliot.twisted import (
     inline_callbacks,
@@ -92,7 +95,7 @@ class PeriodicService(Service):
         retruns has fired.
     :ivar int interval: The time between periodic calls to the function.
     """
-    _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
+    _clock = attr.ib(validator=provides(IReactorTime))
     # if "interval" is 0 we only schedule calls explicitly, not periodically
     _interval = attr.ib(validator=attr.validators.instance_of((int, type(None))))
     _callable = attr.ib(validator=attr.validators.is_callable())
@@ -100,7 +103,7 @@ class PeriodicService(Service):
     _delayed_call = attr.ib(
         init=False,
         default=None,
-        validator=attr.validators.optional(attr.validators.provides(IDelayedCall)),
+        validator=attr.validators.optional(provides(IDelayedCall)),
     )
     _deferred = attr.ib(
         init=False,
