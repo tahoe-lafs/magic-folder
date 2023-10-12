@@ -19,7 +19,7 @@ for integrators
 When packaging magic-folder, please install using our pinned requirements,
 which are tested in CI. This should be done in a virtualenv, or other
 isolated python environment, so as to not interfere with system or user
-python packages.
+python packages::
 
     git clone https://github.com/LeastAuthority/magic-folder
     cd magic-folder
@@ -30,14 +30,14 @@ python packages.
 from source
 ^^^^^^^^^^^
 To install from source (either so you can hack on it, or just to run
-pre-release code), you should create a virtualenv and install into that:
+pre-release code), you should create a virtualenv and install into that::
 
-* ``git clone https://github.com/LeastAuthority/magic-folder.git``
-* ``cd magic-folder``
-* ``virtualenv venv``
-* ``venv/bin/pip install --upgrade setuptools``
-* ``venv/bin/pip install --editable .``
-* ``venv/bin/magic-folder --version``
+    git clone https://github.com/LeastAuthority/magic-folder.git
+    cd magic-folder
+    virtualenv venv
+    venv/bin/pip install --upgrade setuptools
+    venv/bin/pip install --editable .
+    venv/bin/magic-folder --version
 
 
 Usage
