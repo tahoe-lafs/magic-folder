@@ -50,7 +50,7 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     await alice.add_participant("outstanding1", "old", zero_cap)
 
     start = reactor.seconds()
-    downloads = None
+    downloads = []
     while reactor.seconds() - start < 10 and len(downloads) != len(filenames):
         status_data = await alice.status()
         status = json.loads(status_data)
