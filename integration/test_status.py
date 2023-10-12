@@ -49,8 +49,9 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     # add the "other" folder as a participant .. simulate recovery
     await alice.add_participant("outstanding1", "old", zero_cap)
 
+    start = reactor.seconds()
     downloads = None
-    while not downloads:
+    while reactor.seconds() - start < 10 and len(downloads) != len(filenames):
         status_data = await alice.status()
         status = json.loads(status_data)
         downloads = [
