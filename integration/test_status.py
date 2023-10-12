@@ -49,9 +49,12 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     # add the "other" folder as a participant .. simulate recovery
     await alice.add_participant("outstanding1", "old", zero_cap)
 
+    # monitor the "downloads" status for up to 10 seconds, and collect
+    # any relpath's mentiond there -- we should see (at some point)
+    # everything in "filenames"
     start = reactor.seconds()
-    downloads = []
-    while reactor.seconds() - start < 10 and len(downloads) != len(filenames):
+    noticed = set()
+    while (reactor.seconds() - start < 10) and len(noticed) != len(filenames):
         status_data = await alice.status()
         status = json.loads(status_data)
         downloads = [
@@ -59,7 +62,11 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
             for down in status["events"]
             if down["kind"].startswith("download-")
         ]
+        noticed = noticed.union({
+            d["relpath"]
+            for d in downloads
+        })
         await twisted_sleep(reactor, .2)
 
-    print("found downloads: {}".format(downloads))
-    assert {d["relpath"] for d in downloads} == set(filenames)
+    print("noticed downloads: {}".format(noticed))
+    assert noticed == set(filenames)
