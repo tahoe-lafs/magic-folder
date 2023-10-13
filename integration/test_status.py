@@ -26,7 +26,7 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     magic0.makedirs()
 
     # create a folder with several files in it
-    await alice.add("outstanding0", magic0.path, author="laptop")
+    await alice.add(request, "outstanding0", magic0.path, author="laptop")
     for fname in filenames:
         p = magic0.child(fname)
         with p.open("w") as f:
@@ -39,12 +39,7 @@ async def test_multiple_outstanding_downloads(request, reactor, alice, temp_file
     # create a folder with no files in it
     magic1 = temp_filepath.child("outstanding1")
     magic1.makedirs()
-    await alice.add("outstanding1", magic1.path, author="desktop")
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("outstanding0"))
-        pytest_twisted.blockon(alice.leave("outstanding1"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "outstanding1", magic1.path, author="desktop")
 
     # add the "other" folder as a participant .. simulate recovery
     await alice.add_participant("outstanding1", "old", zero_cap)

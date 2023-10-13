@@ -59,11 +59,7 @@ async def test_found_users(request, reactor, temp_filepath, alice, bob, edmond, 
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("seekrits", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("seekrits"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "seekrits", magic.path)
 
     # put a file in our folder, in a subdir
     content0 = non_lit_content("very-secret")
@@ -121,11 +117,7 @@ async def test_participant_never_updates(request, reactor, temp_filepath, alice,
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("salmonella", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("salmonella"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "salmonella", magic.path)
 
     # put a file in our folder, in a subdir
     content0 = non_lit_content("first content")
@@ -189,11 +181,7 @@ async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edm
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("love2share", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("love2share"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "love2share", magic.path)
 
     # invite some friends
     magic_bob = temp_filepath.child("magic-bob")
@@ -243,11 +231,7 @@ async def test_read_only_participant(request, reactor, temp_filepath, alice, bob
 
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
-    await alice.add("readonly", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("readonly"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "readonly", magic.path)
 
     # put a file in our folder, in a subdir
     content0 = non_lit_content("first content")
