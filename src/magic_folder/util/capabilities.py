@@ -26,6 +26,9 @@ from os import (
     urandom,
 )
 import attr
+from ..util.attrs_zope import (
+    provides,
+)
 
 
 @attr.s(frozen=True)
@@ -44,7 +47,7 @@ class Capability:
     # the original capability-string
     _uri = attr.ib(validator=attr.validators.instance_of(str), repr=False)
     # a Tahoe object representing the capability
-    _tahoe_cap = attr.ib(validator=attr.validators.provides(IURI), repr=False)
+    _tahoe_cap = attr.ib(validator=provides(IURI), repr=False)
 
     @classmethod
     def from_string(cls, capability_string):
