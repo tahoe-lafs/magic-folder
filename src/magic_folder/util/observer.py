@@ -10,6 +10,9 @@ from twisted.python.failure import (
 )
 
 import attr
+from ..util.attrs_zope import (
+    provides,
+)
 
 from zope.interface import implementer
 
@@ -21,7 +24,7 @@ class ListenObserver(object):
     Calls .listen on the given endpoint and allows observers to be
     notified when that listen succeeds (or fails).
     """
-    _endpoint = attr.ib(validator=[attr.validators.provides(IStreamServerEndpoint)])
+    _endpoint = attr.ib(validator=[provides(IStreamServerEndpoint)])
     _observers = attr.ib(default=attr.Factory(list))
     _listened_result = attr.ib(default=None)
 

@@ -20,3 +20,5 @@ magic-folder-cli.*.eliot
 eliot.log
 integration.eliot.json
 docs/_build/
+PRIVATE-release-token
+pypirc-magicfolder

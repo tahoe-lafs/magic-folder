@@ -61,7 +61,7 @@ class ScannerService(MultiService):
     _config = attr.ib()
     _file_factory = attr.ib()
     # "tests" and "relative_proxy_for" don't play nicely w/ validator
-    _status = attr.ib()  #validator=attr.validators.provides(IStatus))
+    _status = attr.ib()  #validator=provides(IStatus))
     _cooperator = attr.ib()
     _scan_interval = attr.ib()
     _clock = attr.ib()

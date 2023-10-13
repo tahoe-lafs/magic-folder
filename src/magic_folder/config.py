@@ -46,8 +46,10 @@ from uuid import (
 )
 
 import attr
-from attr.validators import (
+from .util.attrs_zope import (
     provides,
+)
+from attr.validators import (
     instance_of,
 )
 

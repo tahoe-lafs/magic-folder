@@ -8,6 +8,9 @@ from configparser import (
 
 import wormhole
 import attr
+from .util.attrs_zope import (
+    provides,
+)
 from eliot import start_action
 from eliot.twisted import inline_callbacks
 from treq.client import HTTPClient
@@ -87,7 +90,7 @@ class ConnectedTahoeService(MultiService):
     """
     reactor = attr.ib()
     find_happy_shares = attr.ib()  # callable() -> int
-    status_service = attr.ib(validator=attr.validators.provides(IStatus))
+    status_service = attr.ib(validator=provides(IStatus))
     tahoe_client = attr.ib()
 
     # internal state
@@ -122,8 +125,12 @@ class ConnectedTahoeService(MultiService):
         :returns int: the number of storage-servers our Tahoe-LAFS client
         is currently connected to.
         """
+        # sometime between tahoe 0.18.0 and October 12, 2023 this
+        # sting becomes "connected" instead of "Connected to ..." -- may
+        # be related to HTTP / GBS but a reasonable look didn't reveal
+        # where this might be :/
         return sum(
-            1 if server["connection_status"].startswith("Connected to") else 0
+            1 if server["connection_status"].lower().startswith("connected") else 0
             for server in self._storage_servers
         )
 
@@ -178,7 +185,7 @@ class MagicFolderService(MultiService):
 
     reactor = attr.ib()
     config = attr.ib()
-    status_service = attr.ib(validator=attr.validators.provides(IStatus))
+    status_service = attr.ib(validator=provides(IStatus))
     tahoe_client = attr.ib(default=None)
     _run_deferred = attr.ib(init=False, factory=Deferred)
     _cooperator = attr.ib(default=None)
