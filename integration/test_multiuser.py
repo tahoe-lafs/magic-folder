@@ -27,7 +27,7 @@ def non_lit_content(s):
     return "{} {}\n".format(s, "." * max(55 - len(s), 0)).encode("utf8")
 
 
-async def perform_invite(request, folder_name, inviter, invitee_name, invitee, invitee_magic_fp):
+async def perform_invite(request, folder_name, inviter, invitee_name, invitee, invitee_magic_fp, read_only=False):
     invitee_magic_fp.makedirs()
 
     code, magic_proto, process_transport = await inviter.invite(folder_name, invitee_name)
@@ -38,6 +38,7 @@ async def perform_invite(request, folder_name, inviter, invitee_name, invitee, i
         invitee_name,
         poll_interval=1,
         scan_interval=1,
+        read_only=read_only,
     )
 
     def cleanup_invitee():
@@ -58,11 +59,7 @@ async def test_found_users(request, reactor, temp_filepath, alice, bob, edmond, 
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("seekrits", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("seekrits"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "seekrits", magic.path)
 
     # put a file in our folder, in a subdir
     content0 = non_lit_content("very-secret")
@@ -120,11 +117,7 @@ async def test_participant_never_updates(request, reactor, temp_filepath, alice,
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("salmonella", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("salmonella"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "salmonella", magic.path)
 
     # put a file in our folder, in a subdir
     content0 = non_lit_content("first content")
@@ -188,11 +181,7 @@ async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edm
     magic = temp_filepath.child("magic-alice")
     magic.makedirs()
 
-    await alice.add("love2share", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("love2share"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "love2share", magic.path)
 
     # invite some friends
     magic_bob = temp_filepath.child("magic-bob")
@@ -231,3 +220,40 @@ async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edm
     assert find_conflicts(magic) != [], "alice should have conflicts"
     assert find_conflicts(magic_bob) != [], "bob should have conflicts"
     assert find_conflicts(magic_ed) != [], "edmond should have conflicts"
+
+
+@inline_callbacks
+@pytest_twisted.ensureDeferred
+async def test_read_only_participant(request, reactor, temp_filepath, alice, bob, edmond):
+    """
+    Invite two other users, one read-only.
+    """
+
+    magic = temp_filepath.child("magic-alice")
+    magic.makedirs()
+    await alice.add(request, "readonly", magic.path)
+
+    # put a file in our folder, in a subdir
+    content0 = non_lit_content("first content")
+    magic.child("content.txt").setContent(content0)
+    await alice.add_snapshot("readonly", "content.txt")
+
+    # invite another participant
+    magic_bob = temp_filepath.child("magic-bob")
+    await perform_invite(request, "readonly", alice, "robert", bob, magic_bob)
+
+    # wait until bob has sync'd
+    await await_file_contents(
+        magic_bob.child("content.txt").path,
+        content0,
+        timeout=25,
+    )
+
+    # invite a read-only participant
+    magic_ed = temp_filepath.child("edmond")
+    await perform_invite(request, "readonly", alice, "eddy", edmond, magic_ed, read_only=True)
+
+
+    # ensure nobody has conflicts, just in case
+    assert find_conflicts(magic) == [], "alice has conflicts"
+    assert find_conflicts(magic_bob) == [], "bob has conflicts"

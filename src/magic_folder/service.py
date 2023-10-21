@@ -475,7 +475,7 @@ class MagicFolderService(MultiService):
 
     @inline_callbacks
     def join_folder(self, wormhole_code, folder_name, author_name,
-                    local_dir, poll_interval, scan_interval):
+                    local_dir, poll_interval, scan_interval, read_only=None):
         """
         Join a folder via invite code
 
@@ -493,6 +493,8 @@ class MagicFolderService(MultiService):
 
         :param integer scan_interval: Every 'scan_interval' seconds the
             local directory will be scanned for changes.
+
+        :param bool read_only: if `True`, we will only ever accept invites as read-only (never read-write). If missing or `False` the normal behavior is followed.
 
         :return Deferred: ``None`` or an appropriate exception is raised.
         """
@@ -521,6 +523,7 @@ class MagicFolderService(MultiService):
                     },
                 },
             ),
+            read_only=read_only,
         )
         returnValue(inv)
 

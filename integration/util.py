@@ -24,6 +24,9 @@ from twisted.internet.defer import (
     Deferred,
     maybeDeferred,
 )
+from twisted.internet.error import (
+    ProcessTerminated,
+)
 from twisted.internet.task import (
     deferLater,
 )
@@ -310,9 +313,14 @@ class MagicFolderEnabledNode(object):
         yield _magic_folder_runner(self.reactor, self.request, self.name, args)
 
 
-    def add(self, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None):
+    def add(self, request, folder_name, magic_directory, author=None, poll_interval=5, scan_interval=None, cleanup=True, restart_on_cleanup=False):
         """
         magic-folder add
+
+        The required argument `request` here determines when the added
+        folder will be removed (that is, in the scope of that request
+        and _not_ the typically session request that our self.request
+        one is)
         """
         args = [
             "--config",
@@ -335,6 +343,18 @@ class MagicFolderEnabledNode(object):
         args += [
             magic_directory,
         ]
+
+        def _do_cleanup():
+            # Maybe start the service, so we can remove the folder.
+            if restart_on_cleanup:
+                pytest_twisted.blockon(self.start_magic_folder())
+            try:
+                pytest_twisted.blockon(self.leave(folder_name))
+            except ProcessTerminated:
+                pass  # Already left, that's okay
+        if cleanup:
+            request.addfinalizer(_do_cleanup)
+
         return _magic_folder_runner(
             self.reactor,
             self.request,
@@ -406,7 +426,7 @@ class MagicFolderEnabledNode(object):
                 raise Exception("Couldn't find invite code")
             returnValue((code, proto, transport))
 
-    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5):
+    def join(self, invite_code, folder_name, magic_directory, author, poll_interval=5, scan_interval=5, read_only=False):
         """
         magic-folder join
         """
@@ -418,6 +438,8 @@ class MagicFolderEnabledNode(object):
             "--author", author,
             "--poll-interval", str(poll_interval),
         ]
+        if read_only:
+            args.append("--read-only")
         if scan_interval is None:
             args += ["--disable-scanning"]
         else:
