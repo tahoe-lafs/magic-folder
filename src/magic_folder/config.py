@@ -269,10 +269,10 @@ _magicfolder_config_schema = Schema([
             [upload_duration_ns]  INTEGER        -- nanoseconds the last upload took
         )
         """,
-        # From version 23.6.0 until 23.7.0 we recorded "author name"
+        # From version 23.6.0 until 23.10.0 we recorded "author name"
         # in the database, but "participant name" on the filesystem.
         #
-        # ...from 23.7.0 onwards we record "participant name" in the
+        # ...from 23.10.0 onwards we record "participant name" in the
         # database (and filesystem)
         #
         # So (relpath, conflict_author) _can_ be counted on to be
