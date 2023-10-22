@@ -1290,6 +1290,7 @@ class ConflictTests(SyncTestCase):
         self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
+    def setup_example(self):
         self.db = MagicFolderConfig.initialize(
             u"some-folder",
             SQLite3DatabaseLocation.memory(),
@@ -1311,6 +1312,11 @@ class ConflictTests(SyncTestCase):
         """
         Adding a conflict allows us to list it
         """
+        participants = static_participants(
+            names=["adele"],
+            my_files=[],
+            other_files=[],
+        )
         snap = RemoteSnapshot(
             "foo",
             self.author,
@@ -1321,14 +1327,13 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap)
+        self.db.add_conflict(snap, participants.list()[0])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": [Conflict(remote_cap, self.author.name)],
+                "foo": [Conflict(remote_cap, "adele")],
             }),
         )
-        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
