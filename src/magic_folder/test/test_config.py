@@ -92,6 +92,9 @@ from ..config import (
     load_global_configuration,
     is_valid_experimental_feature,
 )
+from ..participants import (
+    static_participants,
+)
 from ..snapshot import (
     create_local_author,
     create_snapshot,
@@ -1336,6 +1339,11 @@ class ConflictTests(SyncTestCase):
         """
         It's an error to add the same conflict twice
         """
+        participants = static_participants(
+            names=["marlyn"],
+            my_files=[],
+            other_files=[],
+        )
         snap = RemoteSnapshot(
             "foo",
             self.author,
@@ -1346,9 +1354,9 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap)
+        self.db.add_conflict(snap, participants.list()[0])
         with self.assertRaises(sqlite3.IntegrityError):
-            self.db.add_conflict(snap)
+            self.db.add_conflict(snap, participants.list()[0])
         self.db.resolve_conflict("foo")
 
     @given(
