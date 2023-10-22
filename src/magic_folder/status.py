@@ -2,6 +2,7 @@ import json
 from functools import partial
 
 import attr
+from .util.attrs_zope import provides
 from collections import (
     defaultdict,
 )
@@ -869,4 +870,4 @@ class FolderStatus(object):
     the ``folder`` argument.
     """
     folder = attr.ib(validator=attr.validators.instance_of(str))
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=provides(IStatus))

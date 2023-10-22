@@ -56,6 +56,8 @@ from zope.interface import (
 import attr
 from attr.validators import (
     optional,
+)
+from ..util.attrs_zope import (
     provides,
 )
 

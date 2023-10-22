@@ -735,6 +735,8 @@ def _create_experimental_resource(global_config, global_service):
         - "author": arbitrary, valid author name
         - "poll-interval": seconds between remote update checks
         - "scan-interval": seconds between local update checks
+        - "read-only": (optional) a boolean indicating this invite should be accepted as simply read-only; if the invite is read-only nothing changes, but if the invite was read-write we respond without a "personal" read-cap
+
 
         The "name" for the folder comes from the URI.
         """
@@ -746,15 +748,18 @@ def _create_experimental_resource(global_config, global_service):
             u"poll-interval",
             u"scan-interval",
         }
-        if required_keys != set(body.keys()):
-            missing = required_keys - set(body.keys())
-            if missing:
-                raise _InputError(
-                    "Missing keys: {}".format(" ".join(missing))
-                )
+        missing = required_keys - set(body.keys())
+        if missing:
             raise _InputError(
-                "Extra keys: {}".format(" ".join(missing))
+                "Missing keys: {}".format(" ".join(missing))
             )
+        extra_keys = required_keys.union({"read-only"}) - set(body.keys())
+        if extra_keys:
+            raise _InputError(
+                "Extra keys: {}".format(" ".join(extra_keys))
+            )
+
+        read_only = body.get("read-only", False)
 
         local_dir = FilePath(body["local-directory"])
         if not local_dir.exists() or not local_dir.isdir():
@@ -773,6 +778,7 @@ def _create_experimental_resource(global_config, global_service):
                 local_dir=local_dir,
                 poll_interval=int(body["poll-interval"]),
                 scan_interval=int(body["scan-interval"]),
+                read_only=read_only,
             )
         except ValueError as e:
             # e.g. from int() calls above

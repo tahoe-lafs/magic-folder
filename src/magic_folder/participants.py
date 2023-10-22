@@ -167,7 +167,7 @@ class _StaticParticipants(object):
             self.participants = [
                 _StaticParticipant("default", {}, True),
             ]
-        assert len([p for p in self.participants if p.is_self()]) == 1, "Must have exactly one 'self' participant"
+        assert len([p for p in self.participants if p.is_self()]) <= 1, "Must have at most one 'self' participant"
 
     def list(self):
         return self.participants
@@ -233,7 +233,7 @@ class _CollectiveDirnodeParticipants(object):
     writer = attr.ib(
         init=False,
         default=attr.Factory(
-            lambda self: _WriteableParticipant(self._upload_cap, self._tahoe_client),
+            lambda self: _WriteableParticipant(self._upload_cap, self._tahoe_client) if self._upload_cap else _UnwriteableParticipant(),
             takes_self=True,
         ),
     )
@@ -261,6 +261,8 @@ class _CollectiveDirnodeParticipants(object):
         """
         The Upload DMD must be a writable directory capability
         """
+        if value is None:
+            return
         if not isinstance(value, Capability):
             raise TypeError(
                 "Upload dirnode was {} not Capability".format(type(value))
@@ -346,6 +348,8 @@ class _CollectiveDirnodeParticipants(object):
         ))
 
     def _is_self(self, dirobj):
+        if self._upload_cap is None:
+            return False
         return dirobj.to_readonly() == self._upload_cap.to_readonly()
 
 
@@ -428,6 +432,19 @@ class _WriteableParticipant(object):
             replace=True,
         )
 
+
+@implementer(IWriteableParticipant)
+@attr.s(frozen=True, order=False)
+class _UnwriteableParticipant(object):
+    """
+    An ``IWriteableParticipant`` implementation that has no capability and cannot write
+    """
+
+    def update_snapshot(self, relpath, capability):
+        """
+        Update the snapshot with the given relpath.
+        """
+        return
 
 
 @attr.s

@@ -1383,6 +1383,10 @@ def _attempt_personal_dmd_sync(reactor, action, config, read_participant, write_
     The core of `maybe_update_personal_dmd_to_local` (which controls
     our retry behavior).
     """
+    # we can't be out of sync, becaues we can't write files
+    if read_participant is None:
+        return
+
     files = yield read_participant.files()
     local_files = config.get_all_snapshot_paths_and_caps()
 

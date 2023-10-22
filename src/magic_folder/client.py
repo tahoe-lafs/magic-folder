@@ -245,7 +245,7 @@ class MagicFolderClient(object):
             ).encode("utf-8"),
         )
 
-    def join(self, magic_folder, invite_code, local_dir, author, poll_interval, scan_interval):
+    def join(self, magic_folder, invite_code, local_dir, author, poll_interval, scan_interval, read_only=None):
         api_url = self.base_url.child(u"experimental").child(u"magic-folder").child(magic_folder).child(u"join")
         return self._authorized_request(
             "POST",
@@ -257,6 +257,7 @@ class MagicFolderClient(object):
                     "author": author,
                     "poll-interval": poll_interval,
                     "scan-interval": scan_interval,
+                    "read-only": read_only,
                 },
                 ensure_ascii=False,
             ).encode("utf-8"),

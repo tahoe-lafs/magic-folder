@@ -118,12 +118,8 @@ async def test_local_snapshots(request, reactor, temp_filepath, alice, bob, take
     magic = temp_filepath
 
     # add our magic-folder and re-start
-    await alice.add("local", magic.path)
+    await alice.add(request, "local", magic.path)
     local_cfg = alice.global_config().get_magic_folder("local")
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("local"))
-    request.addfinalizer(cleanup)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -218,12 +214,8 @@ async def test_create_then_recover(request, reactor, temp_filepath, alice, bob, 
     recover_file.parent().makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        pytest_twisted.blockon(alice.leave("original"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -236,11 +228,7 @@ async def test_create_then_recover(request, reactor, temp_filepath, alice, bob, 
     await take_snapshot(alice, "original", relpath)
 
     # create the 'recovery' magic-folder
-    await bob.add("recovery", recover_folder.path)
-
-    def cleanup_recovery():
-        pytest_twisted.blockon(bob.leave("recovery"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "recovery", recover_folder.path)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
@@ -278,12 +266,8 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
     original_folder.makedirs()
     recover_folder.makedirs()
 
-    await alice.add("internal", original_folder.path)
+    await alice.add(request, "internal", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        pytest_twisted.blockon(alice.leave("internal"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -291,11 +275,7 @@ async def test_internal_inconsistency(request, reactor, temp_filepath, alice, bo
     await take_snapshot(alice, "internal", "fluffy")
 
     # create the 'rec' magic-folder
-    await bob.add("rec", recover_folder.path)
-
-    def cleanup_recovery():
-        pytest_twisted.blockon(bob.leave("rec"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "rec", recover_folder.path)
 
     # add the 'internal' magic-folder as a participant in the
     # 'rec' folder
@@ -340,12 +320,8 @@ async def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snaps
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("ancestor0", original_folder.path)
+    await alice.add(request, "ancestor0", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        pytest_twisted.blockon(alice.leave("ancestor0"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -353,11 +329,7 @@ async def test_ancestors(request, reactor, temp_filepath, alice, bob, take_snaps
     await take_snapshot(alice, "ancestor0", "nyan")
 
     # create the 'ancestor1' magic-folder
-    await bob.add("ancestor1", recover_folder.path)
-
-    def cleanup_recovery():
-        pytest_twisted.blockon(bob.leave("ancestor1"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "ancestor1", recover_folder.path)
 
     # add the 'ancestor0' magic-folder as a participant in the
     # 'ancestor1' folder
@@ -411,14 +383,8 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     recover2_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(alice.start_magic_folder())
-        pytest_twisted.blockon(alice.leave("original"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -433,14 +399,8 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     request.addfinalizer(cleanup_restart_alice)
 
     # create the 'recovery' magic-folder
-    await bob.add("recovery", recover_folder.path)
+    await bob.add(request, "recovery", recover_folder.path)
     bob_folders = await bob.list_(True)
-
-    def cleanup_recovery():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(bob.start_magic_folder())
-        pytest_twisted.blockon(bob.leave("recovery"))
-    request.addfinalizer(cleanup_recovery)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
@@ -475,11 +435,7 @@ async def test_recover_twice(request, reactor, temp_filepath, alice, bob, edmond
     request.addfinalizer(cleanup_restart_bob)
 
     # create the second 'recovery' magic-folder
-    await edmond.add("recovery-2", recover2_folder.path)
-
-    def cleanup_recovery_2():
-        pytest_twisted.blockon(edmond.leave("recovery-2"))
-    request.addfinalizer(cleanup_recovery_2)
+    await edmond.add(request, "recovery-2", recover2_folder.path)
 
     # add the 'recovery' magic-folder as a participant in the
     # 'recovery-2' folder
@@ -508,14 +464,8 @@ async def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, t
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(alice.start_magic_folder())
-        pytest_twisted.blockon(alice.leave("original"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -523,13 +473,7 @@ async def test_unscanned_conflict(request, reactor, temp_filepath, alice, bob, t
     await take_snapshot(alice, "original", "cheshire")
 
     # create the 'recovery' magic-folder
-    await bob.add("recovery", recover_folder.path)
-
-    def cleanup_recovery():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(bob.start_magic_folder())
-        pytest_twisted.blockon(bob.leave("recovery"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "recovery", recover_folder.path)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
@@ -576,14 +520,8 @@ async def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, tak
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(alice.start_magic_folder())
-        pytest_twisted.blockon(alice.leave("original"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -591,13 +529,7 @@ async def test_unscanned_vs_old(request, reactor, temp_filepath, alice, bob, tak
     await take_snapshot(alice, "original", "claude")
 
     # create the 'recovery' magic-folder
-    await bob.add("recovery", recover_folder.path)
-
-    def cleanup_recovery():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(bob.start_magic_folder())
-        pytest_twisted.blockon(bob.leave("recovery"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "recovery", recover_folder.path)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
@@ -639,14 +571,8 @@ async def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(alice.start_magic_folder())
-        pytest_twisted.blockon(alice.leave("original"))
-    request.addfinalizer(cleanup_original)
 
     # put a file in our folder
     content0 = non_lit_content("zero")
@@ -654,13 +580,7 @@ async def test_delete(request, reactor, temp_filepath, alice, bob, take_snapshot
     await take_snapshot(alice, "original", "jerry")
 
     # create the 'recovery' magic-folder
-    await bob.add("recovery", recover_folder.path)
-
-    def cleanup_recovery():
-        # Maybe start the service, so we can remove the folder.
-        pytest_twisted.blockon(bob.start_magic_folder())
-        pytest_twisted.blockon(bob.leave("recovery"))
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "recovery", recover_folder.path)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder

@@ -23,12 +23,7 @@ async def test_invite_join(request, reactor, temp_filepath, alice, bob, wormhole
     """
     magic_a = temp_filepath.child("inviter_magic")
     magic_a.makedirs()
-    await alice.add("inviter", magic_a.path, scan_interval=1, poll_interval=1)
-
-    def cleanup_alice():
-        pytest_twisted.blockon(alice.leave("inviter"))
-    request.addfinalizer(cleanup_alice)
-
+    await alice.add(request, "inviter", magic_a.path, scan_interval=1, poll_interval=1)
     print("added alice")
 
     code, magic_proto, process_transport = await alice.invite("inviter", "bobby")
@@ -76,12 +71,7 @@ async def test_invite_then_cancel(request, reactor, temp_filepath, alice, wormho
     """
     magic_a = temp_filepath.child("cancel_magic")
     magic_a.makedirs()
-    await alice.add("eniac", magic_a.path, scan_interval=1, poll_interval=1)
-
-    def cleanup_alice():
-        pytest_twisted.blockon(alice.leave("eniac"))
-    request.addfinalizer(cleanup_alice)
-
+    await alice.add(request, "eniac", magic_a.path, scan_interval=1, poll_interval=1)
     print("added alice")
 
     code, magic_proto, process_transport = await alice.invite("eniac", "kay")

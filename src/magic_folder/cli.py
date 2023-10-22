@@ -689,6 +689,7 @@ class JoinOptions(usage.Options):
     ]
     optFlags = [
         ["disable-scanning", None, "Disable scanning for local changes."],
+        ["read-only", None, "Accept the invite as read-only (no matter what kind the invite is)."],
     ]
 
     def parseArgs(self, invite_code, local_dir):
@@ -740,6 +741,7 @@ def join(options):
         options["author"],
         int(options["poll-interval"]),
         None if options['disable-scanning'] else int(options["scan-interval"]),
+        options["read-only"],
     )
     if ans["success"]:
         print("Successfully joined as '{}'".format(ans["participant-name"]))

@@ -51,11 +51,7 @@ async def test_identical_files(request, reactor, temp_filepath, alice, bob):
         create_random_cat_pic(magic.child(top_level), 256)
 
     # add this as a new folder
-    await alice.add("sames", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("sames"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "sames", magic.path)
 
     # perform a scan, which will create LocalSnapshots for all the
     # files we already created in the magic-folder (but _not_ upload

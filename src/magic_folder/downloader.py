@@ -10,6 +10,9 @@ import attr
 from attr.validators import (
     instance_of,
 )
+from .util.attrs_zope import (
+    provides,
+)
 
 from zope.interface import (
     Interface,
@@ -505,12 +508,12 @@ class RemoteScannerService(service.MultiService):
     RemoteSnapshot capabilities to download.
     """
 
-    _clock = attr.ib(validator=attr.validators.provides(IReactorTime))
+    _clock = attr.ib(validator=provides(IReactorTime))
     _config = attr.ib()
     _participants = attr.ib()
     _file_factory = attr.ib()  # MagicFileFactory instance
     _remote_snapshot_cache = attr.ib(validator=instance_of(RemoteSnapshotCacheService))
-    _status = attr.ib(validator=attr.validators.provides(IStatus))
+    _status = attr.ib(validator=provides(IStatus))
 
     @classmethod
     def from_config(cls, clock, name, config, participants, file_factory, remote_snapshot_cache, status_service):

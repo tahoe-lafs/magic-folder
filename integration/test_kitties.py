@@ -61,11 +61,7 @@ async def test_kittens(request, reactor, temp_filepath, alice):
         print("  subdir/{} {}KiB".format(sub_level, size))
 
     # add this as a new folder
-    await alice.add("kitties", magic.path)
-
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("kitties"))
-    request.addfinalizer(cleanup)
+    await alice.add(request, "kitties", magic.path)
 
     # perform a scan, which will create LocalSnapshots for all the
     # files we already created in the magic-folder (but _not_ upload

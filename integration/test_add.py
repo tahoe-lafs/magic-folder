@@ -1,5 +1,4 @@
 import pytest_twisted
-from twisted.internet.error import ProcessTerminated
 from twisted.internet.defer import (
     DeferredList,
 )
@@ -22,18 +21,13 @@ async def test_add(request, reactor, alice):
     """
 
     await alice.add(
+        request,
         "test",
         alice.magic_directory,
         author="laptop",
     )
 
-    def cleanup():
-        pytest_twisted.blockon(alice.leave("test"))
-
-    request.addfinalizer(cleanup)
-
     config = await alice.show_config()
-    print("CONFIG", config)
 
     assert "test" in config["magic_folders"]
     mf_config = config["magic_folders"]["test"]
@@ -60,27 +54,14 @@ async def test_leave(request, reactor, temp_filepath, alice, bob):
     recover_folder.makedirs()
 
     # add our magic-folder and re-start
-    await alice.add("original", original_folder.path)
+    await alice.add(request, "original", original_folder.path)
     alice_folders = await alice.list_(True)
-
-    def cleanup_original():
-        pytest_twisted.blockon(alice.leave("original"))
-
-    request.addfinalizer(cleanup_original)
 
     content0 = b"zero\n" * 1000
     original_folder.child("grumpy").setContent(content0)
     await alice.add_snapshot("original", "grumpy")
 
-    await bob.add("recovery", recover_folder.path)
-
-    def cleanup_recovery():
-        try:
-            pytest_twisted.blockon(bob.leave("recovery"))
-        except ProcessTerminated:
-            pass  # Already left
-
-    request.addfinalizer(cleanup_recovery)
+    await bob.add(request, "recovery", recover_folder.path, cleanup=False)
 
     # add the 'original' magic-folder as a participant in the
     # 'recovery' folder
@@ -113,6 +94,8 @@ async def test_leave_many(request, reactor, temp_filepath, alice):
 
     See also https://github.com/LeastAuthority/magic-folder/issues/587
     """
+    existing = await alice.list_()
+    assert len(existing) == 0, "why there folders?"
     names = [
         "folder_{}".format(x)
         for x in range(10)
@@ -122,7 +105,7 @@ async def test_leave_many(request, reactor, temp_filepath, alice):
         folder = temp_filepath.child(name)
         folder.makedirs()
 
-        await alice.add(name, folder.path)
+        await alice.add(request, name, folder.path, cleanup=False)
 
     alice_folders = await alice.list_(True)
     assert set(alice_folders.keys()) == set(names)
