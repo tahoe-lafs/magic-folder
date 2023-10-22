@@ -314,7 +314,7 @@ class RemoteUpdateTests(AsyncTestCase):
         cap0 = random_immutable(directory=True)
         remote0 = RemoteSnapshot(
             relpath=relpath,
-            author=self.author,
+            author=create_author("someone", VerifyKey(b"\xff" * 32)),
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
@@ -324,9 +324,9 @@ class RemoteUpdateTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
         abspath = self.config.magic_path.preauthChild(relpath)
         mf = self.magic_file_factory.magic_file_for(abspath)
-        self.participants.add(create_author("beth", VerifyKey(b"\xff" * 32)), random_dircap())
-        self.participants.add(create_author("callum", VerifyKey(b"\xee" * 32)), random_dircap())
-        self.participants.add(create_author("dawn", VerifyKey(b"\xee" * 32)), random_dircap())
+        self.participants.add("beth", random_dircap())
+        self.participants.add("callum", random_dircap())
+        self.participants.add("dawn", random_dircap())
         d0 = mf.found_new_remote(remote0, self.participants.participants[1])
         d1 = mf.found_new_remote(remote0, self.participants.participants[2])
         d2 = mf.found_new_remote(remote0, self.participants.participants[3])
