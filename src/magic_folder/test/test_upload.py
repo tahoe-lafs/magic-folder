@@ -281,7 +281,7 @@ class MagicFileFactoryTests(SyncTestCase):
         )
 
         # mark it as a conflict
-        config.add_conflict(snap)
+        config.add_conflict(snap, static_participants(names=["existing"]).list()[0])
 
         # create a MagicFile file for this relpath now
         mf = f.magic_file_factory.magic_file_for(local)
