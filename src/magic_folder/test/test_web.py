@@ -132,6 +132,9 @@ from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
 )
+from ..participants import (
+    static_participants,
+)
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
     tahoe_lafs_dir_capabilities,
@@ -2103,12 +2106,12 @@ class ConflictStatusTests(SyncTestCase):
             random_immutable(),
         )
 
-        mf_config.add_conflict(snap)
+        mf_config.add_conflict(snap, static_participants(names=["spider"]).list()[0])
 
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals([Conflict(snap.capability, "nelli")])
+            Equals([Conflict(snap.capability, "spider")])
         )
 
         # external API
@@ -2125,7 +2128,7 @@ class ConflictStatusTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({
-                            "foo": ["nelli"],
+                            "foo": ["spider"],
                         }),
                     )
                 ),
@@ -2173,7 +2176,7 @@ class ConflictStatusTests(SyncTestCase):
             random_immutable(),
         )
 
-        mf_config.add_conflict(snap)
+        mf_config.add_conflict(snap, static_participants(names=["cavatica"]).list()[0])
 
         # external API
         self.assertThat(
@@ -2183,6 +2186,7 @@ class ConflictStatusTests(SyncTestCase):
                 u"POST",
                 self.url.child("default", "resolve-conflict"),
                 dumps({
+                    "relpath": "foo",
                     "take": "mine",
                     # "use": ..., for multi-conflicts
                 }).encode("utf8")
@@ -2193,7 +2197,7 @@ class ConflictStatusTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({
-                            "foo": ["nelli"],
+                            "foo": ["cavatica"],
                         }),
                     )
                 ),
