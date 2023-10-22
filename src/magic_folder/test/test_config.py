@@ -1376,6 +1376,11 @@ class ConflictTests(SyncTestCase):
         """
         assume(remote0_cap != remote1_cap)
 
+        participants = static_participants(
+            names=["ursula", "le guin"],
+            my_files=[],
+            other_files=[list(), ],
+        )
         snap0 = RemoteSnapshot(
             "foo",
             create_local_author(u"desktop"),
@@ -1395,18 +1400,17 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap0)
-        self.db.add_conflict(snap1)
+        self.db.add_conflict(snap0, participants.list()[0])
+        self.db.add_conflict(snap1, participants.list()[1])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict(remote0_cap, "desktop"),
-                    Conflict(remote1_cap, "laptop"),
+                    Conflict(remote0_cap, "ursula"),
+                    Conflict(remote1_cap, "le guin"),
                 ],
             })
         )
-        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
