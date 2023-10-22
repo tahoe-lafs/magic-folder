@@ -1422,6 +1422,11 @@ class ConflictTests(SyncTestCase):
         A multiple-conflict is successfully deleted
         """
 
+        participants = static_participants(
+            names=["sarah", "connor"],
+            my_files=[],
+            other_files=[list(), ],
+        )
         snap0 = RemoteSnapshot(
             "foo",
             create_local_author(u"laptop"),
@@ -1441,14 +1446,14 @@ class ConflictTests(SyncTestCase):
             immutable_cap,
         )
 
-        self.db.add_conflict(snap0)
-        self.db.add_conflict(snap1)
+        self.db.add_conflict(snap0, participants.list()[0])
+        self.db.add_conflict(snap1, participants.list()[1])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict(remote0_cap, "laptop"),
-                    Conflict(remote1_cap, "phone"),
+                    Conflict(remote0_cap, "sarah"),
+                    Conflict(remote1_cap, "connor"),
                 ]
             }),
         )
