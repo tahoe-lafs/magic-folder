@@ -557,7 +557,8 @@ def _create_v1_resource(global_config, global_service, status_service):
         _application_json(request)  # set reply headers
         folder_config = global_config.get_magic_folder(folder_name)
         resolution = _load_json(request.content.read())
-        conflicts = folder_config.list_conflicts_for(resolution["relpath"])
+        relpath = resolution["relpath"]
+        conflicts = folder_config.list_conflicts_for(relpath)
         if not conflicts:
             raise _InputError('No conflicts for "{relpath}"'.format(**resolution))
         if "take" in resolution:
@@ -583,7 +584,7 @@ def _create_v1_resource(global_config, global_service, status_service):
             matching_conflicts = [
                 conflict
                 for conflict in conflicts
-                if conflict.name == participant_name
+                if conflict.author_name == participant_name
             ]
             if not matching_conflicts:
                 raise _InputError('"{relpath}" is not conflicted with "{take}"'.format(**resolution))
@@ -598,7 +599,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         print(folder_svc)
         print(dir(folder_svc))
         mf = folder_svc.file_factory.magic_file_for(
-            folder_svc.file_factory.relpath_to_path(resolution["relpath"])
+            folder_svc.file_factory.relpath_to_path(relpath)
         )
         if matching_conflicts is not None:
             assert len(matching_conflicts) == 1, "Unexpected inconsistency"
@@ -607,19 +608,12 @@ def _create_v1_resource(global_config, global_service, status_service):
             resolution = None
         mf.resolve_conflict(resolution)
 
-        # if "matching_conflicts" is None, we want "us"
-        # ...otherwise, it contains a single Conflict which is the one we want
-
-        # XXX names coming in are "participants" (since 23.6.0) not
-        # authors -- is it even possible to map between them? (I think
-        # at least for GridSync, it'll always be "user" for
-        # author-name unfortunately)
-
-        # XXX probably want to use "the state-machine" for resolving
-        # conflicts, since that produces a new (local) snapshot .. and
-        # they may be others in the queue...?
-
-        return json.dumps({"hello": "foo"}).encode("utf8")
+        return json.dumps({
+            relpath: [
+                conflict.author_name
+                for conflict in conflicts
+            ]
+        }).encode("utf8")
 
     @app.route("/magic-folder/<string:folder_name>/tahoe-objects", methods=['GET'])
     def folder_tahoe_objects(request, folder_name):

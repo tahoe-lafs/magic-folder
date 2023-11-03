@@ -137,7 +137,6 @@ class LocalSnapshotCreator(object):
         #   - if they exist: error
         #   - if they're missing: conflict is resolved -- so multiple parents! (all the conflicts we know about)
         conflicts = self._db.list_conflicts_for(relpath)
-        print("CONFLICTS", relpath, conflicts)
         if conflicts:
             # XXX check for conflict marker files (or not)!
             existing = 0
@@ -146,7 +145,6 @@ class LocalSnapshotCreator(object):
                 fn = conflict_to_marker(relpath, con.author_name)
                 if self._magic_dir.preauthChild(fn).exists():
                     existing += 1
-            print("EXIST", existing)
             if existing:
                 raise RuntimeError("Tried to upload a file but we're conflicted")
             else:
@@ -155,7 +153,6 @@ class LocalSnapshotCreator(object):
                 # resolved the conflict
                 for con in conflicts:
                     raw_remote.append(con.snapshot_cap.danger_real_capability_string())
-                print("resolving conflict")
                 self._db.resolve_conflict(relpath)
 
         action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)

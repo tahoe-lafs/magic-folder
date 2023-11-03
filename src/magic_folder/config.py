@@ -824,7 +824,7 @@ class Conflict(object):
     snapshot_cap = attr.ib()  # Tahoe URI
     author_name = attr.ib(validator=instance_of(str))
 ##    participant_name = attr.ib(validator=instance_of(str))
-
+# should probably re-name to "participant_name" since that's what it is ...?
 
 @attr.s
 class MagicFolderConfig(object):

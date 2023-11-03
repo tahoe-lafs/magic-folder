@@ -10,6 +10,10 @@ from json import (
     dumps,
 )
 
+from attr import (
+    evolve,
+)
+
 from hyperlink import (
     DecodedURL,
 )
@@ -2552,7 +2556,7 @@ class TahoeObjectsTests(SyncTestCase):
         # make it a delete .. it's a little weird to have a delete
         # with no "content" parent (semantically) but for the purposes
         # of this test that is sufficient.
-        remote_snap.content_cap = None
+        remote_snap = evolve(remote_snap, content_cap=None)
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
