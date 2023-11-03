@@ -32,6 +32,9 @@ from .util.eliotutil import (
     ABSPATH,
     log_call_deferred,
 )
+from .magic_file import (
+    conflict_marker_filename,
+)
 from .snapshot import (
     LocalAuthor,
     LocalSnapshot,
@@ -140,9 +143,8 @@ class LocalSnapshotCreator(object):
         if conflicts:
             # XXX check for conflict marker files (or not)!
             existing = 0
-            from .magic_file import conflict_to_marker
             for con in conflicts:
-                fn = conflict_to_marker(relpath, con.author_name)
+                fn = conflict_marker_filename(relpath, con.author_name)
                 if self._magic_dir.preauthChild(fn).exists():
                     existing += 1
             if existing:
