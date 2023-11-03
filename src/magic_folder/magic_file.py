@@ -169,18 +169,6 @@ class MagicFileFactory(object):
         return DeferredList(idles)
 
 
-class ResolutionMine(object):
-    """
-    A conflict resolution accpting the local changes
-    """
-
-
-class ResolutionTheirs(object):
-    """
-    A conflict resolution accpting the other participants' changes
-    """
-
-
 class ResolutionError(Exception):
     """
     Any error related to the resolution of a conflict.
@@ -326,7 +314,6 @@ class MagicFile(object):
             ]
         else:
             if resolution not in conflicts:
-                print("BAD", resolution, conflicts)
                 raise ResolutionError(
                     "Resolution not found as existing conflict"
                 )
@@ -336,51 +323,12 @@ class MagicFile(object):
                 for con in conflicts
                 if con != resolution
             ]
-        print("KEEP", keep_path)
-        print("REJECT", rejected)
         self._factory._magic_fs.mark_not_conflicted(self._relpath, keep_path, rejected)
         # NOTE: the database NEEDS to retain the conflict markers --
         # when the uploader gets around to doing its thing, _it_ will
         # remove the conflicts from the config once it creates a
         # correct LocalSnapshot
         return self._conflict_resolution()
-
-
-        # resolution == None means "mine"
-        # otherwise, it's a list of Conflict objects
-
-        # .mark_not_conflicted (in MagicFolderConfig?) currently deletes files etc
-        # (self._factory._config.mark_not_conflicted)
-
-        # ultimately, we want to do this:
-        # - make all local files "match" the resolution
-        #    - move the favored file to relpath (check first?)
-        #    - delete all (other) conflict-markers
-        #    - make a new LocalSnapshot with multiplate parents
-        #
-        # XXX _WHEN_ do we "move files" and "delete markers"; if we
-        # have queued stuff for this file ... bail? Does it still /
-        # ever make sense to resolve a conflict if we're offline?
-        #
-        # If we say "mine", we take whatever is in relpath.
-        #   - delete all conflict markers
-        #
-        # If we say "theirs", we:
-        #   - move "their" content over top of relpath
-        #   - delete any other conflict-marker files
-        #
-        # If we say "some participant name", we:
-        #   - move that content over top of relpath
-        #   - delete all (other) conflict-markers
-        #
-        # For all cases above, we _then_ create a new LocalSnapshot:
-        #   - content is in relpath
-        #   - parents are ALL the parents (at least 2!)
-        #   - one (or more) from conflict database, one from remotesnapshots
-        #
-        # Delete all conflict entries from the database (last? first?)
-        #
-        ## self._factory._locate_snapshot_service.
 
     def found_new_remote(self, remote_snapshot, participant):
         """
@@ -396,7 +344,6 @@ class MagicFile(object):
             self._known_remotes = {remote_snapshot}
         else:
             self._known_remotes.add(remote_snapshot)
-        print("{} --[known]--> {}".format(remote_snapshot.relpath, [r.author.name for r in self._known_remotes]))
         self._remote_update(remote_snapshot, participant)
         return self.when_idle()
 
