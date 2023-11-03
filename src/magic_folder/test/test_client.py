@@ -177,3 +177,21 @@ class MagicFolderClientTests(SyncTestCase):
                 b"Content-Length": ["{}".format(len(body)).encode("utf8")],
             },
         )
+
+    def test_resolve_conflict(self):
+        """
+        The .../resolve-conflict API works
+        """
+        return self._client_method_request(
+            "resolve-conflict",
+            ("folder_name", "foo/bar", "mine", None),
+            b"POST",
+            "http://invalid./v1/magic-folder/folder_name/resolve-conflict",
+            body=json.dumps({
+                "relpath": "foo/bar",
+                "take": "mine",
+            }).encode("utf-8"),
+            extra_headers={
+                b"Content-Length": [b"38"]
+            },
+        )
