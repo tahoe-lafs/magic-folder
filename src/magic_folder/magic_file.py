@@ -175,17 +175,7 @@ class ResolutionError(Exception):
     """
 
 
-class LocallyQueuedFiles(ResolutionError):
-    """
-    We have locally queued changes when trying to apply a conflict
-    resolution.
-    """
-
-    def __str__(self):
-        return 'Cannot resolve "{}": we have {} local updates queued'.format(*self.args)
-
-
-def conflict_to_marker(relpath, participant_name):
+def conflict_marker_filename(relpath, participant_name):
     """
     Convert a relpath to a conflict-marker for the given participant
     """
@@ -309,7 +299,7 @@ class MagicFile(object):
         if resolution is None:
             keep_path = self._relpath
             rejected = [
-                conflict_to_marker(self._relpath, con.participant_name)
+                conflict_marker_filename(self._relpath, con.participant_name)
                 for con in conflicts
             ]
         else:
@@ -317,9 +307,9 @@ class MagicFile(object):
                 raise ResolutionError(
                     "Resolution not found as existing conflict"
                 )
-            keep_path = conflict_to_marker(self._relpath, resolution.participant_name)
+            keep_path = conflict_marker_filename(self._relpath, resolution.participant_name)
             rejected = [
-                conflict_to_marker(self._relpath, con.participant_name)
+                conflict_marker_filename(self._relpath, con.participant_name)
                 for con in conflicts
                 if con != resolution
             ]
@@ -941,7 +931,7 @@ class MagicFile(object):
         """
         Mark a conflict for this remote snapshot
         """
-        conflict_path = conflict_to_marker(self._relpath, participant.name)
+        conflict_path = conflict_marker_filename(self._relpath, participant.name)
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
         self._factory._config.add_conflict(snapshot, participant)
 
@@ -1105,7 +1095,7 @@ class MagicFile(object):
             if rs.danger_real_capability_string() in snapshot.parents_raw:
                 conflicts = self._factory._config.list_conflicts_for(self._relpath)
                 rejected = [
-                    conflict_to_marker(self._relpath, conflict.participant_name)
+                    conflict_marker_filename(self._relpath, conflict.participant_name)
                     for conflict in conflicts
                 ]
                 self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
