@@ -537,7 +537,7 @@ def _create_v1_resource(global_config, global_service, status_service):
         folder_config = global_config.get_magic_folder(folder_name)
         return json.dumps({
             relpath: [
-                conflict.author_name
+                conflict.participant_name
                 for conflict in conflicts
             ]
             for relpath, conflicts in folder_config.list_conflicts().items()
@@ -584,7 +584,7 @@ def _create_v1_resource(global_config, global_service, status_service):
             matching_conflicts = [
                 conflict
                 for conflict in conflicts
-                if conflict.author_name == participant_name
+                if conflict.participant_name == participant_name
             ]
             if not matching_conflicts:
                 raise _InputError('"{relpath}" is not conflicted with "{take}"'.format(**resolution))
@@ -610,7 +610,7 @@ def _create_v1_resource(global_config, global_service, status_service):
 
         return json.dumps({
             relpath: [
-                conflict.author_name
+                conflict.participant_name
                 for conflict in conflicts
             ]
         }).encode("utf8")

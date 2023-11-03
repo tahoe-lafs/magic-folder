@@ -309,7 +309,7 @@ class MagicFile(object):
         if resolution is None:
             keep_path = self._relpath
             rejected = [
-                conflict_to_marker(self._relpath, con.author_name)
+                conflict_to_marker(self._relpath, con.participant_name)
                 for con in conflicts
             ]
         else:
@@ -317,9 +317,9 @@ class MagicFile(object):
                 raise ResolutionError(
                     "Resolution not found as existing conflict"
                 )
-            keep_path = conflict_to_marker(self._relpath, resolution.author_name)
+            keep_path = conflict_to_marker(self._relpath, resolution.participant_name)
             rejected = [
-                conflict_to_marker(self._relpath, con.author_name)
+                conflict_to_marker(self._relpath, con.participant_name)
                 for con in conflicts
                 if con != resolution
             ]
@@ -1105,7 +1105,7 @@ class MagicFile(object):
             if rs.danger_real_capability_string() in snapshot.parents_raw:
                 conflicts = self._factory._config.list_conflicts_for(self._relpath)
                 rejected = [
-                    conflict_to_marker(self._relpath, conflict.author_name)
+                    conflict_to_marker(self._relpath, conflict.participant_name)
                     for conflict in conflicts
                 ]
                 self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
