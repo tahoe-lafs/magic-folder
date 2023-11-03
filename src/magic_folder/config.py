@@ -822,9 +822,8 @@ class Conflict(object):
     Represents information about a particular conflict.
     """
     snapshot_cap = attr.ib()  # Tahoe URI
-    author_name = attr.ib(validator=instance_of(str))
-##    participant_name = attr.ib(validator=instance_of(str))
-# should probably re-name to "participant_name" since that's what it is ...?
+    participant_name = attr.ib(validator=instance_of(str))
+
 
 @attr.s
 class MagicFolderConfig(object):
@@ -1615,7 +1614,6 @@ class MagicFolderConfig(object):
                 VALUES
                     (?,?,?)
                 """,
-                ##(snapshot.relpath, snapshot.author.name, snapshot.capability.danger_real_capability_string()),
                 (snapshot.relpath, participant.name, snapshot.capability.danger_real_capability_string()),
             )
 
