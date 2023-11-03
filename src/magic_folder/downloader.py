@@ -251,8 +251,10 @@ class IMagicFolderFilesystem(Interface):
             (i.e. that must end up at `relpath`)
 
         :param [FilePath] rejected_paths: the existing conflict files
-            which we should ensure no longer exist. Must contain at
-            least one item (or else this wasn't actually conflicted).
+            which we should ensure no longer exist. If we had one
+            conflict, and accepted "theirs" then this will be empty
+            (because we'll move the only conflict-marker over top of
+            the relpath).
         """
 
     def mark_delete(relpath):
@@ -436,11 +438,14 @@ class LocalMagicFolderFilesystem(object):
         del_paths = [
             self.magic_path.preauthChild(p)
             for p in rejected_paths
-            if p.exists()
         ]
-        src_path.moveTo(dest_path)
+        if dest_path != src_path:
+            src_path.moveTo(dest_path)
         for p in del_paths:
-            p.remove()
+            try:
+                p.remove()
+            except FileNotFoundError:
+                pass  # it's already gone: good
 
     def mark_delete(self, relpath):
         """

@@ -85,6 +85,13 @@ class MagicFileFactory(object):
     _delays = attr.ib(default=attr.Factory(list))
     _logger = attr.ib(default=None)  # mainly for tests
 
+    def relpath_to_path(self, relpath):
+        """
+        :returns: an absolute FilePath for the given relpath relative to
+        this folder's base.
+        """
+        return self._config.magic_path.preauthChild(relpath)
+
     def magic_file_for(self, path):
         """
         :returns: the MagicFile instance for path. This may create one
@@ -160,6 +167,41 @@ class MagicFileFactory(object):
             for mf in self._magic_files.values()
         ]
         return DeferredList(idles)
+
+
+class ResolutionMine(object):
+    """
+    A conflict resolution accpting the local changes
+    """
+
+
+class ResolutionTheirs(object):
+    """
+    A conflict resolution accpting the other participants' changes
+    """
+
+
+class ResolutionError(Exception):
+    """
+    Any error related to the resolution of a conflict.
+    """
+
+
+class LocallyQueuedFiles(ResolutionError):
+    """
+    We have locally queued changes when trying to apply a conflict
+    resolution.
+    """
+
+    def __str__(self):
+        return 'Cannot resolve "{}": we have {} local updates queued'.format(*self.args)
+
+
+def conflict_to_marker(relpath, participant_name):
+    """
+    Convert a relpath to a conflict-marker for the given participant
+    """
+    return "{}.conflict-{}".format(relpath, participant_name)
 
 
 @attr.s
@@ -265,6 +307,51 @@ class MagicFile(object):
         """
         This file is in conflict and we specify a resolution.
         """
+
+        # new thinking:
+
+        # we do everything via "uploader" anyway -- so i guess what we
+        # want to do is to modify the filesystem to "match" the
+        # resolution specified, and the tell the uploader to
+        # upload. (that is, "the filesytem IS one API" so we have to
+        # handle the case when the human modifies the FS to resolve
+        # the conflict anyway -- so now it's this case too)
+
+        conflicts = self._factory._config.list_conflicts_for(self._relpath)
+        if resolution is None:
+            keep_path = self._relpath
+            rejected = [
+                conflict_to_marker(self._relpath, con.author_name)
+                for con in conflicts
+            ]
+        else:
+            if resolution not in conflicts:
+                print("BAD", resolution, conflicts)
+                raise ResolutionError(
+                    "Resolution not found as existing conflict"
+                )
+            keep_path = conflict_to_marker(self._relpath, resolution.author_name)
+            rejected = [
+                conflict_to_marker(self._relpath, con.author_name)
+                for con in conflicts
+                if con != resolution
+            ]
+        print("KEEP", keep_path)
+        print("REJECT", rejected)
+        self._factory._magic_fs.mark_not_conflicted(self._relpath, keep_path, rejected)
+        # NOTE: the database NEEDS to retain the conflict markers --
+        # when the uploader gets around to doing its thing, _it_ will
+        # remove the conflicts from the config once it creates a
+        # correct LocalSnapshot
+        return self._conflict_resolution()
+
+
+        # resolution == None means "mine"
+        # otherwise, it's a list of Conflict objects
+
+        # .mark_not_conflicted (in MagicFolderConfig?) currently deletes files etc
+        # (self._factory._config.mark_not_conflicted)
+
         # ultimately, we want to do this:
         # - make all local files "match" the resolution
         #    - move the favored file to relpath (check first?)
@@ -510,7 +597,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _conflict_resolution(self, snapshot):
+    def _conflict_resolution(self):
         """
         A conflicted file has been resolved
         """
@@ -537,6 +624,12 @@ class MagicFile(object):
     def _cancel(self, snapshot):
         """
         We have been cancelled
+        """
+
+    @_machine.input()
+    def _resolved_remotely(self):
+        """
+        A remote update successfully resolved a conflict
         """
 
     @_machine.output()
@@ -901,10 +994,7 @@ class MagicFile(object):
         """
         Mark a conflict for this remote snapshot
         """
-        conflict_path = "{}.conflict-{}".format(
-            self._relpath,
-            participant.name,
-        )
+        conflict_path = conflict_to_marker(self._relpath, participant.name)
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
         self._factory._config.add_conflict(snapshot, participant)
 
@@ -1047,6 +1137,33 @@ class MagicFile(object):
             self._call_later(do_remote_update, d, snapshot, participant)
             return
         self._call_later(self._no_download_work, None)
+
+    @_machine.output()
+    def _check_if_conflict_resolved(self, snapshot):
+        """
+        We are conflicted and have seen a remote update -- chcek if update
+        is a fix for the conflict.
+        """
+        # the conflict is 'resolved' if this remote-snapshot has
+        # multiple parents, and "our" Snapshot is one of them -- XXX
+        # actually isn't it more general like if _any_ ancestor has
+        # it. The remote could have: had a "resolve" Snapshot, then
+        # any number of "normal" snapshots after that (before we see
+        # anything) ... so we may have to cache them etc right? some
+        # async-work ... 
+        if len(snapshot.parents_raw) > 1:
+            rs = self._factory._config.get_remotesnapshot(self._relpath)
+            # XXX don't we have to do an ancestor check, basically?
+            # like "are we in ANY of the ancestors of this remote?"
+            if rs.danger_real_capability_string() in snapshot.parents_raw:
+                conflicts = self._factory._config.list_conflicts_for(self._relpath)
+                rejected = [
+                    conflict_to_marker(self._relpath, conflict.author_name)
+                    for conflict in conflicts
+                ]
+                self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
+                self._factory._config.resolve_conflict(self._relpath)
+                self._call_later(self._resolved_remotely)
 
     @_machine.output()
     def _working(self):
@@ -1330,14 +1447,19 @@ class MagicFile(object):
 
     _conflicted.upon(
         _conflict_resolution,
-        enter=_uploading,
-        outputs=[_begin_upload],
+        enter=_creating_snapshot,
+        outputs=[_working, _status_upload_queued, _create_local_snapshot],
         collector=_last_one,
     )
     _conflicted.upon(
         _remote_update,
         enter=_conflicted,
-        outputs=[],  # probably want to .. do something? remember it?
+        outputs=[_check_if_conflict_resolved],
+    )
+    _conflicted.upon(
+        _resolved_remotely,
+        enter=_checking_for_local_work,
+        outputs=[_check_for_local_work],
     )
     _conflicted.upon(
         _local_update,

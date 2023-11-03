@@ -56,6 +56,9 @@ from .config import (
 from .invite import (
     InviteError,
 )
+from .magic_file import (
+    ResolutionError,
+)
 from .status import (
     StatusFactory,
 )
@@ -221,6 +224,12 @@ def _add_klein_error_handlers(app):
         request.setResponseCode(http.GONE)
         _application_json(request)
         return json.dumps({"reason": "cancelled"}).encode("utf8")
+
+    @app.handle_errors(ResolutionError)
+    def resolve_failed(request, failure):
+        request.setResponseCode(http.CONFLICT)
+        _application_json(request)
+        return json.dumps({"reason": str(failure.value)}).encode("utf8")
 
     @app.handle_errors(Exception)
     def fallback_error(request, failure):
@@ -584,6 +593,19 @@ def _create_v1_resource(global_config, global_service, status_service):
 
         else:
             raise _InputError('Must specify "take" or "use"')
+
+        folder_svc = global_service.get_folder_service(folder_name)
+        print(folder_svc)
+        print(dir(folder_svc))
+        mf = folder_svc.file_factory.magic_file_for(
+            folder_svc.file_factory.relpath_to_path(resolution["relpath"])
+        )
+        if matching_conflicts is not None:
+            assert len(matching_conflicts) == 1, "Unexpected inconsistency"
+            resolution = matching_conflicts[0]
+        else:
+            resolution = None
+        mf.resolve_conflict(resolution)
 
         # if "matching_conflicts" is None, we want "us"
         # ...otherwise, it contains a single Conflict which is the one we want
