@@ -144,7 +144,7 @@ class LocalSnapshotCreator(object):
             # XXX check for conflict marker files (or not)!
             existing = 0
             for con in conflicts:
-                fn = conflict_marker_filename(relpath, con.author_name)
+                fn = conflict_marker_filename(relpath, con.participant_name)
                 if self._magic_dir.preauthChild(fn).exists():
                     existing += 1
             if existing:
