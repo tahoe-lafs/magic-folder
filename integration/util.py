@@ -540,6 +540,22 @@ class MagicFolderEnabledNode(object):
             ],
         )
 
+    def resolve(self, folder_name, magic_file, resolution):
+        """
+        magic-folder resolve
+        """
+        if resolution not in ["theirs", "mine"]:
+            raise ValueError("Invalid resolution: {}".format(resolution))
+        return _magic_folder_runner(
+            self.reactor, self.request, self.name,
+            [
+                "--config", self.magic_config_directory,
+                "resolve",
+                "--theirs" if resolution == "theirs" else "--mine",
+                magic_file,
+            ],
+        )
+
     def scan_folder(self, folder_name):
         """
         magic-folder-api scan-folder
