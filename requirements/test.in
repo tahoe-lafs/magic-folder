@@ -17,8 +17,6 @@ pytest
 # XXX meejah: get rid of hack in platform.txt and/or upgrade there?
 colorama
 pytest-twisted
-# https://github.com/pytest-dev/pytest/issues/349
-pytest-lazy-fixture
 hypothesis >= 3.6.1
 towncrier >= 21.3.0
 testtools

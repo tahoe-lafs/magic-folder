@@ -9,6 +9,7 @@ eliot
 attrs
 
 # WebSocket library for twisted and asyncio
+# (python 3.8 support ends at 23.1.2)
 autobahn >= 19.5.2
 
 hyperlink
@@ -50,3 +51,6 @@ klein>=20.6.0
 # PID-file still exists
 psutil >= 5.8.0
 filelock >= 3.8.0
+
+# see https://github.com/agronholm/cbor2/issues/208
+cbor2 != 5.6.0

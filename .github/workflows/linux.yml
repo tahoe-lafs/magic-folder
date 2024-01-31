@@ -14,7 +14,9 @@ jobs:
           - runs-on: ubuntu-20.04
 #          - runs-on: ubuntu-18.04
         python-version:
-          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os.runs-on }}
     steps:
     - name: Check out source code
@@ -46,7 +48,7 @@ jobs:
         pip install wheel tox eliot-tree cuvner
 
     - name: Test with tox
-      run: tox -e py38-coverage
+      run: tox -e coverage
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
@@ -99,7 +101,7 @@ jobs:
           - runs-on: ubuntu-20.04
 #          - runs-on: ubuntu-18.04
         python-version:
-          - "3.8"
+          - "3.9"
         tahoe-version:
           - "1_17"
           - "master"
