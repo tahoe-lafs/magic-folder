@@ -38,8 +38,8 @@ release:
 	ls dist/*`git describe --abbrev=0`*
 
 release-test:
-	gpg --verify dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
-	gpg --verify dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
+	gpg --no-auto-check-trustdb --verify dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
+	gpg --no-auto-check-trustdb --verify dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc
 	virtualenv testmf_venv
 	testmf_venv/bin/pip install dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl
 	testmf_venv/bin/magic-folder --version
@@ -52,6 +52,7 @@ release-test:
 
 release-upload:
 	twine upload --config-file pypirc-magicfolder dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl dist/magic_folder-`git describe --abbrev=0`-py3-none-any.whl.asc dist/magic-folder-`git describe --abbrev=0`.tar.gz dist/magic-folder-`git describe --abbrev=0`.tar.gz.asc
+	git push origin-push main `git describe --abbrev=0`
 
 coverage:
 	-coverage erase

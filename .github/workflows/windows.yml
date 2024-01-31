@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.8"
+          - "3.9"
 
     steps:
     - name: Check out source code
@@ -37,7 +37,7 @@ jobs:
         pip install wheel tox eliot-tree
 
     - name: Test with tox
-      run: tox -e py38-coverage
+      run: tox -e py39-coverage
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.8"
+          - "3.9"
 
         tahoe-version:
           - "1_17"

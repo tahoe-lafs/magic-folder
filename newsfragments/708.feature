@@ -1,1 +1,0 @@
-The status API now exposes events related to invites

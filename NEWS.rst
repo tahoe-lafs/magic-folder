@@ -1,6 +1,37 @@
 ﻿.. -*- coding: utf-8-with-signature -*-
 
 .. towncrier start line
+Magic_Folder 24.1.0 (2024-01-31)
+''''''''''''''''''''''''''''''''
+
+Features
+--------
+
+- The status API now exposes events related to invites (`#708 <https://github.com/LeastAuthority/magic-folder/issues/708>`_)
+- Invited devices may decline "write" authority by excluding a Personal capability in their reply (`#734 <https://github.com/LeastAuthority/magic-folder/issues/734>`_)
+- Added the ability to accept invites that are read-only. (`#735 <https://github.com/LeastAuthority/magic-folder/issues/735>`_)
+
+
+Bug Fixes
+---------
+
+- Do not continuously download updates for conflicted files (`#731 <https://github.com/LeastAuthority/magic-folder/issues/731>`_)
+- Stop using deprecated attr.validators.provides (`#739 <https://github.com/LeastAuthority/magic-folder/issues/739>`_)
+- Properly parse Welcome JSON from tahoe-lafs after 0.18.0 (`#743 <https://github.com/LeastAuthority/magic-folder/issues/743>`_)
+
+
+Removed Features
+----------------
+
+- Python 3.8 is no longer supported (`#745 <https://github.com/LeastAuthority/magic-folder/issues/745>`_)
+
+
+Misc/Other
+----------
+
+- `#741 <https://github.com/LeastAuthority/magic-folder/issues/741>`_, `#745 <https://github.com/LeastAuthority/magic-folder/issues/745>`_
+
+
 Magic_Folder 23.6.0 (2023-06-26)
 ''''''''''''''''''''''''''''''''
 

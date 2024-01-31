@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.8"
+          - "3.9"
 
     steps:
     - uses: actions/checkout@v2
@@ -38,7 +38,7 @@ jobs:
       env:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
       run: |
-        tox -e py38-coverage
+        tox -e py39-coverage
 
     - name: Coverage report
       shell: bash
@@ -70,7 +70,7 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.8"
+          - "3.9"
         tahoe-version:
           - "1_17"
           - "master"
