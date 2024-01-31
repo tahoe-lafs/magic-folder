@@ -71,26 +71,14 @@ def periodic_scan(node, folder_name, path):
     return twisted_sleep(reactor, 3.0)
 
 
-@pytest.fixture(name='periodic_scan')
-def enable_periodic_scans(magic_folder_nodes, monkeypatch):
-    """
-    A fixture causes magic folders to have periodic scans enabled (with
-    interval of 1s), and returns a function to take a snapshot of a file (that
-    waits for the scanner to run).
-    """
-    for node in magic_folder_nodes.values():
-        monkeypatch.setattr(node, "add", partial(node.add, scan_interval=1))
-    return periodic_scan
-
-
 @pytest.fixture(
     params=[
         add_snapshot,
         scan_folder,
-        pytest.lazy_fixture('periodic_scan'),
+        "periodic_scan",
     ]
 )
-def take_snapshot(request, magic_folder_nodes):
+def take_snapshot(request, magic_folder_nodes, monkeypatch):
     """
     Pytest fixture that parametrizes different ways of having
     magic-folder take a local snapshot of a given file.
@@ -104,6 +92,10 @@ def take_snapshot(request, magic_folder_nodes):
         A callable that takes a node, folder name, and relative path to a file
         that should be snapshotted.
     """
+    if request.param == "periodic_scan":
+        for node in magic_folder_nodes.values():
+            monkeypatch.setattr(node, "add", partial(node.add, scan_interval=1))
+        return periodic_scan
     return request.param
 
 
