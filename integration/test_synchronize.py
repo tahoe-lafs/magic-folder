@@ -75,7 +75,7 @@ def periodic_scan(node, folder_name, path):
     params=[
         add_snapshot,
         scan_folder,
-        "periodic_scan",
+        periodic_scan,
     ]
 )
 def take_snapshot(request, magic_folder_nodes, monkeypatch):
@@ -92,10 +92,9 @@ def take_snapshot(request, magic_folder_nodes, monkeypatch):
         A callable that takes a node, folder name, and relative path to a file
         that should be snapshotted.
     """
-    if request.param == "periodic_scan":
+    if request.param == periodic_scan:
         for node in magic_folder_nodes.values():
             monkeypatch.setattr(node, "add", partial(node.add, scan_interval=1))
-        return periodic_scan
     return request.param
 
 
