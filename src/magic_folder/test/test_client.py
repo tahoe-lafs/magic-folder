@@ -231,9 +231,9 @@ class MagicFolderClientTests(SyncTestCase):
             "http://invalid./v1/magic-folder/folder_name/resolve-conflict",
             body=json.dumps({
                 "relpath": "foo/bar",
-                "take": "mine",
+                "use": "theirs",
             }).encode("utf-8"),
             extra_headers={
-                b"Content-Length": [b"38"]
+                b"Content-Length": [b"39"]
             },
         )
