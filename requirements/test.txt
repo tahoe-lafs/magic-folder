@@ -82,6 +82,12 @@ distlib==0.3.8 \
     --hash=sha256:034db59a0b96f8ca18035f36290806a9a6e6bd9d1ff91e45a7f172eb17e51784 \
     --hash=sha256:1530ea13e350031b6312d8580ddb6b27a104275a31106523b8f123787f494f64
     # via virtualenv
+exceptiongroup==1.2.0 \
+    --hash=sha256:4bfd3996ac73b41e9b9628b04e079f193850720ea5945fc96a08633c66912f14 \
+    --hash=sha256:91f5c769735f051a4290d52edd0858999b57e5876e9f85937691bd4c9fa3ed68
+    # via
+    #   hypothesis
+    #   pytest
 fixtures==4.1.0 \
     --hash=sha256:82b1c5e69f615526ef6c067188a1e6c6067df7f88332509c99f8b8fdbb9776f3 \
     --hash=sha256:a43a55da406c37651aa86dd1ba6c3983a09d36d60fe5f72242872c8a4eeeb710
@@ -160,6 +166,10 @@ hypothesis==6.97.3 \
     --hash=sha256:00216ddadaee17ba73451e262f973970a97d34fd75ec34ef57510147264c34d1 \
     --hash=sha256:6256d768ec866426bfce6ed78418c6e3e43119a0dbece2e0229a1ae5929ae53d
     # via -r requirements/test.in
+importlib-resources==6.1.1 \
+    --hash=sha256:3893a00122eafde6894c59914446a512f728a0c1a45f9bb9b63721b6bacf0b4a \
+    --hash=sha256:e8bf90d8213b486f428c9c39714b920041cb02c184686a3dee24905aaa8105d6
+    # via towncrier
 iniconfig==2.0.0 \
     --hash=sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3 \
     --hash=sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374
@@ -238,6 +248,14 @@ testtools==2.7.1 \
     --hash=sha256:56e118ce251544d436d9fbb5ba62f44aeb237aa8fcc3147372b484bbe5f48ef7 \
     --hash=sha256:df6de96010e29ee21f637a147eabf30d50b25e3841dd1d68f93ee89ce77e366c
     # via -r requirements/test.in
+tomli==2.0.1 \
+    --hash=sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc \
+    --hash=sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f
+    # via
+    #   pyproject-api
+    #   pytest
+    #   towncrier
+    #   tox
 towncrier==23.11.0 \
     --hash=sha256:13937c247e3f8ae20ac44d895cf5f96a60ad46cfdcc1671759530d7837d9ee5d \
     --hash=sha256:2e519ca619426d189e3c98c99558fe8be50c9ced13ea1fc20a4a353a95d2ded7
@@ -250,5 +268,9 @@ virtualenv==20.25.0 \
     --hash=sha256:4238949c5ffe6876362d9c0180fc6c3a824a7b12b80604eeb8085f2ed7460de3 \
     --hash=sha256:bf51c0d9c7dd63ea8e44086fa1e4fb1093a31e963b86959257378aef020e1f1b
     # via tox
+zipp==3.17.0 \
+    --hash=sha256:0e923e726174922dce09c53c59ad483ff7bbb8e572e00c7f7c46b88556409f31 \
+    --hash=sha256:84e64a1c28cf7e91ed2078bb8cc8c259cb19b76942096c8d7b84947690cabaf0
+    # via importlib-resources
 
 # The following packages are considered to be unsafe in a requirements file:
