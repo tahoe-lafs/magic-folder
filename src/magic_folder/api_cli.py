@@ -51,7 +51,7 @@ class CancelInviteOptions(usage.Options):
 
 
 @inlineCallbacks
-def cancel_invite(options):
+def cancel_invite(reactor, options):
     """
     Cancel a pending invite in a folder
     """
@@ -74,7 +74,7 @@ class ListInvitesOptions(usage.Options):
 
 
 @inlineCallbacks
-def list_invites(options):
+def list_invites(reactor, options):
     """
     List all pending invites for a folder
     """
@@ -100,7 +100,7 @@ class CreateInviteOptions(usage.Options):
 
 
 @inlineCallbacks
-def create_invite(options):
+def create_invite(reactor, options):
     """
     Create a new invite for a folder
     """
@@ -125,7 +125,7 @@ class AwaitInviteOptions(usage.Options):
 
 
 @inlineCallbacks
-def await_invite(options):
+def await_invite(reactor, options):
     """
     Await a new invite for a folder
     """
@@ -163,7 +163,7 @@ class AcceptInviteOptions(usage.Options):
 
 
 @inlineCallbacks
-def accept_invite(options):
+def accept_invite(reactor, options):
     """
     Accept a new invite for a folder
     """
@@ -194,7 +194,7 @@ class AddSnapshotOptions(usage.Options):
 
 
 @inlineCallbacks
-def add_snapshot(options):
+def add_snapshot(reactor, options):
     """
     Add one new Snapshot of a particular file in a particular
     magic-folder.
@@ -218,7 +218,7 @@ class FileStatusOptions(usage.Options):
 
 
 @inlineCallbacks
-def file_status(options):
+def file_status(reactor, options):
     """
     List the status of all files in a magic-folder
     """
@@ -239,7 +239,7 @@ class DumpStateOptions(usage.Options):
             raise usage.UsageError("--folder / -n is required")
 
 
-def dump_state(options):
+def dump_state(reactor, options):
     """
     Dump the database / state for a particular folder
     """
@@ -312,7 +312,7 @@ class AddParticipantOptions(usage.Options):
 
 
 @inlineCallbacks
-def add_participant(options):
+def add_participant(reactor, options):
     """
     Add one new participant to an existing magic-folder
     """
@@ -339,7 +339,7 @@ class ListParticipantsOptions(usage.Options):
 
 
 @inlineCallbacks
-def list_participants(options):
+def list_participants(reactor, options):
     """
     List all participants in a magic-folder
     """
@@ -364,7 +364,7 @@ class ListConflictsOptions(usage.Options):
 
 
 @inlineCallbacks
-def list_conflicts(options):
+def list_conflicts(reactor, options):
     """
     List all conflicts in a magic-folder
     """
@@ -387,7 +387,7 @@ class ScanOptions(usage.Options):
             if self[arg] is None:
                 raise usage.UsageError(error)
 
-def scan(options):
+def scan(reactor, options):
     return options.parent.client.scan_folder_local(
         options['folder'],
     )
@@ -406,7 +406,7 @@ class PollOptions(usage.Options):
             if self[arg] is None:
                 raise usage.UsageError(error)
 
-def poll(options):
+def poll(reactor, options):
     return options.parent.client.poll_folder_remote(
         options['folder'],
     )
@@ -439,7 +439,7 @@ class StatusProtocol(WebSocketClientProtocol):
 
 
 @inlineCallbacks
-def monitor(options):
+def monitor(reactor, options):
     """
     Print out updates from the WebSocket status API
     """
@@ -447,7 +447,7 @@ def monitor(options):
     endpoint_str = options.parent.api_client_endpoint
     websocket_uri = "{}/v1/status".format(endpoint_str.replace("tcp:", "ws://"))
 
-    agent = options.parent.get_websocket_agent()
+    agent = options.parent.get_websocket_agent(reactor)
     proto = yield agent.open(
         websocket_uri,
         {
@@ -470,9 +470,8 @@ class MagicFolderApiCommand(BaseOptions):
     """
     _websocket_agent = None  # initialized (at most once) in get_websocket_agent()
 
-    def get_websocket_agent(self):
+    def get_websocket_agent(self, reactor):
         if self._websocket_agent is None:
-            from twisted.internet import reactor
             self._websocket_agent = create_client_agent(reactor)
         return self._websocket_agent
 
@@ -533,7 +532,7 @@ class MagicFolderApiCommand(BaseOptions):
 
 
 @inlineCallbacks
-def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=None,
+def dispatch_magic_folder_api_command(reactor, args, stdout=None, stderr=None, client=None,
                                       websocket_agent=None, config=None):
     """
     Run a magic-folder-api command with the given args
@@ -581,13 +580,15 @@ def dispatch_magic_folder_api_command(args, stdout=None, stderr=None, client=Non
             print(options, file=options.stdout)
         raise SystemExit(1)
 
-    yield run_magic_folder_api_options(options)
+    yield run_magic_folder_api_options(reactor, options)
 
 
 @inlineCallbacks
-def run_magic_folder_api_options(options):
+def run_magic_folder_api_options(reactor, options):
     """
     Runs a magic-folder-api subcommand with the provided options.
+
+    :param reactor: the reactor we're using
 
     :param options: already-parsed options.
 
@@ -619,11 +620,11 @@ def run_magic_folder_api_options(options):
     # we want to let exceptions out to the top level if --debug is on
     # because this gives better stack-traces
     if options['debug']:
-        yield maybeDeferred(main_func, so)
+        yield maybeDeferred(main_func, reactor, so)
 
     else:
         try:
-            yield maybeDeferred(main_func, so)
+            yield maybeDeferred(main_func, reactor, so)
 
         except CannotAccessAPIError as e:
             # give user more information if we can't find the daemon at all
@@ -649,7 +650,7 @@ def _entry():
     """
 
     def main(reactor):
-        return dispatch_magic_folder_api_command(sys.argv[1:])
+        return dispatch_magic_folder_api_command(reactor, sys.argv[1:])
     return react(main)
 
 
