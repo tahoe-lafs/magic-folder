@@ -263,6 +263,21 @@ The author-names correspond to the device that conflicts with this file.
 There will also be a file named like ``<relpath>.conflict-<author-name>`` in the magic-folder whose contents match those of the conflicting remote file.
 
 
+POST ``/v1/magic-folder/<folder-name>/resolve-conflict``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ask for a particular resolution to a conflicted file.
+The body is a JSON object containing the keys:
+
+* ``relpath``: the file name inside the folder
+* ``take``: ``"mine"`` or ``"theirs"`` indicating whose version to take
+* ``use``:  a Participant name indicating whose version to take
+
+Note that you can use only one of ``take`` or ``use``, and that ``take="theirs"`` only works when there is exactly one other conflict.
+
+Returns a ``dict`` mapping ``relpath`` to a list of all Participant names that conflicted before the resolution.
+
+
 GET ``/v1/magic-folder/<folder-name>/scan-local``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
