@@ -87,3 +87,4 @@ Resolving via the CLI
 Resolving via the HTTP API
 --------------------------
 
+See :ref:`api_resolve_conflict`
