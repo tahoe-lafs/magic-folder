@@ -334,7 +334,23 @@ class MagicFile(object):
             self._known_remotes = {remote_snapshot}
         else:
             self._known_remotes.add(remote_snapshot)
-        self._remote_update(remote_snapshot, participant)
+
+        # if we're already conflicted, this will indeed not "match our
+        # existing database entry" (as per the docstring) -- but it
+        # may still be an "already known" update becaus we've already
+        # seen it and marked it as a conflict
+        found = False
+        for conflict in self._factory._config.list_conflicts_for(self._relpath):
+            if remote_snapshot.capability == conflict.snapshot_cap:
+                found = True
+
+        # note that we'll emit this signal even when we're already
+        # conflicted, but detect a new conflict (in which case we
+        # produce a new conflict-marker or update existing)
+
+        if not found:
+            print("found new remote", remote_snapshot)
+            self._remote_update(remote_snapshot, participant)
         return self.when_idle()
 
     def local_snapshot_exists(self, local_snapshot):
@@ -671,6 +687,22 @@ class MagicFile(object):
             if current_pathstate != local_pathinfo.state:
                 self._call_later(self._download_mismatch, snapshot, staged_path, participant)
                 return
+
+        # this incoming snapshot might be the resolution to a remote
+        # conflict; if so we can remove the appropriate conflict
+        # entries and markers...
+        if len(snapshot.parents_raw) > 1:
+            rs = self._factory._config.get_remotesnapshot(self._relpath)
+            # XXX don't we have to do an ancestor check, basically?
+            # like "are we in ANY of the ancestors of this remote?"
+            if rs.danger_real_capability_string() in snapshot.parents_raw:
+                conflicts = self._factory._config.list_conflicts_for(self._relpath)
+                rejected = [
+                    conflict_marker_filename(self._relpath, conflict.participant_name)
+                    for conflict in conflicts
+                ]
+                self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
+                self._factory._config.resolve_conflict(self._relpath)
 
         self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state, participant)
 
@@ -1390,14 +1422,17 @@ class MagicFile(object):
     )
     _conflicted.upon(
         _remote_update,
-        enter=_conflicted,
-        outputs=[_check_if_conflict_resolved],
+        enter=_downloading,
+        outputs=[_working, _status_download_queued, _begin_download]
     )
-    _conflicted.upon(
-        _resolved_remotely,
-        enter=_checking_for_local_work,
-        outputs=[_check_for_local_work],
-    )
+    # XXX where do we?        outputs=[_check_if_conflict_resolved_or_additional],
+    # (i guess what we want to do is ... do this in "_check_ancestor" or "_check_local_update")
+
+#    _conflicted.upon(
+#        _resolved_remotely,
+#        enter=_checking_for_local_work,
+#        outputs=[_check_for_local_work],
+#    )
     _conflicted.upon(
         _local_update,
         enter=_conflicted,
