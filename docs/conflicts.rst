@@ -83,6 +83,18 @@ Resolving via Filesystem
 Resolving via the CLI
 ---------------------
 
+The subcommand ``magic-folder resolve`` may be used to specify a resolution.
+It allows you to choose ``--mine`` or ``--theirs``(if there is only one other conflict).
+Otherwise, you must use ``--use <name>`` to specify which version to keep.
+
+Currently there is no API for doing something more complex (e.g. simultaneuously replacing the latest version with new content).
+
+Complete example:
+
+.. code-block:: console
+
+    magic-folder resolve --mine ~/Documents/Magic/foo
+
 
 Resolving via the HTTP API
 --------------------------
