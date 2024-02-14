@@ -1600,7 +1600,8 @@ class MagicFolderConfig(object):
     @with_cursor
     def add_conflict(self, cursor, snapshot, participant):
         """
-        Add a new conflicting author
+        Add a new conflicting author. It is fine if the same conflict
+        already exists.
 
         :param RemoteSnapshot snapshot: the conflicting Snapshot
 
@@ -1609,7 +1610,7 @@ class MagicFolderConfig(object):
         with start_action(action_type="config:state-db:add-conflict", relpath=snapshot.relpath):
             cursor.execute(
                 """
-                INSERT INTO
+                INSERT OR IGNORE INTO
                     conflicted_files (relpath, conflict_author, snapshot_cap)
                 VALUES
                     (?,?,?)
