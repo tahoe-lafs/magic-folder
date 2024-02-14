@@ -1398,6 +1398,19 @@ class MagicFile(object):
         enter=_downloading,
         outputs=[_working, _status_download_queued, _begin_download]
     )
+    # XXX this is trix-y .. the user could be changing the local
+    # contents because they'll ultimately be doing a "resolve" (with
+    # those contents) __OR__ they could be naively simply editing the
+    # file more.
+    #
+    # ...so I think we _do_ want to queue a local-update: an incoming
+    # resolution may happen, and if we have no local change: great,
+    # apply it. But if we _do_ have a local change, we'd want to
+    # .. conflict again?
+    #
+    # need integration test here: have conflict; A changes local file
+    # (but does not "resolve"); B uploads resolution; A shouldn't lose
+    # user data (i.e. delete local-only changes with the resolution)
     _conflicted.upon(
         _local_update,
         enter=_conflicted,

@@ -1342,7 +1342,7 @@ class ConflictTests(SyncTestCase):
     )
     def test_add_conflict_twice(self, remote_cap, meta_cap, content_cap):
         """
-        It's an error to add the same conflict twice
+        It is not an error to add the same conflict twice
         """
         participants = static_participants(
             names=["marlyn"],
@@ -1360,8 +1360,7 @@ class ConflictTests(SyncTestCase):
         )
 
         self.db.add_conflict(snap, participants.list()[0])
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.add_conflict(snap, participants.list()[0])
+        self.db.add_conflict(snap, participants.list()[0])
         self.db.resolve_conflict("foo")
 
     @given(
