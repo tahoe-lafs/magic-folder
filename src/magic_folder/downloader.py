@@ -187,7 +187,7 @@ class RemoteSnapshotCacheService(service.Service):
         #   only incrementally adds to the ancestors of the remote
         # - for checking in the other direction, we can skip checking parents of any ancestors that are
         #   also ancestors of our remotesnapshot
-        assert child_cap.danger_real_capability_string() in self._cached_snapshots is not None, "Remote should be cached already"
+        assert child_cap.danger_real_capability_string() in self._cached_snapshots, "Remote should be cached already"
         snapshot = self._cached_snapshots[child_cap.danger_real_capability_string()]
 
         q = deque([snapshot])
