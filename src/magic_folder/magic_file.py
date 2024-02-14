@@ -1108,33 +1108,6 @@ class MagicFile(object):
         self._call_later(self._no_download_work, None)
 
     @_machine.output()
-    def _check_if_conflict_resolved(self, snapshot):
-        """
-        We are conflicted and have seen a remote update -- chcek if update
-        is a fix for the conflict.
-        """
-        # the conflict is 'resolved' if this remote-snapshot has
-        # multiple parents, and "our" Snapshot is one of them -- XXX
-        # actually isn't it more general like if _any_ ancestor has
-        # it. The remote could have: had a "resolve" Snapshot, then
-        # any number of "normal" snapshots after that (before we see
-        # anything) ... so we may have to cache them etc right? some
-        # async-work ... 
-        if len(snapshot.parents_raw) > 1:
-            rs = self._factory._config.get_remotesnapshot(self._relpath)
-            # XXX don't we have to do an ancestor check, basically?
-            # like "are we in ANY of the ancestors of this remote?"
-            if rs.danger_real_capability_string() in snapshot.parents_raw:
-                conflicts = self._factory._config.list_conflicts_for(self._relpath)
-                rejected = [
-                    conflict_marker_filename(self._relpath, conflict.participant_name)
-                    for conflict in conflicts
-                ]
-                self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
-                self._factory._config.resolve_conflict(self._relpath)
-                self._call_later(self._resolved_remotely)
-
-    @_machine.output()
     def _working(self):
         """
         We are doing some work so this file is not currently updated.
@@ -1425,14 +1398,6 @@ class MagicFile(object):
         enter=_downloading,
         outputs=[_working, _status_download_queued, _begin_download]
     )
-    # XXX where do we?        outputs=[_check_if_conflict_resolved_or_additional],
-    # (i guess what we want to do is ... do this in "_check_ancestor" or "_check_local_update")
-
-#    _conflicted.upon(
-#        _resolved_remotely,
-#        enter=_checking_for_local_work,
-#        outputs=[_check_for_local_work],
-#    )
     _conflicted.upon(
         _local_update,
         enter=_conflicted,
