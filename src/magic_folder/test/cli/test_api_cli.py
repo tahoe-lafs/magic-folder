@@ -17,10 +17,10 @@ from .common import api_cli, cli
 
 class ScanMagicFolder(AsyncTestCase):
     def api_cli(self, argv):
-        return api_cli(argv, self.node.global_config, self.node.http_client)
+        return api_cli(self.reactor, argv, self.node.global_config, self.node.http_client)
 
     def cli(self, argv):
-        return cli(argv, self.node.global_config, self.node.http_client)
+        return cli(self.reactor, argv, self.node.global_config, self.node.http_client)
 
     @inline_callbacks
     def setUp(self):

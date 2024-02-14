@@ -134,6 +134,7 @@ class TestApiAddSnapshot(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", self.magic_config.path, "add-snapshot",
                  "--file", "foo",
                  "--folder", "default"],
@@ -190,6 +191,7 @@ class TestApiAddSnapshot(AsyncTestCase):
         with self.assertRaises(SystemExit):
             with request_sequence.consume(self.fail):
                 yield dispatch_magic_folder_api_command(
+                    Clock(),
                     ["--config", self.magic_config.path, "add-snapshot",
                      "--file", "../../../foo",
                      "--folder", "default"],
@@ -270,7 +272,7 @@ class TestMagicApi(AsyncTestCase):
         """
         stdout = StringIO()
         with self.assertRaises(SystemExit):
-            yield dispatch_magic_folder_api_command([], stdout=stdout)
+            yield dispatch_magic_folder_api_command(Clock(), [], stdout=stdout)
 
         self.assertThat(
             stdout.getvalue(),
@@ -290,6 +292,7 @@ class TestMagicApi(AsyncTestCase):
 
         self.assertThat(
             dispatch_magic_folder_api_command(
+                Clock(),
                 ["--version"],
                 stdout=stdout,
                 stderr=stderr,
@@ -317,6 +320,7 @@ class TestMagicApi(AsyncTestCase):
 
         self.assertThat(
             dispatch_magic_folder_api_command(
+                Clock(),
                 ["add-snapshot"],
                 stdout=stdout,
                 stderr=stderr,
@@ -343,6 +347,7 @@ class TestMagicApi(AsyncTestCase):
 
         self.assertThat(
             dispatch_magic_folder_api_command(
+                Clock(),
                 ["add-snapshot", "--file", "foo"],
                 stdout=stdout,
                 stderr=stderr,
@@ -392,6 +397,7 @@ class TestMagicApi(AsyncTestCase):
 
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", basedir.path, "add-snapshot",
                  "--file", "foo",
                  "--folder", "default"],
@@ -460,6 +466,7 @@ class TestMagicApi(AsyncTestCase):
         with self.assertRaises(SystemExit):
             with request_sequence.consume(self.fail):
                 yield dispatch_magic_folder_api_command(
+                    Clock(),
                     ["--config", basedir.path, "add-snapshot",
                      "--file", "foo",
                      "--folder", "default"],
@@ -507,6 +514,7 @@ class TestMagicApi(AsyncTestCase):
 
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", basedir.path, "add-snapshot",
                  "--file", "foo",
                  "--folder", "default"],
@@ -545,6 +553,7 @@ class TestDumpState(AsyncTestCase):
 
         author = create_local_author("zara")
         magic_path = FilePath(self.mktemp())
+        self.reactor = MemoryReactorClockResolver()
         magic_path.makedirs()
         config = self.global_config.create_magic_folder(
             name="test",
@@ -596,7 +605,7 @@ class TestDumpState(AsyncTestCase):
             "--folder", "test",
         ])
         options._config = self.global_config
-        yield run_magic_folder_api_options(options)
+        yield run_magic_folder_api_options(self.reactor, options)
 
         self.assertThat(
             options.stderr.getvalue(),
@@ -654,6 +663,7 @@ class TestApiParticipants(AsyncTestCase):
         # missing --personal-dmd
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", self.magic_config.path, "add-participant",
                  "--folder", "default",
                  "--author-name", "amaya",
@@ -718,6 +728,7 @@ class TestApiParticipants(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
+                reactor,
                 ["--config", self.magic_config.path, "add-participant",
                  "--folder", "default",
                  "--author-name", "amaya",
@@ -747,6 +758,7 @@ class TestApiParticipants(AsyncTestCase):
         # --folder missing
         with self.assertRaises(SystemExit):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", self.magic_config.path, "list-participants",
                 ],
                 stdout=stdout,
@@ -802,6 +814,7 @@ class TestApiParticipants(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
+                Clock(),
                 ["--config", self.magic_config.path, "list-participants",
                  "--folder", "default",
                 ],
@@ -859,6 +872,7 @@ class TestApiMonitor(AsyncTestCase):
         stderr = StringIO()
 
         yield dispatch_magic_folder_api_command(
+            self.reactor,
             ["--config", self.magic_config.path, "monitor",
              "--once",
             ],
