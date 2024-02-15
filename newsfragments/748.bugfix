@@ -1,1 +1,0 @@
-The new "read-only" option for join introduced in 24.1.0 unintentionally became required; fix this behavior, and document the feature.
