@@ -323,6 +323,7 @@ The body of the request is a JSON object with keys:
 * ``author``: arbitrary, valid author name
 * ``poll-interval``: seconds between remote update checks
 * ``scan-interval``: seconds between local update checks
+* ``read-only`` (optional): if specified, and True, reject write authority for this invite
 
 The endpoint returns 201 Created once the folder is created and joined.
 Otherwise, a 400 error is returned describing the error.

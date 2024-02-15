@@ -163,13 +163,39 @@ class MagicFolderClientTests(SyncTestCase):
                 "author": "amy",
                 "poll-interval": 123,
                 "scan-interval": 321,
-                "read-only": None,
             }
         ).encode("utf-8")
 
         return self._client_method_request(
             "join",
             ("folder_name", "2-suspicious-penguin", folder_dir, "amy", 123, 321),
+            b"POST",
+            "http://invalid./experimental/magic-folder/folder_name/join",
+            body,
+            {
+                b"Content-Length": ["{}".format(len(body)).encode("utf8")],
+            },
+        )
+
+    def test_join_read_only(self):
+        """
+        The /join API works, with read-only too
+        """
+        folder_dir = FilePath(self.mktemp()).asTextMode()
+        body = json.dumps(
+            {
+                "invite-code": "2-suspicious-penguin",
+                "local-directory": folder_dir.path,
+                "author": "amy",
+                "poll-interval": 123,
+                "scan-interval": 321,
+                "read-only": True,
+            }
+        ).encode("utf-8")
+
+        return self._client_method_request(
+            "join",
+            ("folder_name", "2-suspicious-penguin", folder_dir, "amy", 123, 321, True),
             b"POST",
             "http://invalid./experimental/magic-folder/folder_name/join",
             body,

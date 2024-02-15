@@ -688,7 +688,7 @@ def _create_experimental_resource(global_config, global_service):
             raise _InputError(
                 "Missing keys: {}".format(" ".join(missing))
             )
-        extra_keys = required_keys.union({"read-only"}) - set(body.keys())
+        extra_keys = set(body.keys() - required_keys.union({"read-only"}))
         if extra_keys:
             raise _InputError(
                 "Extra keys: {}".format(" ".join(extra_keys))
