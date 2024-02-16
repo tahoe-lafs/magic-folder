@@ -235,5 +235,5 @@ class MagicFolderClientTests(SyncTestCase):
             }).encode("utf-8"),
             extra_headers={
                 b"Content-Length": [b"39"]
-            },
+            }
         )
