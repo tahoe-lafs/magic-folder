@@ -210,6 +210,8 @@ class MagicFolderClientTests(SyncTestCase):
             }).encode("utf-8"),
             extra_headers={
                 b"Content-Length": [b"39"]
+            }
+        )
 
     def test_join_read_only(self):
         """
