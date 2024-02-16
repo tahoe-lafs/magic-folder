@@ -247,20 +247,20 @@ class MagicFolderClient(object):
 
     def join(self, magic_folder, invite_code, local_dir, author, poll_interval, scan_interval, read_only=None):
         api_url = self.base_url.child(u"experimental").child(u"magic-folder").child(magic_folder).child(u"join")
+        join_body = {
+            "invite-code": invite_code,
+            "local-directory": local_dir.asTextMode().path,
+            "author": author,
+            "poll-interval": poll_interval,
+            "scan-interval": scan_interval,
+        }
+        if read_only is not None:
+            join_body["read-only"] = read_only
+
         return self._authorized_request(
             "POST",
             api_url,
-            body=json.dumps(
-                {
-                    "invite-code": invite_code,
-                    "local-directory": local_dir.asTextMode().path,
-                    "author": author,
-                    "poll-interval": poll_interval,
-                    "scan-interval": scan_interval,
-                    "read-only": read_only,
-                },
-                ensure_ascii=False,
-            ).encode("utf-8"),
+            body=json.dumps(join_body, ensure_ascii=False).encode("utf-8"),
         )
 
     def list_invites(self, magic_folder):

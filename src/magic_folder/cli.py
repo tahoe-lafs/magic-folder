@@ -741,7 +741,7 @@ def join(options):
         options["author"],
         int(options["poll-interval"]),
         None if options['disable-scanning'] else int(options["scan-interval"]),
-        options["read-only"],
+        True if options["read-only"] else None,
     )
     if ans["success"]:
         print("Successfully joined as '{}'".format(ans["participant-name"]))
