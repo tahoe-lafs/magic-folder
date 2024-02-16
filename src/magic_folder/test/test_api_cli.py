@@ -728,7 +728,7 @@ class TestApiParticipants(AsyncTestCase):
         )
         with request_sequence.consume(self.fail):
             yield dispatch_magic_folder_api_command(
-                reactor,
+                Clock(),
                 ["--config", self.magic_config.path, "add-participant",
                  "--folder", "default",
                  "--author-name", "amaya",
