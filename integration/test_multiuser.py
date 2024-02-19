@@ -206,7 +206,7 @@ async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edm
     # shouldn't _keep_ trying to download conflicted updates.
 
     # now, wait for updates
-    all_updates = await DeferredList([
+    await DeferredList([
         alice.status_monitor(how_long=5),
         bob.status_monitor(how_long=5),
         edmond.status_monitor(how_long=5),
