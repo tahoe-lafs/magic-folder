@@ -1,6 +1,15 @@
 ﻿.. -*- coding: utf-8-with-signature -*-
 
 .. towncrier start line
+Magic_Folder 24.3.0 (2024-03-07)
+''''''''''''''''''''''''''''''''
+
+Bug Fixes
+---------
+
+- The new "read-only" option for join introduced in 24.1.0 unintentionally became required; fix this behavior, and document the feature. (`#748 <https://github.com/LeastAuthority/magic-folder/issues/748>`_)
+
+
 Magic_Folder 24.1.0 (2024-01-31)
 ''''''''''''''''''''''''''''''''
 
