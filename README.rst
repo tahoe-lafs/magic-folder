@@ -1,9 +1,6 @@
 Magic Folder
 ============
 
-**This repository is provisional.**
-It may move to a different organization.
-
 Magic Folder for Tahoe-LAFS is a Free and Open file synchronization system.
 It detects local changes to files and uploads those changes to a Tahoe-LAFS grid.
 It monitors a Tahoe-LAFS grid and downloads changes to the local filesystem.
