@@ -201,6 +201,8 @@ class MagicFolderClientTests(SyncTestCase):
             body,
             {
                 b"Content-Length": ["{}".format(len(body)).encode("utf8")],
+            }
+        )
 
     def test_resolve_conflict_take(self):
         """
