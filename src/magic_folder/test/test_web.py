@@ -10,6 +10,10 @@ from json import (
     dumps,
 )
 
+from attr import (
+    evolve,
+)
+
 from hyperlink import (
     DecodedURL,
 )
@@ -131,6 +135,9 @@ from ..testing.web import (
 from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
+)
+from ..participants import (
+    static_participants,
 )
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
@@ -2103,12 +2110,12 @@ class ConflictStatusTests(SyncTestCase):
             random_immutable(),
         )
 
-        mf_config.add_conflict(snap)
+        mf_config.add_conflict(snap, static_participants(names=["spider"]).list()[0])
 
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals([Conflict(snap.capability, "nelli")])
+            Equals([Conflict(snap.capability, "spider")])
         )
 
         # external API
@@ -2125,7 +2132,76 @@ class ConflictStatusTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({
-                            "foo": ["nelli"],
+                            "foo": ["spider"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+
+    def test_resolve_conflict(self):
+        """
+        We can resolve a conflict
+        """
+        local_path = FilePath(self.mktemp())
+        local_path.makedirs()
+
+        folder_config = magic_folder_config(
+            "marta",
+            local_path,
+        )
+
+        node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": folder_config,
+            },
+            start_folder_services=False,
+        )
+        node.global_service.get_folder_service("default").file_factory._synchronous = True
+
+        mf_config = node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+
+        mf_config.add_conflict(snap, static_participants(names=["cavatica"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    # "use": ..., for multi-conflicts
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["cavatica"],
                         }),
                     )
                 ),
@@ -2480,7 +2556,7 @@ class TahoeObjectsTests(SyncTestCase):
         # make it a delete .. it's a little weird to have a delete
         # with no "content" parent (semantically) but for the purposes
         # of this test that is sufficient.
-        remote_snap.content_cap = None
+        remote_snap = evolve(remote_snap, content_cap=None)
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 

@@ -1,4 +1,3 @@
-import sqlite3
 import itertools
 from io import (
     BytesIO,
@@ -91,6 +90,9 @@ from ..config import (
     create_testing_configuration,
     load_global_configuration,
     is_valid_experimental_feature,
+)
+from ..participants import (
+    static_participants,
 )
 from ..snapshot import (
     create_local_author,
@@ -1287,6 +1289,7 @@ class ConflictTests(SyncTestCase):
         self.magic = self.temp.child("magic")
         self.magic.makedirs()
 
+    def setup_example(self):
         self.db = MagicFolderConfig.initialize(
             u"some-folder",
             SQLite3DatabaseLocation.memory(),
@@ -1308,6 +1311,11 @@ class ConflictTests(SyncTestCase):
         """
         Adding a conflict allows us to list it
         """
+        participants = static_participants(
+            names=["adele"],
+            my_files=[],
+            other_files=[],
+        )
         snap = RemoteSnapshot(
             "foo",
             self.author,
@@ -1318,14 +1326,13 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap)
+        self.db.add_conflict(snap, participants.list()[0])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
-                "foo": [Conflict(remote_cap, self.author.name)],
+                "foo": [Conflict(remote_cap, "adele")],
             }),
         )
-        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
@@ -1334,8 +1341,13 @@ class ConflictTests(SyncTestCase):
     )
     def test_add_conflict_twice(self, remote_cap, meta_cap, content_cap):
         """
-        It's an error to add the same conflict twice
+        It is not an error to add the same conflict twice
         """
+        participants = static_participants(
+            names=["marlyn"],
+            my_files=[],
+            other_files=[],
+        )
         snap = RemoteSnapshot(
             "foo",
             self.author,
@@ -1346,9 +1358,8 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.add_conflict(snap)
+        self.db.add_conflict(snap, participants.list()[0])
+        self.db.add_conflict(snap, participants.list()[0])
         self.db.resolve_conflict("foo")
 
     @given(
@@ -1363,6 +1374,11 @@ class ConflictTests(SyncTestCase):
         """
         assume(remote0_cap != remote1_cap)
 
+        participants = static_participants(
+            names=["ursula", "le guin"],
+            my_files=[],
+            other_files=[list(), ],
+        )
         snap0 = RemoteSnapshot(
             "foo",
             create_local_author(u"desktop"),
@@ -1382,18 +1398,17 @@ class ConflictTests(SyncTestCase):
             meta_cap,
         )
 
-        self.db.add_conflict(snap0)
-        self.db.add_conflict(snap1)
+        self.db.add_conflict(snap0, participants.list()[0])
+        self.db.add_conflict(snap1, participants.list()[1])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict(remote0_cap, "desktop"),
-                    Conflict(remote1_cap, "laptop"),
+                    Conflict(remote0_cap, "ursula"),
+                    Conflict(remote1_cap, "le guin"),
                 ],
             })
         )
-        self.db.resolve_conflict("foo")
 
     @given(
         tahoe_lafs_immutable_dir_capabilities(),
@@ -1405,6 +1420,11 @@ class ConflictTests(SyncTestCase):
         A multiple-conflict is successfully deleted
         """
 
+        participants = static_participants(
+            names=["sarah", "connor"],
+            my_files=[],
+            other_files=[list(), ],
+        )
         snap0 = RemoteSnapshot(
             "foo",
             create_local_author(u"laptop"),
@@ -1424,14 +1444,14 @@ class ConflictTests(SyncTestCase):
             immutable_cap,
         )
 
-        self.db.add_conflict(snap0)
-        self.db.add_conflict(snap1)
+        self.db.add_conflict(snap0, participants.list()[0])
+        self.db.add_conflict(snap1, participants.list()[1])
         self.assertThat(
             self.db.list_conflicts(),
             Equals({
                 "foo": [
-                    Conflict(remote0_cap, "laptop"),
-                    Conflict(remote1_cap, "phone"),
+                    Conflict(remote0_cap, "sarah"),
+                    Conflict(remote1_cap, "connor"),
                 ]
             }),
         )

@@ -29,6 +29,9 @@ from nacl.signing import (
 
 from ..config import create_testing_configuration
 from ..magic_file import MagicFileFactory
+from ..participants import (
+    static_participants,
+)
 from ..scanner import (
     ScannerService,
     find_updated_files,
@@ -604,7 +607,7 @@ class FindUpdatesTests(SyncTestCase):
             snap1,
             OLD_PATH_STATE,
         )
-        self.config.add_conflict(snap1)
+        self.config.add_conflict(snap1, static_participants(names=["ada"]).list()[0])
 
         # now it is conflicted, start a scanner service and let it
         # find an update.

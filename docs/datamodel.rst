@@ -123,7 +123,8 @@ If any Snapshot is different, it is downloaded and acted upon.
 For a full discussion of this process, see :ref:`downloader`.
 
 Ultimately, for normal updates or deletes, the change will be reflected (or "acknowledged" if you prefer) by updating our own Personal folder after making local changes.
-In case of a "conflict" (e.g. two changes at "the same" time) we will not update the Personal folder until the user resolves the conflict (this part isn't possible yet, see `Issue 102 <https://github.com/LeastAuthority/magic-folder/issues/102>`_).
+In case of a "conflict" (e.g. two or more changes at "the same" time) we will not update the Personal folder until some participant resolves the conflict.
+See also :ref:`conflicts`
 
 Considered together, an abstract view of a two-Participant example:
 
@@ -139,6 +140,8 @@ In the above, we have two Participants (``laptop`` and ``desktop``), omitting th
 There is a single file (``grumpy-cat.jpeg``) which has been changed once (the original version is at the green dot "1" and the newest version is at green dot "2").
 We can see that both Participants are up-to-date because both Personal folders point at the latest Snapshot.
 
+
+.. _datamodel_conflicts:
 
 Conflicts
 ---------

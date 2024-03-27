@@ -43,6 +43,7 @@ class IParticipant(Interface):
     particular magic folder.
     """
     is_self = Attribute("``True`` if this participant is us, ``False`` otherwise.")
+    name = Attribute("The unique name of this participant in the Collective")
 
     def files():
         """
