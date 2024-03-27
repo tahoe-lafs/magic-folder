@@ -427,6 +427,14 @@ class LocalMagicFolderFilesystem(object):
             content.
         """
         local_path = self.magic_path.preauthChild(conflict_path)
+        # on windows, it's an error to "os.rename()" on top of an
+        # existing file so we delete it first if it exits (because we
+        # want the content to be "the newest conflict" in case it
+        # already existed)
+        try:
+            local_path.remove()
+        except OSError:
+            pass
         staged_content.moveTo(local_path)
 
 
