@@ -6,10 +6,10 @@ Magic Folder Conflicts and Resolution
 =====================================
 
 When we have two or more participants updating a folder, it can happen that a file is modified "at the same time" by two or more participants.
-More correctly, "at the same time" here means "between communications".
+More correctly, "at the same time" here means "between communications events".
 
-Effectively, participants are speaking a protocol by posting messages to their mutable Capabilities.
-Namely, updading which Snapshot object a particular (file) name points to.
+Effectively, participants are speaking a protocol by posting updates to their mutable Capabilities.
+Namely, updating which Snapshot object a particular (file) name points to (including adding a new name, or removing one).
 
 We do not know *when* another Participant has updated their notion of the current state.
 However, what we *can* notice is when they "commit" to that state (that is, they update publically their current Snapshot pointer).
@@ -49,11 +49,12 @@ Either our Snapshot appears in some parents (including grandparents, etc) of the
 
 If it does appear, this is an "update" (and we simply replace the local content with the incoming content).
 
-Instead if our Snapshot does not appear as any ancestor of the incoming Snapshot, a commit is determined.
+Instead if our Snapshot does not appear as any ancestor of the incoming Snapshot, a conflict is determined.
 
 This is because when the other device created their Snapshot, they didn't know about ours (or else it would appear as an ancestor) so we have made a change "at the same time".
 
 Note that unlike tools like Git, we do not examine the contents of the file or try to produce differences -- everything is determined from the metadata in the Snapshot.
+This means that even if we happened to make the very same edits "at the same time" it would still be a conflict.
 
 
 Showing Conflicts Locally
@@ -84,7 +85,7 @@ Resolving via the CLI
 ---------------------
 
 The subcommand ``magic-folder resolve`` may be used to specify a resolution.
-It allows you to choose ``--mine`` or ``--theirs``(if there is only one other conflict).
+It allows you to choose ``--mine`` or ``--theirs`` (if there is only one other conflict).
 Otherwise, you must use ``--use <name>`` to specify which version to keep.
 
 Currently there is no API for doing something more complex (e.g. simultaneuously replacing the latest version with new content).
