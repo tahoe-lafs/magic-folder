@@ -50,7 +50,7 @@ async def perform_invite(request, folder_name, inviter, invitee_name, invitee, i
 
 @inline_callbacks
 @pytest_twisted.ensureDeferred
-async def test_conflicted_users(request, reactor, temp_filepath, alice, bob):
+async def test_resolve_two_users(request, reactor, temp_filepath, alice, bob):
     """
     Two users both add the same file at the same time, producing conflicts.
 
