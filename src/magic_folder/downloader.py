@@ -480,6 +480,7 @@ class InMemoryMagicFolderFilesystem(object):
     def __init__(self):
         self.actions = []
         self._staged_content = {}
+        self._conflicted_paths = set()
 
     def download_content_to_staging(self, relpath, file_cap, tahoe_client):
         self.actions.append(
@@ -505,6 +506,14 @@ class InMemoryMagicFolderFilesystem(object):
         assert staged_content in self._staged_content
         self.actions.append(
             ("conflict", relpath, conflict_path, self._staged_content[staged_content])
+        )
+        self._conflicted_paths.add(relpath)
+
+    def mark_not_conflicted(self, relpath, keep_path, rejected_paths):
+        assert relpath in self._conflicted_paths, "Resolved something not conflicted"
+        self._conflicted_paths.remove(relpath)
+        self.actions.append(
+            ("resolve", relpath, keep_path, rejected_paths)
         )
 
     def mark_delete(self, relpath):
