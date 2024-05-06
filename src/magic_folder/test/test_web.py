@@ -2022,24 +2022,36 @@ class ConflictStatusTests(SyncTestCase):
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
+    def setUp(self):
+        super(ConflictStatusTests, self).setUp()
+        self.local_path = FilePath(self.mktemp())
+        self.local_path.makedirs()
+        self.folder_config = magic_folder_config(
+            "louise",
+            self.local_path,
+        )
+        self.node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": self.folder_config,
+            },
+            start_folder_services=False,
+        )
+        self.node.global_service.get_folder_service("default").file_factory._synchronous = True
+
+
     def test_empty(self):
         """
         A folder with no conflicts reflects that in the status
         """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-
-        folder_config = magic_folder_config(
-            "louise",
-            local_path,
-        )
-
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
-                "default": folder_config,
+                "default": self.folder_config,
             },
             start_folder_services=False,
         )
@@ -2068,26 +2080,7 @@ class ConflictStatusTests(SyncTestCase):
         Appropriate information is returned when we have a conflict with
         one author
         """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-
-        folder_config = magic_folder_config(
-            "marta",
-            local_path,
-        )
-
-        node = MagicFolderNode.create(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {
-                "default": folder_config,
-            },
-            start_folder_services=False,
-        )
-        node.global_service.get_folder_service("default").file_factory._synchronous = True
-
-        mf_config = node.global_config.get_magic_folder("default")
+        mf_config = self.node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
             "foo",
@@ -2121,7 +2114,7 @@ class ConflictStatusTests(SyncTestCase):
         # external API
         self.assertThat(
             authorized_request(
-                node.http_client,
+                self.node.http_client,
                 AUTH_TOKEN,
                 u"GET",
                 self.url.child("default", "conflicts"),
@@ -2139,31 +2132,11 @@ class ConflictStatusTests(SyncTestCase):
             )
         )
 
-
     def test_resolve_conflict(self):
         """
         We can resolve a conflict
         """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-
-        folder_config = magic_folder_config(
-            "marta",
-            local_path,
-        )
-
-        node = MagicFolderNode.create(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {
-                "default": folder_config,
-            },
-            start_folder_services=False,
-        )
-        node.global_service.get_folder_service("default").file_factory._synchronous = True
-
-        mf_config = node.global_config.get_magic_folder("default")
+        mf_config = self.node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
             "foo",
@@ -2185,7 +2158,7 @@ class ConflictStatusTests(SyncTestCase):
         # external API
         self.assertThat(
             authorized_request(
-                node.http_client,
+                self.node.http_client,
                 AUTH_TOKEN,
                 u"POST",
                 self.url.child("default", "resolve-conflict"),
@@ -2202,6 +2175,53 @@ class ConflictStatusTests(SyncTestCase):
                         loads,
                         Equals({
                             "foo": ["cavatica"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_non_exist(self):
+        """
+        It is an error to resolve a non-conflict
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    # "use": ..., for multi-conflicts
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'No conflicts for "foo"',
                         }),
                     )
                 ),
