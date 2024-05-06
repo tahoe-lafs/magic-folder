@@ -596,8 +596,6 @@ def _create_v1_resource(global_config, global_service, status_service):
             raise _InputError('Must specify "take" or "use"')
 
         folder_svc = global_service.get_folder_service(folder_name)
-        print(folder_svc)
-        print(dir(folder_svc))
         mf = folder_svc.file_factory.magic_file_for(
             folder_svc.file_factory.relpath_to_path(relpath)
         )
