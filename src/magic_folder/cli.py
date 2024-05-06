@@ -506,10 +506,11 @@ def status(options):
                     file=out,
                 )
             print("  uploads: {}".format(len(folder["uploads"])), file=out)
-            for relpath, u in folder["uploads"].items():
-                queue = humanize.naturaldelta(now - u["queued-at"])
-                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
+            if len(folder["uploads"]) < 20:
+                for relpath, u in folder["uploads"].items():
+                    queue = humanize.naturaldelta(now - u["queued-at"])
+                    start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
+                    print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
 
             if folder["errors"]:
                 print("Errors:", file=out)
