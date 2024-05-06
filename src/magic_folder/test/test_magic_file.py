@@ -61,6 +61,7 @@ from ..util.file import (
 from ..magic_file import (
     maybe_update_personal_dmd_to_local,
     MagicFileFactory,
+    ResolutionError,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -331,3 +332,13 @@ class RemoteUpdateTests(AsyncTestCase):
         d1 = mf.found_new_remote(remote0, self.participants.participants[2])
         d2 = mf.found_new_remote(remote0, self.participants.participants[3])
         yield DeferredList([d0, d1, d2])
+
+    @inlineCallbacks
+    def test_not_conflicted(self):
+        """
+        """
+        relpath = "not-conflict"
+        abspath = self.config.magic_path.preauthChild(relpath)
+        mf = self.magic_file_factory.magic_file_for(abspath)
+        with self.assertRaises(ResolutionError):
+            yield mf.resolve_conflict("foo")
