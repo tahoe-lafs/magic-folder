@@ -28,15 +28,16 @@ When this file is created (for example on the device called Laptop) that device 
 
 By "upload" we mean to push the content and metadata to the Tahoe-LAFS client, receiving ultimately a Capability for the Snapshot ``S0``.
 The file entry for ``"foo"`` is then updated, visualized as: ``foo -> S0``
+Here, "updated" meanst that we use Tahoe-LAFS to edit to contents of our Personal directory to change "foo" to point at Snapshot ``S0``.
 
 Now, all other Participants can (and, eventually, will) notice this update when they poll the magic-folder.
 
-Each of these is a "communication event", so we talk about the regions between these as a cohesive state of that client.
+Each of these updates to our Personal directory is a "communication event", so we talk about the regions between these as a cohesive state of that client.
 That is, anything that happens during that time is "at the same time" for the purposes of this protocol.
 
 Note that this time interval could be as short as a few seconds or as long as days (or more).
 
-Observe too that the "parents" of a particular Snapshot are a commitment as to the state visible to that client when creating the Snapshot.
+Observe too that the "parents" of a particular Snapshot are a commitment to the state visible by a particular client when creating any new Snapshot.
 
 
 Detecting Conflicts
@@ -61,7 +62,9 @@ Showing Conflicts Locally
 -------------------------
 
 Once a conflict is detected, "conflict marker" files are put into the local magic folder location (our local file remains unmodified, and something like ``foo.conflict-desktop`` will appear.
-The state database is also updated (conflicts can also be listed via the API and CLI)
+The state database is also updated (conflicts can also be listed via the API and CLI).
+
+Although magic-folder itself doesn't try to examine the contents, you can now use any ``diff`` or similar tools you prefer to look at what is different between your copy and other participant(s) copies.
 
 
 Resolving Conflicts
@@ -74,11 +77,17 @@ Once appropriate changes are decided upon, a new Snapshot is produced with *two 
 
 Such a Snapshot (with two or more parents) indicates to the other clients a particular resoltion to the conflict has been decided.
 
-So there's another case when we see an incoming new Snapshot: it may in fact *resolve an existing* conflict.
+So there's actually another case when we see an incoming new Snapshot: it may in fact *resolve an existing* conflict.
+If this is the case, conflict markers are removed and the local database is updated (i.e. removing the conflict).
+
+It is a human problem if this resolution is not to your particular liking; you can produce an edit again or talk to the human who runs the other computer(s) involved.
+The history of these changes *is available* in the parent (or grandparent) Snapshots if the UX you're using can view or restore these.
 
 
 Resolving via Filesystem
 ------------------------
+
+Not currently possible.
 
 
 Resolving via the CLI
@@ -86,7 +95,7 @@ Resolving via the CLI
 
 The subcommand ``magic-folder resolve`` may be used to specify a resolution.
 It allows you to choose ``--mine`` or ``--theirs`` (if there is only one other conflict).
-Otherwise, you must use ``--use <name>`` to specify which version to keep.
+Otherwise, you must apply the ``--use <name>`` option to specify which version to keep.
 
 Currently there is no API for doing something more complex (e.g. simultaneuously replacing the latest version with new content).
 
@@ -101,3 +110,22 @@ Resolving via the HTTP API
 --------------------------
 
 See :ref:`api_resolve_conflict`
+
+
+Future Directions
+-----------------
+
+We do not consider the current conflict functionality "done".
+There are other features required to make this more robust and have a nicer user experience.
+
+*Viewing old data*: While it is currently possible in the datamodel to view past versions of the files, we do not know of any UI that does this (and the CLI currently cannot).
+
+*Restore old version*: Similarly, it is possible to produce a new Snapshot that effectively restores an older version of the same file.
+We do not know of any UI that can do this.
+
+*Completely new content*: As hinted above, it might be nice to be able to produce a resolution that is some combination of multiple versions (like one sometimes does with Git conflicts, for example).
+While this isn't directly possible currently, you can always take the "closest" one via the existin conflict-resolution API and then immediately produce an edit that has the desired new content.
+
+*Resolution via file manipulation*: Currently, filesystem manipulation is one API (e.g. you just change a file and new Snapshots are produced).
+Similarly, conflict-marker files are used to indicate a conflict via the filesystem.
+It would be nice if you could use a similar mechanism to *eliminate* conflicts -- one way to design this could be to notice that the user has deleted all the conflict-markers and take this as a sign that the remaining file is in fact the desired resolution.
