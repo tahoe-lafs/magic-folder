@@ -2228,6 +2228,54 @@ class ConflictStatusTests(SyncTestCase):
             )
         )
 
+    def test_resolve_conflict_use_and_take(self):
+        """
+        It is an error to specify both "use" and "take"
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["marie"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    "use": "margaret",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'Cannot specify "take" and "use" at once',
+                        }),
+                    )
+                ),
+            )
+        )
+
 
 class InviteTests(SyncTestCase):
     """
