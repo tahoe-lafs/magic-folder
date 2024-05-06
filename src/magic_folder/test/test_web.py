@@ -2276,6 +2276,101 @@ class ConflictStatusTests(SyncTestCase):
             )
         )
 
+    def test_resolve_conflict_take_invalid(self):
+        """
+        It is an error for take to be a weird value
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("marie"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["marie"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "a definitely invalid string",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": '"take" must be "mine" or "theirs"',
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_theirs_invalid(self):
+        """
+        It is an error to use "theirs" with >1 conflict
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("ada"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["ada"]).list()[0])
+        mf_config.add_conflict(snap, static_participants(names=["margaret"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "theirs",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'Cannot use "theirs" with 2 conflicts',
+                        }),
+                    )
+                ),
+            )
+        )
+
 
 class InviteTests(SyncTestCase):
     """
