@@ -378,7 +378,7 @@ class RemoteUpdateTests(AsyncTestCase):
         self.participants.add("beth", random_dircap())
         d0 = mf.found_new_remote(remote0, self.participants.participants[0])
         d1 = mf.found_new_remote(remote1, self.participants.participants[1])
-        x = yield DeferredList([d0, d1])
+        yield DeferredList([d0, d1])
 
         self.assertEquals(
             self.config.list_conflicts_for("dual-conflict"),
@@ -402,7 +402,6 @@ class RemoteUpdateTests(AsyncTestCase):
         cap0 = random_immutable(directory=True)
         cap1 = random_immutable(directory=True)
         cap2 = random_immutable(directory=True)
-        cap3 = random_immutable(directory=True)
         remote0 = RemoteSnapshot(
             relpath=relpath,
             author=create_author("me", VerifyKey(b"\xff" * 32)),

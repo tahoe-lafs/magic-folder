@@ -2192,16 +2192,6 @@ class ConflictStatusTests(SyncTestCase):
             PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
         )
 
-        snap = RemoteSnapshot(
-            "foo",
-            create_local_author("nelli"),
-            {"relpath": "foo", "modification_time": 1234},
-            random_immutable(directory=True),
-            [],
-            random_immutable(),
-            random_immutable(),
-        )
-
         # external API
         self.assertThat(
             authorized_request(
