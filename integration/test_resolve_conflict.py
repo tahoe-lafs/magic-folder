@@ -75,10 +75,9 @@ async def test_resolve_two_users(request, reactor, temp_filepath, alice, bob):
         alice.add_snapshot("conflict", "summertime.txt"),
         bob.add_snapshot("conflict", "summertime.txt"),
     ])
-    # we've added all the files on all participants .. they _should_ conflict, but also we
-    # shouldn't _keep_ trying to download conflicted updates.
+    # we've added all the files on both participants
 
-    # now, wait for updates
+    # wait for updates
     await DeferredList([
         alice.status_monitor(how_long=20),
         bob.status_monitor(how_long=20),
