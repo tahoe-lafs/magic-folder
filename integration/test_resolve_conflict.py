@@ -91,11 +91,10 @@ async def test_resolve_two_users(request, reactor, temp_filepath, alice, bob):
     await alice.resolve("conflict", magic.child("summertime.txt").path, "theirs")
 
     # wait for updates
-    x = await DeferredList([
+    await DeferredList([
         alice.status_monitor(how_long=20),
         bob.status_monitor(how_long=20),
     ])
-    print("X", x)
 
     # no more conflicts
     assert find_conflicts(magic) == [], "alice has conflicts"
