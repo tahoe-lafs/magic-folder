@@ -453,7 +453,7 @@ class LocalMagicFolderFilesystem(object):
             except FileExistsError:
                 # at least on Windows, it's an error to write to a
                 # file that's already there ..
-                src_path.remove()
+                dest_path.remove()
                 src_path.moveTo(dest_path)
         for p in del_paths:
             try:
