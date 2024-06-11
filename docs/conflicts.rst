@@ -87,7 +87,7 @@ The history of these changes *is available* in the parent (or grandparent) Snaps
 Resolving via Filesystem
 ------------------------
 
-Not currently possible.
+Not currently possible (see `https://github.com/tahoe-lafs/magic-folder/issues/754 <Issue 754>`_).
 
 
 Resolving via the CLI
