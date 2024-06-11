@@ -43,7 +43,7 @@ Observe too that the "parents" of a particular Snapshot are a commitment to the 
 Detecting Conflicts
 -------------------
 
-A new update is communicated to us -- that is, we've downloaded a previously-unknown Snapshot from some other Participant's mutable Capbility.
+A new update is communicated to us -- that is, we've downloaded a previously-unknown Snapshot from some other Participant's mutable Capability.
 
 We now look at our own Snapshot for the corresponding file.
 Either our Snapshot appears in some parents (including grandparents, etc) of the new Snapshot, or it doesn't.
