@@ -98,6 +98,7 @@ It allows you to choose ``--mine`` or ``--theirs`` (if there is only one other c
 Otherwise, you must apply the ``--use <name>`` option to specify which version to keep.
 
 Currently there is no API for doing something more complex (e.g. simultaneuously replacing the latest version with new content).
+As with everything else on the CLI, the :ref:`http_api` may be used to accomplish the same simple resolution tasks as above.
 
 Complete example:
 
