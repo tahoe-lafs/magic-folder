@@ -28,7 +28,7 @@ When this file is created (for example on the device called Laptop) that device 
 
 By "upload" we mean to push the content and metadata to the Tahoe-LAFS client, receiving ultimately a Capability for the Snapshot ``S0``.
 The file entry for ``"foo"`` is then updated, visualized as: ``foo -> S0``
-Here, "updated" meanst that we use Tahoe-LAFS to edit to contents of our Personal directory to change "foo" to point at Snapshot ``S0``.
+Here, "updated" means that we use Tahoe-LAFS to edit to contents of our Personal directory to change "foo" to point at Snapshot ``S0``.
 
 Now, all other Participants can (and, eventually, will) notice this update when they poll the magic-folder.
 
