@@ -118,6 +118,7 @@ Future Directions
 
 We do not consider the current conflict functionality "done".
 There are other features required to make this more robust and have a nicer user experience.
+Some of those features are:
 
 *Viewing old data*: While it is currently possible in the datamodel to view past versions of the files, we do not know of any UI that does this (and the CLI currently cannot).
 
