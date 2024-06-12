@@ -90,7 +90,7 @@ jobs:
       uses: coverallsapp/github-action@v2
       with:
         - parallel: true
-        - flag-name: unit
+        - flag-name: "unit"
 
 
   integration-tests:
@@ -156,15 +156,9 @@ jobs:
         name: "integration"
         path: "eliot*"
 
-    - uses: codecov/codecov-action@v2
-      with:
-        token: "322d708d-8283-4827-b605-ccf02bfecf70"
-        file: "./coverage.xml"
-        flags: "integration"
-
     - name: Coveralls
       uses: coverallsapp/github-action@v2
       with:
         - parallel: true
-        - flag-name: integration
+        - flag-name: "integration"
         - parallel-finished: true
