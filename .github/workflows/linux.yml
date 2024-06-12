@@ -89,8 +89,8 @@ jobs:
     - name: Coveralls
       uses: coverallsapp/github-action@v2
       with:
-        - parallel: true
-        - flag-name: "unit"
+        parallel: true
+        flag-name: "unit"
 
 
   integration-tests:
@@ -159,6 +159,6 @@ jobs:
     - name: Coveralls
       uses: coverallsapp/github-action@v2
       with:
-        - parallel: true
-        - flag-name: "integration"
-        - parallel-finished: true
+        parallel: true
+        flag-name: "integration"
+        parallel-finished: true
