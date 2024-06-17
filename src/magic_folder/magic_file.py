@@ -73,7 +73,7 @@ class MagicFileFactory(object):
     _config = attr.ib()  # MagicFolderConfig
     _tahoe_client = attr.ib()
     _folder_status = attr.ib()
-    _local_snapshot_service = attr.ib()#validator=attr.validators.instance_of(LocalSnapshotService))
+    _local_snapshot_service = attr.ib()  # LocalSnapshotService but circular import
     _uploader = attr.ib()
     _write_participant = attr.ib()
     _remote_cache = attr.ib()
