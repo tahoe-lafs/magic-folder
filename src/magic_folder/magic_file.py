@@ -214,9 +214,6 @@ class MagicFile(object):
     _queue_remote = attr.ib(default=attr.Factory(list))
     _is_working = attr.ib(default=None)
 
-    # XXX
-    _known_remotes = attr.ib(default=None)
-
     # to facilitate testing, sometimes we _don't_ want to use the real
     # reactor to wait one turn, or to delay for retry purposes.
     _call_later = attr.ib(default=None)  # Callable to schedule work at least one reactor turn later
@@ -330,14 +327,9 @@ class MagicFile(object):
 
         :param IParticipant participant: the participant we found this snapshot via
         """
-        if self._known_remotes is None:
-            self._known_remotes = {remote_snapshot}
-        else:
-            self._known_remotes.add(remote_snapshot)
-
         # if we're already conflicted, this will indeed not "match our
         # existing database entry" (as per the docstring) -- but it
-        # may still be an "already known" update becaus we've already
+        # may still be an "already known" update because we've already
         # seen it and marked it as a conflict
         found = False
         for conflict in self._factory._config.list_conflicts_for(self._relpath):
