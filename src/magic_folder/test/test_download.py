@@ -1115,6 +1115,7 @@ class ConflictTests(AsyncTestCase):
 
         self.alice_magic_path = FilePath(self.mktemp())
         self.alice_magic_path.makedirs()
+        self.author = create_local_author("alice")
         self.alice = MagicFolderNode.create(
             reactor,
             FilePath(self.mktemp()),
@@ -1385,7 +1386,7 @@ class ConflictTests(AsyncTestCase):
         child_cap = random_immutable(directory=True)
         child = RemoteSnapshot(
             relpath="foo",
-            author=self.alice,
+            author=self.author,
             metadata={"modification_time": 0},
             capability=child_cap,
             parents_raw=[parent_cap.danger_real_capability_string()],
@@ -1723,6 +1724,7 @@ class CancelTests(AsyncTestCase):
     def setUp(self):
         super(CancelTests, self).setUp()
         self.participants = static_participants()
+        self.author = create_local_author("diana")
 
     # XXX NOTE if this name gets longer, the resulting temp-paths can
     # become "too long" on windows causing failures
@@ -1763,6 +1765,7 @@ class CancelTests(AsyncTestCase):
         class FakeRemoteSnapshot(object):
             content_cap = random_immutable(directory=True)
             relpath = "some_file"  # match earlier relpath
+            author = self.author
         remote_snapshot = FakeRemoteSnapshot()
 
         mf = service.file_factory.magic_file_for(local)

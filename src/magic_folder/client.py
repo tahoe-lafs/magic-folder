@@ -168,6 +168,17 @@ class MagicFolderClient(object):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'conflicts')
         return self._authorized_request("GET", api_url)
 
+    def resolve_conflict(self, magic_folder, relpath, take, use):
+        api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'resolve-conflict')
+        body = {
+            "relpath": relpath,
+        }
+        if take:
+            body["take"] = take
+        if use:
+            body["use"] = use
+        return self._authorized_request("POST", api_url, body=json.dumps(body).encode("utf8"))
+
     def tahoe_objects(self, magic_folder):
         api_url = self.base_url.child(u'v1', u'magic-folder', magic_folder, u'tahoe-objects')
         return self._authorized_request("GET", api_url)

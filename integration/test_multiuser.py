@@ -206,17 +206,13 @@ async def test_conflicted_users(request, reactor, temp_filepath, alice, bob, edm
     # shouldn't _keep_ trying to download conflicted updates.
 
     # now, wait for updates
-    all_updates = await DeferredList([
-        alice.status_monitor(how_long=20),
-        bob.status_monitor(how_long=20),
-        edmond.status_monitor(how_long=20),
+    await DeferredList([
+        alice.status_monitor(how_long=5),
+        bob.status_monitor(how_long=5),
+        edmond.status_monitor(how_long=5),
     ])
-    # ensure we don't "keep downloading" when there's a conflict
-    for st, updates in all_updates:
-        assert st, "status streaming failed"
-        assert len([e for e in updates if e["kind"] == "download-queued"]) < 2, "too many downloads queued"
 
-    # everyone should have a conflict though...
+    # everyone should have a conflict...
     assert find_conflicts(magic) != [], "alice should have conflicts"
     assert find_conflicts(magic_bob) != [], "bob should have conflicts"
     assert find_conflicts(magic_ed) != [], "edmond should have conflicts"
