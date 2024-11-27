@@ -6,7 +6,7 @@ from io import StringIO
 from collections import defaultdict
 from datetime import datetime
 
-from appdirs import (
+from platformdirs import (
     user_config_dir,
 )
 from base64 import (
