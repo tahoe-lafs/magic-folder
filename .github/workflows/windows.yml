@@ -42,7 +42,7 @@ jobs:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
         name: "unit-test"
@@ -107,7 +107,7 @@ jobs:
         fi
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
