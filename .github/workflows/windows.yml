@@ -45,7 +45,7 @@ jobs:
       uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
-        name: unit-test-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-${{ matrix.tahoe-version }}
+        name: unit-test-${{ matrix.os.runs-on }}-${{ matrix.python-version }}
         path: "eliot*"
 
     - name: Upload coverage report
