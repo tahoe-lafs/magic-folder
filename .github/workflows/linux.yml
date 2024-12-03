@@ -99,7 +99,7 @@ jobs:
         os:
           - runs-on: ubuntu-latest
         python-version:
-          - "3.9"
+          - "3.10"
         tahoe-version:
           - "1_17"
           - "master"

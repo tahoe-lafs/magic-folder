@@ -1,1 +1,1 @@
-git+https://github.com/tahoe-lafs/tahoe-lafs@master#egg=tahoe-lafs
+git+https://github.com/tahoe-lafs/tahoe-lafs@4133.packaging-disaster-zone#egg=tahoe-lafs
