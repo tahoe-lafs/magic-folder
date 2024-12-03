@@ -1,1 +1,2 @@
 tahoe-lafs==1.18.0
+attrs<24.1.0
