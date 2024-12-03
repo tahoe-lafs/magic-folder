@@ -70,9 +70,11 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.9"
+          - "3.10"
         tahoe-version:
           - "1_17"
+          - "1_18"
+          - "1_19"
           - "master"
 
     steps:
