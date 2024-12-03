@@ -57,7 +57,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "unit-test"
+        name: "unit-test--${{ matrix.os }}-${{ matrix.python-version }}"
         path: "eliot*"
 
     - uses: codecov/codecov-action@v1
@@ -108,7 +108,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration"
+        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}"
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2
