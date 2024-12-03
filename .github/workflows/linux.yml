@@ -11,8 +11,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - runs-on: ubuntu-20.04
-#          - runs-on: ubuntu-18.04
+          - runs-on: ubuntu-latest
         python-version:
           - "3.9"
           - "3.10"
@@ -98,8 +97,7 @@ jobs:
     strategy:
       matrix:
         os:
-          - runs-on: ubuntu-20.04
-#          - runs-on: ubuntu-18.04
+          - runs-on: ubuntu-latest
         python-version:
           - "3.9"
         tahoe-version:
