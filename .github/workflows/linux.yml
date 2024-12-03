@@ -152,7 +152,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}"
+        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}-tahoe-${{ tahoe-version }}"
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2
