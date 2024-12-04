@@ -54,3 +54,8 @@ filelock >= 3.8.0
 
 # see https://github.com/agronholm/cbor2/issues/208
 cbor2 != 5.6.0
+
+# somehow "incremental" makes this a req that pip-compile-multi
+# doesn't find when pinning (but that --require-hashes mode later
+# does find)
+tomli
