@@ -4,3 +4,7 @@ pip
 wheel
 subunitreporter
 setuptools
+# because the integration tests import tahoe stuff
+# (this doesn't successfully "override" base.in .. that would be ideal
+attrs<24.1.0
+cryptography<43.0.0
