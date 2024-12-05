@@ -9,7 +9,7 @@ on:
 jobs:
   unit-tests:
 
-    runs-on: "windows-latest"
+    runs-on: "windows-2022"
     strategy:
       matrix:
         python-version:
@@ -56,7 +56,7 @@ jobs:
 
   integration-tests:
 
-    runs-on: "windows-latest"
+    runs-on: "windows-2022"
     strategy:
       matrix:
         python-version:
