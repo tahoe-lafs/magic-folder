@@ -64,9 +64,9 @@ jobs:
 
         tahoe-version:
           - "1_17"
-#          - "1_18"
-#          - "1_19"
-          - "master"
+          - "1_18"
+          - "1_19"
+#          - "master"
 
     steps:
     - name: Check out source code
