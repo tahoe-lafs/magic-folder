@@ -106,8 +106,8 @@ jobs:
           - "3.9"
         tahoe-version:
           - "1_17"
-#          - "1_18"
-#          - "1_19"
+          - "1_18"
+          - "1_19"
           - "master"
     runs-on: ${{ matrix.os.runs-on }}
 
