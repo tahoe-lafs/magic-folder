@@ -26,6 +26,7 @@ hyperlink
 # getting rid of these final imports
 
 tahoe-lafs >= 1.18.0
+twisted < 24.7.0  # something to do with Eliot?
 
 # twisted-based HTTP client
 treq
