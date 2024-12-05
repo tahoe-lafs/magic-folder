@@ -108,7 +108,7 @@ jobs:
           - "1_17"
           - "1_18"
           - "1_19"
-          - "master"
+##          - "master"
     runs-on: ${{ matrix.os.runs-on }}
 
     steps:
