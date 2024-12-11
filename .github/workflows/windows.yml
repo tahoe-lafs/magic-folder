@@ -45,7 +45,7 @@ jobs:
       uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
-        name: "unit-test"
+        name: unit-test-${{ matrix.os.runs-on }}-${{ matrix.python-version }}
         path: "eliot*"
 
     - name: Upload coverage report
@@ -111,7 +111,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration"
+        name: integration-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-${{ matrix.tahoe-version }}
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2
