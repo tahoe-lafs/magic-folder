@@ -86,7 +86,7 @@ jobs:
       uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
-        name: "unit-test--${{ matrix.os }}-${{ matrix.python-version }}"
+        name: unit-test-${{ matrix.os.runs-on }}-${{ matrix.python-version }}
         path: "eliot*"
 
     - name: Upload coverage report
@@ -158,7 +158,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}"
+        name: integration-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2

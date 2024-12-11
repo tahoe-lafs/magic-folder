@@ -36,7 +36,7 @@ twisted < 24.7.0
 treq
 
 # find the default location for configuration on different OSes
-appdirs
+platformdirs
 
 # Python utilities that were originally extracted from tahoe
 # We use them directly, rather than the re-exports from allmydata
