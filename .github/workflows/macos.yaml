@@ -1,4 +1,4 @@
-name: macOS Testing
+name: MacOS Testing
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   unit-tests:
-    runs-on: "macos-11.0"
+    runs-on: "macos-14"
     strategy:
       matrix:
         python-version:
@@ -66,14 +66,16 @@ jobs:
         file: "./coverage.xml"
 
   integration-tests:
-    runs-on: "macos-11.0"
+    runs-on: "macos-14"
     strategy:
       matrix:
         python-version:
           - "3.9"
         tahoe-version:
           - "1_17"
-          - "master"
+          - "1_18"
+          - "1_19"
+#          - "master"
 
     steps:
     - uses: actions/checkout@v2
@@ -108,7 +110,7 @@ jobs:
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: integration-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-${{ matrix.tahoe-version }}
+        name: integration-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2

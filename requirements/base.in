@@ -6,7 +6,7 @@ humanize >= 1.0.0
 
 eliot
 
-attrs
+attrs<24.1.0
 
 # WebSocket library for twisted and asyncio
 # (python 3.8 support ends at 23.1.2)
@@ -27,6 +27,11 @@ hyperlink
 
 tahoe-lafs >= 1.18.0
 
+
+# something to do with Eliot?
+# see https://github.com/tahoe-lafs/magic-folder/issues/765
+twisted < 24.7.0
+
 # twisted-based HTTP client
 treq
 
@@ -38,7 +43,7 @@ platformdirs
 pyutil >= 3.3.0
 
 # This is the version of cryptography required by tahoe-lafs
-cryptography >= 2.6
+cryptography >= 2.6, <43.0.0
 
 # last py2 release of klein
 klein>=20.6.0
@@ -54,3 +59,12 @@ filelock >= 3.8.0
 
 # see https://github.com/agronholm/cbor2/issues/208
 cbor2 != 5.6.0
+
+# somehow "incremental" makes this a req that pip-compile-multi
+# doesn't find when pinning (but that --require-hashes mode later
+# does find)
+tomli
+exceptiongroup
+importlib-metadata
+importlib-resources>=5
+
