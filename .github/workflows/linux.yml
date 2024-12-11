@@ -11,12 +11,12 @@ jobs:
     strategy:
       matrix:
         os:
-          - runs-on: ubuntu-20.04
-#          - runs-on: ubuntu-18.04
+          - runs-on: ubuntu-22.04
         python-version:
           - "3.9"
           - "3.10"
           - "3.11"
+          - "3.12"
     runs-on: ${{ matrix.os.runs-on }}
     steps:
     - name: Check out source code
@@ -41,6 +41,9 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
         restore-keys: |
           ${{ runner.os }}-pip-
+
+    - name: fix Debian
+      run: sudo apt-get install -y python3-pip
 
     - name: Install dependencies
       run: |
@@ -80,10 +83,10 @@ jobs:
         fi
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
-        name: "unit-test"
+        name: "unit-test--${{ matrix.os }}-${{ matrix.python-version }}"
         path: "eliot*"
 
     - name: Upload coverage report
@@ -98,12 +101,13 @@ jobs:
     strategy:
       matrix:
         os:
-          - runs-on: ubuntu-20.04
-#          - runs-on: ubuntu-18.04
+          - runs-on: ubuntu-22.04
         python-version:
           - "3.9"
         tahoe-version:
           - "1_17"
+          - "1_18"
+          - "1_19"
           - "master"
     runs-on: ${{ matrix.os.runs-on }}
 
@@ -150,11 +154,11 @@ jobs:
         fi
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration"
+        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}"
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2

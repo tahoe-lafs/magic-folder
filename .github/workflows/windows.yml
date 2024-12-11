@@ -9,7 +9,7 @@ on:
 jobs:
   unit-tests:
 
-    runs-on: "windows-latest"
+    runs-on: "windows-2022"
     strategy:
       matrix:
         python-version:
@@ -42,10 +42,10 @@ jobs:
         MAGIC_FOLDER_HYPOTHESIS_PROFILE: "magic-folder-ci"
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       with:
         if-no-files-found: "warn"
-        name: "unit-test"
+        name: "unit-test--${{ matrix.os }}-${{ matrix.python-version }}"
         path: "eliot*"
 
     - name: Upload coverage report
@@ -56,7 +56,7 @@ jobs:
 
   integration-tests:
 
-    runs-on: "windows-latest"
+    runs-on: "windows-2022"
     strategy:
       matrix:
         python-version:
@@ -64,7 +64,9 @@ jobs:
 
         tahoe-version:
           - "1_17"
-          - "master"
+          - "1_18"
+          - "1_19"
+#          - "master"
 
     steps:
     - name: Check out source code
@@ -107,11 +109,11 @@ jobs:
         fi
 
     - name: Upload eliot.log in case of failure
-      uses: "actions/upload-artifact@v2"
+      uses: "actions/upload-artifact@v4"
       if: ${{ always() }}
       with:
         if-no-files-found: "warn"
-        name: "integration"
+        name: "integration--${{ matrix.os }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}"
         path: "eliot*"
 
     - uses: codecov/codecov-action@v2
