@@ -51,7 +51,7 @@ A running Magic-Folder needs to have access to a Tahoe-LAFS client that it may u
 This is referenced by the "node directory" of the Tahoe-LAFS client although actual operations are performed via the Tahoe-LAFS WebUI.
 
 There are two ways to create a new Magic Folder instance (that is, the configuration required).
-Create a fresh one with ``magic-folder create`` or migrate from a Tahoe-LAFS 1.14.0 or earlier instance with ``magic-folder migrate``.
+Create a fresh one with ``magic-folder init`` or migrate from a Tahoe-LAFS 1.14.0 or earlier instance with ``magic-folder migrate``.
 
 Once a Magic-Folder is configured, functionality is provided by running a long-lived magic-folder daemon.
 This process is run using the ``magic-folder`` command line tool::
