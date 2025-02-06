@@ -187,7 +187,7 @@ class RemoteSnapshotCacheService(service.Service):
         #   only incrementally adds to the ancestors of the remote
         # - for checking in the other direction, we can skip checking parents of any ancestors that are
         #   also ancestors of our remotesnapshot
-        assert child_cap.danger_real_capability_string() in self._cached_snapshots is not None, "Remote should be cached already"
+        assert child_cap.danger_real_capability_string() in self._cached_snapshots, "Remote should be cached already"
         snapshot = self._cached_snapshots[child_cap.danger_real_capability_string()]
 
         q = deque([snapshot])
@@ -232,8 +232,8 @@ class IMagicFolderFilesystem(Interface):
         This snapshot causes a conflict. The existing magic-folder file is
         untouched. The downloaded / prepared content shall be moved to
         a file named `<path>.theirs.<name>` where `<name>` is the
-        petname of the author of the conflicting snapshot and `<path>`
-        is the relative path inside the magic-folder.
+        participant name of the conflicting snapshot and `<path>` is
+        the relative path inside the magic-folder.
 
         XXX can deletes conflict? if so staged_content would be None
 
@@ -241,6 +241,20 @@ class IMagicFolderFilesystem(Interface):
 
         :param FilePath staged_content: a local path to the downloaded
             content.
+        """
+
+    def mark_not_conflicted(relpath, keep_path, rejected_paths):
+        """
+        A formerly conflicted file is now no longer conflicted.
+
+        :param FilePath keep_path: the variant we will retain
+            (i.e. that must end up at `relpath`)
+
+        :param [FilePath] rejected_paths: the existing conflict files
+            which we should ensure no longer exist. If we had one
+            conflict, and accepted "theirs" then this will be empty
+            (because we'll move the only conflict-marker over top of
+            the relpath).
         """
 
     def mark_delete(relpath):
@@ -413,7 +427,39 @@ class LocalMagicFolderFilesystem(object):
             content.
         """
         local_path = self.magic_path.preauthChild(conflict_path)
+        # on windows, it's an error to "os.rename()" on top of an
+        # existing file so we delete it first if it exits (because we
+        # want the content to be "the newest conflict" in case it
+        # already existed)
+        try:
+            local_path.remove()
+        except OSError:
+            pass
         staged_content.moveTo(local_path)
+
+
+    def mark_not_conflicted(self, relpath, keep_path, rejected_paths):
+        """
+        """
+        dest_path = self.magic_path.preauthChild(relpath)
+        src_path = self.magic_path.preauthChild(keep_path)
+        del_paths = [
+            self.magic_path.preauthChild(p)
+            for p in rejected_paths
+        ]
+        if dest_path != src_path:
+            try:
+                src_path.moveTo(dest_path)
+            except FileExistsError:
+                # at least on Windows, it's an error to write to a
+                # file that's already there ..
+                dest_path.remove()
+                src_path.moveTo(dest_path)
+        for p in del_paths:
+            try:
+                p.remove()
+            except FileNotFoundError:
+                pass  # it's already gone: good
 
     def mark_delete(self, relpath):
         """
@@ -440,6 +486,7 @@ class InMemoryMagicFolderFilesystem(object):
     def __init__(self):
         self.actions = []
         self._staged_content = {}
+        self._conflicted_paths = set()
 
     def download_content_to_staging(self, relpath, file_cap, tahoe_client):
         self.actions.append(
@@ -465,6 +512,14 @@ class InMemoryMagicFolderFilesystem(object):
         assert staged_content in self._staged_content
         self.actions.append(
             ("conflict", relpath, conflict_path, self._staged_content[staged_content])
+        )
+        self._conflicted_paths.add(relpath)
+
+    def mark_not_conflicted(self, relpath, keep_path, rejected_paths):
+        assert relpath in self._conflicted_paths, "Resolved something not conflicted"
+        self._conflicted_paths.remove(relpath)
+        self.actions.append(
+            ("resolve", relpath, keep_path, rejected_paths)
         )
 
     def mark_delete(self, relpath):

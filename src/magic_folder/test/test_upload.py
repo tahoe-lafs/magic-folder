@@ -281,39 +281,29 @@ class MagicFileFactoryTests(SyncTestCase):
         )
 
         # mark it as a conflict
-        config.add_conflict(snap)
+        config.add_conflict(snap, static_participants(names=["existing"]).list()[0])
 
-        # create a MagicFile file for this relpath now
+        # create a MagicFile file for this relpath now (i.e. _after_
+        # marking the conflict)
         mf = f.magic_file_factory.magic_file_for(local)
 
         # we can't know the current state, but we can see what it does
+        # ... set ourselves as the trace function
         transitions = []
 
         def trace(*args):
             transitions.append(args)
         mf.set_trace(trace)
 
-        # send in a remote update; if we were already conflicted it'll
-        # loop into that state and stay conflicted .. otherwise it'll
-        # try to upload
-        child = RemoteSnapshot(
-            relpath,
-            author,
-            metadata={
-                "modification_time": int(1234),
-            },
-            capability=random_immutable(directory=True),
-            parents_raw=[snap.capability.danger_real_capability_string()],
-            content_cap=random_immutable(),
-            metadata_cap=random_immutable(),
-        )
-        participants = static_participants()
-        mf.found_new_remote(child, participants.participants[0])
+        # if we do a local_update while in _conflicted, we should stay
+        # in _conflicted
+        # (...although .. shouldn't we queue a local update?)
+        mf.create_update()
 
         self.assertThat(
             transitions,
             Equals([
-                ('_conflicted', '_remote_update', '_conflicted'),
+                ('_conflicted', '_local_update', '_conflicted'),
             ])
         )
 

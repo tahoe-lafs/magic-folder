@@ -10,6 +10,10 @@ from json import (
     dumps,
 )
 
+from attr import (
+    evolve,
+)
+
 from hyperlink import (
     DecodedURL,
 )
@@ -131,6 +135,9 @@ from ..testing.web import (
 from ..snapshot import (
     RemoteSnapshot,
     create_local_author,
+)
+from ..participants import (
+    static_participants,
 )
 from .strategies import (
     tahoe_lafs_readonly_dir_capabilities,
@@ -2015,24 +2022,36 @@ class ConflictStatusTests(SyncTestCase):
     """
     url = DecodedURL.from_text(u"http://example.invalid./v1/magic-folder")
 
+    def setUp(self):
+        super(ConflictStatusTests, self).setUp()
+        self.local_path = FilePath(self.mktemp())
+        self.local_path.makedirs()
+        self.folder_config = magic_folder_config(
+            "louise",
+            self.local_path,
+        )
+        self.node = MagicFolderNode.create(
+            Clock(),
+            FilePath(self.mktemp()),
+            AUTH_TOKEN,
+            {
+                "default": self.folder_config,
+            },
+            start_folder_services=False,
+        )
+        self.node.global_service.get_folder_service("default").file_factory._synchronous = True
+
+
     def test_empty(self):
         """
         A folder with no conflicts reflects that in the status
         """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-
-        folder_config = magic_folder_config(
-            "louise",
-            local_path,
-        )
-
         treq = treq_for_folders(
             Clock(),
             FilePath(self.mktemp()),
             AUTH_TOKEN,
             {
-                "default": folder_config,
+                "default": self.folder_config,
             },
             start_folder_services=False,
         )
@@ -2061,26 +2080,7 @@ class ConflictStatusTests(SyncTestCase):
         Appropriate information is returned when we have a conflict with
         one author
         """
-        local_path = FilePath(self.mktemp())
-        local_path.makedirs()
-
-        folder_config = magic_folder_config(
-            "marta",
-            local_path,
-        )
-
-        node = MagicFolderNode.create(
-            Clock(),
-            FilePath(self.mktemp()),
-            AUTH_TOKEN,
-            {
-                "default": folder_config,
-            },
-            start_folder_services=False,
-        )
-        node.global_service.get_folder_service("default").file_factory._synchronous = True
-
-        mf_config = node.global_config.get_magic_folder("default")
+        mf_config = self.node.global_config.get_magic_folder("default")
         mf_config._get_current_timestamp = lambda: 42.0
         mf_config.store_currentsnapshot_state(
             "foo",
@@ -2103,18 +2103,18 @@ class ConflictStatusTests(SyncTestCase):
             random_immutable(),
         )
 
-        mf_config.add_conflict(snap)
+        mf_config.add_conflict(snap, static_participants(names=["spider"]).list()[0])
 
         # internal API
         self.assertThat(
             mf_config.list_conflicts_for("foo"),
-            Equals([Conflict(snap.capability, "nelli")])
+            Equals([Conflict(snap.capability, "spider")])
         )
 
         # external API
         self.assertThat(
             authorized_request(
-                node.http_client,
+                self.node.http_client,
                 AUTH_TOKEN,
                 u"GET",
                 self.url.child("default", "conflicts"),
@@ -2125,7 +2125,236 @@ class ConflictStatusTests(SyncTestCase):
                     body_matcher=AfterPreprocessing(
                         loads,
                         Equals({
-                            "foo": ["nelli"],
+                            "foo": ["spider"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict(self):
+        """
+        We can resolve a conflict
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+
+        mf_config.add_conflict(snap, static_participants(names=["cavatica"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    # "use": ..., for multi-conflicts
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(200),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "foo": ["cavatica"],
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_non_exist(self):
+        """
+        It is an error to resolve a non-conflict
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    # "use": ..., for multi-conflicts
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'No conflicts for "foo"',
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_use_and_take(self):
+        """
+        It is an error to specify both "use" and "take"
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("nelli"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["marie"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "mine",
+                    "use": "margaret",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'Cannot specify "take" and "use" at once',
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_take_invalid(self):
+        """
+        It is an error for take to be a weird value
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("marie"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["marie"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "a definitely invalid string",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": '"take" must be "mine" or "theirs"',
+                        }),
+                    )
+                ),
+            )
+        )
+
+    def test_resolve_conflict_theirs_invalid(self):
+        """
+        It is an error to use "theirs" with >1 conflict
+        """
+        mf_config = self.node.global_config.get_magic_folder("default")
+        mf_config._get_current_timestamp = lambda: 42.0
+        mf_config.store_currentsnapshot_state(
+            "foo",
+            PathState(123, seconds_to_ns(1), seconds_to_ns(2)),
+        )
+
+        snap = RemoteSnapshot(
+            "foo",
+            create_local_author("ada"),
+            {"relpath": "foo", "modification_time": 1234},
+            random_immutable(directory=True),
+            [],
+            random_immutable(),
+            random_immutable(),
+        )
+        mf_config.add_conflict(snap, static_participants(names=["ada"]).list()[0])
+        mf_config.add_conflict(snap, static_participants(names=["margaret"]).list()[0])
+
+        # external API
+        self.assertThat(
+            authorized_request(
+                self.node.http_client,
+                AUTH_TOKEN,
+                u"POST",
+                self.url.child("default", "resolve-conflict"),
+                dumps({
+                    "relpath": "foo",
+                    "take": "theirs",
+                }).encode("utf8")
+            ),
+            succeeded(
+                matches_response(
+                    code_matcher=Equals(400),
+                    body_matcher=AfterPreprocessing(
+                        loads,
+                        Equals({
+                            "reason": 'Cannot use "theirs" with 2 conflicts',
                         }),
                     )
                 ),
@@ -2480,7 +2709,7 @@ class TahoeObjectsTests(SyncTestCase):
         # make it a delete .. it's a little weird to have a delete
         # with no "content" parent (semantically) but for the purposes
         # of this test that is sufficient.
-        remote_snap.content_cap = None
+        remote_snap = evolve(remote_snap, content_cap=None)
         local_path = FilePath(self.mktemp())
         local_path.makedirs()
 
