@@ -1137,7 +1137,6 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
         args = [
             'create-node',
             '--nickname', name,
-            '--introducer', introducer_furl,
             '--hostname', 'localhost',
             '--listen', 'tcp',
             '--webport', web_port,
@@ -1146,6 +1145,10 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
             '--shares-total', "{}".format(total),
             '--helper',
         ]
+        if introducer_furl is not None:
+            args.append('--introducer')
+            args.append(introducer_furl)
+
         if not storage:
             args.append('--no-storage')
         args.append(node_dir)
@@ -1166,7 +1169,6 @@ def _create_node(reactor, tahoe_venv, request, base_dir, introducer_furl, flog_g
     }
     process = yield run_tahoe_service(reactor, request, action_fields, magic_text, tahoe_venv, node_dir)
     returnValue(process)
-
 
 
 class UnwantedFileException(Exception):
