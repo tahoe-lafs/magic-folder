@@ -506,10 +506,11 @@ def status(options):
                     file=out,
                 )
             print("  uploads: {}".format(len(folder["uploads"])), file=out)
-            for relpath, u in folder["uploads"].items():
-                queue = humanize.naturaldelta(now - u["queued-at"])
-                start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
-                print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
+            if len(folder["uploads"]) < 20:
+                for relpath, u in folder["uploads"].items():
+                    queue = humanize.naturaldelta(now - u["queued-at"])
+                    start = " (started {} ago)".format(humanize.naturaldelta(now - u["started-at"])) if "started-at" in u else ""
+                    print("    {}: queued {} ago{}".format(relpath, queue, start), file=out)
 
             if folder["errors"]:
                 print("Errors:", file=out)
@@ -800,6 +801,86 @@ def leave(options):
         raise SystemExit(1)
 
 
+
+
+class ResolveOptions(usage.Options):
+    description = "Resolve a conflict"
+    optFlags = [
+        ("mine", None, "Resolve the conflict by keeping only my version"),
+        ("theirs", None, "Resolve the conflict by keeping the other user's version"),
+    ]
+    optParameters = [
+        ("use", "u", None, "Name of the partipant whose changes we should keep (for multiparty conflicts)", str),
+    ]
+
+    # argument; the file we're resolving the conflict on
+    _filepath = None
+
+    def parseArgs(self, fname=None):
+        if fname is None:
+            raise usage.UsageError(
+                "Must specify a single argument: the conflicted file"
+            )
+        self._filepath = FilePath(fname)
+        if not self._filepath.exists():
+            raise ValueError("{} doesn't exist".format(fname))
+
+    def postOptions(self):
+        super(ResolveOptions, self).postOptions()
+        if self["mine"] is None and self["theirs"] is None and self["use"] is None:
+            raise usage.UsageError(
+                "Must specify --mine, --theirs or --use"
+            )
+        if self["mine"] and self["use"]:
+            raise usage.UsageError(
+                "Cannot specify --use and --mine at the same time"
+            )
+        if self["theirs"] and self["use"]:
+            raise usage.UsageError(
+                "Cannot specify --use and --theirs at the same time"
+            )
+
+
+@inline_callbacks
+def resolve(options):
+    client = options.parent.client
+    cfg = options.parent.config
+
+    # figure out the folder name and relpath from the filename we have
+    for foldername in cfg.list_magic_folders():
+        mf = cfg.get_magic_folder(foldername)
+        try:
+            relpath = options._filepath.segmentsFrom(mf.magic_path)
+        except ValueError:
+            relpath = None
+        if relpath:
+            break
+    if not relpath:
+        raise usage.UsageError(
+            "{}: not inside any magic-folder".format(options._filepath.path)
+        )
+
+    take = None
+    if options["mine"]:
+        take = "mine"
+    elif options["theirs"]:
+        take = "theirs"
+    if take is None and options["use"] is None:
+        raise usage.UsageError("Must specify one of --theirs, --mine or --use")
+
+    try:
+        x = yield client.resolve_conflict(
+            foldername,
+            "/".join(relpath),
+            take,
+            options["use"],
+        )
+        print(x)
+    except MagicFolderApiError as e:
+        print("Error: {}".format(e.reason), file=options.stderr)
+        raise SystemExit(1)
+
+
 class RunOptions(usage.Options):
     optParameters = [
     ]
@@ -997,6 +1078,7 @@ class MagicFolderCommand(BaseOptions):
         ["list", None, ListOptions, "List Magic Folders configured in this client."],
         ["run", None, RunOptions, "Run the Magic Folders daemon process."],
         ["status", None, StatusOptions, "Show the current status of a folder."],
+        ["resolve", None, ResolveOptions, "Choose how to resolve a conflict."],
     ]
     optFlags = [
         ["debug", "d", "Print full stack-traces"],
@@ -1054,6 +1136,7 @@ subDispatch = {
     "leave": leave,
     "list": list_,
     "status": status,
+    "resolve": resolve,
     "run": run,
 }
 

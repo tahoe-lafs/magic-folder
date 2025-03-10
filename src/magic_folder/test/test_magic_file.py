@@ -29,6 +29,7 @@ from nacl.signing import (
 
 from ..config import (
     create_testing_configuration,
+    Conflict,
 )
 from ..testing.web import (
     create_tahoe_treq_client,
@@ -61,6 +62,7 @@ from ..util.file import (
 from ..magic_file import (
     maybe_update_personal_dmd_to_local,
     MagicFileFactory,
+    ResolutionError,
 )
 from ..magic_folder import (
     MagicFolder,
@@ -234,7 +236,7 @@ class RemoteUpdateTests(AsyncTestCase):
         )
 
         tahoe_client = object()
-        uploader = InMemoryUploaderService(["a-file-name", "a-file-name"])
+        self.uploader = InMemoryUploaderService(["a-file-name", "a-file-name"])
         status_service = EventsWebSocketStatusService(self.reactor, self._global_config)
         folder_status = FolderStatus("folder-name", status_service)
         self.stash_path = FilePath(self.mktemp())
@@ -250,7 +252,7 @@ class RemoteUpdateTests(AsyncTestCase):
             ),
             folder_status,
         )
-        filesystem = InMemoryMagicFolderFilesystem()
+        self.filesystem = InMemoryMagicFolderFilesystem()
 
         self.tahoe_client = create_tahoe_treq_client()
         self.remote_cache = RemoteSnapshotCacheService.from_config(self.config, self.tahoe_client)
@@ -260,10 +262,10 @@ class RemoteUpdateTests(AsyncTestCase):
             tahoe_client,
             folder_status,
             self.local_snapshot_service,
-            uploader,
+            self.uploader,
             self.participants.writer,
             self.remote_cache,
-            filesystem,
+            self.filesystem,
         )
         self.magic_folder = MagicFolder(
             client=tahoe_client,
@@ -274,7 +276,7 @@ class RemoteUpdateTests(AsyncTestCase):
             folder_status=folder_status,
             remote_snapshot_cache=self.remote_cache,
             downloader=MultiService(),
-            uploader=uploader,
+            uploader=self.uploader,
             participants=self.participants,
             scanner_service=Service(),
             clock=self.reactor,
@@ -314,7 +316,7 @@ class RemoteUpdateTests(AsyncTestCase):
         cap0 = random_immutable(directory=True)
         remote0 = RemoteSnapshot(
             relpath=relpath,
-            author=self.author,
+            author=create_author("someone", VerifyKey(b"\xff" * 32)),
             metadata={"modification_time": 0},
             capability=cap0,
             parents_raw=[],
@@ -324,10 +326,136 @@ class RemoteUpdateTests(AsyncTestCase):
         self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
         abspath = self.config.magic_path.preauthChild(relpath)
         mf = self.magic_file_factory.magic_file_for(abspath)
-        self.participants.add(create_author("beth", VerifyKey(b"\xff" * 32)), random_dircap())
-        self.participants.add(create_author("callum", VerifyKey(b"\xee" * 32)), random_dircap())
-        self.participants.add(create_author("dawn", VerifyKey(b"\xee" * 32)), random_dircap())
+        self.participants.add("beth", random_dircap())
+        self.participants.add("callum", random_dircap())
+        self.participants.add("dawn", random_dircap())
         d0 = mf.found_new_remote(remote0, self.participants.participants[1])
         d1 = mf.found_new_remote(remote0, self.participants.participants[2])
         d2 = mf.found_new_remote(remote0, self.participants.participants[3])
         yield DeferredList([d0, d1, d2])
+
+    @inlineCallbacks
+    def test_not_conflicted(self):
+        """
+        """
+        relpath = "not-conflict"
+        abspath = self.config.magic_path.preauthChild(relpath)
+        mf = self.magic_file_factory.magic_file_for(abspath)
+        with self.assertRaises(ResolutionError):
+            yield mf.resolve_conflict("foo")
+
+    @inlineCallbacks
+    def test_remote_conflict(self):
+        """
+        We have a conflict
+        """
+        relpath = "dual-conflict"
+        cap0 = random_immutable(directory=True)
+        cap1 = random_immutable(directory=True)
+        remote0 = RemoteSnapshot(
+            relpath=relpath,
+            author=create_author("someone", VerifyKey(b"\xff" * 32)),
+            metadata={"modification_time": 0},
+            capability=cap0,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        remote1 = RemoteSnapshot(
+            relpath=relpath,
+            author=create_author("someone_else", VerifyKey(b"\xff" * 32)),
+            metadata={"modification_time": 0},
+            capability=cap1,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
+        self.remote_cache._cached_snapshots[cap1.danger_real_capability_string()] = remote1
+
+        abspath = self.config.magic_path.preauthChild(relpath)
+        mf = self.magic_file_factory.magic_file_for(abspath)
+        self.participants.add("beth", random_dircap())
+        d0 = mf.found_new_remote(remote0, self.participants.participants[0])
+        d1 = mf.found_new_remote(remote1, self.participants.participants[1])
+        yield DeferredList([d0, d1])
+
+        self.assertEquals(
+            self.config.list_conflicts_for("dual-conflict"),
+            [Conflict(snapshot_cap=cap1, participant_name="beth")]
+        )
+
+        self.uploader._uploads = ["dual-conflict"]
+        snap = yield mf.resolve_conflict(Conflict(snapshot_cap=cap1, participant_name="beth"))
+        print("XXX", snap)
+
+    @inlineCallbacks
+    def test_remote_conflict_resolution(self):
+        """
+        an incoming update is actually a resolution to an existing conflict
+        """
+        relpath = "fire"
+        with self.magic_path.child(relpath).open("wb") as f:
+            f.write(b"testdata")
+
+        from magic_folder.util.file import get_pathinfo
+        cap0 = random_immutable(directory=True)
+        cap1 = random_immutable(directory=True)
+        cap2 = random_immutable(directory=True)
+        remote0 = RemoteSnapshot(
+            relpath=relpath,
+            author=create_author("me", VerifyKey(b"\xff" * 32)),
+            metadata={"modification_time": 0},
+            capability=cap0,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        remote1 = RemoteSnapshot(
+            relpath=relpath,
+            author=create_author("zara", VerifyKey(b"\xff" * 32)),
+            metadata={"modification_time": 0},
+            capability=cap1,
+            parents_raw=[],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        remote2 = RemoteSnapshot(
+            relpath=relpath,
+            author=create_author("yidris", VerifyKey(b"\xff" * 32)),
+            metadata={"modification_time": 0},
+            capability=cap2,
+            parents_raw=[remote0.capability.danger_real_capability_string(), remote1.capability.danger_real_capability_string()],
+            content_cap=random_immutable(),
+            metadata_cap=random_immutable(),
+        )
+        assert cap0 == remote0.capability
+        assert cap1 == remote1.capability
+        assert cap2 == remote2.capability
+        self.remote_cache._cached_snapshots[cap0.danger_real_capability_string()] = remote0
+        self.remote_cache._cached_snapshots[cap1.danger_real_capability_string()] = remote1
+        self.remote_cache._cached_snapshots[cap2.danger_real_capability_string()] = remote2
+
+        self.participants.add("zara", random_dircap())
+        self.participants.add("yidris", random_dircap())
+
+        self.config.store_currentsnapshot_state(relpath, get_pathinfo(self.magic_path.child(relpath)).state)
+        self.config.store_uploaded_snapshot(relpath, remote0, 0.0)
+        self.filesystem._conflicted_paths.add(relpath)
+        self.config.add_conflict(remote1, self.participants.participants[1])
+
+        abspath = self.config.magic_path.preauthChild(relpath)
+        mf = self.magic_file_factory.magic_file_for(abspath)
+
+        self.assertEquals(
+            self.config.list_conflicts_for(relpath),
+            [Conflict(snapshot_cap=cap1, participant_name="zara")]
+        )
+
+        # resolve the conflict via a remote
+        yield mf.found_new_remote(remote2, self.participants.participants[2])
+
+        self.assertEquals(
+            self.config.list_conflicts_for(relpath),
+            []
+        )

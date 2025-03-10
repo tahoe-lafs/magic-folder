@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from io import StringIO
+from functools import partial
 
 from twisted.python import usage
 from twisted.python.usage import (
@@ -155,6 +156,7 @@ def _run_cli(command, argv, global_config=None, http_client=None):
         result,
     ))
 
+
 def cli(argv, global_config=None, http_client=None):
     """
     Perform an in-process equivalent to the given magic-folder command.
@@ -176,7 +178,8 @@ def cli(argv, global_config=None, http_client=None):
     command = Command(MagicFolderCommand, run_magic_folder_options)
     return _run_cli(command, argv, global_config, http_client)
 
-def api_cli(argv, global_config=None, http_client=None):
+
+def api_cli(reactor, argv, global_config=None, http_client=None):
     """
     Perform an in-process equivalent to the given magic-folder-api command.
 
@@ -194,5 +197,5 @@ def api_cli(argv, global_config=None, http_client=None):
     :return Deferred[ProcessOutcome]: The side-effects and result of the
         process.
     """
-    command = Command(MagicFolderApiCommand, run_magic_folder_api_options)
+    command = Command(MagicFolderApiCommand, partial(run_magic_folder_api_options, reactor))
     return _run_cli(command, argv, global_config, http_client)

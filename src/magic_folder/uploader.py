@@ -32,6 +32,9 @@ from .util.eliotutil import (
     ABSPATH,
     log_call_deferred,
 )
+from .magic_file import (
+    conflict_marker_filename,
+)
 from .snapshot import (
     LocalAuthor,
     LocalSnapshot,
@@ -131,6 +134,28 @@ class LocalSnapshotCreator(object):
 
         # when we handle conflicts we will have to handle multiple
         # parents here (or, somewhere)
+
+        # XXX if this file is currently conflicted, then:
+        # - check if the conflict-markers exist or not
+        #   - if they exist: error
+        #   - if they're missing: conflict is resolved -- so multiple parents! (all the conflicts we know about)
+        conflicts = self._db.list_conflicts_for(relpath)
+        if conflicts:
+            # XXX check for conflict marker files (or not)!
+            existing = 0
+            for con in conflicts:
+                fn = conflict_marker_filename(relpath, con.participant_name)
+                if self._magic_dir.preauthChild(fn).exists():
+                    existing += 1
+            if existing:
+                raise RuntimeError("Tried to upload a file but we're conflicted")
+            else:
+                # we are marked as a conflict, but all our
+                # conflict-markers are gone -- so the user has
+                # resolved the conflict
+                for con in conflicts:
+                    raw_remote.append(con.snapshot_cap.danger_real_capability_string())
+                self._db.resolve_conflict(relpath)
 
         action = SNAPSHOT_CREATOR_PROCESS_ITEM(relpath=relpath)
         with action:

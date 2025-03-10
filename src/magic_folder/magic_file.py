@@ -73,7 +73,7 @@ class MagicFileFactory(object):
     _config = attr.ib()  # MagicFolderConfig
     _tahoe_client = attr.ib()
     _folder_status = attr.ib()
-    _local_snapshot_service = attr.ib()
+    _local_snapshot_service = attr.ib()  # LocalSnapshotService but circular import
     _uploader = attr.ib()
     _write_participant = attr.ib()
     _remote_cache = attr.ib()
@@ -84,6 +84,13 @@ class MagicFileFactory(object):
     _download_parallel = attr.ib(default=attr.Factory(lambda: DeferredSemaphore(5)))
     _delays = attr.ib(default=attr.Factory(list))
     _logger = attr.ib(default=None)  # mainly for tests
+
+    def relpath_to_path(self, relpath):
+        """
+        :returns: an absolute FilePath for the given relpath relative to
+        this folder's base.
+        """
+        return self._config.magic_path.preauthChild(relpath)
 
     def magic_file_for(self, path):
         """
@@ -160,6 +167,19 @@ class MagicFileFactory(object):
             for mf in self._magic_files.values()
         ]
         return DeferredList(idles)
+
+
+class ResolutionError(Exception):
+    """
+    Any error related to the resolution of a conflict.
+    """
+
+
+def conflict_marker_filename(relpath, participant_name):
+    """
+    Convert a relpath to a conflict-marker for the given participant
+    """
+    return "{}.conflict-{}".format(relpath, participant_name)
 
 
 @attr.s
@@ -258,6 +278,45 @@ class MagicFile(object):
         d.addCallback(is_empty)
         return d
 
+    def resolve_conflict(self, resolution):
+        """
+        This file is in conflict and we specify a resolution.
+        """
+
+        # new thinking:
+
+        # we do everything via "uploader" anyway -- so i guess what we
+        # want to do is to modify the filesystem to "match" the
+        # resolution specified, and the tell the uploader to
+        # upload. (that is, "the filesytem IS one API" so we have to
+        # handle the case when the human modifies the FS to resolve
+        # the conflict anyway -- so now it's this case too)
+
+        conflicts = self._factory._config.list_conflicts_for(self._relpath)
+        if resolution is None:
+            keep_path = self._relpath
+            rejected = [
+                conflict_marker_filename(self._relpath, con.participant_name)
+                for con in conflicts
+            ]
+        else:
+            if resolution not in conflicts:
+                raise ResolutionError(
+                    "Resolution not found as existing conflict"
+                )
+            keep_path = conflict_marker_filename(self._relpath, resolution.participant_name)
+            rejected = [
+                conflict_marker_filename(self._relpath, con.participant_name)
+                for con in conflicts
+                if con != resolution
+            ]
+        self._factory._magic_fs.mark_not_conflicted(self._relpath, keep_path, rejected)
+        # NOTE: the database NEEDS to retain the conflict markers --
+        # when the uploader gets around to doing its thing, _it_ will
+        # remove the conflicts from the config once it creates a
+        # correct LocalSnapshot
+        return self._conflict_resolution()
+
     def found_new_remote(self, remote_snapshot, participant):
         """
         A RemoteSnapshot that doesn't match our existing database entry
@@ -265,8 +324,25 @@ class MagicFile(object):
         resulting in conflicts).
 
         :param RemoteSnapshot remote_snapshot: the newly-discovered remote
+
+        :param IParticipant participant: the participant we found this snapshot via
         """
-        self._remote_update(remote_snapshot, participant)
+        # if we're already conflicted, this will indeed not "match our
+        # existing database entry" (as per the docstring) -- but it
+        # may still be an "already known" update because we've already
+        # seen it and marked it as a conflict
+        found = False
+        for conflict in self._factory._config.list_conflicts_for(self._relpath):
+            if remote_snapshot.capability == conflict.snapshot_cap:
+                found = True
+
+        # note that we'll emit this signal even when we're already
+        # conflicted, but detect a new conflict (in which case we
+        # produce a new conflict-marker or update existing)
+
+        if not found:
+            print("found new remote", remote_snapshot)
+            self._remote_update(remote_snapshot, participant)
         return self.when_idle()
 
     def local_snapshot_exists(self, local_snapshot):
@@ -466,7 +542,7 @@ class MagicFile(object):
         """
 
     @_machine.input()
-    def _conflict_resolution(self, snapshot):
+    def _conflict_resolution(self):
         """
         A conflicted file has been resolved
         """
@@ -493,6 +569,12 @@ class MagicFile(object):
     def _cancel(self, snapshot):
         """
         We have been cancelled
+        """
+
+    @_machine.input()
+    def _resolved_remotely(self):
+        """
+        A remote update successfully resolved a conflict
         """
 
     @_machine.output()
@@ -597,6 +679,22 @@ class MagicFile(object):
             if current_pathstate != local_pathinfo.state:
                 self._call_later(self._download_mismatch, snapshot, staged_path, participant)
                 return
+
+        # this incoming snapshot might be the resolution to a remote
+        # conflict; if so we can remove the appropriate conflict
+        # entries and markers...
+        if len(snapshot.parents_raw) > 1:
+            rs = self._factory._config.get_remotesnapshot(self._relpath)
+            # XXX don't we have to do an ancestor check, basically?
+            # like "are we in ANY of the ancestors of this remote?"
+            if rs.danger_real_capability_string() in snapshot.parents_raw:
+                conflicts = self._factory._config.list_conflicts_for(self._relpath)
+                rejected = [
+                    conflict_marker_filename(self._relpath, conflict.participant_name)
+                    for conflict in conflicts
+                ]
+                self._factory._magic_fs.mark_not_conflicted(self._relpath, self._relpath, rejected)
+                self._factory._config.resolve_conflict(self._relpath)
 
         self._call_later(self._download_matches, snapshot, staged_path, local_pathinfo.state, participant)
 
@@ -857,12 +955,9 @@ class MagicFile(object):
         """
         Mark a conflict for this remote snapshot
         """
-        conflict_path = "{}.conflict-{}".format(
-            self._relpath,
-            participant.name,
-        )
+        conflict_path = conflict_marker_filename(self._relpath, participant.name)
         self._factory._magic_fs.mark_conflict(self._relpath, conflict_path, staged_path)
-        self._factory._config.add_conflict(snapshot)
+        self._factory._config.add_conflict(snapshot, participant)
 
     @_machine.output()
     def _update_personal_dmd_upload(self, snapshot):
@@ -1286,15 +1381,28 @@ class MagicFile(object):
 
     _conflicted.upon(
         _conflict_resolution,
-        enter=_uploading,
-        outputs=[_begin_upload],
+        enter=_creating_snapshot,
+        outputs=[_working, _status_upload_queued, _create_local_snapshot],
         collector=_last_one,
     )
     _conflicted.upon(
         _remote_update,
-        enter=_conflicted,
-        outputs=[],  # probably want to .. do something? remember it?
+        enter=_downloading,
+        outputs=[_working, _status_download_queued, _begin_download]
     )
+    # XXX this is trix-y .. the user could be changing the local
+    # contents because they'll ultimately be doing a "resolve" (with
+    # those contents) __OR__ they could be naively simply editing the
+    # file more.
+    #
+    # ...so I think we _do_ want to queue a local-update: an incoming
+    # resolution may happen, and if we have no local change: great,
+    # apply it. But if we _do_ have a local change, we'd want to
+    # .. conflict again?
+    #
+    # need integration test here: have conflict; A changes local file
+    # (but does not "resolve"); B uploads resolution; A shouldn't lose
+    # user data (i.e. delete local-only changes with the resolution)
     _conflicted.upon(
         _local_update,
         enter=_conflicted,

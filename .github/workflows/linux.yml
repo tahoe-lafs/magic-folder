@@ -89,12 +89,11 @@ jobs:
         name: unit-test-${{ matrix.os.runs-on }}-${{ matrix.python-version }}
         path: "eliot*"
 
-    - name: Upload coverage report
-      uses: codecov/codecov-action@v2
+    - name: Coveralls
+      uses: coverallsapp/github-action@v2
       with:
-        token: "322d708d-8283-4827-b605-ccf02bfecf70"
-        file: "./coverage.xml"
-
+        parallel: true
+        flag-name: "unit"
 
 
   integration-tests:
@@ -161,8 +160,9 @@ jobs:
         name: integration-${{ matrix.os.runs-on }}-${{ matrix.python-version }}-tahoe-${{ matrix.tahoe-version }}
         path: "eliot*"
 
-    - uses: codecov/codecov-action@v2
+    - name: Coveralls
+      uses: coverallsapp/github-action@v2
       with:
-        token: "322d708d-8283-4827-b605-ccf02bfecf70"
-        file: "./coverage.xml"
-        flags: "integration"
+        parallel: true
+        flag-name: "integration"
+        parallel-finished: true

@@ -49,6 +49,17 @@ A mechanism to add deprecation of APIs will be added in a future release.
  - **Version 1 (``/v1``)**: initial version of the API (not yet considered 100% stable).
 
 
+Error Handling
+~~~~~~~~~~~~~~
+
+Various sorts of errors may occur while using the API.
+
+Most input-validation errors (e.g. nonsensical argument, missing arugments, parsing errors, etc) will be answered with a "400 Bad Request".
+Sometimes, 500-level errors may occur if something actually "internally bad" has happened.
+A "502 Bad Gateway" will result from incorrect interactions with Magic Wormhole servers.
+A "409 Conflict" results when a conflict-resolution attempt fails.
+
+
 .. _`daemon configuration`: :ref:`config`
 
 ``GET /v1/magic-folder``
@@ -261,6 +272,22 @@ Returns a ``dict`` of all conflicts in the given magic-folder.
 Each item in the ``dict`` maps a relpath to a list of author-names.
 The author-names correspond to the device that conflicts with this file.
 There will also be a file named like ``<relpath>.conflict-<author-name>`` in the magic-folder whose contents match those of the conflicting remote file.
+
+.. _api_resolve_conflict:
+
+POST ``/v1/magic-folder/<folder-name>/resolve-conflict``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ask for a particular resolution to a conflicted file.
+The body is a JSON object containing the keys:
+
+* ``relpath``: the file name inside the folder
+* ``take``: ``"mine"`` or ``"theirs"`` indicating whose version to take
+* ``use``:  a Participant name indicating whose version to take
+
+Note that you can use only one of ``take`` or ``use``, and that ``take="theirs"`` only works when there is exactly one other conflict.
+
+Returns a ``dict`` mapping ``relpath`` to a list of all Participant names that conflicted before the resolution.
 
 
 GET ``/v1/magic-folder/<folder-name>/scan-local``
